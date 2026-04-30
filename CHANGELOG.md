@@ -5291,3 +5291,36 @@ and this project adheres to [Semantic Versioning](https://sumver.org/spec/v2.0.0
 - 50 sessions discovered
 - 340 catalog entries, 311 recently updated
 - Dashboard: 86/86 pages built, 0 errors
+
+## [1.0.0-alpha.43] - 2026-04-30
+
+### Added
+- `borg status` shows real data: 14,708 memories, 50 sessions, 8 providers (was all zeros)
+- `borg cloud` command — 4 cloud providers (Jules/Codex/Devin/Copilot), sessions, stats, loops
+- `borg billing` command — status, quotas, fallback chain, depleted models
+- `borg context` command — harvest, stats, list, prompt, clear
+- `borg knowledge` command — search, stats, resources
+- `borg swarm` command — start, missions, debate, consensus, capabilities, risk
+- `borg inventory` command — full system inventory from Go sidecar (51 tools, 49 harnesses)
+- `borg tools harnesses` — 15 detected CLI harnesses (Aider, Claude Code, Codex, etc.)
+- `borg tools info <name>` — shows real server details from tRPC
+- `borg doctor` — 9 diagnostic checks (server, Go, providers, Node, pnpm, config, etc.)
+- `agent spawn/stop/status/chat` wired to Go sidecar squad API
+- `memory stats/search/list` wired to Go sidecar (14,708 entries visible)
+- `session export/import` round-trip verified via Go sidecar
+- `session broadcast` queries Go sidecar for active sessions
+- `borg top` shows memory stats line
+- `borg info` shows memory, cloud, sessions, harnesses
+- `mcp add/remove/install` tRPC body format fixed
+- End-to-end workflow test (10/10 steps)
+- 24 top-level commands, 62/62 tests
+
+### Verified
+- 40/40 CLI tests pass
+- 12/12 smoke tests pass
+- 10/10 workflow tests pass
+- 9/9 doctor checks pass
+- 135 MCP servers, 1302 tools, 340 catalog entries
+- 14,708 memories (14,686 long-term, 22 working)
+- 50 sessions (47 Claude Code, 3 Aider)
+- 15 harnesses, 8 providers, 630+ models
