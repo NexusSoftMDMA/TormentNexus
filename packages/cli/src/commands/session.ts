@@ -17,7 +17,7 @@ export function registerSessionCommand(program: Command): void {
 		.command("session")
 		.alias("sess")
 		.description(
-			"Sessions — manage development sessions (local, cloud, import/export)",
+			"Sessions - manage development sessions (local, cloud, import/export)",
 		);
 
 	session
@@ -56,6 +56,17 @@ export function registerSessionCommand(program: Command): void {
 			const chalk = (await import("chalk")).default;
 
 			if (sessions.length === 0) {
+				// Fallback: query Go sidecar for discovered sessions
+				try {
+					const goRes = await fetch('http://127.0.0.1:4300/api/sessions', { signal: AbortSignal.timeout(5000) });
+					if (goRes.ok) {
+						const goJson = await goRes.json();
+						sessions = goJson?.data ?? [];
+					}
+				} catch {}
+			}
+
+			if (sessions.length === 0) {
 				console.log(chalk.bold.cyan("\n  Development Sessions\n"));
 				console.log(
 					chalk.dim(
@@ -67,19 +78,24 @@ export function registerSessionCommand(program: Command): void {
 
 			const Table = (await import("cli-table3")).default;
 			const table = new Table({
-				head: ["ID", "Status", "Model", "Last Activity"],
+				head: ["ID", "Type", "Status", "Source"],
 				style: { head: ["cyan"] },
 			});
 			for (const s of sessions) {
 				const status =
 					s.status === "active"
 						? chalk.green("● Active")
+						: s.status === "discovered"
+						? chalk.cyan("◆ Discovered")
+						: s.status === "paused"
+						? chalk.yellow("◐ Paused")
 						: chalk.dim("○ Stopped");
+				const source = (s.sourcePath ?? s.workingDirectory ?? "-").substring(0, 40);
 				table.push([
 					s.id ?? s.sessionId,
+					s.cliType ?? s.harness ?? "-",
 					status,
-					s.model ?? "—",
-					s.lastActivity ?? s.updatedAt ?? "—",
+					source,
 				]);
 			}
 			console.log(
@@ -150,7 +166,7 @@ Examples:
 			console.log(chalk.dim(`    Harness:  ${opts.harness}`));
 			console.log(chalk.dim(`    Model:    ${opts.model || "auto"}`));
 			console.log(chalk.dim(`    Restart:  ${opts.autoRestart ? "enabled" : "disabled"}`));
-			console.log(chalk.yellow(`    ⚠ Session supervisor not initialized — use borg start (without --no-mcp)`));
+			console.log(chalk.yellow(`    ⚠ Session supervisor not initialized - use borg start (without --no-mcp)`));
 		});
 
 	session
