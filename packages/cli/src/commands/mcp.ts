@@ -591,7 +591,7 @@ Examples:
     .option('--merge', 'Merge with existing config instead of replacing')
     .action(async (file, opts) => {
       const chalk = (await import('chalk')).default;
-      const { readFileSync, existsSync } = await import('fs');
+      const { readFileSync, existsSync, writeFileSync } = await import('fs');
       const { resolve } = await import('path');
 
       const filePath = resolve(process.cwd(), file);
@@ -622,9 +622,51 @@ Examples:
               } }),
               signal: AbortSignal.timeout(3000),
             });
-            if (res.ok) imported_count++; else failed++;
+            if (res.ok) { imported_count++; }
+            else { failed++; }
           } catch { failed++; }
         }
+
+        // Fallback: write directly to mcp.jsonc if tRPC failed
+        if (imported_count === 0 && failed > 0) {
+          console.log(chalk.yellow('  tRPC unavailable, writing directly to mcp.jsonc...'));
+          try {
+            const mcpPath = resolve(process.cwd(), 'mcp.jsonc');
+            if (existsSync(mcpPath)) {
+              // Parse JSONC (strip comments carefully)
+              let mcpContent = readFileSync(mcpPath, 'utf8');
+              // Strip single-line comments (not inside strings)
+              mcpContent = mcpContent.replace(/("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*')|[\/\/].*$/gm, '$1');
+              mcpContent = mcpContent.replace(/("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*')|[\/][*][\s\S]*?[*][\/]/g, '$1');
+              // Strip trailing commas before } or ]
+              mcpContent = mcpContent.replace(/,\s*([}\]])/g, '$1');
+              const mcpConfig = JSON.parse(mcpContent);
+              const mcpServers = mcpConfig.mcpServers ?? {};
+              let added = 0;
+              for (const server of serverList) {
+                if (server.config?.command || server.command) {
+                  mcpServers[server.name] = {
+                    command: server.config?.command ?? server.command ?? 'npx',
+                    args: server.config?.args ?? server.args ?? [],
+                  };
+                  if (server.config?.env) mcpServers[server.name].env = server.config.env;
+                  else if (server.env) mcpServers[server.name].env = server.env;
+                  added++;
+                }
+              }
+              mcpConfig.mcpServers = mcpServers;
+              writeFileSync(mcpPath, JSON.stringify(mcpConfig, null, 2));
+              console.log(chalk.green(`  ✓ Wrote ${added} servers to mcp.jsonc`));
+              imported_count = added;
+              failed = 0;
+            } else {
+              console.log(chalk.yellow('  ⚠ mcp.jsonc not found in cwd'));
+            }
+          } catch (e: any) {
+            console.log(chalk.red(`  ✗ mcp.jsonc fallback failed: ${e.message}`));
+          }
+        }
+
         console.log(chalk.green(`  ✓ Imported ${imported_count} servers from ${file}`));
         if (failed > 0) console.log(chalk.yellow(`  ⚠ ${failed} servers failed to import`));
       } catch (e: any) {
