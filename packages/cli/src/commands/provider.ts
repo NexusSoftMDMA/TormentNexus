@@ -176,9 +176,29 @@ OAuth-capable subscription services:
     .command('remove <name>')
     .description('Remove a configured provider')
     .option('-f, --force', 'Skip confirmation')
-    .action(async (name) => {
+    .action(async (name, opts) => {
       const chalk = (await import('chalk')).default;
-      console.log(chalk.green(`  ✓ Provider '${name}' removed`));
+      const { readFileSync, writeFileSync } = await import('fs');
+      const { resolve, dirname } = await import('path');
+      const { homedir } = await import('os');
+
+      const configDir = process.env.BORG_CONFIG_DIR || resolve(homedir(), '.borg');
+      const configPath = resolve(configDir, 'config.jsonc');
+
+      let config: Record<string, any> = {};
+      try {
+        const raw = readFileSync(configPath, 'utf8');
+        config = JSON.parse(raw.replace(/\/\/.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, ''));
+      } catch {}
+
+      if (config.providers?.[name]) {
+        delete config.providers[name];
+        writeFileSync(configPath, JSON.stringify(config, null, 2) + '\n');
+        console.log(chalk.green(`  ✓ Provider '${name}' removed from config`));
+      } else {
+        console.log(chalk.yellow(`  Provider '${name}' not found in config`));
+        console.log(chalk.dim(`    It may be detected from environment variables only`));
+      }
     });
 
   provider
