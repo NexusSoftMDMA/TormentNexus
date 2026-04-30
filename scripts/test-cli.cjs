@@ -80,6 +80,11 @@ function test(name, cmd, expectFn, timeout = 10000) {
   test('swarm missions', 'swarm missions', o => o.includes('Swarm') || o.includes('mission'));
   test('swarm risk', 'swarm risk', o => o.includes('Risk') || o.includes('N/A'));
   test('swarm capabilities', 'swarm capabilities', o => o.includes('Swarm') || o.includes('capabilities'));
+  test('metrics system', 'metrics system', o => o.includes('System') || o.includes('CPU') || o.includes('cores'));
+  test('metrics providers', 'metrics providers', o => o.includes('Provider') || o.includes('Google'));
+  test('metrics stats', 'metrics stats', o => o.includes('Metrics') || o.includes('events'));
+  test('skills list', 'skills list', o => o.includes('Skills') || o.includes('skills'));
+  test('upgrade check', 'upgrade --check', o => o.includes('Upgrade') || o.includes('version'), 20000);
 
   console.log(`\n  ${passed} passed, ${failed} failed\n`);
   process.exit(failed > 0 ? 1 : 0);
