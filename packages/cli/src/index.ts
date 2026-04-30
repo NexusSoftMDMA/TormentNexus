@@ -41,6 +41,7 @@ import { registerSkillsCommand } from './commands/skills.js';
 import { registerUpgradeCommand } from './commands/upgrade.js';
 import { registerPlanCommand } from './commands/plan.js';
 import { registerBrowserCommand } from './commands/browser.js';
+import { registerGitCommand } from './commands/git.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -95,6 +96,7 @@ registerSkillsCommand(program);
 registerUpgradeCommand(program);
 registerPlanCommand(program);
 registerBrowserCommand(program);
+registerGitCommand(program);
 
 // Default action: show help if no command given
 program.action(() => {
