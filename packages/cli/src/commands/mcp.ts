@@ -40,8 +40,25 @@ export function registerMcpCommand(program: Command): void {
         }
       } catch {}
 
+      // Load fleet PIDs for status enrichment and filtering
+      const fleetAlive = new Map<string, number>();
+      try {
+        const fs = await import('fs');
+        const path = await import('path');
+        const pidDir = path.join(process.env.HOME ?? '', '.borg', 'mcp-pids');
+        const pidFiles = fs.readdirSync(pidDir).filter(f => f.endsWith('.pid'));
+        for (const pf of pidFiles) {
+          try {
+            const name = pf.replace('.pid', '');
+            const pid = parseInt(fs.readFileSync(path.join(pidDir, pf), 'utf8').trim());
+            process.kill(pid, 0);
+            fleetAlive.set(name, pid);
+          } catch {}
+        }
+      } catch {}
+
       // Filter
-      if (opts.running) servers = servers.filter((s: any) => s.runtimeConnected);
+      if (opts.running) servers = servers.filter((s: any) => s.runtimeConnected || fleetAlive.has(s.name));
       if (opts.namespace) servers = servers.filter((s: any) => (s.tags ?? []).includes(opts.namespace));
 
       if (isJson) {
@@ -58,22 +75,33 @@ export function registerMcpCommand(program: Command): void {
         return;
       }
 
+      // Fleet PIDs already loaded above
+
       const table = new Table({
-        head: ['Name', 'Status', 'Tools', 'Connected', 'Tags'],
+        head: ['Name', 'Status', 'Tools', 'PID', 'Tags'],
         style: { head: ['cyan'] },
       });
 
       for (const s of servers) {
-        const status = s.runtimeConnected ? chalk.green('● Running') : s.status === 'cached' ? chalk.yellow('◐ Cached') : chalk.dim('○ Stopped');
+        let status: string;
+        if (s.runtimeConnected) {
+          status = chalk.green('● Connected');
+        } else if (fleetAlive.has(s.name)) {
+          status = chalk.green('● Spawned');
+        } else if (s.status === 'cached') {
+          status = chalk.yellow('◐ Cached');
+        } else {
+          status = chalk.dim('○ Stopped');
+        }
         const tools = String(s.toolCount ?? s.advertisedToolCount ?? 0);
-        const connected = s.runtimeConnected ? '✓' : '—';
+        const pid = fleetAlive.has(s.name) ? String(fleetAlive.get(s.name)) : '—';
         const tags = (s.tags ?? []).slice(0, 3).join(', ');
-        table.push([s.displayName ?? s.name, status, tools, connected, tags]);
+        table.push([s.displayName ?? s.name, status, tools, pid, tags]);
       }
 
       console.log(chalk.bold.cyan(`\n  MCP Servers (${servers.length})\n`));
       console.log(table.toString());
-      console.log(chalk.dim(`\n  ${servers.filter((s: any) => s.runtimeConnected).length} connected · ${servers.reduce((a: number, s: any) => a + (s.toolCount ?? 0), 0)} tools\n`));
+      console.log(chalk.dim(`\n  ${servers.filter((s: any) => s.runtimeConnected).length} connected · ${fleetAlive.size} spawned · ${servers.reduce((a: number, s: any) => a + (s.toolCount ?? 0), 0)} tools\n`));
     });
 
   mcp
