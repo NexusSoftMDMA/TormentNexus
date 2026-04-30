@@ -86,6 +86,13 @@ export function registerTopCommand(program: Command): void {
           console.log(chalk.bold('  Go:     ') + chalk.dim('○ Stopped'));
         }
 
+        // Memory
+        const memStats = await fetchJSON('http://127.0.0.1:4300/api/agent-memory/stats');
+        if (memStats?.data) {
+          const m = memStats.data;
+          console.log(chalk.bold('  Memory: ') + `${m.total ?? 0} entries (${m.longTerm ?? 0} long-term, ${m.working ?? 0} working)`);
+        }
+
         console.log('');
         iteration++;
         if (iteration < maxIterations) {
