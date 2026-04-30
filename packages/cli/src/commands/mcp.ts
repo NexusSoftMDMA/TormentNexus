@@ -120,7 +120,14 @@ export function registerMcpCommand(program: Command): void {
               });
               proc.unref();
 
-              // Give it a moment to start
+              // Write PID file for fleet tracking
+              try {
+                const fs = await import('fs');
+                const path = await import('path');
+                const pidDir = path.join(process.env.HOME ?? '', '.borg', 'mcp-pids');
+                fs.mkdirSync(pidDir, { recursive: true });
+                fs.writeFileSync(path.join(pidDir, `${name}.pid`), String(proc.pid));
+              } catch {}
               await new Promise(r => setTimeout(r, 1000));
               try { process.kill(proc.pid!, 0); started = true; } catch { started = false; }
 
@@ -891,7 +898,15 @@ Supported clients:
                 shell: true,
               });
               proc.unref();
-              spawned++;
+
+              // Write PID file
+              try {
+                const fs = await import('fs');
+                const path = await import('path');
+                const pidDir = path.join(process.env.HOME ?? '', '.borg', 'mcp-pids');
+                fs.mkdirSync(pidDir, { recursive: true });
+                fs.writeFileSync(path.join(pidDir, `${name}.pid`), String(proc.pid));
+              } catch {}
               console.log(chalk.green(`  ✓ ${name}`) + chalk.dim(` (spawned PID ${proc.pid})`));
             } catch (e: any) {
               failed++;
@@ -909,5 +924,43 @@ Supported clients:
       } catch (e: any) {
         console.log(chalk.red(`  ✗ Error: ${e.message}`));
       }
+    });
+
+  mcp
+    .command('fleet')
+    .description('Show spawned MCP server fleet status')
+    .action(async () => {
+      const chalk = (await import('chalk')).default;
+      console.log(chalk.bold.cyan('\n  MCP Fleet — Spawned Servers\n'));
+
+      // Get servers with commands from tRPC
+      let servers: any[] = [];
+      try {
+        const res = await fetch('http://127.0.0.1:4000/trpc/mcp.listServers', { signal: AbortSignal.timeout(5000) });
+        if (res.ok) servers = (await res.json())?.result?.data ?? [];
+      } catch {}
+
+      const startable = servers.filter((s: any) => s.config?.command);
+      const noCommand = servers.length - startable.length;
+
+      let running = 0, stopped = 0;
+      for (const s of startable) {
+        const pidFile = `${process.env.HOME}/.borg/mcp-pids/${s.name}.pid`;
+        let alive = false;
+        try {
+          const fs = await import('fs');
+          const pid = parseInt(fs.readFileSync(pidFile, 'utf8').trim());
+          process.kill(pid, 0);
+          alive = true;
+          running++;
+        } catch {}
+
+        const icon = alive ? chalk.green('●') : chalk.dim('○');
+        const cmd = (s.config.command + ' ' + (s.config.args ?? []).join(' ')).substring(0, 60);
+        console.log(`  ${icon} ${s.name} ${chalk.dim(cmd)}`);
+      }
+
+      console.log(chalk.dim(`\n  ${running} running, ${startable.length - running} stopped, ${noCommand} no-command, ${servers.length} total`));
+      console.log(chalk.dim('  Use borg mcp connect-all to spawn servers\n'));
     });
 }
