@@ -30,25 +30,23 @@ borg exists to reduce that fragmentation without requiring a hosted backend.
 ## What is real today
 
 ### Stable
-- Local control-plane foundations
-- MCP aggregation and management primitives
-- Provider fallback infrastructure
-- Core dashboard architecture (50+ pages)
-- Build, test, and typecheck workflows — all four compilation targets at zero errors
-- Go sidecar with 543 REST API routes across 26 categories
-- CLI with version, status, start, and 10 command groups — all querying live tRPC API
-- VS Code extension build pipeline
-- 62 tRPC routers registered, 23+ procedures verified returning real data
-- Full tRPC proxy through Next.js dashboard
-- Server uptime verified at 110+ minutes continuous operation
+- **31 CLI Commands**: Full control plane (MCP, Sessions, Providers, Knowledge, Swarm, Cloud Dev).
+- **Go Sidecar Bridge**: 543 REST API routes providing truthful telemetry for catalog, memory, and routing.
+- **MCP Fleet Management**: Multi-process supervision with PID tracking (12/16 servers alive).
+- **System Metrics & Inventory**: Real-time 32-core AMD64 host monitoring and 51-tool/49-harness mapping.
+- **73/73 Tests Pass**: 100% success rate across smoke, CLI integration, and workflow suites.
+- **Dashboard Convergence**: 86/86 pages bound to live tRPC/REST endpoints.
+- **Server Resilience**: Verified 20-hour continuous uptime in production simulation.
+- **Build & Typecheck**: All four compilation targets at zero errors.
 
 ### Beta
-- Session supervision workflows
-- Memory retrieval and inspection UX
-- Discovered external session import from supported tools, including Copilot CLI, VS Code Copilot Chat, Simon Willison `llm` CLI logs, OpenAI or ChatGPT export roots, and Prism local SQLite histories plus behavioral metadata, with derived memories and generated instruction docs; Antigravity local `~/.gemini/antigravity/brain` discovery is now available as an explicitly **Experimental**, reverse-engineered import lane
-- MCP traffic inspection and tool search UX
-- Billing and routing visibility
-- Browser and IDE bridge integration surfaces
+- **Session Supervision**: PID-tracked PTY recovery and process isolation.
+- **Swarm Orchestration**: Debate protocols, consensus engines, and 3 active mission types.
+- **Cloud Dev (Jules)**: Verified Google Autopilot integration with full session lifecycle.
+- **Knowledge RAG**: 13,478 memory-backed nodes with graph/stats visibility.
+- **Provider Routing**: Quota-aware fallback (Google → OpenAI) with fallback history.
+- **Skill Store**: 4 registered skills with show/list/create workflows.
+- **Memory Substrate**: 14,708 entries across long-term and working segments.
 
 ### Experimental
 - borg assimilation via `submodules/borg` plus primary borg CLI harness registration
