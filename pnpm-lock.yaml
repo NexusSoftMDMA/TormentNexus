@@ -685,6 +685,9 @@ importers:
       gray-matter:
         specifier: ^4.0.3
         version: 4.0.3
+      hono:
+        specifier: ^4.11.3
+        version: 4.11.3
       hyperswarm:
         specifier: ^4.16.0
         version: 4.16.0(bare-url@2.3.2)
@@ -3754,6 +3757,9 @@ packages:
 
   '@types/webextension-polyfill@0.8.3':
     resolution: {integrity: sha512-GN+Hjzy9mXjWoXKmaicTegv3FJ0WFZ3aYz77Wk8TMp1IY3vEzvzj1vnsa0ggV7vMI1i+PUxe4qqnIJKCzf9aTg==}
+
+  '@types/vscode@1.115.0':
+    resolution: {integrity: sha512-/M8cdznOlqtMqduHKKlIF00v4eum4ZWKgn8YoPRKcN6PDdvoWeeqDaQSnw63ipDbq1Uzz78Wndk/d0uSPwORfA==}
 
   '@types/ws@8.18.1':
     resolution: {integrity: sha512-ThVF6DCVhA8kUGy+aazFQ4kXQ7E1Ty7A3ypFOe0IcJV8O/M511G99AW24irKrW56Wt44yG9+ij8FaqoBGkuBXg==}
@@ -11210,13 +11216,10 @@ snapshots:
   '@prisma/client@5.22.0(prisma@5.22.0)':
     optionalDependencies:
       prisma: 5.22.0
-    optional: true
 
-  '@prisma/debug@5.22.0':
-    optional: true
+  '@prisma/debug@5.22.0': {}
 
-  '@prisma/engines-version@5.22.0-44.605197351a3c8bdd595af2d2a9bc3025bca48ea2':
-    optional: true
+  '@prisma/engines-version@5.22.0-44.605197351a3c8bdd595af2d2a9bc3025bca48ea2': {}
 
   '@prisma/engines@5.22.0':
     dependencies:
@@ -11224,19 +11227,16 @@ snapshots:
       '@prisma/engines-version': 5.22.0-44.605197351a3c8bdd595af2d2a9bc3025bca48ea2
       '@prisma/fetch-engine': 5.22.0
       '@prisma/get-platform': 5.22.0
-    optional: true
 
   '@prisma/fetch-engine@5.22.0':
     dependencies:
       '@prisma/debug': 5.22.0
       '@prisma/engines-version': 5.22.0-44.605197351a3c8bdd595af2d2a9bc3025bca48ea2
       '@prisma/get-platform': 5.22.0
-    optional: true
 
   '@prisma/get-platform@5.22.0':
     dependencies:
       '@prisma/debug': 5.22.0
-    optional: true
 
   '@protobufjs/aspromise@1.1.2': {}
 
@@ -13643,6 +13643,8 @@ snapshots:
   '@types/vscode@1.115.0': {}
 
   '@types/webextension-polyfill@0.8.3': {}
+
+  '@types/vscode@1.115.0': {}
 
   '@types/ws@8.18.1':
     dependencies:
@@ -19125,7 +19127,6 @@ snapshots:
       '@prisma/engines': 5.22.0
     optionalDependencies:
       fsevents: 2.3.3
-    optional: true
 
   process-nextick-args@2.0.1: {}
 
