@@ -53,7 +53,7 @@ export function registerConfigCommand(program: Command): void {
 			// Try to get config from running server
 			let serverConfig: any = null;
 			try {
-				const res = await fetch("http://127.0.0.1:4000/trpc/settings.get", {
+				const res = await fetch("http://127.0.0.1:4100/trpc/settings.get", {
 					signal: AbortSignal.timeout(3000),
 				});
 				if (res.ok) {
@@ -64,7 +64,7 @@ export function registerConfigCommand(program: Command): void {
 
 			const defaultConfig = {
 				version,
-				server: { host: "0.0.0.0", port: 4000, cors: true },
+				server: { host: "0.0.0.0", port: 4100, cors: true },
 				mcp: {
 					enabled: true,
 					progressiveDisclosure: true,
@@ -312,7 +312,7 @@ Examples:
 			const configPath = resolve(baseDir, "config.jsonc");
 			if (!existsSync(configPath)) {
 				const defaultConfig = {
-					server: { port: 4000, host: "0.0.0.0", logLevel: "info" },
+					server: { port: 4100, host: "0.0.0.0", logLevel: "info" },
 					mcp: { progressiveDisclosure: true, semanticSearch: true, codeMode: false },
 					providers: {},
 					fallback: { chain: [], strategy: "quota-aware" },

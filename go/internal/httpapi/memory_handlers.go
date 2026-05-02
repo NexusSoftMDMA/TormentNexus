@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 )
 
@@ -21,4 +22,21 @@ func (s *Server) handleMemoryAdd(w http.ResponseWriter, r *http.Request) {
 	}
 	s.memoryManager.AddMemory(req.Content)
 	w.WriteHeader(http.StatusCreated)
+}
+
+func (s *Server) handleMemoryAddHistory(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		History []map[string]any `json:"history"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	for _, item := range req.History {
+		content := fmt.Sprintf("Visited: %v (%v)", item["title"], item["url"])
+		s.memoryManager.AddMemory(content)
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{"success": true, "count": len(req.History)})
 }

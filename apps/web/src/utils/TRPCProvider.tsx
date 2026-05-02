@@ -1,7 +1,6 @@
-
 "use client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { httpBatchLink } from "@trpc/client";
+import { httpBatchLink, splitLink, unstable_httpSubscriptionLink } from "@trpc/client";
 import { resolveTrpcHttpUrl } from "@borg/ui";
 import React, { useState } from "react";
 import { trpc } from "./trpc";
@@ -11,8 +10,17 @@ export function TRPCProvider({ children }: { children: React.ReactNode }) {
     const [trpcClient] = useState(() =>
         trpc.createClient({
             links: [
-                httpBatchLink({
-                    url: resolveTrpcHttpUrl(process.env.NEXT_PUBLIC_TRPC_URL),
+                splitLink({
+                    condition: (op) => 
+                        op.type === 'subscription' || 
+                        op.path.toLowerCase().includes('subscribe') ||
+                        op.path.startsWith('healer.'),
+                    true: unstable_httpSubscriptionLink({
+                        url: resolveTrpcHttpUrl(process.env.NEXT_PUBLIC_TRPC_URL),
+                    }),
+                    false: httpBatchLink({
+                        url: resolveTrpcHttpUrl(process.env.NEXT_PUBLIC_TRPC_URL),
+                    }),
                 }),
             ],
         })

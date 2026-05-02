@@ -19,7 +19,7 @@ func TestSubmoduleUpdateAllFallsBackToNativeGitReport(t *testing.T) {
 		t.Skip("git not available")
 	}
 	// Skip if a real TS server is running — the fallback won't trigger
-	if conn, err := net.DialTimeout("tcp", "127.0.0.1:4000", 100*time.Millisecond); err == nil {
+	if conn, err := net.DialTimeout("tcp", "127.0.0.1:4100", 100*time.Millisecond); err == nil {
 		conn.Close()
 		t.Skip("TS server running on port 4000 — fallback test requires offline upstream")
 	}

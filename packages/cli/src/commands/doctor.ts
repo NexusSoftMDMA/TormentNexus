@@ -22,7 +22,7 @@ export function registerDoctorCommand(program: Command): void {
       // Check 1: Server running
       checks++;
       try {
-        const res = await fetch('http://127.0.0.1:4000/health', { signal: AbortSignal.timeout(2000) });
+        const res = await fetch('http://127.0.0.1:4100/health', { signal: AbortSignal.timeout(2000) });
         if (res.ok) {
           console.log(chalk.green('  ✓') + ' Server is running');
         } else {

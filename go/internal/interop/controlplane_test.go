@@ -15,7 +15,7 @@ func TestDiscoverControlPlanes(t *testing.T) {
 
 	if err := lockfile.Write(mainLockPath, lockfile.Record{
 		Host:      "127.0.0.1",
-		Port:      4000,
+		Port:      4100,
 		Version:   "0.99.1",
 		StartedAt: "2026-03-28T00:00:00Z",
 	}); err != nil {
@@ -27,7 +27,7 @@ func TestDiscoverControlPlanes(t *testing.T) {
 		t.Fatalf("expected 2 statuses, got %d", len(statuses))
 	}
 
-	if !statuses[0].Running || statuses[0].Port != 4000 {
+	if !statuses[0].Running || statuses[0].Port != 4100 {
 		t.Fatalf("expected running node control plane, got %+v", statuses[0])
 	}
 

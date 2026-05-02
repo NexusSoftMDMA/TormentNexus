@@ -3,7 +3,7 @@
  */
 import type { Command } from 'commander';
 
-const TS_URL = 'http://127.0.0.1:4000/trpc';
+const TS_URL = 'http://127.0.0.1:4100/trpc';
 
 export function registerBillingCommand(program: Command): void {
   const billing = program

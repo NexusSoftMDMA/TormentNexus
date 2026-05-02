@@ -33,7 +33,7 @@ export async function startOrchestrator(options: StartOrchestratorOptions = {}) 
     console.log(`[Core] Initializing ${name}...`);
 
     const host = options.host ?? '0.0.0.0';
-    const trpcPort = options.trpcPort ?? 4000;
+    const trpcPort = options.trpcPort ?? 4100;
     const startSupervisor = options.startSupervisor ?? false;
     const startMcp = options.startMcp ?? true;
     const autoDrive = options.autoDrive ?? false;

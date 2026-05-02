@@ -1,6 +1,6 @@
 {
     "name": "@borg/memory",
-    "version": "1.0.0-alpha.46",
+    "version": "1.0.0-alpha.47",
     "private": true,
     "main": "dist/index.js",
     "types": "src/index.ts",

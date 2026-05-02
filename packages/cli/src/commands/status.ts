@@ -7,7 +7,7 @@
 
 import type { Command } from 'commander';
 
-const DEFAULT_PORT = 4000;
+const DEFAULT_PORT = 4100;
 
 interface StatusData {
   version: string;

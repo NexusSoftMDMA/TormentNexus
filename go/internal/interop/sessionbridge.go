@@ -15,7 +15,7 @@ import (
 )
 
 var defaultTRPCBases = []string{
-	"http://127.0.0.1:4000/trpc",
+	"http://127.0.0.1:4100/trpc",
 	"http://127.0.0.1:4001/trpc",
 	"http://127.0.0.1:3001/trpc",
 }

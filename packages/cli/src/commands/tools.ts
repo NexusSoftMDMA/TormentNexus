@@ -31,7 +31,7 @@ export function registerToolsCommand(program: Command): void {
 
       let servers: any[] = [];
       try {
-        const res = await fetch('http://127.0.0.1:4000/trpc/mcp.listServers', { signal: AbortSignal.timeout(5000) });
+        const res = await fetch('http://127.0.0.1:4100/trpc/mcp.listServers', { signal: AbortSignal.timeout(5000) });
         if (res.ok) {
           const json = await res.json();
           servers = json?.result?.data ?? [];
@@ -95,7 +95,7 @@ Examples:
       let results: any[] = [];
       try {
         const input = encodeURIComponent(JSON.stringify({ query, limit: parseInt(opts.topK) || 10 }));
-        const res = await fetch(`http://127.0.0.1:4000/trpc/mcp.searchTools?input=${input}`, { signal: AbortSignal.timeout(5000) });
+        const res = await fetch(`http://127.0.0.1:4100/trpc/mcp.searchTools?input=${input}`, { signal: AbortSignal.timeout(5000) });
         if (res.ok) {
           const json = await res.json();
           results = json?.result?.data?.tools ?? json?.result?.data ?? [];
@@ -169,7 +169,7 @@ Examples:
 
       let harnesses: any[] = [];
       try {
-        const res = await fetch('http://127.0.0.1:4000/trpc/tools.detectCliHarnesses', { signal: AbortSignal.timeout(5000) });
+        const res = await fetch('http://127.0.0.1:4100/trpc/tools.detectCliHarnesses', { signal: AbortSignal.timeout(5000) });
         if (res.ok) {
           const json = await res.json();
           harnesses = json?.result?.data ?? [];
@@ -214,7 +214,7 @@ Examples:
 
       try {
         // Search across all servers for this tool
-        const res = await fetch(`http://127.0.0.1:4000/trpc/mcp.listServers`, { signal: AbortSignal.timeout(5000) });
+        const res = await fetch(`http://127.0.0.1:4100/trpc/mcp.listServers`, { signal: AbortSignal.timeout(5000) });
         if (res.ok) {
           const json = await res.json();
           const servers = json?.result?.data ?? [];

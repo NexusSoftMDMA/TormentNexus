@@ -1339,8 +1339,11 @@ export function DashboardHomeView({
                                 <div className="rounded-2xl border border-dashed border-slate-700 bg-slate-950/50 p-4 text-sm text-slate-400">
                                     No MCP servers registered yet.
                                 </div>
-                            ) : servers.map((server) => (
-                                <div key={server.name} className="rounded-2xl border border-slate-800 bg-slate-950/70 p-4">
+                            ) : servers.map((server, index) => (
+                                <div
+                                    key={`${server.name}-${server.config.command}-${server.config.args.join(' ')}-${index}`}
+                                    className="rounded-2xl border border-slate-800 bg-slate-950/70 p-4"
+                                >
                                     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                                         <div>
                                             <div className="flex items-center gap-3">

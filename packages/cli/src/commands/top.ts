@@ -42,9 +42,9 @@ export function registerTopCommand(program: Command): void {
 
         // Fetch all data in parallel
         const [health, mcpStatus, mcpServers, goHealth] = await Promise.all([
-          fetchJSON('http://127.0.0.1:4000/health'),
-          fetchTRPC('http://127.0.0.1:4000/trpc/mcp.getStatus'),
-          fetchTRPC('http://127.0.0.1:4000/trpc/mcp.listServers'),
+          fetchJSON('http://127.0.0.1:4100/health'),
+          fetchTRPC('http://127.0.0.1:4100/trpc/mcp.getStatus'),
+          fetchTRPC('http://127.0.0.1:4100/trpc/mcp.listServers'),
           fetchJSON('http://127.0.0.1:4300/health'),
         ]);
 

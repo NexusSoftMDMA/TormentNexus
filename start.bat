@@ -82,7 +82,7 @@ if exist bin\borg.exe (
 
 REM Start TypeScript control plane
 set BORG_PORT=%BORG_PORT%
-if "%BORG_PORT%"=="" set BORG_PORT=4000
+if "%BORG_PORT%"=="" set BORG_PORT=4100
 
 echo       Starting TS control plane on port %BORG_PORT%...
 echo.

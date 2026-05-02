@@ -321,3 +321,51 @@ func (s *Server) handleAgentSwarmTranscript(w http.ResponseWriter, r *http.Reque
 		},
 	})
 }
+
+func (s *Server) handleAgentSupervisorEvaluate(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeJSON(w, http.StatusMethodNotAllowed, map[string]any{"success": false, "error": "method not allowed"})
+		return
+	}
+
+	var payload struct {
+		Goal       string   `json:"goal"`
+		Transcript []string `json:"transcript"`
+		ModelID    string   `json:"modelId"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"success": false, "error": "invalid JSON body"})
+		return
+	}
+
+	// Try upstream first
+	var result any
+	upstreamBase, err := s.callUpstreamJSON(r.Context(), "agent.supervisorEvaluate", payload, &result)
+	if err == nil {
+		writeJSON(w, http.StatusOK, map[string]any{
+			"success": true,
+			"data":    result,
+			"bridge": map[string]any{
+				"upstreamBase": upstreamBase,
+				"procedure":    "agent.supervisorEvaluate",
+			},
+		})
+		return
+	}
+
+	// Fallback: local expert supervisor
+	supervisor := orchestration.NewExpertSupervisor(payload.ModelID)
+	check, err := supervisor.EvaluateProgress(r.Context(), payload.Goal, payload.Transcript)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"success": false, "error": err.Error()})
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"success": true,
+		"data":    check,
+		"bridge": map[string]any{
+			"fallback": "go-local-expert-supervisor",
+		},
+	})
+}

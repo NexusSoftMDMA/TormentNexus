@@ -61,7 +61,7 @@ Deliverables officially achieved and stabilized in the `1.0.0-alpha.45` mileston
 
 - **Borg Doctor**: 10 automated diagnostic checks verifying environment, configuration, and connectivity.
 
-- **Unified Health Snapshot**: `borg info` and `borg status` aggregate telemetry from TS (port 4000) and Go (port 4300).
+- **Unified Health Snapshot**: `borg info` and `borg status` aggregate telemetry from TS (port 4100) and Go (port 4300).
 
 - **Go Sidecar Parity**: 543 Go routes active, providing catalog, memory, and routing data to the TS control plane.
 
@@ -1117,7 +1117,7 @@ node scripts/build_startup.mjs --profile=go-primary
 
 |---|---|---|
 
-| tRPC/REST API | 4000 | `http://0.0.0.0:4000/trpc` |
+| tRPC/REST API | 4000 | `http://0.0.0.0:4100/trpc` |
 
 | MCP WebSocket | 3001 | `ws://localhost:3001` |
 
@@ -1497,7 +1497,7 @@ and this project adheres to [Semantic Versioning](https://sumver.org/spec/v2.0.0
 
 - TypeScript compilation: 0 errors across core, cli, web, go vet.
 
-- Server starts and serves tRPC at `http://0.0.0.0:4000/trpc`.
+- Server starts and serves tRPC at `http://0.0.0.0:4100/trpc`.
 
 - Dashboard builds all 86 pages successfully and dev server runs at `http://localhost:3000`.
 
@@ -8797,25 +8797,25 @@ and this project adheres to [Semantic Versioning](https://sumver.org/spec/v2.0.0
 
 - Fixed `borg start`/root `pnpm run dev` startup wiring so the CLI now launches Borg's real Core orchestrator and tRPC control plane instead of only instantiating `MCPServer` without starting the HTTP API, which restores `startupStatus`, `memory.getAgentStats`, and `browser.status` readiness probes during dev boot.
 
-- Fixed the web tRPC upstream preference order to probe the CLI dev control-plane port (`3100`) before the legacy `4000` path, so Windows dev environments where Docker/WSL already owns `4000` still route dashboard startup, memory, and browser queries into Borg Core.
+- Fixed the web tRPC upstream preference order to probe the CLI dev control-plane port (`4100`) before the legacy `4000` path, so Windows dev environments where Docker/WSL already owns `4000` still route dashboard startup, memory, and browser queries into Borg Core.
 
 - Excluded the legacy nested `apps/borg-extension` monorepo from the root `pnpm-workspace.yaml`, so root `pnpm run dev` no longer parses that package's incompatible standalone `turbo.json` while bringing up Borg's main core/web/extension stack.
 
 - Fixed `packages/core/src/mcp/MCPAggregator.ts` so ordinary downstream tool-call failures no longer mark an otherwise healthy MCP server as fully errored; the router now preserves connected status while still recording the failure in server state and traffic history.
 
-- Fixed the dashboard tRPC proxy in `apps/web` so it now probes Borg Core's actual default tRPC endpoint on `http://127.0.0.1:4000/trpc` before legacy MCP bridge fallbacks, which restores mutations like `mcpServers.bulkImport` instead of surfacing a proxy-generated 502.
+- Fixed the dashboard tRPC proxy in `apps/web` so it now probes Borg Core's actual default tRPC endpoint on `http://127.0.0.1:4100/trpc` before legacy MCP bridge fallbacks, which restores mutations like `mcpServers.bulkImport` instead of surfacing a proxy-generated 502.
 
 - Fixed the excluded `apps/borg-extension` build path enough for root aggregation by adding the missing `eciesjs` dependency in `packages/env`, correcting Rollup plugin typings in `packages/hmr`, and tightening stale session supervisor runtime contracts in `packages/core/src/lib/trpc-core.ts` plus `packages/core/src/routers/sessionRouter.ts` so the dashboard session pages and root build compile cleanly again.
 
 - Fixed `borg start`/root `pnpm run dev` startup wiring so the CLI now launches borg's real Core orchestrator and tRPC control plane instead of only instantiating `MCPServer` without starting the HTTP API, which restores `startupStatus`, `memory.getAgentStats`, and `browser.status` readiness probes during dev boot.
 
-- Fixed the web tRPC upstream preference order to probe the CLI dev control-plane port (`3100`) before the legacy `4000` path, so Windows dev environments where Docker/WSL already owns `4000` still route dashboard startup, memory, and browser queries into borg Core.
+- Fixed the web tRPC upstream preference order to probe the CLI dev control-plane port (`4100`) before the legacy `4000` path, so Windows dev environments where Docker/WSL already owns `4000` still route dashboard startup, memory, and browser queries into borg Core.
 
 - Excluded the legacy nested `apps/borg-extension` monorepo from the root `pnpm-workspace.yaml`, so root `pnpm run dev` no longer parses that package's incompatible standalone `turbo.json` while bringing up borg's main core/web/extension stack.
 
 - Fixed `packages/core/src/mcp/MCPAggregator.ts` so ordinary downstream tool-call failures no longer mark an otherwise healthy MCP server as fully errored; the router now preserves connected status while still recording the failure in server state and traffic history.
 
-- Fixed the dashboard tRPC proxy in `apps/web` so it now probes borg Core's actual default tRPC endpoint on `http://127.0.0.1:4000/trpc` before legacy MCP bridge fallbacks, which restores mutations like `mcpServers.bulkImport` instead of surfacing a proxy-generated 502.
+- Fixed the dashboard tRPC proxy in `apps/web` so it now probes borg Core's actual default tRPC endpoint on `http://127.0.0.1:4100/trpc` before legacy MCP bridge fallbacks, which restores mutations like `mcpServers.bulkImport` instead of surfacing a proxy-generated 502.
 
 - Fixed the dashboard MCP query bridge in `apps/web/src/app/api/trpc/[trpc]/route.ts` so modern procedure batches (`mcp.listServers`, `mcp.listTools`, `mcp.getStatus`) now fall back through the compatibility bridge instead of incorrectly returning `502 Bad Gateway` when the upstream is unavailable.
 
@@ -11325,7 +11325,7 @@ and this project adheres to [Semantic Versioning](https://sumver.org/spec/v2.0.0
 
   - Removed Chronicle render loop (`Maximum update depth`) by switching merged timeline derivation to memoized computation.
 
-  - Added same-origin Next.js tRPC route (`/api/trpc`) and updated `TRPCProvider` fallback resolution to avoid default cross-origin `:4000` failures.
+  - Added same-origin Next.js tRPC route (`/api/trpc`) and updated `TRPCProvider` fallback resolution to avoid default cross-origin `:4100` failures.
 
   - Hardened websocket-heavy dashboard widgets (`TrafficInspector`, `MirrorView`, `ResearchPanel`, `CouncilDebateWidget`) with configurable URLs and bounded reconnect behavior.
 
@@ -11825,7 +11825,7 @@ and this project adheres to [Semantic Versioning](https://sumver.org/spec/v2.0.0
 
 - Go sidecar detects **24 installed CLI tools** across 22 harnesses.
 
-- Full stack end-to-end: TS server (port 4000) + Go sidecar (port 4300) + Next.js dashboard (port 3000).
+- Full stack end-to-end: TS server (port 4100) + Go sidecar (port 4300) + Next.js dashboard (port 3000).
 
 
 
@@ -13207,7 +13207,7 @@ However, looking at `TODO.md` and `ROADMAP.md` along with user instructions, the
 
 ### 17. Server Startup Takes ~45 Seconds (Discovered 2026-04-29)
 
-**Observation**: `borg start --no-mcp` takes ~45 seconds to fully bind port 4000. The MCPServer imports 53+ phases before Express starts listening.
+**Observation**: `borg start --no-mcp` takes ~45 seconds to fully bind port 4100. The MCPServer imports 53+ phases before Express starts listening.
 
 **Implication**: CLI health checks and tests must wait at least 50 seconds before testing endpoints. The `borg status` command uses `AbortSignal.timeout(3000)` which may not be enough during startup.
 
@@ -13233,7 +13233,7 @@ However, looking at `TODO.md` and `ROADMAP.md` along with user instructions, the
 
 ### 20. Dashboard tRPC Proxy Port Mismatch (Discovered 2026-04-30)
 
-**Observation**: The Next.js dashboard's tRPC API route (`apps/web/src/app/api/trpc/[trpc]/route.ts`) defaulted to `http://127.0.0.1:3001/trpc` (MCP WebSocket port) instead of `http://127.0.0.1:4000/trpc` (tRPC server). All dashboard data queries returned 502 errors.
+**Observation**: The Next.js dashboard's tRPC API route (`apps/web/src/app/api/trpc/[trpc]/route.ts`) defaulted to `http://127.0.0.1:3001/trpc` (MCP WebSocket port) instead of `http://127.0.0.1:4100/trpc` (tRPC server). All dashboard data queries returned 502 errors.
 
 **Resolution**: Changed `DEFAULT_UPSTREAM_TRPC_URL` from port 3001 to 4000. Can also be overridden via `BORG_TRPC_UPSTREAM` env var.
 

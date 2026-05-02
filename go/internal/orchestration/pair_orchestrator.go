@@ -4,17 +4,18 @@ package orchestration
  * @file pair_orchestrator.go
  * @module go/internal/orchestration
  *
- * WHAT: Multi-model pair programming and rotation system.
- * Coordinates multiple frontier models (Claude, GPT, Gemini) in a shared context.
+ * WHAT: Multi-model pair programming state machine.
+ * Strictly enforces the Planner -> Implementer -> Tester -> Critic turn cycle.
  *
- * WHY: Cross-model consensus and rotating roles (Planner/Implementer/Tester) 
- * significantly reduce hallucinations and improve code quality.
+ * WHY: Structured state transitions ensure that plans are vetted, implementations
+ * are verified, and the final result is audited by a non-participant (Critic).
  */
 
 import (
 	"context"
 	"fmt"
 	"strings"
+	"sync"
 
 	"github.com/borghq/borg-go/internal/ai"
 )
@@ -28,6 +29,19 @@ const (
 	Critic      PairRole = "critic"
 )
 
+type SessionState string
+
+const (
+	StatePlanning    SessionState = "planning"
+	StateReviewing   SessionState = "reviewing"
+	StateRefining    SessionState = "refining"
+	StateImplementing SessionState = "implementing"
+	StateVerifying   SessionState = "verifying"
+	StateEvaluating   SessionState = "evaluating"
+	StateCompleted   SessionState = "completed"
+	StateFailed      SessionState = "failed"
+)
+
 type SquadMember struct {
 	Name     string   `json:"name"`
 	Role     PairRole `json:"role"`
@@ -39,38 +53,55 @@ type PairSessionResult struct {
 	Success     bool     `json:"success"`
 	History     []string `json:"history"`
 	FinalOutput string   `json:"finalOutput"`
+	State       string   `json:"state"`
 }
 
 type PairOrchestrator struct {
+	mu      sync.RWMutex
 	Squad   []SquadMember
 	History []string
+	State   SessionState
+	Task    string
 }
 
 func NewPairOrchestrator() *PairOrchestrator {
 	return &PairOrchestrator{
 		History: []string{},
+		State:   StatePlanning,
 	}
+}
+
+func (p *PairOrchestrator) SetupSquad(members []SquadMember) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.Squad = members
 }
 
 func (p *PairOrchestrator) SetupFrontierSquad() {
-	p.Squad = []SquadMember{
+	p.SetupSquad([]SquadMember{
 		{Name: "Claude (Architect)", Role: Planner, Provider: "anthropic", ModelID: "claude-3-5-sonnet-20241022"},
 		{Name: "GPT (Engineer)", Role: Implementer, Provider: "openai", ModelID: "gpt-4o"},
 		{Name: "Gemini (Reviewer)", Role: Tester, Provider: "google", ModelID: "gemini-1.5-pro"},
-	}
+		{Name: "Qwen (Auditor)", Role: Critic, Provider: "google", ModelID: "gemini-2.5-flash"},
+	})
 }
 
 func (p *PairOrchestrator) RotateRoles() {
-	if len(p.Squad) < 2 {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	if len(p.Squad) < 3 {
 		return
 	}
 
-	// [R1, R2, R3] -> [R2, R3, R1]
-	firstRole := p.Squad[0].Role
-	for i := 0; i < len(p.Squad)-1; i++ {
-		p.Squad[i].Role = p.Squad[i+1].Role
+	// Rotate main trio, keep Critic stable or rotate separately
+	// For now, rotate Planner/Implementer/Tester
+	trio := p.Squad[:3]
+	firstRole := trio[0].Role
+	for i := 0; i < len(trio)-1; i++ {
+		trio[i].Role = trio[i+1].Role
 	}
-	p.Squad[len(p.Squad)-1].Role = firstRole
+	trio[len(trio)-1].Role = firstRole
 
 	fmt.Println("[PairOrchestrator] 🔄 Roles rotated:")
 	for _, m := range p.Squad {
@@ -79,54 +110,95 @@ func (p *PairOrchestrator) RotateRoles() {
 }
 
 func (p *PairOrchestrator) RunTask(ctx context.Context, task string) (*PairSessionResult, error) {
-	fmt.Printf("[PairOrchestrator] 🚀 Starting Multi-Model Task: \"%s\"\n", task)
+	p.mu.Lock()
+	p.Task = task
 	p.History = []string{"USER: " + task}
+	p.State = StatePlanning
+	p.mu.Unlock()
 
-	// 1. Planning Phase
-	plan, err := p.executeTurn(ctx, Planner, "Create a detailed implementation plan for this task: "+task)
-	if err != nil {
-		return nil, err
+	fmt.Printf("[PairOrchestrator] 🚀 Starting Multi-Model Session: \"%s\"\n", task)
+
+	for {
+		p.mu.RLock()
+		state := p.State
+		p.mu.RUnlock()
+
+		switch state {
+		case StatePlanning:
+			plan, err := p.executeTurn(ctx, Planner, "Create a detailed implementation plan for this task: "+p.Task)
+			if err != nil {
+				return p.failSession(err)
+			}
+			p.addHistory(fmt.Sprintf("PLANNER (%s): %s", p.getMemberName(Planner), plan))
+			p.transition(StateReviewing)
+
+		case StateReviewing:
+			lastEntry := p.getLastHistory()
+			feedback, err := p.executeTurn(ctx, Tester, "Review this plan and identify potential edge cases or bugs: "+lastEntry)
+			if err != nil {
+				return p.failSession(err)
+			}
+			p.addHistory(fmt.Sprintf("TESTER (%s): %s", p.getMemberName(Tester), feedback))
+			p.transition(StateRefining)
+
+		case StateRefining:
+			lastEntry := p.getLastHistory()
+			finalPlan, err := p.executeTurn(ctx, Planner, "Refine the plan based on this feedback: "+lastEntry)
+			if err != nil {
+				return p.failSession(err)
+			}
+			p.addHistory(fmt.Sprintf("PLANNER (%s): %s", p.getMemberName(Planner), finalPlan))
+			p.transition(StateImplementing)
+
+		case StateImplementing:
+			lastEntry := p.getLastHistory()
+			implementation, err := p.executeTurn(ctx, Implementer, "Implement the final plan. Focus on correctness and performance. Plan: "+lastEntry)
+			if err != nil {
+				return p.failSession(err)
+			}
+			p.addHistory(fmt.Sprintf("IMPLEMENTER (%s): %s", p.getMemberName(Implementer), implementation))
+			p.transition(StateVerifying)
+
+		case StateVerifying:
+			lastEntry := p.getLastHistory()
+			verification, err := p.executeTurn(ctx, Tester, "Verify the implementation against the plan and task requirements. Implementation: "+lastEntry)
+			if err != nil {
+				return p.failSession(err)
+			}
+			p.addHistory(fmt.Sprintf("TESTER (%s): %s", p.getMemberName(Tester), verification))
+			p.transition(StateEvaluating)
+
+		case StateEvaluating:
+			// Final audit by the Critic
+			fullHistory := strings.Join(p.History, "\n\n")
+			audit, err := p.executeTurn(ctx, Critic, "Perform a final audit of the conversation and implementation. Does it satisfy the original goal? Respond with 'COMPLETE' if successful, or list remaining issues.")
+			if err != nil {
+				return p.failSession(err)
+			}
+			p.addHistory(fmt.Sprintf("CRITIC (%s): %s", p.getMemberName(Critic), audit))
+
+			if strings.Contains(strings.ToUpper(audit), "COMPLETE") {
+				p.transition(StateCompleted)
+				return p.getResult(true), nil
+			} else {
+				p.transition(StateFailed)
+				return p.getResult(false), nil
+			}
+
+		case StateCompleted:
+			return p.getResult(true), nil
+
+		case StateFailed:
+			return p.getResult(false), nil
+
+		default:
+			return nil, fmt.Errorf("unknown orchestrator state: %s", state)
+		}
 	}
-	p.History = append(p.History, fmt.Sprintf("PLANNER (%s): %s", p.getMemberName(Planner), plan))
-
-	// 2. Review Phase
-	feedback, err := p.executeTurn(ctx, Tester, "Review this plan and identify potential edge cases or bugs: "+plan)
-	if err != nil {
-		return nil, err
-	}
-	p.History = append(p.History, fmt.Sprintf("TESTER (%s): %s", p.getMemberName(Tester), feedback))
-
-	// 3. Refinement
-	finalPlan, err := p.executeTurn(ctx, Planner, "Refine the plan based on this feedback: "+feedback)
-	if err != nil {
-		return nil, err
-	}
-	p.History = append(p.History, fmt.Sprintf("PLANNER (%s): %s", p.getMemberName(Planner), finalPlan))
-
-	// 4. Implementation
-	implementation, err := p.executeTurn(ctx, Implementer, "Implement the final plan. Focus on correctness and performance. Plan: "+finalPlan)
-	if err != nil {
-		return nil, err
-	}
-	p.History = append(p.History, fmt.Sprintf("IMPLEMENTER (%s): %s", p.getMemberName(Implementer), implementation))
-
-	// 5. Verification
-	verification, err := p.executeTurn(ctx, Tester, "Verify the implementation against the plan and task requirements. Implementation: "+implementation)
-	if err != nil {
-		return nil, err
-	}
-	p.History = append(p.History, fmt.Sprintf("TESTER (%s): %s", p.getMemberName(Tester), verification))
-
-	success := !strings.Contains(strings.ToLower(verification), "fail")
-
-	return &PairSessionResult{
-		Success:     success,
-		History:     p.History,
-		FinalOutput: implementation,
-	}, nil
 }
 
 func (p *PairOrchestrator) executeTurn(ctx context.Context, role PairRole, prompt string) (string, error) {
+	p.mu.RLock()
 	var member *SquadMember
 	for i := range p.Squad {
 		if p.Squad[i].Role == role {
@@ -134,6 +206,7 @@ func (p *PairOrchestrator) executeTurn(ctx context.Context, role PairRole, promp
 			break
 		}
 	}
+	p.mu.RUnlock()
 
 	if member == nil {
 		return "", fmt.Errorf("no member assigned to role: %s", role)
@@ -148,9 +221,13 @@ Collaborate with your teammates to solve the task perfectly.
 SQUAD ROLES:
 - PLANNER: Breaks down the task and designs the solution.
 - IMPLEMENTER: Writes the actual code and executes tools.
-- TESTER: Identifies bugs, edge cases, and verifies correctness.`, member.Name, strings.ToUpper(string(member.Role)))
+- TESTER: Identifies bugs, edge cases, and verifies correctness.
+- CRITIC: Audits the final output for absolute perfection.`, member.Name, strings.ToUpper(string(member.Role)))
 
+	p.mu.RLock()
 	fullHistory := strings.Join(p.History, "\n\n")
+	p.mu.RUnlock()
+
 	turnPrompt := fmt.Sprintf("CONVERSATION HISTORY:\n%s\n\nCURRENT TURN (%s): %s", fullHistory, strings.ToUpper(string(member.Role)), prompt)
 
 	resp, err := ai.AutoRouteWithModel(ctx, member.Provider+"/"+member.ModelID, []ai.Message{
@@ -166,11 +243,64 @@ SQUAD ROLES:
 	return resp.Content, nil
 }
 
+func (p *PairOrchestrator) addHistory(entry string) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.History = append(p.History, entry)
+}
+
+func (p *PairOrchestrator) getLastHistory() string {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	if len(p.History) == 0 {
+		return ""
+	}
+	return p.History[len(p.History)-1]
+}
+
+func (p *PairOrchestrator) transition(newState SessionState) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	fmt.Printf("[PairOrchestrator] ⚙️ State transition: %s -> %s\n", p.State, newState)
+	p.State = newState
+}
+
 func (p *PairOrchestrator) getMemberName(role PairRole) string {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
 	for _, m := range p.Squad {
 		if m.Role == role {
 			return m.Name
 		}
 	}
 	return "Unknown"
+}
+
+func (p *PairOrchestrator) failSession(err error) (*PairSessionResult, error) {
+	p.transition(StateFailed)
+	p.addHistory(fmt.Sprintf("SYSTEM ERROR: %v", err))
+	return p.getResult(false), err
+}
+
+func (p *PairOrchestrator) getResult(success bool) *PairSessionResult {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	
+	finalOutput := ""
+	for i := len(p.History) - 1; i >= 0; i-- {
+		if strings.HasPrefix(p.History[i], "IMPLEMENTER") {
+			finalOutput = strings.TrimPrefix(p.History[i], "IMPLEMENTER")
+			if idx := strings.Index(finalOutput, ": "); idx != -1 {
+				finalOutput = finalOutput[idx+2:]
+			}
+			break
+		}
+	}
+
+	return &PairSessionResult{
+		Success:     success,
+		History:     p.History,
+		FinalOutput: finalOutput,
+		State:       string(p.State),
+	}
 }

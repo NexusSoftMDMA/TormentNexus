@@ -26,7 +26,7 @@ export function registerHealthCommand(program: Command): void {
       const chalk = (await import('chalk')).default;
 
       try {
-        const res = await fetch('http://127.0.0.1:4000/trpc/startupStatus', {
+        const res = await fetch('http://127.0.0.1:4100/trpc/startupStatus', {
           signal: AbortSignal.timeout(5000),
         });
 

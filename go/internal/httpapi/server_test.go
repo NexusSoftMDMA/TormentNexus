@@ -43,7 +43,7 @@ func (s stubDetector) DetectAll(context.Context) ([]controlplane.Tool, error) {
 // because fallback tests require the upstream to be offline.
 func skipIfServerRunning(t *testing.T) {
 	t.Helper()
-	if conn, err := net.DialTimeout("tcp", "127.0.0.1:4000", 100*time.Millisecond); err == nil {
+	if conn, err := net.DialTimeout("tcp", "127.0.0.1:4100", 100*time.Millisecond); err == nil {
 		conn.Close()
 		t.Skip("TS server running on port 4000 — fallback test requires offline upstream")
 	}
@@ -12836,7 +12836,7 @@ func TestRuntimeLocksEndpoint(t *testing.T) {
 
 	if err := lockfile.Write(cfg.MainLockPath(), lockfile.Record{
 		Host:      "127.0.0.1",
-		Port:      4000,
+		Port:      4100,
 		Version:   "0.99.1",
 		StartedAt: "2026-03-28T00:00:00Z",
 	}); err != nil {
@@ -12872,7 +12872,7 @@ func TestRuntimeLocksEndpoint(t *testing.T) {
 	if payload.Data[0].LockPath != cfg.MainLockPath() {
 		t.Fatalf("expected main lock path %s, got %s", cfg.MainLockPath(), payload.Data[0].LockPath)
 	}
-	if !payload.Data[0].Running || payload.Data[0].Host != "127.0.0.1" || payload.Data[0].Port != 4000 {
+	if !payload.Data[0].Running || payload.Data[0].Host != "127.0.0.1" || payload.Data[0].Port != 4100 {
 		t.Fatalf("expected seeded main lock details, got %+v", payload.Data[0])
 	}
 	if payload.Data[0].Version != "0.99.1" || payload.Data[0].StartedAt != "2026-03-28T00:00:00Z" {
@@ -13410,7 +13410,7 @@ func demo() {
 
 	if err := lockfile.Write(cfg.MainLockPath(), lockfile.Record{
 		Host:      "127.0.0.1",
-		Port:      4000,
+		Port:      4100,
 		Version:   "0.99.1",
 		StartedAt: "2026-03-28T00:00:00Z",
 	}); err != nil {

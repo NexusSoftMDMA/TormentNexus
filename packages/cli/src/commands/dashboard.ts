@@ -72,7 +72,7 @@ Examples:
           stdio: 'inherit',
           cwd: webDir,
           shell: true,
-          env: { ...process.env, BORG_TRPC_UPSTREAM: `http://127.0.0.1:4000/trpc` },
+          env: { ...process.env, BORG_TRPC_UPSTREAM: `http://127.0.0.1:4100/trpc` },
         });
         child.on('exit', (code) => process.exit(code ?? 0));
         return;

@@ -36,7 +36,7 @@ Examples:
       // Try to persist via API
       let persisted = false;
       try {
-        const res = await fetch('http://127.0.0.1:4000/trpc/memory.saveContext', {
+        const res = await fetch('http://127.0.0.1:4100/trpc/memory.saveContext', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ json: { content, source: opts.source ?? 'borg-cli', url: `memory://${Date.now()}`, type: opts.type, tags: opts.tags } }),
@@ -68,7 +68,7 @@ Examples:
       let results: any[] = [];
       try {
         const input = encodeURIComponent(JSON.stringify({ query, topK: parseInt(opts.topK) || 10 }));
-        const res = await fetch(`http://127.0.0.1:4000/trpc/memory.semanticSearch?input=${input}`, { signal: AbortSignal.timeout(5000) });
+        const res = await fetch(`http://127.0.0.1:4100/trpc/memory.semanticSearch?input=${input}`, { signal: AbortSignal.timeout(5000) });
         if (res.ok) {
           const json = await res.json();
           results = json?.result?.data ?? [];
@@ -117,7 +117,7 @@ Examples:
       let memories: any[] = [];
       try {
         const input = encodeURIComponent(JSON.stringify({ limit: parseInt(opts.limit) || 20 }));
-        const res = await fetch(`http://127.0.0.1:4000/trpc/memory.getRecentObservations?input=${input}`, { signal: AbortSignal.timeout(3000) });
+        const res = await fetch(`http://127.0.0.1:4100/trpc/memory.getRecentObservations?input=${input}`, { signal: AbortSignal.timeout(3000) });
         if (res.ok) {
           const json = await res.json();
           memories = json?.result?.data ?? [];
@@ -217,7 +217,7 @@ Examples:
 
       let stats: any = {};
       try {
-        const res = await fetch('http://127.0.0.1:4000/trpc/memory.getAgentStats', { signal: AbortSignal.timeout(3000) });
+        const res = await fetch('http://127.0.0.1:4100/trpc/memory.getAgentStats', { signal: AbortSignal.timeout(3000) });
         if (res.ok) {
           const json = await res.json();
           stats = json?.result?.data ?? {};

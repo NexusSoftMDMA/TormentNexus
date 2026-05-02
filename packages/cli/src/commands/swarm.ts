@@ -5,7 +5,7 @@
 import type { Command } from 'commander';
 
 const GO_URL = 'http://127.0.0.1:4300';
-const TS_URL = 'http://127.0.0.1:4000/trpc';
+const TS_URL = 'http://127.0.0.1:4100/trpc';
 
 export function registerSwarmCommand(program: Command): void {
   const swarm = program

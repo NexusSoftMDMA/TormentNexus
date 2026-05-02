@@ -32,12 +32,12 @@ export function registerInfoCommand(program: Command): void {
         const info: Record<string, any> = { version, codename: 'AIOS' };
 
         try {
-          const res = await fetch('http://127.0.0.1:4000/health', { signal: AbortSignal.timeout(3000) });
+          const res = await fetch('http://127.0.0.1:4100/health', { signal: AbortSignal.timeout(3000) });
           if (res.ok) info.server = await res.json();
         } catch { info.server = { status: 'stopped' }; }
 
         try {
-          const res = await fetch('http://127.0.0.1:4000/trpc/mcp.getStatus', { signal: AbortSignal.timeout(3000) });
+          const res = await fetch('http://127.0.0.1:4100/trpc/mcp.getStatus', { signal: AbortSignal.timeout(3000) });
           if (res.ok) info.mcp = (await res.json())?.result?.data;
         } catch {}
 
@@ -54,8 +54,8 @@ export function registerInfoCommand(program: Command): void {
 
       // Parallel fetch all data
       const [health, mcpStatus, goHealth, catalogStats] = await Promise.all([
-        fetch('http://127.0.0.1:4000/health', { signal: AbortSignal.timeout(3000) }).then(r => r.ok ? r.json() : null).catch(() => null),
-        fetch('http://127.0.0.1:4000/trpc/mcp.getStatus', { signal: AbortSignal.timeout(3000) }).then(r => r.ok ? r.json() : null).catch(() => null),
+        fetch('http://127.0.0.1:4100/health', { signal: AbortSignal.timeout(3000) }).then(r => r.ok ? r.json() : null).catch(() => null),
+        fetch('http://127.0.0.1:4100/trpc/mcp.getStatus', { signal: AbortSignal.timeout(3000) }).then(r => r.ok ? r.json() : null).catch(() => null),
         fetch('http://127.0.0.1:4300/health', { signal: AbortSignal.timeout(3000) }).then(r => r.ok ? r.json() : null).catch(() => null),
         fetch('http://127.0.0.1:4300/api/catalog/stats', { signal: AbortSignal.timeout(3000) }).then(r => r.ok ? r.json() : null).catch(() => null),
       ]);
@@ -115,7 +115,7 @@ export function registerInfoCommand(program: Command): void {
 
       // Cloud providers
       try {
-        const cloudRes = await fetch('http://127.0.0.1:4000/trpc/cloudDev.listProviders', { signal: AbortSignal.timeout(2000) });
+        const cloudRes = await fetch('http://127.0.0.1:4100/trpc/cloudDev.listProviders', { signal: AbortSignal.timeout(2000) });
         if (cloudRes.ok) {
           const cloudProviders = (await cloudRes.json())?.result?.data ?? [];
           if (cloudProviders.length > 0) {
@@ -127,7 +127,7 @@ export function registerInfoCommand(program: Command): void {
 
       // Harnesses
       try {
-        const hRes = await fetch('http://127.0.0.1:4000/trpc/tools.detectCliHarnesses', { signal: AbortSignal.timeout(2000) });
+        const hRes = await fetch('http://127.0.0.1:4100/trpc/tools.detectCliHarnesses', { signal: AbortSignal.timeout(2000) });
         if (hRes.ok) {
           const harnesses = (await hRes.json())?.result?.data ?? [];
           const installed = harnesses.filter((h: any) => h.installed !== false);

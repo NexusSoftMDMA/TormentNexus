@@ -144,8 +144,21 @@ export const billingRouter = t.router({
     /** Get quota information per provider — limits, remaining, reset dates */
     getProviderQuotas: publicProcedure.query(async () => {
         const llm = getLLMService();
-        const quota = llm.modelSelector.getQuotaService();
-        const selector = llm.modelSelector as typeof llm.modelSelector & BillingSelectorRuntime;
+        const selector = llm.modelSelector as typeof llm.modelSelector & BillingSelectorRuntime & {
+            getQuotaService?: () => {
+                getQuota?: (providerId: string) => {
+                    authTruth?: string;
+                    tier?: string;
+                    limit?: number | null;
+                    used?: number;
+                    remaining?: number | null;
+                    resetDate?: string | null;
+                    rateLimitRpm?: number | null;
+                    quotaConfidence?: string;
+                    quotaRefreshedAt?: string | null;
+                };
+            };
+        };
 
         const normalized = await selector.getProviderSnapshots?.();
         if (normalized && normalized.length > 0) {
@@ -172,24 +185,24 @@ export const billingRouter = t.router({
             }));
         }
 
-        // Build quota info for each configured provider
+        const quota = selector.getQuotaService?.();
         const providers = [
-            { id: 'openai', name: 'OpenAI' },
-            { id: 'anthropic', name: 'Anthropic' },
-            { id: 'gemini', name: 'Google Gemini' },
-            { id: 'deepseek', name: 'DeepSeek' },
-            { id: 'xai', name: 'xAI (Grok)' },
-            { id: 'mistral', name: 'Mistral' },
-            { id: 'openrouter', name: 'OpenRouter' },
-            { id: 'groq', name: 'Groq' },
+            { id: 'openai', name: 'OpenAI', envKeys: ['OPENAI_API_KEY'] },
+            { id: 'anthropic', name: 'Anthropic', envKeys: ['ANTHROPIC_API_KEY'] },
+            { id: 'gemini', name: 'Google Gemini', envKeys: ['GEMINI_API_KEY', 'GOOGLE_API_KEY'] },
+            { id: 'deepseek', name: 'DeepSeek', envKeys: ['DEEPSEEK_API_KEY'] },
+            { id: 'xai', name: 'xAI (Grok)', envKeys: ['XAI_API_KEY'] },
+            { id: 'mistral', name: 'Mistral', envKeys: ['MISTRAL_API_KEY'] },
+            { id: 'openrouter', name: 'OpenRouter', envKeys: ['OPENROUTER_API_KEY'] },
+            { id: 'groq', name: 'Groq', envKeys: ['GROQ_API_KEY'] },
         ];
 
-        return providers.map(p => {
-            const hasKey = !!process.env[`${p.id.toUpperCase()}_API_KEY`];
-            const quotaInfo = quota.getQuota?.(p.id);
+        return providers.map((provider) => {
+            const hasKey = provider.envKeys.some((envKey) => Boolean(process.env[envKey]));
+            const quotaInfo = quota?.getQuota?.(provider.id);
             return {
-                provider: p.id,
-                name: p.name,
+                provider: provider.id,
+                name: provider.name,
                 configured: hasKey,
                 authenticated: hasKey,
                 authMethod: hasKey ? 'api_key' : 'none',

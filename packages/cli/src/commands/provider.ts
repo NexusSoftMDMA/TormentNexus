@@ -29,7 +29,7 @@ export function registerProviderCommand(program: Command): void {
       // Try to get provider data from API
       let providers: any[] = [];
       try {
-        const res = await fetch('http://127.0.0.1:4000/trpc/settings.get', {
+        const res = await fetch('http://127.0.0.1:4100/trpc/settings.get', {
           signal: AbortSignal.timeout(3000),
         });
         if (res.ok) {

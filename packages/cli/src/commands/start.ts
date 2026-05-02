@@ -336,7 +336,7 @@ export function registerStartCommand(program: Command): void {
 		.description(
 			"Start the Borg AIOS backend server (Express/tRPC/WebSocket/MCP)",
 		)
-		.option("-p, --port <number>", "tRPC control-plane port", "4000")
+		.option("-p, --port <number>", "tRPC control-plane port", "4100")
 		.option("-H, --host <address>", "Server host address", "0.0.0.0")
 		.option("--no-mcp", "Disable the MCP server endpoint")
 		.option("--supervisor", "Enable Borg supervisor startup")
@@ -349,7 +349,7 @@ export function registerStartCommand(program: Command): void {
 			"after",
 			`
 Examples:
-  $ borg start                     Start with defaults (tRPC on port 4000)
+  $ borg start                     Start with defaults (tRPC on port 4100)
   $ borg start -p 8080             Start on port 8080
   $ borg start --no-mcp            Start without MCP server
   $ borg start --auto-drive        Start the Director after boot completes

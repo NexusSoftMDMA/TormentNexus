@@ -30,7 +30,7 @@ export function registerAgentCommand(program: Command): void {
       // Try to get squads/agents from the live server
       let squads: any[] = [];
       try {
-        const res = await fetch('http://127.0.0.1:4000/trpc/squad.list', { signal: AbortSignal.timeout(3000) });
+        const res = await fetch('http://127.0.0.1:4100/trpc/squad.list', { signal: AbortSignal.timeout(3000) });
         if (res.ok) {
           const json = await res.json();
           squads = json?.result?.data ?? [];
@@ -252,8 +252,8 @@ Examples:
       let supervisor: any = null;
       try {
         const [dRes, sRes] = await Promise.all([
-          fetch('http://127.0.0.1:4000/trpc/director.status', { signal: AbortSignal.timeout(3000) }),
-          fetch('http://127.0.0.1:4000/trpc/supervisor.status', { signal: AbortSignal.timeout(3000) }),
+          fetch('http://127.0.0.1:4100/trpc/director.status', { signal: AbortSignal.timeout(3000) }),
+          fetch('http://127.0.0.1:4100/trpc/supervisor.status', { signal: AbortSignal.timeout(3000) }),
         ]);
         if (dRes.ok) director = (await dRes.json())?.result?.data;
         if (sRes.ok) supervisor = (await sRes.json())?.result?.data;

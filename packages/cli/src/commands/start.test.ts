@@ -51,14 +51,14 @@ describe('startCoreRuntime', () => {
     it('boots the orchestrator with auto-drive disabled by default', async () => {
         const startOrchestrator = vi.fn().mockResolvedValue({
             host: '0.0.0.0',
-            trpcPort: 4000,
+            trpcPort: 4100,
             bridgePort: 3001,
         });
 
         const result = await startCoreRuntime(
             {
                 host: '0.0.0.0',
-                port: 4000,
+                port: 4100,
                 mcp: true,
             },
             async () => ({
@@ -68,14 +68,14 @@ describe('startCoreRuntime', () => {
 
         expect(startOrchestrator).toHaveBeenCalledWith({
             host: '0.0.0.0',
-            trpcPort: 4000,
+            trpcPort: 4100,
             startMcp: true,
             startSupervisor: false,
             autoDrive: false,
         });
         expect(result).toEqual({
             host: '0.0.0.0',
-            trpcPort: 4000,
+            trpcPort: 4100,
             bridgePort: 3001,
         });
     });
@@ -113,7 +113,7 @@ describe('startCoreRuntime', () => {
         await expect(startCoreRuntime(
             {
                 host: '127.0.0.1',
-                port: 4000,
+                port: 4100,
                 mcp: false,
             },
             async () => ({}),
@@ -135,7 +135,7 @@ describe('acquireSingleInstanceLock', () => {
 
         const handle = await acquireSingleInstanceLock({
             dataDir,
-            requestedPort: 4000,
+            requestedPort: 4100,
             explicitPort: false,
             host: '127.0.0.1',
         });
@@ -177,14 +177,14 @@ describe('acquireSingleInstanceLock', () => {
         writeFileSync(join(dataDir, 'lock'), JSON.stringify({
             instanceId: 'borg-live',
             pid: process.pid,
-            port: 4000,
+            port: 4100,
             host: '127.0.0.1',
             createdAt: '2026-03-11T00:00:00.000Z',
         }), 'utf8');
 
         await expect(acquireSingleInstanceLock({
             dataDir,
-            requestedPort: 4000,
+            requestedPort: 4100,
             explicitPort: false,
             host: '127.0.0.1',
         }, {

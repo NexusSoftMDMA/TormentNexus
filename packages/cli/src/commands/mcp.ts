@@ -33,7 +33,7 @@ export function registerMcpCommand(program: Command): void {
       // Query the running server for real data
       let servers: any[] = [];
       try {
-        const res = await fetch('http://127.0.0.1:4000/trpc/mcp.listServers', { signal: AbortSignal.timeout(3000) });
+        const res = await fetch('http://127.0.0.1:4100/trpc/mcp.listServers', { signal: AbortSignal.timeout(3000) });
         if (res.ok) {
           const json = await res.json();
           servers = json?.result?.data ?? [];
@@ -114,7 +114,7 @@ export function registerMcpCommand(program: Command): void {
 
       // Try tRPC first
       try {
-        const res = await fetch('http://127.0.0.1:4000/trpc/mcp.connectServer', {
+        const res = await fetch('http://127.0.0.1:4100/trpc/mcp.connectServer', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ json: { name } }),
@@ -129,7 +129,7 @@ export function registerMcpCommand(program: Command): void {
       // Fallback: spawn directly from config
       if (!started) {
         try {
-          const listRes = await fetch('http://127.0.0.1:4000/trpc/mcp.listServers', { signal: AbortSignal.timeout(5000) });
+          const listRes = await fetch('http://127.0.0.1:4100/trpc/mcp.listServers', { signal: AbortSignal.timeout(5000) });
           if (listRes.ok) {
             const servers = (await listRes.json())?.result?.data ?? [];
             const server = servers.find((s: any) => s.name === name);
@@ -186,7 +186,7 @@ export function registerMcpCommand(program: Command): void {
 
       // Try tRPC first
       try {
-        const res = await fetch('http://127.0.0.1:4000/trpc/mcp.disconnectServer', {
+        const res = await fetch('http://127.0.0.1:4100/trpc/mcp.disconnectServer', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ json: { name } }),
@@ -236,7 +236,7 @@ export function registerMcpCommand(program: Command): void {
 
       // Get server config and spawn
       try {
-        const listRes = await fetch('http://127.0.0.1:4000/trpc/mcp.listServers', { signal: AbortSignal.timeout(5000) });
+        const listRes = await fetch('http://127.0.0.1:4100/trpc/mcp.listServers', { signal: AbortSignal.timeout(5000) });
         if (listRes.ok) {
           const servers = (await listRes.json())?.result?.data ?? [];
           const server = servers.find((s: any) => s.name === name);
@@ -283,7 +283,7 @@ Examples:
     .action(async (name, command, opts) => {
       const chalk = (await import('chalk')).default;
       try {
-        const res = await fetch('http://127.0.0.1:4000/trpc/mcpServers.create', {
+        const res = await fetch('http://127.0.0.1:4100/trpc/mcpServers.create', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ json: {
@@ -318,7 +318,7 @@ Examples:
     .action(async (name, opts) => {
       const chalk = (await import('chalk')).default;
       try {
-        const res = await fetch('http://127.0.0.1:4000/trpc/mcpServers.delete', {
+        const res = await fetch('http://127.0.0.1:4100/trpc/mcpServers.delete', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ json: { name } }),
@@ -345,7 +345,7 @@ Examples:
 
       try {
         // Get server list and find the one matching name
-        const res = await fetch('http://127.0.0.1:4000/trpc/mcp.listServers', {
+        const res = await fetch('http://127.0.0.1:4100/trpc/mcp.listServers', {
           signal: AbortSignal.timeout(5000),
         });
         if (res.ok) {
@@ -386,7 +386,7 @@ Examples:
 
           // Fetch tool details with descriptions
           try {
-            const toolsRes = await fetch('http://127.0.0.1:4000/trpc/mcp.listTools', { signal: AbortSignal.timeout(5000) });
+            const toolsRes = await fetch('http://127.0.0.1:4100/trpc/mcp.listTools', { signal: AbortSignal.timeout(5000) });
             if (toolsRes.ok) {
               const allTools = (await toolsRes.json())?.result?.data ?? [];
               const serverTools = allTools.filter((t: any) => (t.server ?? t.serverName) === name);
@@ -420,7 +420,7 @@ Examples:
       const chalk = (await import('chalk')).default;
       console.log(chalk.bold.cyan('  MCP Traffic Inspector'));
       try {
-        const res = await fetch('http://127.0.0.1:4000/trpc/mcp.traffic', {
+        const res = await fetch('http://127.0.0.1:4100/trpc/mcp.traffic', {
           signal: AbortSignal.timeout(5000),
         });
         if (res.ok) {
@@ -465,14 +465,14 @@ Examples:
       try {
         if (opts.search) {
           const input = encodeURIComponent(JSON.stringify({ query: opts.search, limit: 100 }));
-          const res = await fetch(`http://127.0.0.1:4000/trpc/mcp.searchTools?input=${input}`, { signal: AbortSignal.timeout(5000) });
+          const res = await fetch(`http://127.0.0.1:4100/trpc/mcp.searchTools?input=${input}`, { signal: AbortSignal.timeout(5000) });
           if (res.ok) {
             const json = await res.json();
             tools = json?.result?.data?.tools ?? json?.result?.data ?? [];
           }
         } else {
           // Full listing — use mcp.listTools which has all 1302 tools
-          const res = await fetch('http://127.0.0.1:4000/trpc/mcp.listTools', { signal: AbortSignal.timeout(5000) });
+          const res = await fetch('http://127.0.0.1:4100/trpc/mcp.listTools', { signal: AbortSignal.timeout(5000) });
           if (res.ok) {
             const json = await res.json();
             tools = json?.result?.data ?? [];
@@ -523,7 +523,7 @@ Examples:
       const chalk = (await import('chalk')).default;
 
       try {
-        const res = await fetch('http://127.0.0.1:4000/trpc/settings.get', { signal: AbortSignal.timeout(3000) });
+        const res = await fetch('http://127.0.0.1:4100/trpc/settings.get', { signal: AbortSignal.timeout(3000) });
         if (res.ok) {
           const json = await res.json();
           const settings = json?.result?.data ?? {};
@@ -540,7 +540,7 @@ Examples:
             console.log(chalk.dim('    keepAlive:             ') + (mcp.keepAlive ?? true));
             console.log('');
             console.log(chalk.bold('  Server:'));
-            console.log(chalk.dim('    port:    ') + (settings.server?.port ?? 4000));
+            console.log(chalk.dim('    port:    ') + (settings.server?.port ?? 4100));
             console.log(chalk.dim('    host:    ') + (settings.server?.host ?? '0.0.0.0'));
             console.log(chalk.dim('    logLevel: ') + (settings.server?.logLevel ?? 'info'));
             console.log('');
@@ -597,7 +597,7 @@ Examples:
 
       try {
         // Add to Borg MCP config via tRPC
-        const res = await fetch('http://127.0.0.1:4000/trpc/mcp.addServer', {
+        const res = await fetch('http://127.0.0.1:4100/trpc/mcp.addServer', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ json: {
@@ -632,7 +632,7 @@ Examples:
 
       let servers: any[] = [];
       try {
-        const res = await fetch('http://127.0.0.1:4000/trpc/mcp.listServers', { signal: AbortSignal.timeout(5000) });
+        const res = await fetch('http://127.0.0.1:4100/trpc/mcp.listServers', { signal: AbortSignal.timeout(5000) });
         if (res.ok) {
           const json = await res.json();
           servers = json?.result?.data ?? [];
@@ -692,7 +692,7 @@ Examples:
 
       let servers: any[] = [];
       try {
-        const res = await fetch('http://127.0.0.1:4000/trpc/mcp.listServers', { signal: AbortSignal.timeout(5000) });
+        const res = await fetch('http://127.0.0.1:4100/trpc/mcp.listServers', { signal: AbortSignal.timeout(5000) });
         if (res.ok) {
           const json = await res.json();
           servers = json?.result?.data ?? [];
@@ -744,7 +744,7 @@ Examples:
         let imported_count = 0, failed = 0;
         for (const server of serverList.slice(0, 50)) {
           try {
-            const res = await fetch('http://127.0.0.1:4000/trpc/mcp.addServer', {
+            const res = await fetch('http://127.0.0.1:4100/trpc/mcp.addServer', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ json: {
@@ -835,7 +835,7 @@ Supported clients:
       // Get our MCP config
       let ourServers: any[] = [];
       try {
-        const res = await fetch('http://127.0.0.1:4000/trpc/mcp.listServers', { signal: AbortSignal.timeout(3000) });
+        const res = await fetch('http://127.0.0.1:4100/trpc/mcp.listServers', { signal: AbortSignal.timeout(3000) });
         if (res.ok) {
           const json = await res.json();
           ourServers = json?.result?.data ?? [];
@@ -943,7 +943,7 @@ Supported clients:
 
       try {
         // Get list of servers
-        const listRes = await fetch('http://127.0.0.1:4000/trpc/mcp.listServers', {
+        const listRes = await fetch('http://127.0.0.1:4100/trpc/mcp.listServers', {
           signal: AbortSignal.timeout(5000),
         });
         if (!listRes.ok) {
@@ -967,7 +967,7 @@ Supported clients:
           // Try tRPC first
           let ok = false;
           try {
-            const res = await fetch('http://127.0.0.1:4000/trpc/mcp.connectServer', {
+            const res = await fetch('http://127.0.0.1:4100/trpc/mcp.connectServer', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ json: { name } }),
@@ -1056,7 +1056,7 @@ Supported clients:
       // Get servers with commands from tRPC
       let servers: any[] = [];
       try {
-        const res = await fetch('http://127.0.0.1:4000/trpc/mcp.listServers', { signal: AbortSignal.timeout(5000) });
+        const res = await fetch('http://127.0.0.1:4100/trpc/mcp.listServers', { signal: AbortSignal.timeout(5000) });
         if (res.ok) servers = (await res.json())?.result?.data ?? [];
       } catch {}
 

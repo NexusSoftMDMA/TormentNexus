@@ -27,8 +27,8 @@ func TestImportedSessionStoreUpsertListGetAndDedup(t *testing.T) {
 		ExternalSessionID: strPtr("session-1"),
 		Title:             strPtr("Imported Session"),
 		SessionFormat:     "jsonl",
-		Transcript:        "User: keep durable defaults\nAssistant: Always prefer port 4000.",
-		Excerpt:           strPtr("Always prefer port 4000."),
+		Transcript:        "User: keep durable defaults\nAssistant: Always prefer port 4100.",
+		Excerpt:           strPtr("Always prefer port 4100."),
 		WorkingDirectory:  strPtr("C:/tmp"),
 		TranscriptHash:    "abcd1234ef567890abcd1234ef567890",
 		NormalizedSession: map[string]any{
@@ -41,7 +41,7 @@ func TestImportedSessionStoreUpsertListGetAndDedup(t *testing.T) {
 		ImportedAt:     1712000001000,
 		LastModifiedAt: int64Ptr(1712000002000),
 		ParsedMemories: []ImportedSessionMemoryInput{
-			{Kind: ImportedSessionMemoryKindInstruction, Content: "Always prefer port 4000.", Tags: []string{"ports", "defaults"}, Source: ImportedSessionMemorySourceHeuristic, Metadata: map[string]any{"sourceTool": "antigravity", "path": "C:/tmp/session-1.jsonl"}},
+			{Kind: ImportedSessionMemoryKindInstruction, Content: "Always prefer port 4100.", Tags: []string{"ports", "defaults"}, Source: ImportedSessionMemorySourceHeuristic, Metadata: map[string]any{"sourceTool": "antigravity", "path": "C:/tmp/session-1.jsonl"}},
 			{Kind: ImportedSessionMemoryKindMemory, Content: "The operator prefers Go-first migration.", Tags: []string{"go", "migration"}, Source: ImportedSessionMemorySourceLLM},
 		},
 	})
@@ -51,7 +51,7 @@ func TestImportedSessionStoreUpsertListGetAndDedup(t *testing.T) {
 	if created == nil || created.ID == "" {
 		t.Fatalf("expected created record, got %#v", created)
 	}
-	if created.Transcript != "User: keep durable defaults\nAssistant: Always prefer port 4000." {
+	if created.Transcript != "User: keep durable defaults\nAssistant: Always prefer port 4100." {
 		t.Fatalf("unexpected transcript: %#v", created)
 	}
 	if len(created.ParsedMemories) != 2 {

@@ -2,6 +2,7 @@ package controlplane
 
 import (
 	"context"
+	"os"
 	"os/exec"
 	"regexp"
 	"strings"
@@ -152,9 +153,15 @@ func (d *Detector) detectTool(ctx context.Context, def definition) Tool {
 		Capabilities: append([]string(nil), def.Capabilities...),
 	}
 
+	// Check if it's a relative path or a command in PATH
 	executable, err := exec.LookPath(def.Command)
 	if err != nil {
-		return tool
+		// Fallback: check if the path exists in the current directory
+		if _, err := os.Stat(def.Command); err == nil {
+			executable = def.Command
+		} else {
+			return tool
+		}
 	}
 
 	tool.Available = true

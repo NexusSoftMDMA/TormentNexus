@@ -206,9 +206,57 @@ func HandleApplyPatch(ctx context.Context, args map[string]interface{}) (ToolRes
 }
 
 func HandleMultiEdit(ctx context.Context, args map[string]interface{}) (ToolResponse, error) {
-	// Implementation would handle multiple edits in one go
-	// This is a simplified version that just reports success for now
-	return ok("Multi-edit feature is currently simulated in Go. Use Edit for single file changes.")
+	path, _ := getString(args, "file_path", "path", "filePath")
+	if path == "" {
+		return err("file_path is required")
+	}
+
+	editsRaw, ok := args["edits"].([]interface{})
+	if !ok {
+		editsRaw, ok = args["operations"].([]interface{})
+	}
+	if !ok || len(editsRaw) == 0 {
+		return err("edits array is required")
+	}
+
+	data, e := os.ReadFile(path)
+	if e != nil {
+		return err(fmt.Sprintf("Error reading file: %v", e))
+	}
+
+	content := string(data)
+	results := []string{}
+
+	for i, editRaw := range editsRaw {
+		edit, ok := editRaw.(map[string]interface{})
+		if !ok {
+			continue
+		}
+
+		oldText, _ := getString(edit, "old_string", "oldText", "old_text", "find")
+		newText, _ := getString(edit, "new_string", "newText", "new_text", "replace")
+
+		if oldText == "" {
+			return err(fmt.Sprintf("Edit %d: old_string is required", i+1))
+		}
+
+		if !strings.Contains(content, oldText) {
+			return err(fmt.Sprintf("Edit %d: old_string not found in %s", i+1, path))
+		}
+
+		if getBool(edit, "replace_all", "replaceAll") {
+			content = strings.ReplaceAll(content, oldText, newText)
+		} else {
+			content = strings.Replace(content, oldText, newText, 1)
+		}
+		results = append(results, fmt.Sprintf("Edit %d applied", i+1))
+	}
+
+	if e := os.WriteFile(path, []byte(content), 0644); e != nil {
+		return err(fmt.Sprintf("Error writing file: %v", e))
+	}
+
+	return ok(fmt.Sprintf("Successfully applied %d edits to %s\n%s", len(results), path, strings.Join(results, "\n")))
 }
 
 func HandleWrite(ctx context.Context, args map[string]interface{}) (ToolResponse, error) {

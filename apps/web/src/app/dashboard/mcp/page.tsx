@@ -1170,7 +1170,7 @@ export default function MCPDashboard(): React.JSX.Element {
                         {isLoadingServers ? (
                             <div className="flex justify-center p-8"><Loader2 className="h-6 w-6 animate-spin text-zinc-500" /></div>
                         ) : serverList.length > 0 ? (
-                            serverList.map((server) => {
+                            serverList.map((server, index) => {
                                 const actionLinks = buildServerToolActionLinks(server.name);
                                 const serverUuid = server.uuid;
                                 const isLocalCompatServer = isLocalCompatMetadataSource(server.metadataSource);
@@ -1185,7 +1185,10 @@ export default function MCPDashboard(): React.JSX.Element {
                                 });
 
                                 return (
-                                <div key={server.name} className="min-w-0 rounded-lg border border-zinc-800 bg-zinc-950/60 p-4">
+                                <div
+                                    key={serverUuid ?? `${server.name}-${server.config?.command ?? 'na'}-${(server.config?.args ?? []).join(' ')}-${index}`}
+                                    className="min-w-0 rounded-lg border border-zinc-800 bg-zinc-950/60 p-4"
+                                >
                                     <div className="flex items-start justify-between gap-4">
                                         <div className="min-w-0">
                                             <div className="font-medium text-white">{server.name}</div>

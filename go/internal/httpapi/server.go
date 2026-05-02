@@ -106,6 +106,8 @@ type Server struct {
 	skillRegistry     *skillregistry.SkillRegistry
 	skillDecision     *skillregistry.SkillDecisionSystem
 	pairOrchestrator  *orchestration.PairOrchestrator
+	directorNotes     *orchestration.DirectorNotesManager
+	expertManager     *hsync.ExpertManager
 	memoryArchiver    *memorystore.MemoryArchiver
 
 	// --- New Go-native services (alpha.32+) ---
@@ -443,6 +445,8 @@ func New(cfg config.Config, detector controlplane.ToolProvider) *Server {
 	server.skillDecision = skillregistry.NewSkillDecisionSystem(skillregistry.DefaultSkillDecisionConfig(), server.skillRegistry)
 	server.pairOrchestrator = orchestration.NewPairOrchestrator()
 	server.pairOrchestrator.SetupFrontierSquad()
+	server.directorNotes = orchestration.NewDirectorNotesManager()
+	server.expertManager = hsync.NewExpertManager(server.goDirector, server.mcpPredictor)
 	
 	// Populate skill registry from store
 	if skillIDs, err := server.skillStore.ListSkills(); err == nil {
@@ -538,6 +542,7 @@ func (s *Server) ListenAndServe(ctx context.Context) error {
 func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("/api/memory/list", s.handleMemoryList)
 	s.mux.HandleFunc("/api/memory/add", s.handleMemoryAdd)
+	s.mux.HandleFunc("/api/memory/add-history", s.handleMemoryAddHistory)
 	s.mux.HandleFunc("/api/code/exec", s.handleCodeExec)
 
 	s.mux.HandleFunc("/health", s.handleHealth)
@@ -930,6 +935,8 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("/api/skills/load", s.handleSkillsLoad)
 	s.mux.HandleFunc("/api/skills/unload", s.handleSkillsUnload)
 	s.mux.HandleFunc("/api/agent/pair/run", s.handleAgentPairRun)
+	s.mux.HandleFunc("/api/director/notes", s.handleDirectorNotesList)
+	s.mux.HandleFunc("/api/director/notes/synthesize", s.handleDirectorNotesSynthesize)
 	s.mux.HandleFunc("/api/project/context/update", s.handleProjectContextUpdate)
 	s.mux.HandleFunc("/api/project/handoffs", s.handleProjectHandoffs)
 	s.mux.HandleFunc("/api/shell/log", s.handleShellLog)
@@ -943,6 +950,7 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("/api/agent/a2a/broadcast", s.handleA2ABroadcast)
 	s.mux.HandleFunc("/api/agent/swarm/start", s.handleAgentSwarmStart)
 	s.mux.HandleFunc("/api/agent/swarm/transcript", s.handleAgentSwarmTranscript)
+	s.mux.HandleFunc("/api/agent/supervisor/evaluate", s.handleAgentSupervisorEvaluate)
 	s.mux.HandleFunc("/api/agent/director/start", s.handleGoDirectorStart)
 	s.mux.HandleFunc("/api/memory/archive-session", s.handleMemoryArchiveSession)
 	s.mux.HandleFunc("/api/commands/execute", s.handleCommandsExecute)
@@ -1004,6 +1012,8 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("/api/expert/research", s.handleExpertResearch)
 	s.mux.HandleFunc("/api/expert/code", s.handleExpertCode)
 	s.mux.HandleFunc("/api/expert/status", s.handleExpertStatus)
+	s.mux.HandleFunc("/api/expert/predict", s.handleExpertPredict)
+	s.mux.HandleFunc("/api/expert/groom", s.handleExpertGroom)
 	s.mux.HandleFunc("/api/policies", s.handlePoliciesList)
 	s.mux.HandleFunc("/api/policies/get", s.handlePoliciesGet)
 	s.mux.HandleFunc("/api/policies/create", s.handlePoliciesCreate)

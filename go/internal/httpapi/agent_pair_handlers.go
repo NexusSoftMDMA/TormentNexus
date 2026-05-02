@@ -12,7 +12,8 @@ func (s *Server) handleAgentPairRun(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var payload struct {
-		Task string `json:"task"`
+		Task  string                       `json:"task"`
+		Squad []orchestration.SquadMember `json:"squad,omitempty"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]any{"success": false, "error": "invalid JSON body"})
@@ -35,6 +36,12 @@ func (s *Server) handleAgentPairRun(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Fallback to local Go pair orchestrator
+	if len(payload.Squad) > 0 {
+		s.pairOrchestrator.SetupSquad(payload.Squad)
+	} else {
+		s.pairOrchestrator.SetupFrontierSquad()
+	}
+
 	pairResult, fallbackErr := s.pairOrchestrator.RunTask(r.Context(), payload.Task)
 	if fallbackErr != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]any{

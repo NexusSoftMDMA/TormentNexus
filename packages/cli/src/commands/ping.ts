@@ -15,7 +15,7 @@ export function registerPingCommand(program: Command): void {
       // Ping TS server
       const tsStart = Date.now();
       try {
-        const res = await fetch('http://127.0.0.1:4000/health', { signal: AbortSignal.timeout(3000) });
+        const res = await fetch('http://127.0.0.1:4100/health', { signal: AbortSignal.timeout(3000) });
         const tsLatency = Date.now() - tsStart;
         if (res.ok) {
           const data = await res.json();
@@ -47,7 +47,7 @@ export function registerPingCommand(program: Command): void {
       // Ping MCP data endpoint
       const mcpStart = Date.now();
       try {
-        const res = await fetch('http://127.0.0.1:4000/trpc/mcp.getStatus', { signal: AbortSignal.timeout(3000) });
+        const res = await fetch('http://127.0.0.1:4100/trpc/mcp.getStatus', { signal: AbortSignal.timeout(3000) });
         const mcpLatency = Date.now() - mcpStart;
         if (res.ok) {
           const json = await res.json();

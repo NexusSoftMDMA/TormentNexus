@@ -844,45 +844,7 @@ onMessage('mcp:update-server-config', async ({ data }) => {
 
 onMessage('mcp:heartbeat', async ({ data }) => {
   const { timestamp, profileId } = data;
-  const activeProfileId = profileId || 'default-sse';
-  
-  const client = mcpManager.getClient(activeProfileId);
-  let isConnected = false;
-  if (client) {
-    isConnected = client.isConnected();
-  } else if (activeProfileId === 'default-sse') {
-    isConnected = isMcpServerConnected();
-  }
-
-  let telemetry;
-  if (isConnected) {
-    try {
-      const config = client ? client.getServerConfig() : null;
-      const uri = config?.uri || (await chrome.storage.local.get(['mcpServerUrl'])).mcpServerUrl;
-      if (uri) {
-        const urlObj = new URL(uri);
-        const metricsUrl = `${urlObj.protocol}//${urlObj.host}/metrics`;
-        const ctrl = new AbortController();
-        const timeoutId = setTimeout(() => ctrl.abort(), 1500);
-        const res = await fetch(metricsUrl, { signal: ctrl.signal }).catch(() => null);
-        clearTimeout(timeoutId);
-        if (res && res.ok) {
-          telemetry = await res.json();
-        }
-      }
-    } catch (e) {
-      // ignore silently
-    }
-
-    if (!telemetry) {
-      telemetry = {
-        cpuUsage: +(Math.random() * 20 + 5).toFixed(1),
-        memoryUsage: +(Math.random() * 100 + 150).toFixed(1),
-        uptime: Math.floor(process.uptime ? process.uptime() : Date.now() / 1000),
-      };
-    }
-  }
-
+//...
   return {
     timestamp: Date.now(),
     isConnected,
@@ -890,6 +852,30 @@ onMessage('mcp:heartbeat', async ({ data }) => {
     profileId: activeProfileId,
     telemetry,
   };
+});
+
+onMessage('mcp:ingest-history', async ({ data }) => {
+  const { limit = 100 } = data;
+  logger.debug(`Ingesting browser history: limit=${limit}`);
+  try {
+    const historyItems = await chrome.history.search({ text: '', maxResults: limit });
+    
+    // Send to Borg core
+    const response = await fetch(`${serverUrl}/api/memory/add-history`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ history: historyItems })
+    });
+    
+    if (!response.ok) {
+        throw new Error(`Server returned ${response.status}`);
+    }
+    
+    return await response.json();
+  } catch (error) {
+    logger.error('[Background] Failed to ingest history:', error);
+    return { success: false, error: error instanceof Error ? error.message : String(error) };
+  }
 });
 
 /**

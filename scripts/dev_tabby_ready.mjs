@@ -443,7 +443,7 @@ function spawnCliDev() {
     'src/index.ts',
     'start',
     '--port',
-    '4000',
+    '4100',
   ]);
 
   return spawn(command, args, {

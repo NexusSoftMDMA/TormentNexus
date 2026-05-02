@@ -34,7 +34,7 @@ export function registerSessionCommand(program: Command): void {
 
 			let sessions: any[] = [];
 			try {
-				const res = await fetch("http://127.0.0.1:4000/trpc/session.list", {
+				const res = await fetch("http://127.0.0.1:4100/trpc/session.list", {
 					signal: AbortSignal.timeout(3000),
 				});
 				if (res.ok) {
@@ -142,7 +142,7 @@ Examples:
 						command: opts.model,
 					},
 				});
-				const res = await fetch('http://127.0.0.1:4000/trpc/session.create', {
+				const res = await fetch('http://127.0.0.1:4100/trpc/session.create', {
 					method: 'POST',
 					headers: { 'Content-Type': 'application/json' },
 					body,
@@ -176,7 +176,7 @@ Examples:
 		.action(async (id) => {
 			const chalk = (await import("chalk")).default;
 			try {
-				const res = await fetch('http://127.0.0.1:4000/trpc/session.stop', {
+				const res = await fetch('http://127.0.0.1:4100/trpc/session.stop', {
 					method: 'POST', headers: { 'Content-Type': 'application/json' },
 					body: JSON.stringify({ json: { id } }),
 					signal: AbortSignal.timeout(5000),
@@ -197,7 +197,7 @@ Examples:
 		.action(async (id) => {
 			const chalk = (await import("chalk")).default;
 			try {
-				const res = await fetch('http://127.0.0.1:4000/trpc/session.start', {
+				const res = await fetch('http://127.0.0.1:4100/trpc/session.start', {
 					method: 'POST', headers: { 'Content-Type': 'application/json' },
 					body: JSON.stringify({ json: { id } }),
 					signal: AbortSignal.timeout(5000),

@@ -131,6 +131,32 @@ export const agentRouter = t.router({
         }),
 
     /**
+     * Get the latest neural transcript from the active swarm session.
+     */
+    getSwarmTranscript: publicProcedure.query(() => {
+        const server = getMcpServer();
+        if (server.swarmController) {
+            return server.swarmController.getTranscript();
+        }
+        return [];
+    }),
+
+    /**
+     * Run a multi-model pair programming session.
+     */
+    runPairSession: publicProcedure
+        .input(z.object({
+            task: z.string(),
+        }))
+        .mutation(async ({ input }) => {
+            const server = getMcpServer();
+            if (server.pairOrchestrator) {
+                return await server.pairOrchestrator.runTask(input.task);
+            }
+            throw new TRPCError({ code: 'NOT_FOUND', message: 'Pair Orchestrator not initialized' });
+        }),
+
+    /**
      * Broadcast an A2A message from the dashboard.
      */
     a2aBroadcast: publicProcedure
@@ -147,5 +173,39 @@ export const agentRouter = t.router({
                 payload: input.payload || {},
             });
             return { success: true };
+        }),
+
+    /**
+     * Real-time agent chat stream using tRPC subscriptions.
+     */
+    chatStream: t.procedure
+        .input(z.object({
+            message: z.string(),
+            context: z.any().optional(),
+        }))
+        .subscription(async ({ input }) => {
+            return {
+                async *[Symbol.asyncIterator]() {
+                    const server = getMcpServer();
+                    if (!server || !server.llmService) {
+                        yield { content: '[Error] MCP Server or LLM Service not initialized', done: true };
+                        return;
+                    }
+
+                    // For now, simulate streaming if the service doesn't support it natively
+                    // In a real implementation, we'd call llm.generateStream
+                    const response = await server.llmService.generate(input.message, {
+                        context: input.context,
+                        maxTokens: 1000
+                    });
+
+                    const words = (response?.text ?? '').split(' ');
+                    for (const word of words) {
+                        yield { content: word + ' ', done: false };
+                        await new Promise(r => setTimeout(r, 50));
+                    }
+                    yield { content: '', done: true };
+                }
+            };
         }),
 });
