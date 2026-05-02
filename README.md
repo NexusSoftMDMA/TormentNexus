@@ -70,6 +70,10 @@ cd go && go build -buildvcs=false ./cmd/borg && cd ..
 
 # 4. Start the Borg Control Plane
 pnpm run dev
+```
+
+
+
 
 ---
 
