@@ -531,6 +531,35 @@ func (rgs *RepoGraphService) indexPythonFile(graph *Graph, relPath, content stri
 			continue
 		}
 
+		// Simple regex for from .. import X
+		relParentRe := regexp.MustCompile(`^from\s+\.\.\s+import\s+([\w\.]+)`)
+		if matches := relParentRe.FindStringSubmatch(line); len(matches) > 1 {
+			dir := filepath.Dir(relPath)
+			parentDir := filepath.Dir(dir)
+			if parentDir == "." {
+				parentDir = ""
+			}
+			targetPath := strings.ReplaceAll(matches[1], ".", "/")
+			fullTarget := targetPath
+			if parentDir != "" {
+				fullTarget = filepath.ToSlash(filepath.Clean(filepath.Join(parentDir, targetPath)))
+			}
+			
+			target := "import:" + matches[1]
+			extensions := []string{".py", "/__init__.py"}
+			for _, ext := range extensions {
+				if _, ok := graph.Nodes["file:"+fullTarget+ext]; ok {
+					target = "file:" + fullTarget + ext
+					break
+				}
+			}
+
+			graph.Edges = append(graph.Edges, Edge{
+				From: fileID, To: target, Type: "imports",
+			})
+			continue
+		}
+
 		if matches := pyImportRe.FindStringSubmatch(line); len(matches) > 0 {
 			mod := ""
 			if matches[1] != "" { // import x

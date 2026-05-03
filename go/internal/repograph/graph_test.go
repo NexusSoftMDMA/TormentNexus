@@ -164,6 +164,36 @@ func TestRepoGraphPythonResolution(t *testing.T) {
 	}
 }
 
+func TestRepoGraphPythonParentResolution(t *testing.T) {
+	tempDir := t.TempDir()
+
+	// Create structure:
+	// pkg/sub/main.py -> from .. import base
+	// pkg/base.py
+	
+	pkgDir := filepath.Join(tempDir, "pkg")
+	subDir := filepath.Join(pkgDir, "sub")
+	os.MkdirAll(subDir, 0755)
+	
+	os.WriteFile(filepath.Join(pkgDir, "base.py"), []byte("def base(): pass"), 0644)
+	os.WriteFile(filepath.Join(subDir, "main.py"), []byte("from .. import base"), 0644)
+
+	rgs := NewRepoGraphService(tempDir)
+	graph, _ := rgs.Build(context.Background())
+
+	foundResolved := false
+	for _, edge := range graph.Edges {
+		if edge.From == "file:pkg/sub/main.py" && edge.To == "file:pkg/base.py" {
+			foundResolved = true
+		}
+	}
+
+	if !foundResolved {
+		t.Logf("Edges found: %v", graph.Edges)
+		t.Error("Python parent relative import was not resolved to file:pkg/base.py")
+	}
+}
+
 func TestRepoGraphSearch(t *testing.T) {
 	tempDir := t.TempDir()
 	os.WriteFile(filepath.Join(tempDir, "a.go"), []byte("package a\nfunc SearchMe() {}"), 0644)
