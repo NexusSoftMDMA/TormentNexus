@@ -91,7 +91,7 @@ export interface User {
 	foundGoImport := false
 	foundTSImport := false
 	for _, edge := range graph.Edges {
-		if edge.To == "import:fmt" {
+		if edge.To == "import:fmt" || edge.To == "import:std/fmt" {
 			foundGoImport = true
 		}
 		if edge.To == "import:./other" {
@@ -194,6 +194,66 @@ func TestRepoGraphPythonParentResolution(t *testing.T) {
 	}
 }
 
+func TestRepoGraphPythonSiblingModResolution(t *testing.T) {
+	tempDir := t.TempDir()
+
+	// Create structure:
+	// pkg/sub/main.py -> from ..other import tool
+	// pkg/other.py
+	
+	pkgDir := filepath.Join(tempDir, "pkg")
+	subDir := filepath.Join(pkgDir, "sub")
+	os.MkdirAll(subDir, 0755)
+	
+	os.WriteFile(filepath.Join(pkgDir, "other.py"), []byte("def tool(): pass"), 0644)
+	os.WriteFile(filepath.Join(subDir, "main.py"), []byte("from ..other import tool"), 0644)
+
+	rgs := NewRepoGraphService(tempDir)
+	graph, _ := rgs.Build(context.Background())
+
+	foundResolved := false
+	for _, edge := range graph.Edges {
+		if edge.From == "file:pkg/sub/main.py" && edge.To == "file:pkg/other.py" {
+			foundResolved = true
+		}
+	}
+
+	if !foundResolved {
+		t.Logf("Edges found: %v", graph.Edges)
+		t.Error("Python sibling relative import was not resolved to file:pkg/other.py")
+	}
+}
+
+func TestRepoGraphRustResolution(t *testing.T) {
+	tempDir := t.TempDir()
+
+	// Create structure:
+	// src/lib.rs
+	// src/models.rs
+	// src/main.rs -> use crate::models; use super::something (invalid here but testable)
+	
+	srcDir := filepath.Join(tempDir, "src")
+	os.MkdirAll(srcDir, 0755)
+	
+	os.WriteFile(filepath.Join(srcDir, "models.rs"), []byte("pub struct User {}"), 0644)
+	os.WriteFile(filepath.Join(srcDir, "main.rs"), []byte("use crate::src::models;"), 0644)
+
+	rgs := NewRepoGraphService(tempDir)
+	graph, _ := rgs.Build(context.Background())
+
+	foundResolved := false
+	for _, edge := range graph.Edges {
+		if edge.From == "file:src/main.rs" && edge.To == "file:src/models.rs" {
+			foundResolved = true
+		}
+	}
+
+	if !foundResolved {
+		t.Logf("Edges found: %v", graph.Edges)
+		t.Error("Rust 'use crate' import was not resolved to file:src/models.rs")
+	}
+}
+
 func TestRepoGraphSearch(t *testing.T) {
 	tempDir := t.TempDir()
 	os.WriteFile(filepath.Join(tempDir, "a.go"), []byte("package a\nfunc SearchMe() {}"), 0644)
@@ -204,5 +264,93 @@ func TestRepoGraphSearch(t *testing.T) {
 	results := rgs.SearchSymbols("Search", 10)
 	if len(results) != 1 || results[0].Name != "SearchMe" {
 		t.Errorf("Search failed, got %v", results)
+	}
+}
+
+func TestRepoGraphCircularDependency(t *testing.T) {
+	tempDir := t.TempDir()
+
+	// Create structure:
+	// a.go imports b.go
+	// b.go imports a.go
+	
+	os.WriteFile(filepath.Join(tempDir, "a.go"), []byte("package a\nimport \"b\"\nfunc A() {}"), 0644)
+	os.WriteFile(filepath.Join(tempDir, "b.go"), []byte("package b\nimport \"a\"\nfunc B() {}"), 0644)
+
+	// Mock resolver to force circularity in test
+	rgs := NewRepoGraphService(tempDir)
+	graph, _ := rgs.Build(context.Background())
+	
+	// Manually add edges for test simplicity
+	graph.Edges = append(graph.Edges, Edge{From: "file:a.go", To: "file:b.go", Type: "imports"})
+	graph.Edges = append(graph.Edges, Edge{From: "file:b.go", To: "file:a.go", Type: "imports"})
+
+	cycles := rgs.GetCircularDependencies()
+	if len(cycles) == 0 {
+		t.Error("Failed to detect circular dependency")
+	}
+}
+
+func TestRepoGraphImpactAnalysis(t *testing.T) {
+	tempDir := t.TempDir()
+
+	// Create chain: a -> b -> c
+	os.WriteFile(filepath.Join(tempDir, "c.go"), []byte("package c"), 0644)
+	os.WriteFile(filepath.Join(tempDir, "b.go"), []byte("package b\nimport \"c\""), 0644)
+	os.WriteFile(filepath.Join(tempDir, "a.go"), []byte("package a\nimport \"b\""), 0644)
+
+	rgs := NewRepoGraphService(tempDir)
+	graph, _ := rgs.Build(context.Background())
+	
+	// Mock resolution
+	graph.Edges = append(graph.Edges, Edge{From: "file:b.go", To: "file:c.go", Type: "imports"})
+	graph.Edges = append(graph.Edges, Edge{From: "file:a.go", To: "file:b.go", Type: "imports"})
+
+	impacted := rgs.GetImpactAnalysis("c.go")
+	
+	foundA := false
+	foundB := false
+	for _, p := range impacted {
+		if p == "a.go" { foundA = true }
+		if p == "b.go" { foundB = true }
+	}
+
+	if !foundA || !foundB {
+		t.Errorf("Impact analysis failed, expected [a.go b.go], got %v", impacted)
+	}
+}
+
+func TestRepoGraphFindDefinitions(t *testing.T) {
+	tempDir := t.TempDir()
+
+	os.WriteFile(filepath.Join(tempDir, "a.go"), []byte("package a\nfunc MyFunc() {}"), 0644)
+
+	rgs := NewRepoGraphService(tempDir)
+	_, _ = rgs.Build(context.Background())
+
+	defs := rgs.FindDefinitions("MyFunc")
+	if len(defs) == 0 || defs[0].Name != "MyFunc" {
+		t.Error("Failed to find definition for MyFunc")
+	}
+}
+
+func TestRepoGraphFindReferences(t *testing.T) {
+	tempDir := t.TempDir()
+
+	os.WriteFile(filepath.Join(tempDir, "a.go"), []byte("package a\nfunc MyFunc() {}"), 0644)
+
+	rgs := NewRepoGraphService(tempDir)
+	graph, _ := rgs.Build(context.Background())
+	
+	// Manually add a call reference for test
+	// We need to ensure the target node exists in the graph nodes map
+	// The node MUST have the correct type and name to be found as a target
+	graph.Nodes["a.go#MyFunc"] = &Node{ID: "a.go#MyFunc", Name: "MyFunc", Type: NodeFunction}
+	graph.Nodes["file:b.go"] = &Node{ID: "file:b.go", Name: "b.go", Type: NodeFile}
+	graph.Edges = append(graph.Edges, Edge{From: "file:b.go", To: "a.go#MyFunc", Type: "calls"})
+
+	refs := rgs.FindReferences("MyFunc")
+	if len(refs) == 0 {
+		t.Error("Failed to find references for MyFunc")
 	}
 }
