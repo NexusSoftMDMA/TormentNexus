@@ -53,6 +53,19 @@ func coerceTags(tags interface{}) string {
 	return string(b)
 }
 
+
+func isGarbageExtraction(title *string, description *string) bool {
+	check := func(s *string) bool {
+		if s == nil {
+			return false
+		}
+		lower := strings.ToLower(*s)
+		return strings.Contains(lower, "automated discovery") ||
+			strings.Contains(lower, "heuristic mapping")
+	}
+	return check(title) || check(description)
+}
+
 func SyncBobbyBookmarks(ctx context.Context, dbPath string, baseURL string, perPage int, includeDuplicates bool, includeResearched bool) (*SyncReport, error) {
 	baseURL = strings.TrimRight(baseURL, "/")
 	report := &SyncReport{
@@ -193,7 +206,13 @@ func SyncBobbyBookmarks(ctx context.Context, dbPath string, baseURL string, perP
 				rStatus = *bm.ResearchStatus
 			}
 
+			if isGarbageExtraction(bm.Title, bm.Description) {
+				report.Errors = append(report.Errors, fmt.Sprintf("Rejected garbage entry: %s", bm.URL))
+				continue
+			}
+
 			uid := uuid.New().String()
+
 
 			_, err = stmt.Exec(
 				uid, bm.URL, normURL, bm.Title, bm.Description, coerceTags(bm.Tags), "bobbybookmarks",

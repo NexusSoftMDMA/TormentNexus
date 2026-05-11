@@ -4,9 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
-	"time"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/borghq/borg-go/internal/mcp"
 )
@@ -164,7 +164,7 @@ func (s *Server) handleMCPSearchTools(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		bridge := map[string]any{
-			"fallback":  "go-local-mcp",
+			"fallback": "go-local-mcp",
 
 			"procedure": "mcp.searchTools",
 			"reason":    "upstream unavailable; local MCP inventory cache is empty",
@@ -186,7 +186,7 @@ func (s *Server) handleMCPSearchTools(w http.ResponseWriter, r *http.Request) {
 		"bridge": map[string]any{
 			"fallback":  "go-local-mcp",
 			"procedure": "mcp.searchTools",
-			"reason":    "upstream unavailable; using local MCP tool search results",
+			"reason":    "upstream unavailable; using local MCP inventory cache",
 		},
 	})
 }
@@ -318,7 +318,6 @@ func (s *Server) handleMCPSync(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-
 // handleMCPServersList returns a combined view of runtime + configured servers.
 func (s *Server) handleMCPServersList(w http.ResponseWriter, r *http.Request) {
 	var result any
@@ -398,7 +397,7 @@ func (s *Server) handleMCPServersList(w http.ResponseWriter, r *http.Request) {
 		"data":    servers,
 		"bridge": map[string]any{
 			"fallback":  "go-local-mcp",
-			"procedure":  "mcp.listServers",
+			"procedure": "mcp.listServers",
 			"reason":    "upstream unavailable; using local MCP inventory",
 		},
 	})

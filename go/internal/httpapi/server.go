@@ -10,6 +10,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/borghq/borg-go/internal/codeexec"
+	"github.com/borghq/borg-go/internal/memorystore"
 	"io"
 	"io/fs"
 	"math"
@@ -18,8 +20,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"github.com/borghq/borg-go/internal/memorystore"
-	"github.com/borghq/borg-go/internal/codeexec"
 	"regexp"
 	"runtime"
 	"slices"
@@ -33,13 +33,13 @@ import (
 	"github.com/borghq/borg-go/internal/config"
 	"github.com/borghq/borg-go/internal/controlplane"
 	"github.com/borghq/borg-go/internal/harnesses"
+	"github.com/borghq/borg-go/internal/hsync"
 	"github.com/borghq/borg-go/internal/interop"
+	"github.com/borghq/borg-go/internal/mcp"
 	"github.com/borghq/borg-go/internal/mesh"
+	"github.com/borghq/borg-go/internal/orchestration"
 	"github.com/borghq/borg-go/internal/providers"
 	"github.com/borghq/borg-go/internal/sessionimport"
-	"github.com/borghq/borg-go/internal/hsync"
-	"github.com/borghq/borg-go/internal/mcp"
-	"github.com/borghq/borg-go/internal/orchestration"
 	"github.com/borghq/borg-go/internal/supervisor"
 	"github.com/borghq/borg-go/internal/tools"
 	"github.com/borghq/borg-go/internal/workflow"
@@ -48,14 +48,14 @@ import (
 	"github.com/borghq/borg-go/internal/ctxharvester"
 	"github.com/borghq/borg-go/internal/eventbus"
 	"github.com/borghq/borg-go/internal/gitservice"
-	"github.com/borghq/borg-go/internal/repograph"
 	"github.com/borghq/borg-go/internal/healer"
 	"github.com/borghq/borg-go/internal/metrics"
 	processmanager "github.com/borghq/borg-go/internal/process"
+	"github.com/borghq/borg-go/internal/repograph"
 	"github.com/borghq/borg-go/internal/session"
+	"github.com/borghq/borg-go/internal/skillregistry"
 	"github.com/borghq/borg-go/internal/toolregistry"
 	"github.com/borghq/borg-go/internal/workspaces"
-	"github.com/borghq/borg-go/internal/skillregistry"
 	"github.com/google/uuid"
 	_ "modernc.org/sqlite"
 )
@@ -74,13 +74,13 @@ var sessionExportKnownFormats = []map[string]any{
 type Server struct {
 	memoryManager     *memorystore.Manager
 	codeExecutor      *codeexec.Sandbox
-	cfg            config.Config
-	detector       controlplane.ToolProvider
-	mesh           *mesh.Service
-	startedAt      time.Time
-	mux            *http.ServeMux
-	lifecycleModes map[string]any
-	fallbackBuffer *providerFallbackBuffer
+	cfg               config.Config
+	detector          controlplane.ToolProvider
+	mesh              *mesh.Service
+	startedAt         time.Time
+	mux               *http.ServeMux
+	lifecycleModes    map[string]any
+	fallbackBuffer    *providerFallbackBuffer
 	autoDev           *localAutoDevManager
 	squad             *localSquadManager
 	swarm             *localSwarmManager
@@ -94,7 +94,7 @@ type Server struct {
 	mcpAggregator     *mcp.Aggregator
 	mcpPredictor      *mcp.ToolPredictor
 	mcpDecision       *mcp.DecisionSystem
-	nativeRouter   *mcp.NativeMCPRouter
+	nativeRouter      *mcp.NativeMCPRouter
 	a2aLogger         *orchestration.A2ALogger
 	a2aBroker         *orchestration.A2ABroker
 	taskQueue         *orchestration.TaskQueue
@@ -113,17 +113,17 @@ type Server struct {
 	memoryArchiver    *memorystore.MemoryArchiver
 
 	// --- New Go-native services (alpha.32+) ---
-	eventBus          *eventbus.EventBus
-	metricsService    *metrics.MetricsService
-	sessionManager    *session.SessionManager
-	toolRegistry      *toolregistry.ToolRegistry
-	gitService        *gitservice.GitService
-	contextHarvester  *ctxharvester.ContextHarvester
-	workspaceTracker  *workspaces.WorkspaceTracker
-	processManager    *processmanager.ProcessManager
-	healerService     *healer.HealerService
-	cacheService      *cache.Cache
-	repoGraph         *repograph.RepoGraphService
+	eventBus         *eventbus.EventBus
+	metricsService   *metrics.MetricsService
+	sessionManager   *session.SessionManager
+	toolRegistry     *toolregistry.ToolRegistry
+	gitService       *gitservice.GitService
+	contextHarvester *ctxharvester.ContextHarvester
+	workspaceTracker *workspaces.WorkspaceTracker
+	processManager   *processmanager.ProcessManager
+	healerService    *healer.HealerService
+	cacheService     *cache.Cache
+	repoGraph        *repograph.RepoGraphService
 }
 
 type providerFallbackEvent struct {
@@ -234,11 +234,11 @@ type LockRuntimeSummary struct {
 }
 
 type ConfigRuntimeSummary struct {
-	WorkspaceRootAvailable      bool `json:"workspaceRootAvailable"`
-	ConfigDirAvailable          bool `json:"configDirAvailable"`
-	MainConfigDirAvailable      bool `json:"mainConfigDirAvailable"`
-	RepoConfigAvailable         bool `json:"repoConfigAvailable"`
-	MCPConfigAvailable          bool `json:"mcpConfigAvailable"`
+	WorkspaceRootAvailable bool `json:"workspaceRootAvailable"`
+	ConfigDirAvailable     bool `json:"configDirAvailable"`
+	MainConfigDirAvailable bool `json:"mainConfigDirAvailable"`
+	RepoConfigAvailable    bool `json:"repoConfigAvailable"`
+	MCPConfigAvailable     bool `json:"mcpConfigAvailable"`
 	BorgSubmoduleAvailable bool `json:"borgSubmoduleAvailable"`
 }
 
@@ -417,18 +417,18 @@ func New(cfg config.Config, detector controlplane.ToolProvider) *Server {
 	memoryManager := memorystore.NewManager(filepath.Join(cfg.ConfigDir, "memory.json"))
 	codeExecutor := codeexec.NewSandbox(filepath.Join(cfg.WorkspaceRoot, ".borg", "sandbox"))
 	server := &Server{
-		cfg:       cfg,
+		cfg:           cfg,
 		memoryManager: memoryManager,
-		codeExecutor: codeExecutor,
-		detector:  detector,
-		mesh:      mesh.New(cfg),
-		startedAt: time.Now().UTC(),
-		mux:       http.NewServeMux(),
+		codeExecutor:  codeExecutor,
+		detector:      detector,
+		mesh:          mesh.New(cfg),
+		startedAt:     time.Now().UTC(),
+		mux:           http.NewServeMux(),
 		lifecycleModes: map[string]any{
 			"lazySessionMode":        false,
 			"singleActiveServerMode": false,
 		},
-		fallbackBuffer: newProviderFallbackBuffer(50),
+		fallbackBuffer:    newProviderFallbackBuffer(50),
 		autoDev:           newLocalAutoDevManager(cfg.WorkspaceRoot),
 		squad:             newLocalSquadManager(cfg.WorkspaceRoot),
 		swarm:             newLocalSwarmManager(cfg.WorkspaceRoot),
@@ -450,7 +450,7 @@ func New(cfg config.Config, detector controlplane.ToolProvider) *Server {
 	server.pairOrchestrator.SetupFrontierSquad()
 	server.directorNotes = orchestration.NewDirectorNotesManager()
 	server.expertManager = hsync.NewExpertManager(server.goDirector, server.mcpPredictor)
-	
+
 	// Populate skill registry from store
 	if skillIDs, err := server.skillStore.ListSkills(); err == nil {
 		for _, id := range skillIDs {
@@ -487,11 +487,11 @@ func New(cfg config.Config, detector controlplane.ToolProvider) *Server {
 	// Refresh from live inventory
 	if inv, err := mcp.LoadInventory(cfg.WorkspaceRoot, cfg.MainConfigDir); err == nil {
 		server.mcpDecision.RefreshFromInventory(inv)
-	// Initialize Go-native MCP Router
-	server.nativeRouter = mcp.NewNativeMCPRouter(server.mcpDecision, nil, mcp.DefaultRouterConfig())
-	if inv != nil {
-		server.nativeRouter.RefreshCatalog(inv)
-	}
+		// Initialize Go-native MCP Router
+		server.nativeRouter = mcp.NewNativeMCPRouter(server.mcpDecision, nil, mcp.DefaultRouterConfig())
+		if inv != nil {
+			server.nativeRouter.RefreshCatalog(inv)
+		}
 	}
 
 	// --- Initialize new Go-native services ---
@@ -1844,12 +1844,6 @@ func (s *Server) handleSupervisorSessionCatalog(w http.ResponseWriter, r *http.R
 	s.handleSessionBridgeCall(w, r, http.MethodGet, "session.catalog", nil)
 }
 
-
-
-
-
-
-
 func (s *Server) handleImportedSessionList(w http.ResponseWriter, r *http.Request) {
 	limit := strings.TrimSpace(r.URL.Query().Get("limit"))
 	parsedLimit := 50
@@ -2228,8 +2222,6 @@ func (s *Server) handleImportedSessionMaintenanceStats(w http.ResponseWriter, r 
 	})
 }
 
-
-
 func (s *Server) handleMCPConfiguredServers(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		writeJSON(w, http.StatusMethodNotAllowed, map[string]any{
@@ -2576,8 +2568,6 @@ func (s *Server) handleMCPSyncClientConfig(w http.ResponseWriter, r *http.Reques
 		return preview, nil
 	})
 }
-
-
 
 func (s *Server) handleMCPCallTool(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
@@ -3380,8 +3370,6 @@ func (s *Server) handleMCPLoadTool(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleMCPUnloadTool(w http.ResponseWriter, r *http.Request) {
 	s.handleMCPManualToolMutation(w, r, "mcp.unloadTool")
 }
-
-
 
 func (s *Server) handleMemoryContextSave(w http.ResponseWriter, r *http.Request) {
 	s.handleTRPCBridgeBodyCall(w, r, "memory.saveContext")
@@ -4210,7 +4198,6 @@ func (s *Server) handleMemorySearchSessionSummaries(w http.ResponseWriter, r *ht
 		},
 	})
 }
-
 
 func (s *Server) handleMemoryInterchangeFormats(w http.ResponseWriter, r *http.Request) {
 	var result any
@@ -6375,7 +6362,6 @@ func (s *Server) handleAgentRunTool(w http.ResponseWriter, r *http.Request) {
 		"detail":  fmt.Sprintf("Tool '%s' not implemented in Go and Node server is unreachable.", payload.Name),
 	})
 }
-
 
 func (s *Server) handleCommandsExecute(w http.ResponseWriter, r *http.Request) {
 	s.handleTRPCBridgeBodyCall(w, r, "commands.execute")
@@ -9058,7 +9044,6 @@ func (s *Server) handleSubmoduleList(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-
 func (s *Server) handleSubmoduleInstallDependencies(w http.ResponseWriter, r *http.Request) {
 	s.handleTRPCBridgeBodyCall(w, r, "submodule.installDependencies")
 }
@@ -10369,11 +10354,11 @@ func (s *Server) handleRuntimeStatus(w http.ResponseWriter, r *http.Request) {
 				RunningCount: runningLocks,
 			},
 			Config: ConfigRuntimeSummary{
-				WorkspaceRootAvailable:      configStatus.WorkspaceRoot.Exists,
-				ConfigDirAvailable:          configStatus.ConfigDir.Exists,
-				MainConfigDirAvailable:      configStatus.MainConfigDir.Exists,
-				RepoConfigAvailable:         configStatus.BorgConfigFile.Exists,
-				MCPConfigAvailable:          configStatus.MCPConfigFile.Exists,
+				WorkspaceRootAvailable: configStatus.WorkspaceRoot.Exists,
+				ConfigDirAvailable:     configStatus.ConfigDir.Exists,
+				MainConfigDirAvailable: configStatus.MainConfigDir.Exists,
+				RepoConfigAvailable:    configStatus.BorgConfigFile.Exists,
+				MCPConfigAvailable:     configStatus.MCPConfigFile.Exists,
 				BorgSubmoduleAvailable: configStatus.BorgSubmodule.Exists,
 			},
 			CLI: CLIRuntimeSummary{

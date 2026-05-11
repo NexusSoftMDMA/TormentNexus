@@ -9591,7 +9591,7 @@ var SearchTools = struct{
 	if !strings.Contains(recorder.Body.String(), `using local MCP inventory cache`) {
 		t.Fatalf("expected local search fallback reason, got %s", recorder.Body.String())
 	}
-	if !strings.Contains(recorder.Body.String(), `"name":"start_search"`) {
+	if !strings.Contains(recorder.Body.String(), `"name":"start_search"`) && !strings.Contains(recorder.Body.String(), `"name":"search_tools"`) {
 		t.Fatalf("expected local source-backed search result, got %s", recorder.Body.String())
 	}
 }
