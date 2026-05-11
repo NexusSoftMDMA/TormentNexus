@@ -1,20 +1,7 @@
 {
-	"ANALYSIS.md": true,
-	"ANALYSIS_GO_PORT.md": true,
-	"ANALYSIS_MISSING_FEATURES.md": true,
 	"CHANGELOG.md": true,
-	"DEPLOY.md": true,
 	"GEMINI.md": true,
 	"GPT.md": true,
 	"HANDOFF.md": true,
-	"IDEAS.md": true,
-	"MEMORY.md": true,
-	"PORTING_MAP.md": true,
-	"README.md": true,
-	"ROADMAP.md": true,
-	"SUBMODULES_INDEX.md": true,
-	"SUBMODULE_INVENTORY.md": true,
-	"TODO.md": true,
-	"VERSION.md": true,
-	"VISION.md": true
+	"MEMORY.md": true
 }
