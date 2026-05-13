@@ -17,6 +17,7 @@ interface DebateConfig {
     rounds: number;
     status: 'active' | 'concluded';
     result?: string;
+    agreement?: number;
 }
 
 interface Props {
@@ -52,13 +53,28 @@ export function DebateVisualizer({ topic, transcripts, config }: Props) {
                             {topic}
                         </CardTitle>
                     </div>
-                    <div>
+                    <div className="flex flex-col items-end gap-2">
                         {config.status === 'active' ? (
                             <Badge className="bg-green-500/20 text-green-400 animate-pulse border-none">
                                 LIVE
                             </Badge>
                         ) : (
                             <Badge variant="secondary">Concluded</Badge>
+                        )}
+                        {config.agreement !== undefined && (
+                            <div className="flex flex-col items-end gap-1">
+                                <span className="text-[10px] text-slate-500 uppercase font-bold tracking-tighter">Consensus</span>
+                                <div className="w-24 h-1.5 bg-slate-800 rounded-full overflow-hidden border border-white/5">
+                                    <div
+                                        className={`h-full transition-all duration-1000 ${
+                                            config.agreement > 0.8 ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]' :
+                                            config.agreement > 0.5 ? 'bg-amber-500' : 'bg-red-500'
+                                        }`}
+                                        style={{ width: `${config.agreement * 100}%` }}
+                                    />
+                                </div>
+                                <span className="text-[10px] font-mono text-slate-400">{(config.agreement * 100).toFixed(0)}%</span>
+                            </div>
                         )}
                     </div>
                 </div>

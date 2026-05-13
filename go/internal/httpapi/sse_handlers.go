@@ -95,3 +95,18 @@ func (s *Server) handleSSEMessage(w http.ResponseWriter, r *http.Request) {
 	// and trigger native LLM/MCP events via the GlobalSSEBroker if needed.
 	writeJSON(w, http.StatusOK, map[string]any{"success": true})
 }
+
+func (s *Server) handleSSEHistory(w http.ResponseWriter, r *http.Request) {
+	sinceStr := r.URL.Query().Get("since")
+	var since int64
+	if sinceStr != "" {
+		fmt.Sscanf(sinceStr, "%d", &since)
+	}
+
+	history := s.eventBus.GetHistorySince(since)
+	writeJSON(w, http.StatusOK, map[string]any{
+		"success": true,
+		"data":    history,
+	})
+}
+

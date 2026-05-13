@@ -25,6 +25,8 @@ const (
 	EventMemoryPrune    SystemEventType = "memory:prune"
 	EventFileChange     SystemEventType = "file:change"
 	EventTerminalError  SystemEventType = "terminal:error"
+	EventA2ASignal      SystemEventType = "a2a:signal"
+	EventUserActivity   SystemEventType = "user:activity"
 )
 
 // SystemEvent is a single structured event emitted by any component.
@@ -136,12 +138,28 @@ func (eb *EventBus) GetHistory(limit int) []SystemEvent {
 	if limit <= 0 || limit > len(eb.history) {
 		limit = len(eb.history)
 	}
-	if limit > len(eb.history) {
-		limit = len(eb.history)
+
+	start := len(eb.history) - limit
+	if start < 0 {
+		start = 0
 	}
 
-	result := make([]SystemEvent, limit)
-	copy(result, eb.history[len(eb.history)-limit:])
+	result := make([]SystemEvent, len(eb.history)-start)
+	copy(result, eb.history[start:])
+	return result
+}
+
+// GetHistorySince returns all events in history that occurred after the given timestamp.
+func (eb *EventBus) GetHistorySince(timestamp int64) []SystemEvent {
+	eb.mu.RLock()
+	defer eb.mu.RUnlock()
+
+	var result []SystemEvent
+	for _, ev := range eb.history {
+		if ev.Timestamp > timestamp {
+			result = append(result, ev)
+		}
+	}
 	return result
 }
 

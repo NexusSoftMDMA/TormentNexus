@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Sheet, SheetContent, SheetTrigger } from "@borg/ui";
-import { Button } from "@borg/ui";
+import { Button, StreamStatus } from "@borg/ui";
 import { Menu } from "lucide-react";
 import { useState } from "react";
 
@@ -85,8 +85,11 @@ export function Navigation({ versionLabel = 'dev' }: NavigationProps) {
                 </Sheet>
             </div>
 
-            <div className="hidden md:block text-xs text-zinc-400">
-                v{versionLabel}
+            <div className="hidden md:flex items-center gap-4">
+                <StreamStatus />
+                <div className="text-xs text-zinc-400 border-l border-zinc-800 pl-4">
+                    v{versionLabel}
+                </div>
             </div>
         </nav>
     );

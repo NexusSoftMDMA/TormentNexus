@@ -125,6 +125,7 @@ func SyncToClient(client SupportedClient, targetPath string, servers map[string]
 	mcpServers := make(map[string]interface{})
 	for name, cfg := range servers {
 		if cfg.Command != "" {
+			// Stdio Server
 			def := map[string]interface{}{
 				"command": cfg.Command,
 			}
@@ -136,9 +137,23 @@ func SyncToClient(client SupportedClient, targetPath string, servers map[string]
 			}
 			mcpServers[name] = def
 		} else if cfg.URL != "" {
-			mcpServers[name] = map[string]interface{}{
+			// HTTP/SSE Server
+			def := map[string]interface{}{
 				"url": cfg.URL,
 			}
+
+			headers := make(map[string]string)
+			for k, v := range cfg.Headers {
+				headers[k] = v
+			}
+			if cfg.BearerToken != "" {
+				headers["Authorization"] = "Bearer " + cfg.BearerToken
+			}
+
+			if len(headers) > 0 {
+				def["headers"] = headers
+			}
+			mcpServers[name] = def
 		}
 	}
 

@@ -2,7 +2,24 @@ import { DEFAULT_ACTION_LABELS, SupervisorSettings } from './settings.js';
 import { ChatSurfaceInfo, UiInspection } from './ui_automation.js';
 
 export const TERMINAL_TEXT_HINTS = ['@terminal:', 'pwsh', 'powershell', 'terminal', 'shell'];
-export const ANTIGRAVITY_LABEL_HINTS = ['Run', 'Expand', 'Always Allow', 'Retry', 'Accept all', 'Accept', 'Allow', 'Approve', 'Proceed', 'Keep'];
+export const ANTIGRAVITY_LABEL_HINTS = [
+    'Run',
+    'Expand',
+    'Always Allow',
+    'Retry',
+    'Accept all',
+    'Accept',
+    'Allow',
+    'Approve',
+    'Proceed',
+    'Keep',
+    'Accept all changes',
+    'Accept All Changes',
+    'Accept All',
+    'Approve All',
+    'Run command',
+    'Allow all'
+];
 
 export function normalizeComparableLabel(value: string | null | undefined): string {
     if (!value) {

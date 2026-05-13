@@ -75,6 +75,7 @@ import { BobbyBookmarksSyncWorker } from "./daemons/hyperingest/BobbyBookmarksSy
 import { LinkCrawlerWorker } from "./daemons/hyperingest/LinkCrawlerWorker.js";
 import { MemoryArchiver } from "./services/MemoryArchiver.js";
 import { workspaceTracker } from "./services/WorkspaceTracker.js";
+import { NativeSidecarDaemon } from "./daemons/NativeSidecarDaemon.js";
 mcpServerDebugLog('[MCPServer] ✓ Phase 51/53 Infrastructure');
 import { SkillAssimilationService } from "./services/SkillAssimilationService.js";
 import { MarketplaceService } from "./services/MarketplaceService.js";
@@ -292,6 +293,7 @@ export class MCPServer {
     public swarmController: SwarmController;
     public a2aLogger: A2ALogger;
     private memoryArchiver: MemoryArchiver;
+    private nativeSidecarDaemon: NativeSidecarDaemon;
 
     public projectTracker: ProjectTracker; // Phase 59: Autonomous Loop
     public missionService: MissionService; // Phase 80: Swarm Persistence
@@ -542,6 +544,7 @@ export class MCPServer {
         this.swarmController = new SwarmController(this, this.llmService);
         this.a2aLogger = new A2ALogger(process.cwd());
         this.memoryArchiver = new MemoryArchiver(process.cwd(), this.llmService, this.agentMemoryService, this.a2aLogger);
+        this.nativeSidecarDaemon = new NativeSidecarDaemon(this.eventBus);
         this.metricsService = new MetricsService(); // Phase 31
         this.metricsService.startMonitoring();
         this.policyService = new PolicyService(process.cwd()); // Phase 32
@@ -2515,6 +2518,30 @@ ${env.tools.filter((tool) => tool.installed).map((tool) => `- **${tool.name}**: 
         }
     }
 
+    /**
+     * Predictive Tool Advertising (Phase 112)
+     * Fetches predicted tools from the Go sidecar based on conversation context.
+     * These are used to "warm up" the model's tool surface without a search turn.
+     */
+    public async getPredictedToolAds(chatHistory: string, activeGoal: string): Promise<string[]> {
+        const SIDECAR_URL = process.env.BORG_SIDECAR_URL || 'http://localhost:4300';
+        try {
+            const response = await fetch(`${SIDECAR_URL}/api/mcp/tools/predict`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ chatHistory, activeGoal }),
+                signal: AbortSignal.timeout(3000)
+            });
+
+            if (!response.ok) return [];
+            const result = (await response.json()) as any;
+            return result?.data?.predictedTools || [];
+        } catch (e) {
+            console.error('[MCPServer] ⚠️ Tool prediction failed:', (e as Error).message);
+            return [];
+        }
+    }
+
     public async getNativeTools(options?: {
         downstreamTools?: Tool[];
         skipLiveDiscovery?: boolean;
@@ -3701,6 +3728,7 @@ ${env.tools.filter((tool) => tool.installed).map((tool) => `- **${tool.name}**: 
         // Start hyperingest background workers
         this.bobbyBookmarksSyncWorker.start();
         this.linkCrawlerWorker.start();
+        this.nativeSidecarDaemon.start().catch(e => console.error("[MCPServer] Native sidecar daemon failed to start:", e));
 
         // Build Graph in Background
         this.autoTestService.repoGraph.buildGraph().catch(e => console.error("Graph build failed", e));

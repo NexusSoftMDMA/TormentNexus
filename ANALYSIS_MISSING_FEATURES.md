@@ -20,7 +20,7 @@ However, looking at `TODO.md` and `ROADMAP.md` along with user instructions, the
   - Background memory syncing.
 
 ## 3. Supervisor Tool Prediction
-- The `mcp.ToolPredictor` was added to `server.go`, but **Supervisor tool prediction (preemptively injecting tool ads based on conversation context)** is not fully realized in the active chat prompt chain.
+- ✅ **Completed (v1.0.0-alpha.52):** Implemented `getPredictedToolAds` in `MCPServer` and integrated it into `McpWorkerAgent`. The agent now preemptively fetches relevant tool advertisements from the Go sidecar based on the task goal to reduce discovery turns.
 
 ## 4. Free-Tier Fallback Expansion
 - Fallback works for Gemini 2.5 Flash, but we need to add explicitly configured chains for:

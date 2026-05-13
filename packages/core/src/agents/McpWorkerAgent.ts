@@ -17,6 +17,13 @@ export class McpWorkerAgent extends SpecializedAgent {
     public async handleTask(offer: any): Promise<any> {
         console.log(`[McpWorkerAgent] 🧠 Analyzing task: "${offer.task}"`);
 
+        // 0. Predictive Tool Disclosure (Phase 112)
+        // Preemptively fetch relevant tools based on task goal to reduce discovery turns
+        const predictedToolNames = await this.mcpServer.getPredictedToolAds('', offer.task);
+        if (predictedToolNames.length > 0) {
+            console.log(`[McpWorkerAgent] 🔮 Sidecar predicted: ${predictedToolNames.join(', ')}`);
+        }
+
         // 1. Resolve requested tools and mission-level policy (Phase 96)
         const requestedTools: string[] = Array.isArray(offer.tools) ? offer.tools : [];
         const policyAllow: string[] = Array.isArray(offer?.toolPolicy?.allow) ? offer.toolPolicy.allow : [];
@@ -25,7 +32,11 @@ export class McpWorkerAgent extends SpecializedAgent {
 
         const nativeTools = await this.mcpServer.getNativeTools();
 
-        const explicitAllowList = [...new Set([...(requestedTools || []), ...(policyAllow || [])])];
+        const explicitAllowList = [...new Set([
+            ...(requestedTools || []),
+            ...(policyAllow || []),
+            ...(predictedToolNames || [])
+        ])];
         const hasExplicitAllowList = explicitAllowList.length > 0;
         const denySet = new Set(policyDeny);
 

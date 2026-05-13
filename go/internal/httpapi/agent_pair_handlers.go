@@ -45,17 +45,9 @@ func (s *Server) handlePairSessionRun(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handlePairSessionStatus(w http.ResponseWriter, r *http.Request) {
-	s.pairOrchestrator.Mu.RLock()
-	defer s.pairOrchestrator.Mu.RUnlock()
-
 	writeJSON(w, http.StatusOK, map[string]any{
 		"success": true,
-		"data": map[string]any{
-			"state":   s.pairOrchestrator.State,
-			"task":    s.pairOrchestrator.Task,
-			"history": s.pairOrchestrator.History,
-			"squad":   s.pairOrchestrator.Squad,
-		},
+		"data":    s.pairOrchestrator.GetStatus(),
 	})
 }
 

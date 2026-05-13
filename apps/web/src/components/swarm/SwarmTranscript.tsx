@@ -1,14 +1,21 @@
 "use client";
 
+import React from 'react';
 import { trpc } from '@/utils/trpc';
 import { Card, CardHeader, CardTitle, CardContent, ScrollArea, Badge } from '@borg/ui';
-import { MessageSquare, Cpu, Brain, Activity } from 'lucide-react';
+import { MessageSquare, Cpu, Brain, Activity, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export function SwarmTranscript() {
     const { data: transcript, isLoading } = trpc.agent.getSwarmTranscript.useQuery(undefined, {
         refetchInterval: 3000
     });
+
+    // Subscribing to turn events for real-time "Thinking..." indicator
+    const [activeTurn, setActiveTurn] = React.useState<{role: string, name: string} | null>(null);
+
+    // In a real implementation, we would use trpc.agent.swarmEvents.useSubscription()
+    // or the EventBus history. For now, we simulate the hook points.
 
     if (isLoading) return <div className="p-8 text-center text-zinc-500 italic">Connecting to Swarm Neural Bridge...</div>;
 
@@ -62,6 +69,23 @@ export function SwarmTranscript() {
                                     <Brain className="h-12 w-12 mb-4 opacity-10" />
                                     <p className="text-sm italic">Neural bridge silent. Start a swarm session to begin.</p>
                                 </div>
+                            )}
+                            {activeTurn && (
+                                <motion.div
+                                    initial={{ opacity: 0 }}
+                                    animate={{ opacity: 1 }}
+                                    className="flex flex-col gap-2 p-4 border border-cyan-900/30 bg-cyan-950/10 rounded-lg"
+                                >
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-[10px] font-bold uppercase tracking-tighter text-cyan-400">
+                                            {activeTurn.role} (Thinking...)
+                                        </span>
+                                        <Loader2 className="w-3 h-3 animate-spin text-cyan-500" />
+                                    </div>
+                                    <div className="text-sm text-zinc-400 italic">
+                                        {activeTurn.name} is formulating a response...
+                                    </div>
+                                </motion.div>
                             )}
                         </AnimatePresence>
                     </div>

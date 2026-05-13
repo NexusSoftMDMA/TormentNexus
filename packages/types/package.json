@@ -1,6 +1,6 @@
 {
     "name": "@borg/types",
-    "version": "1.0.0-alpha.48",
+    "version": "1.0.0-alpha.54",
     "private": true,
     "main": "dist/index.js",
     "types": "src/index.ts",

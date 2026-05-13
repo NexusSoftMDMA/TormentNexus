@@ -1,6 +1,9 @@
 {
     "name": "@borg/agents",
-    "version": "0.90.8",
+    "version": "1.0.0-alpha.55",
+    "private": true,
+    "main": "dist/index.js",
+    "types": "src/index.ts",
     "type": "module",
     "main": "dist/index.js",
     "types": "dist/index.d.ts",

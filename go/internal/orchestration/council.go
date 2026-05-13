@@ -26,7 +26,7 @@ type DebateContribution struct {
 // The Architect proposes an implementation strategy for the given objective.
 // The Security Reviewer critiques it.
 // The Lead Engineer synthesizes a final approved plan.
-func RunDebate(ctx context.Context, objective string, contextData string) (*DebateResult, error) {
+func RunDebate(ctx context.Context, history *DebateHistoryStore, objective string, contextData string) (*DebateResult, error) {
 	contributions := []DebateContribution{}
 
 	// 1. The Architect Proposes a Plan
@@ -98,10 +98,17 @@ Synthesize the final, actionable implementation plan incorporating the critique.
 		consensus = 0.7 // Approved with modifications
 	}
 
-	return &DebateResult{
+	result := &DebateResult{
 		Approved:      approved,
 		FinalPlan:     leadResp.Content,
 		Consensus:     consensus,
 		Contributions: contributions,
-	}, nil
+	}
+
+	// L2 Vault Logging
+	if history != nil {
+		_, _ = history.SaveNativeDebate(ctx, "council-debate", objective, contextData, result)
+	}
+
+	return result, nil
 }

@@ -814,121 +814,69 @@ Examples:
     .option('--client <name>', 'Sync to specific client only')
     .addHelpText('after', `
 Supported clients:
-  claude     Claude Desktop (claude_desktop_config.json)
-  cursor     Cursor (.cursor/mcp.json)
-  vscode     VS Code (settings.json)
-  windsurf   Windsurf (.windsurf/mcp.json)
-  opencode   OpenCode (opencode.json)
+  claude-desktop (claude)
+  cursor
+  vscode
     `)
     .action(async (opts) => {
       const chalk = (await import('chalk')).default;
-      const { existsSync, readFileSync, writeFileSync, mkdirSync } = await import('fs');
-      const { resolve, join } = await import('path');
-      const { homedir } = await import('os');
-      const home = homedir();
+      console.log(chalk.bold.cyan('\n  MCP Config Sync (Go Native)\n'));
 
-      console.log(chalk.bold.cyan('\n  MCP Config Sync\n'));
+      const SIDECAR_URL = process.env.BORG_SIDECAR_URL || 'http://127.0.0.1:4300';
+
       if (opts.dryRun) {
         console.log(chalk.yellow('  [DRY RUN] No changes will be written\n'));
       }
 
-      // Get our MCP config
-      let ourServers: any[] = [];
       try {
-        const res = await fetch('http://127.0.0.1:4100/trpc/mcp.listServers', { signal: AbortSignal.timeout(3000) });
-        if (res.ok) {
-          const json = await res.json();
-          ourServers = json?.result?.data ?? [];
-        }
-      } catch {}
+        // 1. Get sync targets from Go sidecar
+        const targetsRes = await fetch(`${SIDECAR_URL}/api/mcp/servers/sync-targets`, { signal: AbortSignal.timeout(5000) });
+        if (!targetsRes.ok) throw new Error(`Go sidecar returned ${targetsRes.status} on sync-targets`);
 
-      console.log(chalk.dim(`  Borg has ${ourServers.length} configured servers\n`));
+        const targetsJson = await targetsRes.json();
+        const targets = targetsJson.data || [];
 
-      // Define client config paths
-      const clients: Record<string, { name: string; paths: string[]; format: string }> = {
-        claude: {
-          name: 'Claude Desktop',
-          paths: [
-            resolve(home, 'AppData/Roaming/Claude/claude_desktop_config.json'),
-            resolve(home, '.config/claude/claude_desktop_config.json'),
-          ],
-          format: 'mcpServers',
-        },
-        cursor: {
-          name: 'Cursor',
-          paths: [resolve(home, '.cursor/mcp.json')],
-          format: 'mcpServers',
-        },
-        vscode: {
-          name: 'VS Code',
-          paths: [
-            resolve(home, 'AppData/Roaming/Code/User/settings.json'),
-            resolve(home, '.config/Code/User/settings.json'),
-          ],
-          format: 'settings',
-        },
-        windsurf: {
-          name: 'Windsurf',
-          paths: [resolve(home, '.windsurf/mcp.json')],
-          format: 'mcpServers',
-        },
-        opencode: {
-          name: 'OpenCode',
-          paths: ['opencode.json'],
-          format: 'mcpServers',
-        },
-      };
+        const clientMap: Record<string, string> = {
+            'claude': 'claude-desktop',
+            'claude-desktop': 'claude-desktop',
+            'cursor': 'cursor',
+            'vscode': 'vscode'
+        };
 
-      for (const [key, client] of Object.entries(clients)) {
-        if (opts.client && opts.client !== key) continue;
-        const found = client.paths.find(p => existsSync(p));
-        if (found) {
-          if (!opts.dryRun && ourServers.length > 0) {
-            try {
-              // Build the mcpServers object from our config
-              const mcpServers: Record<string, any> = {};
-              for (const s of ourServers) {
-                if (s.config?.command) {
-                  mcpServers[s.name] = {
-                    command: s.config.command,
-                    args: s.config.args ?? [],
-                  };
-                  if (s.config.env && Object.keys(s.config.env).length > 0) {
-                    mcpServers[s.name].env = s.config.env;
-                  }
-                }
-              }
+        const targetClient = opts.client ? clientMap[opts.client.toLowerCase()] || opts.client : null;
 
-              if (Object.keys(mcpServers).length === 0) {
-                console.log(chalk.dim(`  ○ ${client.name}: no servers with commands to sync`));
-                continue;
-              }
+        for (const target of targets) {
+          if (targetClient && target.client !== targetClient) continue;
 
-              // Read existing config
-              const existing = JSON.parse(readFileSync(found, 'utf8'));
-              const existingServers = client.format === 'settings' ? existing?.['mcp.servers'] ?? {} : existing?.mcpServers ?? {};
-              const newServers = { ...existingServers, ...mcpServers };
-              const addedCount = Object.keys(mcpServers).filter(k => !existingServers[k]).length;
-
-              // Write updated config
-              if (client.format === 'settings') {
-                existing['mcp.servers'] = newServers;
-                writeFileSync(found, JSON.stringify(existing, null, 2));
-              } else {
-                const merged = { ...existing, mcpServers: newServers };
-                writeFileSync(found, JSON.stringify(merged, null, 2));
-              }
-
-              console.log(chalk.green(`  ✓ ${client.name}`) + chalk.dim(` synced ${Object.keys(mcpServers).length} servers (${addedCount} new)`));
-            } catch (e: any) {
-              console.log(chalk.yellow(`  ⚠ ${client.name}: ${e.message}`));
-            }
-          } else {
-            console.log(chalk.green(`  ✓ ${client.name}`) + chalk.dim(` (${found})`));
+          if (!target.exists) {
+            console.log(chalk.dim(`  ○ ${target.client}: not detected`));
+            continue;
           }
-        } else {
-          console.log(chalk.dim(`  ○ ${client.name}: not found`));
+
+          if (opts.dryRun) {
+            console.log(chalk.green(`  ✓ ${target.client}`) + chalk.dim(` detected at ${target.path}`));
+            continue;
+          }
+
+          // 2. Execute sync via Go sidecar
+          const syncRes = await fetch(`${SIDECAR_URL}/api/mcp/servers/sync-client-config`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ client: target.client }),
+            signal: AbortSignal.timeout(10000)
+          });
+
+          if (syncRes.ok) {
+            const result = (await syncRes.json()).data;
+            console.log(chalk.green(`  ✓ ${result.client}`) + chalk.dim(` synced ${result.serverCount} servers to ${result.targetPath}`));
+          } else {
+            const errorJson = await syncRes.json().catch(() => ({}));
+            console.log(chalk.red(`  ✗ ${target.client}: Sync failed`) + chalk.dim(` (${errorJson.error || syncRes.statusText})`));
+          }
         }
+      } catch (e: any) {
+        console.log(chalk.red(`  ✗ Error: ${e.message}`));
+        console.log(chalk.dim('    Ensure the Borg Go sidecar is running (typically via `borg start`).'));
       }
       console.log('');
     });

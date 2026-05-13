@@ -50,6 +50,7 @@ export * from "./utils/trpc";
 export * from "./lib/endpoints";
 export * from "./lib/connection-policy";
 export * from "./hooks/useHealerStream";
+export * from "./hooks/use-resize-observer";
 
 // Feature Components
 export * from "./components/GraphPanel";
@@ -58,5 +59,6 @@ export * from "./components/ContextPanel";
 export * from "./components/MemoryPage";
 export * from "./components/IntegratedTerminal";
 export * from "./components/SystemStatus";
+export * from "./components/StreamStatus";
 export * from "./components/ui/sonner-toaster";
 

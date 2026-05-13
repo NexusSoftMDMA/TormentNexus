@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"encoding/json"
 	"net/http"
 	"strconv"
 	"strings"
@@ -57,7 +58,59 @@ func (s *Server) handleSwarmExecuteDebate(w http.ResponseWriter, r *http.Request
 }
 
 func (s *Server) handleSwarmSeekConsensus(w http.ResponseWriter, r *http.Request) {
-	s.handleTRPCBridgeBodyCall(w, r, "swarm.seekConsensus")
+	if r.Method != http.MethodPost {
+		writeJSON(w, http.StatusMethodNotAllowed, map[string]any{"success": false, "error": "method not allowed"})
+		return
+	}
+
+	var payload struct {
+		Prompt            string   `json:"prompt"`
+		Models            []string `json:"models"`
+		RequiredAgreement *float64 `json:"requiredAgreement"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"success": false, "error": "invalid JSON body"})
+		return
+	}
+
+	// Try upstream first
+	var result any
+	upstreamBase, err := s.callUpstreamJSON(r.Context(), "swarm.seekConsensus", payload, &result)
+	if err == nil {
+		writeJSON(w, http.StatusOK, map[string]any{
+			"success": true,
+			"data":    result,
+			"bridge": map[string]any{
+				"upstreamBase": upstreamBase,
+				"procedure":    "swarm.seekConsensus",
+			},
+		})
+		return
+	}
+
+	// Fallback to local Go consensus engine
+	res, fallbackErr := s.consensusEngine.SeekConsensus(r.Context(), struct {
+		Prompt                       string
+		Models                       []string
+		RequiredAgreementPercentage *float64
+	}{
+		Prompt:                       payload.Prompt,
+		Models:                       payload.Models,
+		RequiredAgreementPercentage: payload.RequiredAgreement,
+	})
+
+	if fallbackErr != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"success": false, "error": fallbackErr.Error()})
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"success": true,
+		"data":    res,
+		"bridge": map[string]any{
+			"fallback": "go-local-consensus",
+		},
+	})
 }
 
 func (s *Server) handleSwarmMissionHistory(w http.ResponseWriter, r *http.Request) {

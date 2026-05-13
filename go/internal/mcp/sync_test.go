@@ -18,13 +18,20 @@ func TestResolveClientTargets(t *testing.T) {
 	appData := filepath.Join(tempDir, "AppData", "Roaming")
 	_ = os.MkdirAll(appData, 0755)
 
-	// Create a dummy VSCode config
-	// On Windows ResolveClientTargets uses appData candidate
-	vscodePath := filepath.Join(appData, "Code", "User", "settings.json")
-	_ = os.MkdirAll(filepath.Dir(vscodePath), 0755)
-	_ = os.WriteFile(vscodePath, []byte(`{"mcp.servers": {}}`), 0644)
+	// Create dummy VSCode config at both Windows (appData) and XDG (Linux/Mac) paths
+	// so the test works on all platforms.
+	windowsVSCodePath := filepath.Join(appData, "Code", "User", "settings.json")
+	_ = os.MkdirAll(filepath.Dir(windowsVSCodePath), 0755)
+	_ = os.WriteFile(windowsVSCodePath, []byte(`{"mcp.servers": {}}`), 0644)
 
-	// Inject custom appData (as if Roaming)
+	xdgVSCodePath := filepath.Join(tempDir, ".config", "Code", "User", "settings.json")
+	_ = os.MkdirAll(filepath.Dir(xdgVSCodePath), 0755)
+	_ = os.WriteFile(xdgVSCodePath, []byte(`{"mcp.servers": {}}`), 0644)
+
+	macVSCodePath := filepath.Join(tempDir, "Library", "Application Support", "Code", "User", "settings.json")
+	_ = os.MkdirAll(filepath.Dir(macVSCodePath), 0755)
+	_ = os.WriteFile(macVSCodePath, []byte(`{"mcp.servers": {}}`), 0644)
+
 	targets := ResolveClientTargets(tempDir, appData, cwd)
 
 	if len(targets) != 3 {
@@ -39,7 +46,7 @@ func TestResolveClientTargets(t *testing.T) {
 	}
 
 	if !foundVSCode {
-		t.Errorf("expected VSCode target to be found in %s. Targets: %+v", vscodePath, targets)
+		t.Errorf("expected VSCode target to be found. Targets: %+v", targets)
 	}
 }
 

@@ -57,11 +57,15 @@ type PairSessionResult struct {
 }
 
 type PairOrchestrator struct {
-	Mu      sync.RWMutex
-	Squad   []SquadMember
-	History []string
-	State   SessionState
-	Task    string
+	mu          sync.RWMutex
+	Squad       []SquadMember
+	History     []string
+	State       SessionState
+	Task        string
+	CurrentRole PairRole
+	Bus         interface {
+		EmitEvent(eventType string, source string, payload interface{})
+	}
 }
 
 func NewPairOrchestrator() *PairOrchestrator {
@@ -71,9 +75,17 @@ func NewPairOrchestrator() *PairOrchestrator {
 	}
 }
 
+func (p *PairOrchestrator) SetEventBus(bus interface {
+	EmitEvent(eventType string, source string, payload interface{})
+}) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.Bus = bus
+}
+
 func (p *PairOrchestrator) SetupSquad(members []SquadMember) {
-	p.Mu.Lock()
-	defer p.Mu.Unlock()
+	p.mu.Lock()
+	defer p.mu.Unlock()
 	p.Squad = members
 }
 
@@ -87,8 +99,8 @@ func (p *PairOrchestrator) SetupFrontierSquad() {
 }
 
 func (p *PairOrchestrator) RotateRoles() {
-	p.Mu.Lock()
-	defer p.Mu.Unlock()
+	p.mu.Lock()
+	defer p.mu.Unlock()
 
 	if len(p.Squad) < 3 {
 		return
@@ -110,18 +122,18 @@ func (p *PairOrchestrator) RotateRoles() {
 }
 
 func (p *PairOrchestrator) RunTask(ctx context.Context, task string) (*PairSessionResult, error) {
-	p.Mu.Lock()
+	p.mu.Lock()
 	p.Task = task
 	p.History = []string{"USER: " + task}
 	p.State = StatePlanning
-	p.Mu.Unlock()
+	p.mu.Unlock()
 
 	fmt.Printf("[PairOrchestrator] 🚀 Starting Multi-Model Session: \"%s\"\n", task)
 
 	for {
-		p.Mu.RLock()
+		p.mu.RLock()
 		state := p.State
-		p.Mu.RUnlock()
+		p.mu.RUnlock()
 
 		switch state {
 		case StatePlanning:
@@ -197,7 +209,9 @@ func (p *PairOrchestrator) RunTask(ctx context.Context, task string) (*PairSessi
 }
 
 func (p *PairOrchestrator) executeTurn(ctx context.Context, role PairRole, prompt string) (string, error) {
-	p.Mu.RLock()
+	p.mu.Lock()
+	p.CurrentRole = role
+	bus := p.Bus
 	var member *SquadMember
 	for i := range p.Squad {
 		if p.Squad[i].Role == role {
@@ -205,10 +219,19 @@ func (p *PairOrchestrator) executeTurn(ctx context.Context, role PairRole, promp
 			break
 		}
 	}
-	p.Mu.RUnlock()
+	p.mu.Unlock()
 
 	if member == nil {
 		return "", fmt.Errorf("no member assigned to role: %s", role)
+	}
+
+	if bus != nil {
+		bus.EmitEvent("swarm:turn_start", "PairOrchestrator", map[string]interface{}{
+			"role":   string(role),
+			"name":   member.Name,
+			"model":  member.ModelID,
+			"prompt": prompt,
+		})
 	}
 
 	fmt.Printf("[PairOrchestrator] 👤 %s (%s) is thinking...\n", member.Name, member.Role)
@@ -223,9 +246,9 @@ SQUAD ROLES:
 - TESTER: Identifies bugs, edge cases, and verifies correctness.
 - CRITIC: Audits the final output for absolute perfection.`, member.Name, strings.ToUpper(string(member.Role)))
 
-	p.Mu.RLock()
+	p.mu.RLock()
 	fullHistory := strings.Join(p.History, "\n\n")
-	p.Mu.RUnlock()
+	p.mu.RUnlock()
 
 	turnPrompt := fmt.Sprintf("CONVERSATION HISTORY:\n%s\n\nCURRENT TURN (%s): %s", fullHistory, strings.ToUpper(string(member.Role)), prompt)
 
@@ -236,21 +259,36 @@ SQUAD ROLES:
 
 	if err != nil {
 		fmt.Printf("[PairOrchestrator] ⚠️ Turn failed for %s: %v\n", member.Name, err)
+		if bus != nil {
+			bus.EmitEvent("swarm:turn_end", "PairOrchestrator", map[string]interface{}{
+				"role":    string(role),
+				"success": false,
+				"error":   err.Error(),
+			})
+		}
 		return "", err
+	}
+
+	if bus != nil {
+		bus.EmitEvent("swarm:turn_end", "PairOrchestrator", map[string]interface{}{
+			"role":    string(role),
+			"success": true,
+			"content": resp.Content,
+		})
 	}
 
 	return resp.Content, nil
 }
 
 func (p *PairOrchestrator) addHistory(entry string) {
-	p.Mu.Lock()
-	defer p.Mu.Unlock()
+	p.mu.Lock()
+	defer p.mu.Unlock()
 	p.History = append(p.History, entry)
 }
 
 func (p *PairOrchestrator) getLastHistory() string {
-	p.Mu.RLock()
-	defer p.Mu.RUnlock()
+	p.mu.RLock()
+	defer p.mu.RUnlock()
 	if len(p.History) == 0 {
 		return ""
 	}
@@ -258,15 +296,15 @@ func (p *PairOrchestrator) getLastHistory() string {
 }
 
 func (p *PairOrchestrator) transition(newState SessionState) {
-	p.Mu.Lock()
-	defer p.Mu.Unlock()
+	p.mu.Lock()
+	defer p.mu.Unlock()
 	fmt.Printf("[PairOrchestrator] ⚙️ State transition: %s -> %s\n", p.State, newState)
 	p.State = newState
 }
 
 func (p *PairOrchestrator) getMemberName(role PairRole) string {
-	p.Mu.RLock()
-	defer p.Mu.RUnlock()
+	p.mu.RLock()
+	defer p.mu.RUnlock()
 	for _, m := range p.Squad {
 		if m.Role == role {
 			return m.Name
@@ -282,8 +320,8 @@ func (p *PairOrchestrator) failSession(err error) (*PairSessionResult, error) {
 }
 
 func (p *PairOrchestrator) getResult(success bool) *PairSessionResult {
-	p.Mu.RLock()
-	defer p.Mu.RUnlock()
+	p.mu.RLock()
+	defer p.mu.RUnlock()
 	
 	finalOutput := ""
 	for i := len(p.History) - 1; i >= 0; i-- {
@@ -301,5 +339,17 @@ func (p *PairOrchestrator) getResult(success bool) *PairSessionResult {
 		History:     p.History,
 		FinalOutput: finalOutput,
 		State:       string(p.State),
+	}
+}
+
+// GetStatus returns a thread-safe snapshot of the orchestrator's current state.
+func (p *PairOrchestrator) GetStatus() map[string]interface{} {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	return map[string]interface{}{
+		"state":   p.State,
+		"task":    p.Task,
+		"history": p.History,
+		"squad":   p.Squad,
 	}
 }

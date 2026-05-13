@@ -77,4 +77,40 @@ export class EventBus extends EventEmitter {
     public getHistory(limit: number = 100): SystemEvent[] {
         return this.history.slice(-limit);
     }
+
+    public getHistorySince(timestamp: number): SystemEvent[] {
+        return this.history.filter(e => e.timestamp > timestamp);
+    }
+
+    /**
+     * Async iterator for pattern-matched events.
+     */
+    public async *on(pattern: string): AsyncIterableIterator<[string, any]> {
+        const queue: Array<[string, any]> = [];
+        let resolve: (() => void) | null = null;
+
+        const listener = (event: SystemEvent) => {
+            queue.push([event.type, event.payload]);
+            if (resolve) {
+                resolve();
+                resolve = null;
+            }
+        };
+
+        this.subscribe(pattern, listener);
+
+        try {
+            while (true) {
+                if (queue.length === 0) {
+                    await new Promise<void>(r => { resolve = r; });
+                }
+                while (queue.length > 0) {
+                    yield queue.shift()!;
+                }
+            }
+        } finally {
+            // Cleanup: remove listener would require more implementation details
+            // For now, this is a simplified version for the subscription bridge.
+        }
+    }
 }

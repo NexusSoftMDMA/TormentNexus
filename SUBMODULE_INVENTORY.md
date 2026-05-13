@@ -1,1 +1,40 @@
-| 38 | borg | main | pre-reorg-backup-18-g50148f423 | robertpelloni/borg | clean |
+| adrenaline | main | unknown | https://github.com/shobrook/adrenaline | unknown |
+| auggie | main | unknown | https://github.com/augmentcode/auggie | unknown |
+| azure-ai-cli | main | unknown | https://github.com/Azure/azure-ai-cli | unknown |
+| aider | main | unknown | https://github.com/paul-gauthier/aider | unknown |
+| code-cli | main | unknown | https://github.com/just-every/code | unknown |
+| dolt | main | unknown | https://github.com/dolthub/dolt | unknown |
+| goose | main | unknown | https://github.com/block/goose | unknown |
+| llm-cli | main | unknown | https://github.com/simonw/llm | unknown |
+| litellm | main | unknown | https://github.com/BerriAI/litellm | unknown |
+| llamafile | main | unknown | https://github.com/Mozilla-Ocho/llamafile | unknown |
+| ollama | main | unknown | https://github.com/ollama/ollama | unknown |
+| open-interpreter | main | unknown | https://github.com/OpenInterpreter/open-interpreter | unknown |
+| pi-cli | main | unknown | https://github.com/badlogic/pi-mono | unknown |
+| rowboat | main | unknown | https://github.com/rowboatlabs/rowboat | unknown |
+| mistral-vibe | main | unknown | https://github.com/mistralai/mistral-vibe | unknown |
+| smithery-cli | main | unknown | https://github.com/smithery-ai/cli | unknown |
+| opencode | main | unknown | https://github.com/anomalyco/opencode | unknown |
+| kilocode | main | unknown | https://github.com/Kilo-Org/kilocode | unknown |
+| bito-cli | main | unknown | https://github.com/gitbito/CLI | unknown |
+| byterover-cli | main | unknown | https://github.com/campfirein/byterover-cli | unknown |
+| claude-code-templates | main | unknown | https://github.com/davila7/claude-code-templates | unknown |
+| claude-code | main | unknown | https://github.com/davila7/claude-code-templates
+https://github.com/yasasbanukaofficial/claude-code | unknown |
+| copilot-cli | main | unknown | https://github.com/github/copilot-cli | unknown |
+| crush | main | unknown | https://github.com/charmbracelet/crush | unknown |
+| factory-cli | main | unknown | https://github.com/Factory-AI/factory | unknown |
+| gemini-cli | main | unknown | https://github.com/google-gemini/gemini-cli | unknown |
+| grok-cli | main | unknown | https://github.com/superagent-ai/grok-cli | unknown |
+| jules-extension | main | unknown | https://github.com/gemini-cli-extensions/jules | unknown |
+| kimi-cli | main | unknown | https://github.com/MoonshotAI/kimi-cli | unknown |
+| qwen-code-cli | main | unknown | https://github.com/dinoanderson/qwen_cli_coder | unknown |
+| external/MetaMCP | main | unknown | https://github.com/robertpelloni/MetaMCP | unknown |
+| archive/submodules/mcpproxy | main | unknown | https://github.com/Dumbris/mcpproxy | unknown |
+| archive/submodules/litellm | main | unknown | https://github.com/BerriAI/litellm | unknown |
+| archive/claude-mem | main | unknown | https://github.com/robertpelloni/claude-mem | unknown |
+| archive/OmniRoute | main | unknown | https://github.com/diegosouzapw/OmniRoute | unknown |
+| packages/claude-mem | main | unknown | https://github.com/robertpelloni/claude-mem | unknown |
+| apps/maestro | main | unknown | https://github.com/robertpelloni/Maestro | unknown |
+| submodules/prism-mcp | main | unknown | https://github.com/dcostenco/prism-mcp | unknown |
+| submodules/borg | main | unknown | https://github.com/robertpelloni/borg.git | unknown |

@@ -176,24 +176,64 @@ export const agentRouter = t.router({
         }),
 
     /**
+     * Observable stream for swarm collaboration events (turns, signals, consensus).
+     */
+    swarmEvents: publicProcedure
+        .input(z.object({
+            lastEventId: z.number().optional()
+        }))
+        .subscription(({ input }) => {
+            const server = getMcpServer();
+            return {
+                async *[Symbol.asyncIterator]() {
+                    // Replay history if requested
+                    if (input.lastEventId) {
+                        const history = server.eventBus.getHistorySince(input.lastEventId);
+                        for (const event of history) {
+                            if (event.type.startsWith('swarm:')) {
+                                yield { event: event.type, data: event.payload, timestamp: event.timestamp };
+                            }
+                        }
+                    }
+
+                    // Stream new events
+                    for await (const [event, data] of server.eventBus.on('swarm:*')) {
+                        yield { event, data, timestamp: Date.now() };
+                    }
+                }
+            };
+        }),
+
+    /**
      * Real-time agent chat stream using tRPC subscriptions.
+     * Enhanced with history-aware event tracking for connection resilience.
      */
     chatStream: t.procedure
         .input(z.object({
             message: z.string(),
             context: z.any().optional(),
+            lastEventId: z.number().optional(),
         }))
         .subscription(async ({ input }) => {
+            const server = getMcpServer();
+            if (!server) {
+                throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'MCP Server not initialized' });
+            }
+
             return {
                 async *[Symbol.asyncIterator]() {
-                    const server = getMcpServer();
-                    if (!server || !server.llmService) {
-                        yield { content: '[Error] MCP Server or LLM Service not initialized', done: true };
-                        return;
+                    // 1. Replay missed history if requested
+                    if (input.lastEventId) {
+                        const history = server.eventBus.getHistorySince(input.lastEventId);
+                        for (const event of history) {
+                            yield { event, type: 'history' };
+                        }
                     }
 
-                    // For now, simulate streaming if the service doesn't support it natively
-                    // In a real implementation, we'd call llm.generateStream
+                    // 2. Start the generator for new messages
+                    // In a real implementation, this would yield tokens from llm.generateStream
+                    // and also yield A2A_SIGNAL/USER_ACTIVITY events from the eventBus.
+
                     const response = await server.llmService.generate(input.message, {
                         context: input.context,
                         maxTokens: 1000
@@ -201,10 +241,10 @@ export const agentRouter = t.router({
 
                     const words = (response?.text ?? '').split(' ');
                     for (const word of words) {
-                        yield { content: word + ' ', done: false };
+                        yield { content: word + ' ', done: false, timestamp: Date.now() };
                         await new Promise(r => setTimeout(r, 50));
                     }
-                    yield { content: '', done: true };
+                    yield { content: '', done: true, timestamp: Date.now() };
                 }
             };
         }),

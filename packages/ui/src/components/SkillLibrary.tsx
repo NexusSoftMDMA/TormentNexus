@@ -5,8 +5,9 @@ import { trpc } from '../utils/trpc';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './ui/card';
-import { Loader2, Book, Plus, Save, Edit, Code } from 'lucide-react';
+import { Loader2, Book, Plus, Save, Edit, Code, Zap, ExternalLink, Trash2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from './ui/dialog';
+import { Badge } from './ui/badge';
 
 function getSkillContentText(value: unknown): string | null {
     if (!value || typeof value !== 'object') {
@@ -29,15 +30,19 @@ function getSkillContentText(value: unknown): string | null {
 
 export function SkillLibrary() {
     const { data: skills, isLoading, refetch } = trpc.skills.list.useQuery();
+    const { data: loadedSkills, refetch: refetchLoaded } = trpc.skills.listLoaded.useQuery();
+
     const createSkill = trpc.skills.create.useMutation();
     const saveSkill = trpc.skills.save.useMutation();
+    const loadSkill = trpc.skills.load.useMutation();
+    const unloadSkill = trpc.skills.unload.useMutation();
 
     const [selectedSkill, setSelectedSkill] = useState<any>(null);
     const [skillContent, setSkillContent] = useState('');
     const [isEditing, setIsEditing] = useState(false);
 
     const { data: skillData } = trpc.skills.read.useQuery(
-        { name: selectedSkill?.name || '' },
+        { name: selectedSkill?.id || '' },
         { enabled: !!selectedSkill }
     );
 
@@ -62,11 +67,23 @@ export function SkillLibrary() {
         setSkillContent('Loading...');
     };
 
+    const handleLoadToggle = async (id: string, isLoaded: boolean) => {
+        try {
+            if (isLoaded) {
+                await unloadSkill.mutateAsync({ id });
+            } else {
+                await loadSkill.mutateAsync({ id });
+            }
+            refetchLoaded();
+        } catch (e) {
+            console.error(e);
+        }
+    };
+
     const handleSave = async () => {
         if (!selectedSkill) return;
         try {
-            // We use selectedSkill.name as ID. 
-            await saveSkill.mutateAsync({ id: selectedSkill.name, content: skillContent });
+            await saveSkill.mutateAsync({ id: selectedSkill.id, content: skillContent });
             setIsEditing(false);
             refetch();
         } catch (e) {
@@ -115,16 +132,40 @@ export function SkillLibrary() {
                         {isLoading ? (
                             <div className="flex justify-center p-4"><Loader2 className="animate-spin w-6 h-6 text-zinc-600" /></div>
                         ) : skills && skills.length > 0 ? (
-                            skills.map((s: any) => (
-                                <div
-                                    key={s.name}
-                                    onClick={() => handleSelectSkill(s)}
-                                    className={`p-3 border-b border-zinc-800/50 cursor-pointer transition-colors hover:bg-zinc-800/40 ${selectedSkill?.name === s.name ? 'bg-zinc-800/60 border-l-2 border-l-emerald-500' : 'border-l-2 border-l-transparent'}`}
-                                >
-                                    <div className="font-medium text-sm text-zinc-200">{s.name}</div>
-                                    <div className="text-xs text-zinc-500 line-clamp-2 mt-1">{s.description}</div>
-                                </div>
-                            ))
+                            skills.map((s: any) => {
+                                const isLoaded = loadedSkills?.some((ls: any) => ls.id === s.id);
+                                return (
+                                    <div
+                                        key={s.id}
+                                        onClick={() => handleSelectSkill(s)}
+                                        className={`p-3 border-b border-zinc-800/50 cursor-pointer transition-colors hover:bg-zinc-800/40 group relative ${selectedSkill?.id === s.id ? 'bg-zinc-800/60 border-l-2 border-l-emerald-500' : 'border-l-2 border-l-transparent'}`}
+                                    >
+                                        <div className="flex items-center justify-between">
+                                            <div className="font-medium text-sm text-zinc-200">{s.name}</div>
+                                            {isLoaded && (
+                                                <Badge variant="outline" className="bg-emerald-500/10 text-emerald-500 border-emerald-500/20 text-[10px] py-0 px-1">
+                                                    LOADED
+                                                </Badge>
+                                            )}
+                                        </div>
+                                        <div className="text-xs text-zinc-500 line-clamp-1 mt-1">{s.description}</div>
+                                        <div className="flex items-center gap-2 mt-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <Button
+                                                size="sm"
+                                                variant="ghost"
+                                                className={`h-6 px-2 text-[10px] ${isLoaded ? 'text-amber-400 hover:text-amber-300' : 'text-emerald-400 hover:text-emerald-300'}`}
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    handleLoadToggle(s.id, !!isLoaded);
+                                                }}
+                                            >
+                                                <Zap className={`w-3 h-3 mr-1 ${isLoaded ? 'fill-current' : ''}`} />
+                                                {isLoaded ? 'Unload' : 'Load JIT'}
+                                            </Button>
+                                        </div>
+                                    </div>
+                                );
+                            })
                         ) : (
                             <div className="p-4 text-zinc-500 text-sm text-center">No skills found.</div>
                         )}

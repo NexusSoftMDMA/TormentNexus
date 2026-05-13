@@ -4,6 +4,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { useTheme } from 'next-themes';
+import { useResizeObserver } from '../hooks/use-resize-observer';
 
 // Dynamic import to avoid SSR issues with canvas
 const ForceGraph2D = dynamic(() => import('react-force-graph-2d'), { ssr: false });
@@ -36,6 +37,8 @@ interface KnowledgeGraphProps {
 export function KnowledgeGraph({ nodes = [], links = [], loading = false, onNodeClick }: KnowledgeGraphProps) {
     const { theme } = useTheme();
     const fgRef = useRef<any>();
+    const containerRef = useRef<HTMLDivElement>(null);
+    const { width, height } = useResizeObserver(containerRef);
 
     // Auto-resize / re-center when data changes
     // const [loading, setLoading] = useState(true);
@@ -44,18 +47,18 @@ export function KnowledgeGraph({ nodes = [], links = [], loading = false, onNode
     //     // Internal fetch removed in favor of props
     // }, []);
 
-    // Auto-resize / re-center when data changes
+    // Auto-resize / re-center when data or container size changes
     useEffect(() => {
         if (fgRef.current && nodes.length > 0) {
-            // fgRef.current.zoomToFit(400); 
+            fgRef.current.zoomToFit(400);
         }
-    }, [nodes]);
+    }, [nodes, width, height]);
 
 
     const isDark = theme === 'dark';
 
     return (
-        <div className="w-full h-full relative bg-zinc-50 dark:bg-black rounded-xl overflow-hidden border border-zinc-200 dark:border-zinc-800">
+        <div ref={containerRef} className="w-full h-full relative bg-zinc-50 dark:bg-black rounded-xl overflow-hidden border border-zinc-200 dark:border-zinc-800">
             {loading && (
                 <div className="absolute inset-0 flex items-center justify-center z-10 bg-white/50 dark:bg-black/50 backdrop-blur-sm">
                     <div className="animate-pulse text-zinc-500">Loading Brain...</div>
@@ -64,8 +67,8 @@ export function KnowledgeGraph({ nodes = [], links = [], loading = false, onNode
 
             <ForceGraph2D
                 ref={fgRef}
-                width={800} // TODO: Make responsive
-                height={600}
+                width={width}
+                height={height}
                 graphData={{ nodes, links }}
                 nodeLabel="label"
                 nodeColor={(node: any) => {

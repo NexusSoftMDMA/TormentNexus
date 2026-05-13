@@ -237,39 +237,6 @@ func (s *Server) handleDecisionCatalogSave(w http.ResponseWriter, r *http.Reques
 	writeJSON(w, http.StatusOK, map[string]string{"status": "saved", "path": path})
 }
 
-// ==================== EventBus ====================
-
-func (s *Server) handleEventBusPublish(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "POST required", http.StatusMethodNotAllowed)
-		return
-	}
-	var req struct {
-		Topic   string      `json:"topic"`
-		Payload interface{} `json:"payload"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
-		return
-	}
-
-	s.eventBus.EmitEvent(eventbus.SystemEventType(req.Topic), "api", req.Payload)
-	writeJSON(w, http.StatusOK, map[string]string{"status": "published"})
-}
-
-func (s *Server) handleEventBusHistory(w http.ResponseWriter, r *http.Request) {
-	limit := 50
-	if l := r.URL.Query().Get("limit"); l != "" {
-		fmt.Sscanf(l, "%d", &limit)
-	}
-
-	events := s.eventBus.GetHistory(limit)
-	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"count":  len(events),
-		"events": events,
-	})
-}
-
 // ==================== Cache ====================
 
 func (s *Server) handleCacheGet(w http.ResponseWriter, r *http.Request) {

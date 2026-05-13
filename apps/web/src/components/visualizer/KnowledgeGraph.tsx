@@ -4,7 +4,7 @@
 import dynamic from 'next/dynamic';
 import React, { useRef } from 'react';
 import { trpc } from '@/utils/trpc'; // Assuming standard TRPC hook location or adjust
-import { Card, CardHeader, CardTitle, CardContent } from '@borg/ui';
+import { Card, CardHeader, CardTitle, CardContent, useResizeObserver } from '@borg/ui';
 
 // ForceGraph must be dynamically imported as it uses window
 const ForceGraph2D = dynamic(() => import('react-force-graph-2d'), { ssr: false });
@@ -33,19 +33,30 @@ export function KnowledgeGraph() {
         };
     }, [data]);
 
-    const fgRef = useRef();
+    const fgRef = useRef<any>();
+    const containerRef = useRef<HTMLDivElement>(null);
+    const { width, height } = useResizeObserver(containerRef);
+
+    // Auto-resize / re-center when data or container size changes
+    React.useEffect(() => {
+        if (fgRef.current && graphData.nodes.length > 0) {
+            fgRef.current.zoomToFit(400);
+        }
+    }, [graphData, width, height]);
 
     return (
         <Card className="h-[80vh] w-full flex flex-col">
             <CardHeader>
                 <CardTitle>Memory Layout (Hippocampus)</CardTitle>
             </CardHeader>
-            <CardContent className="flex-1 p-0 relative bg-zinc-950 overflow-hidden rounded-b-xl">
+            <CardContent ref={containerRef} className="flex-1 p-0 relative bg-zinc-950 overflow-hidden rounded-b-xl">
                 <ForceGraph2D
                     ref={fgRef}
+                    width={width}
+                    height={height}
                     graphData={graphData}
                     nodeLabel="id"
-                    nodeColor={node => node.group === 1 ? '#ef4444' : '#3b82f6'}
+                    nodeColor={node => (node as any).group === 1 ? '#ef4444' : '#3b82f6'}
                     linkColor={() => '#ffffff40'}
                     backgroundColor="#09090b" // Zinc-950
                 />

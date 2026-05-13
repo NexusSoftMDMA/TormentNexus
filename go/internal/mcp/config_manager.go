@@ -16,6 +16,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 )
 
@@ -26,6 +27,8 @@ type McpServerConfig struct {
 	URL         string            `json:"url,omitempty"`
 	Description string            `json:"description,omitempty"`
 	AlwaysOn    bool              `json:"alwaysOn,omitempty"`
+	Headers     map[string]string `json:"headers,omitempty"`
+	BearerToken string            `json:"bearerToken,omitempty"`
 }
 
 type McpConfig struct {
@@ -114,9 +117,40 @@ func (cm *ConfigManager) RemoveServer(name string) error {
 	return cm.Save()
 }
 
-// stripComments is a very basic implementation to handle // comments in JSONC
+// stripComments removes // line comments from JSONC input.
 func (cm *ConfigManager) stripComments(input string) string {
-	// In a real implementation, we'd use a proper JSONC parser
-	// For now, this is a placeholder
-	return input
+	var result []byte
+	lines := strings.SplitAfter(input, "\n")
+	for _, line := range lines {
+		// Strip // line comments (not inside strings)
+		inString := false
+		escaped := false
+		commentStart := -1
+		for i := 0; i < len(line); i++ {
+			ch := line[i]
+			if escaped {
+				escaped = false
+				continue
+			}
+			if ch == '\\' && inString {
+				escaped = true
+				continue
+			}
+			if ch == '"' {
+				inString = !inString
+				continue
+			}
+			if !inString && i+1 < len(line) && ch == '/' && line[i+1] == '/' {
+				commentStart = i
+				break
+			}
+		}
+		if commentStart >= 0 {
+			result = append(result, []byte(line[:commentStart])...)
+			result = append(result, '\n')
+		} else {
+			result = append(result, []byte(line)...)
+		}
+	}
+	return string(result)
 }

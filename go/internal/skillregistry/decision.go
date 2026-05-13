@@ -56,41 +56,35 @@ func NewSkillDecisionSystem(cfg SkillDecisionConfig, registry *SkillRegistry) *S
 	}
 }
 
-type SkillSearchResult struct {
-	SkillInfo
-	Score    float64 `json:"score"`
-	IsLoaded bool    `json:"isLoaded"`
+func (ds *SkillDecisionSystem) SearchSkills(ctx context.Context, query string) ([]RankedSkill, error) {
+	return ds.registry.Search(query, ds.cfg.SoftCap), nil
 }
 
-func (ds *SkillDecisionSystem) SearchSkills(ctx context.Context, query string) ([]SkillSearchResult, error) {
-	limit := ds.cfg.SearchResultLimit
-	if limit <= 0 {
-		limit = 5
+// SearchAndLoad performs a ranked search and auto-loads high-confidence skills.
+func (ds *SkillDecisionSystem) SearchAndLoad(ctx context.Context, query string) ([]RankedSkill, error) {
+	ranked := ds.registry.Search(query, ds.cfg.SoftCap)
+	if len(ranked) == 0 {
+		return nil, nil
 	}
-	
-	// Use registry search (which does heuristic scoring)
-	results := ds.registry.Search(query, limit)
-	
-	ds.mu.RLock()
-	defer ds.mu.RUnlock()
-	
-	var final []SkillSearchResult
-	for _, s := range results {
-		_, loaded := ds.loaded[strings.ToLower(s.ID)]
-		final = append(final, SkillSearchResult{
-			SkillInfo: s,
-			Score:     0, // Score is already reflected in the sort order from search
-			IsLoaded:  loaded,
-		})
+
+	// Auto-load high confidence results
+	for _, r := range ranked {
+		if r.Score >= ds.cfg.HighConfidenceThreshold {
+			_ = ds.LoadSkill(ctx, r.ID, true)
+		}
 	}
-	
-	return final, nil
+
+	return ranked, nil
 }
 
 func (ds *SkillDecisionSystem) LoadSkill(ctx context.Context, id string, autoLoaded bool) error {
 	ds.mu.Lock()
 	defer ds.mu.Unlock()
 
+	return ds.loadSkillLocked(id, autoLoaded)
+}
+
+func (ds *SkillDecisionSystem) loadSkillLocked(id string, autoLoaded bool) error {
 	id = strings.ToLower(id)
 	if sl, ok := ds.loaded[id]; ok {
 		sl.LastUsedAt = time.Now()
@@ -119,16 +113,17 @@ func (ds *SkillDecisionSystem) LoadSkill(ctx context.Context, id string, autoLoa
 	return nil
 }
 
-func (ds *SkillDecisionSystem) UnloadSkill(id string) bool {
+// RefreshAlwaysOn loads all skills marked as AlwaysOn into the active set.
+func (ds *SkillDecisionSystem) RefreshAlwaysOn() {
+	all := ds.registry.List()
 	ds.mu.Lock()
 	defer ds.mu.Unlock()
 
-	id = strings.ToLower(id)
-	_, existed := ds.loaded[id]
-	if existed {
-		delete(ds.loaded, id)
+	for _, s := range all {
+		if s.AlwaysOn {
+			_ = ds.loadSkillLocked(s.ID, false)
+		}
 	}
-	return existed
 }
 
 func (ds *SkillDecisionSystem) ListLoadedSkills() []SkillLoaded {
@@ -143,6 +138,18 @@ func (ds *SkillDecisionSystem) ListLoadedSkills() []SkillLoaded {
 		return result[i].LastUsedAt.After(result[j].LastUsedAt)
 	})
 	return result
+}
+
+func (ds *SkillDecisionSystem) UnloadSkill(id string) bool {
+	ds.mu.Lock()
+	defer ds.mu.Unlock()
+
+	id = strings.ToLower(id)
+	_, existed := ds.loaded[id]
+	if existed {
+		delete(ds.loaded, id)
+	}
+	return existed
 }
 
 func (ds *SkillDecisionSystem) evictLRULocked() {
@@ -167,7 +174,7 @@ func (ds *SkillDecisionSystem) evictLRULocked() {
 func (ds *SkillDecisionSystem) EvictIdle() int {
 	ds.mu.Lock()
 	defer ds.mu.Unlock()
-	
+
 	now := time.Now()
 	evicted := 0
 	for id, sl := range ds.loaded {

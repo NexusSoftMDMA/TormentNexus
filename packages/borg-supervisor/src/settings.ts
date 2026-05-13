@@ -13,11 +13,29 @@ export const DEFAULT_ACTION_LABELS = [
     'Allow',
     'Approve',
     'Proceed',
-    'Keep'
+    'Keep',
+    'Accept all changes',
+    'Accept All Changes',
+    'Accept All',
+    'Approve All',
+    'Run command',
+    'Allow all'
 ] as const satisfies readonly string[];
 
 const supervisorSettingsSchema = z.object({
     bumpText: z.string().default('keep going'),
+    bumpSentences: z.array(z.string()).default([
+        'keep going',
+        'proceed',
+        'outstanding',
+        'perfect',
+        'onward',
+        'continue',
+        'great work, keep it up',
+        'excellent, please proceed',
+        'magnificent, continue',
+        'onward ho!'
+    ]),
     actionLabels: z.array(z.string()).default([...DEFAULT_ACTION_LABELS]),
     focusDelayMs: z.number().int().nonnegative().default(100),
     afterClickDelayMs: z.number().int().nonnegative().default(150),

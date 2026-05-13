@@ -58,6 +58,9 @@ type SwarmController struct {
 	transcript []string
 	activeGoal string
 	broker     *A2ABroker
+	bus        interface {
+		EmitEvent(eventType string, source string, payload interface{})
+	}
 }
 
 func NewSwarmController(broker *A2ABroker) *SwarmController {
@@ -66,6 +69,14 @@ func NewSwarmController(broker *A2ABroker) *SwarmController {
 		transcript: make([]string, 0),
 		broker:     broker,
 	}
+}
+
+func (c *SwarmController) SetEventBus(bus interface {
+	EmitEvent(eventType string, source string, payload interface{})
+}) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.bus = bus
 }
 
 func (c *SwarmController) AddMember(member SwarmMember) {
@@ -144,10 +155,20 @@ func (c *SwarmController) executeMemberTurn(ctx context.Context, role SwarmRole,
 		}
 	}
 	transcript := c.transcript
+	bus := c.bus
 	c.mu.RUnlock()
 
 	if member == nil {
 		return fmt.Sprintf("[System]: No active member for role %s", role), nil
+	}
+
+	if bus != nil {
+		bus.EmitEvent("swarm:turn_start", "SwarmController", map[string]interface{}{
+			"role":        string(role),
+			"name":        member.Name,
+			"modelId":     member.ModelID,
+			"instruction": instruction,
+		})
 	}
 
 	member.Status = "thinking"
@@ -170,7 +191,22 @@ func (c *SwarmController) executeMemberTurn(ctx context.Context, role SwarmRole,
 	resp, err := ai.AutoRouteWithModel(ctx, member.ModelID, messages)
 	member.Status = "idle"
 	if err != nil {
+		if bus != nil {
+			bus.EmitEvent("swarm:turn_end", "SwarmController", map[string]interface{}{
+				"role":    string(role),
+				"success": false,
+				"error":   err.Error(),
+			})
+		}
 		return "", err
+	}
+
+	if bus != nil {
+		bus.EmitEvent("swarm:turn_end", "SwarmController", map[string]interface{}{
+			"role":    string(role),
+			"success": true,
+			"content": resp.Content,
+		})
 	}
 
 	return resp.Content, nil
@@ -264,6 +300,7 @@ func (c *SwarmController) broadcastUpdate() {
 		members = append(members, *m)
 	}
 	transcriptCount := len(c.transcript)
+	activeGoal := c.activeGoal
 	c.mu.RUnlock()
 
 	c.broker.RouteMessage(A2AMessage{
@@ -274,6 +311,7 @@ func (c *SwarmController) broadcastUpdate() {
 		Payload: map[string]interface{}{
 			"members":         members,
 			"transcriptCount": transcriptCount,
+			"activeGoal":      activeGoal,
 		},
 	})
 }

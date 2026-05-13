@@ -6,6 +6,7 @@ import { trpc } from '../utils/trpc';
 import { Card } from './ui/card';
 import { Button } from './ui/button';
 import { Loader2, RefreshCw, ZoomIn, ZoomOut } from 'lucide-react';
+import { useResizeObserver } from '../hooks/use-resize-observer';
 
 const ForceGraph2D = dynamic(() => import('react-force-graph-2d'), { ssr: false });
 
@@ -34,26 +35,15 @@ export function GraphPanel() {
 
     const executeTool = trpc.executeTool.useMutation();
     const fgRef = useRef<any>();
-    const [containerDimensions, setDimensions] = useState({ width: 800, height: 600 });
     const containerRef = useRef<HTMLDivElement>(null);
+    const { width, height } = useResizeObserver(containerRef);
 
+    // Auto-resize / re-center when data or container size changes
     useEffect(() => {
-        if (containerRef.current) {
-            const { clientWidth, clientHeight } = containerRef.current;
-            setDimensions({ width: clientWidth, height: clientHeight });
+        if (fgRef.current && displayGraph.nodes.length > 0) {
+            fgRef.current.zoomToFit(400);
         }
-
-        const ResizeObserver = (window as any).ResizeObserver;
-        if (ResizeObserver && containerRef.current) {
-            const ro = new ResizeObserver((entries: any) => {
-                for (const entry of entries) {
-                    setDimensions({ width: entry.contentRect.width, height: entry.contentRect.height });
-                }
-            });
-            ro.observe(containerRef.current);
-            return () => ro.disconnect();
-        }
-    }, [containerRef]);
+    }, [displayGraph, width, height]);
 
     const handleNodeClick = (node: any) => {
         if (node.id) {
@@ -108,8 +98,8 @@ export function GraphPanel() {
                 {graphData && (
                     <ForceGraph2D
                         ref={fgRef}
-                        width={containerDimensions.width}
-                        height={containerDimensions.height}
+                        width={width}
+                        height={height}
                         graphData={displayGraph}
                         nodeLabel="id"
                         nodeColor={(node: any) => {

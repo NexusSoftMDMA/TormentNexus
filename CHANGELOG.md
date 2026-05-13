@@ -1,6 +1,46 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+
+## [1.0.0-alpha.54] - 2026-05-12
+
+### Added
+- Native Go implementation of MCP Client Synchronization with full parity (Headers, BearerTokens).
+- Automated `zoomToFit` re-centering in `KnowledgeGraph` and `GraphPanel` components.
+- Comprehensive architecture documentation in `docs/ARCHITECTURE.md`.
+- Ecosystem overview and dormant submodule audit in `docs/ECOSYSTEM.md`.
+
+### Changed
+- Optimized `useResizeObserver` with `requestAnimationFrame` for smoother UI scaling.
+- Enhanced `DebateVisualizer` with real-time consensus agreement metrics and progress bars.
+- Hardened agent chat resilience and submission hooks in `Borg Supervisor`.
+
+### Fixed
+- UI regression where focus was stolen at an excessive rate during autonomous cycles.
+- Corrected `alt-enter` submission logic for modern "Antigravity" surfaces.
+
+## [1.0.0-alpha.52] - 2026-05-08
+
+### Added
+- **Predictive Tool Discovery**: Implemented `getPredictedToolAds` in `MCPServer` and integrated it into `McpWorkerAgent`. The agent now preemptively fetches relevant tools from the Go sidecar based on the task goal.
+- **Protocol Completion**: Synchronized all 57 monorepo packages to v1.0.0-alpha.52.
+- **Maintenance**: Refreshed `SUBMODULE_INVENTORY.md` and repository status.
+
+## [1.0.0-alpha.49] - 2026-05-04
+
+### Added
+- **Stream Status Indicator**: Real-time connectivity feedback in the Dashboard Navigation (Core TS, Go Sidecar, and Stream status).
+- **Go-Native MCP Sync**: Migrated Claude, Cursor, and VS Code configuration detection/syncing to the Go sidecar (Port 4300).
+- **Progressive Skill Disclosure**: Wired JIT Load/Unload controls in the Skills Dashboard to the Go-native SkillStore and ranking engine.
+- **Resilient Sidecar Bridge**: Implemented `NativeSidecarDaemon` and event buffering to ensure A2A signals survive socket drops.
+- **Standardized Responsive UI**: Integrated `useResizeObserver` hook into `KnowledgeGraph` and `GraphPanel`.
+
+### Changed
+- **CLI Go-API Binding**: Updated `borg mcp sync` to utilize the Go-native sync endpoints.
+- **Project Structure**: Cleaned up orphaned submodule references and synchronized monorepo-wide versions.
+
+
+All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://sumver.org/spec/v2.0.0.html).
 
@@ -35,6 +75,15 @@ and this project adheres to [Semantic Versioning](https://sumver.org/spec/v2.0.0
 ### Fixed
 - **TS Agent Stubs**: Repaired corrupted/concatenated `RiskEvaluator.ts` and `DebateEngine.ts` in `packages/agents`.
 - **Version Sync**: Synchronized all 57 `package.json` files and Go `buildinfo` to `1.0.0-alpha.46`.
+
+## [1.0.0-alpha.50] - 2026-05-02
+
+### Added
+- **Responsive Knowledge Graph**: Refactored `KnowledgeGraph` and `GraphPanel` using a new `useResizeObserver` hook for dynamic sizing.
+- **Go Sidecar Progressive Disclosure**: Ported LRU eviction and ranked search logic to the Go-native `SkillStore`.
+- **Real-time Swarm Visibility**: Added `swarmEvents` tRPC subscription and a corresponding `SwarmTranscript` UI component for live model turn visualization.
+- **MCP Sync Performance**: Migrated Claude/Cursor/VSCode config detection and synchronization to the Go sidecar (`internal/mcp/sync.go`).
+- **Version Sync**: Synchronized all 57 package.json files to v1.0.0-alpha.50.
 
 ## [1.0.0-alpha.45] - 2026-04-30
 

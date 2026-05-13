@@ -389,8 +389,10 @@ function Invoke-Element([System.Windows.Automation.AutomationElement]$element) {
         return 'selection-pattern'
     }
 
-    $element.SetFocus()
-    Start-Sleep -Milliseconds 100
+    if (-not $element.Current.HasKeyboardFocus) {
+        $element.SetFocus()
+        Start-Sleep -Milliseconds 100
+    }
 
     $rect = $element.Current.BoundingRectangle
     if ($rect.Width -gt 0 -and $rect.Height -gt 0) {
@@ -504,15 +506,15 @@ if ($null -eq $target) {
 $method = 'focus-sendkeys'
 $valuePattern = $null
 if ($target.TryGetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern, [ref]$valuePattern) -and -not $valuePattern.Current.IsReadOnly) {
-    $target.SetFocus()
-    Start-Sleep -Milliseconds ${delays.inputSettleDelayMs}
+    if (-not $target.Current.HasKeyboardFocus) {
+        $target.SetFocus()
+        Start-Sleep -Milliseconds ${delays.inputSettleDelayMs}
+    }
     $nextValue = $targetText
     if (-not $clearExisting) {
         $nextValue = $valuePattern.Current.Value + $targetText
     }
     $valuePattern.SetValue($nextValue)
-    $target.SetFocus()
-    Start-Sleep -Milliseconds ${delays.inputSettleDelayMs}
     $method = 'value-pattern'
 } else {
     $target.SetFocus()
@@ -577,8 +579,10 @@ if ($null -eq $target) {
     throw 'No enabled chat input found in target window for submission'
 }
 
-$target.SetFocus()
-Start-Sleep -Milliseconds ${delays.focusDelayMs}
+if (-not $target.Current.HasKeyboardFocus) {
+    $target.SetFocus()
+    Start-Sleep -Milliseconds ${delays.focusDelayMs}
+}
 
 $wshell = New-Object -ComObject wscript.shell
 $wshell.SendKeys(${sendKeysExpression})
@@ -598,6 +602,7 @@ $result | ConvertTo-Json -Depth 8 -Compress`;
 
 export class UiAutomationManager {
     private readonly settingsManager: SupervisorSettingsManager;
+    private bumpIndex = 0;
 
     constructor(settingsManager?: SupervisorSettingsManager) {
         this.settingsManager = settingsManager ?? new SupervisorSettingsManager();
@@ -788,7 +793,12 @@ export class UiAutomationManager {
         ]);
         const profile = surface.surfaceProfile ?? DEFAULT_SURFACE_PROFILE;
         const actionLabels = options?.actionLabels ?? profile.actionLabels ?? settings.actionLabels;
-        const bumpText = options?.bumpText ?? settings.bumpText;
+
+        let bumpText = options?.bumpText ?? settings.bumpText;
+        if (!options?.bumpText && settings.bumpSentences && settings.bumpSentences.length > 0) {
+            bumpText = settings.bumpSentences[this.bumpIndex % settings.bumpSentences.length];
+            this.bumpIndex++;
+        }
         const submitKeyChord = profile.id === 'antigravity'
             ? 'alt+enter'
             : profile.submitKeyChord ?? 'alt+enter';

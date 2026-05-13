@@ -68,7 +68,7 @@ func (s *Server) handleCouncilBaseDebate(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	debateRes, fallbackErr := orchestration.RunDebate(r.Context(), normalizedObjective, payload.Context)
+	debateRes, fallbackErr := orchestration.RunDebate(r.Context(), s.debateHistory, normalizedObjective, payload.Context)
 	if fallbackErr != nil {
 		writeJSON(w, http.StatusServiceUnavailable, map[string]any{
 			"success": false,

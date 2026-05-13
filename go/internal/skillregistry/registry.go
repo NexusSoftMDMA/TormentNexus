@@ -70,59 +70,127 @@ func (sr *SkillRegistry) List() []SkillInfo {
 	return result
 }
 
-// Search performs a fuzzy search across skill names and descriptions.
-func (sr *SkillRegistry) Search(query string, limit int) []SkillInfo {
+// RankedSkill wraps SkillInfo with a relevance score.
+type RankedSkill struct {
+	SkillInfo
+	Score float64 `json:"score"`
+	Rank  int     `json:"rank"`
+}
+
+// Search performs a ranked discovery search across skill names, descriptions, and tags.
+func (sr *SkillRegistry) Search(query string, limit int) []RankedSkill {
 	if limit <= 0 {
 		limit = 10
 	}
-	query = strings.ToLower(query)
 
 	sr.mu.RLock()
 	defer sr.mu.RUnlock()
 
-	type scored struct {
-		skill SkillInfo
-		score float64
+	if query == "" {
+		var results []RankedSkill
+		all := sr.List()
+		for i, s := range all {
+			if i >= limit {
+				break
+			}
+			results = append(results, RankedSkill{
+				SkillInfo: s,
+				Score:     0,
+				Rank:      i + 1,
+			})
+		}
+		return results
 	}
 
-	var results []scored
+	tokens := tokenize(query)
+	var ranked []RankedSkill
+
 	for _, s := range sr.skills {
-		score := 0.0
+		score := calculateSkillScore(tokens, s)
+		if score > 0 {
+			ranked = append(ranked, RankedSkill{
+				SkillInfo: *s,
+				Score:     score,
+			})
+		}
+	}
 
-		if strings.ToLower(s.ID) == query || strings.ToLower(s.Name) == query {
-			score += 10.0
-		} else if strings.Contains(strings.ToLower(s.Name), query) {
-			score += 5.0
+	sort.Slice(ranked, func(i, j int) bool {
+		if ranked[i].Score == ranked[j].Score {
+			return ranked[i].Name < ranked[j].Name
+		}
+		return ranked[i].Score > ranked[j].Score
+	})
+
+	if len(ranked) > limit {
+		ranked = ranked[:limit]
+	}
+
+	for i := range ranked {
+		ranked[i].Rank = i + 1
+	}
+
+	return ranked
+}
+
+func tokenize(text string) []string {
+	f := func(c rune) bool {
+		return (c < 'a' || c > 'z') && (c < 'A' || c > 'Z') && (c < '0' || c > '9')
+	}
+	parts := strings.FieldsFunc(strings.ToLower(text), f)
+	var tokens []string
+	for _, p := range parts {
+		if len(p) >= 2 {
+			tokens = append(tokens, p)
+		}
+	}
+	return tokens
+}
+
+func calculateSkillScore(queryTokens []string, skill *SkillInfo) float64 {
+	score := 0.0
+	nameTokens := tokenize(skill.Name + " " + skill.ID)
+	descTokens := tokenize(skill.Description)
+
+	// Weights
+	const weightName = 10.0
+	const weightDesc = 3.0
+	const weightTag = 5.0
+
+	for _, q := range queryTokens {
+		// Exact ID/Name match
+		if strings.ToLower(skill.ID) == q || strings.ToLower(skill.Name) == q {
+			score += 20.0
 		}
 
-		if strings.Contains(strings.ToLower(s.Description), query) {
-			score += 3.0
-		}
-
-		for _, tag := range s.Tags {
-			if strings.ToLower(tag) == query {
-				score += 4.0
-			} else if strings.Contains(strings.ToLower(tag), query) {
-				score += 1.0
+		// Token matches in Name
+		for _, nt := range nameTokens {
+			if nt == q {
+				score += weightName
+			} else if strings.Contains(nt, q) {
+				score += weightName / 2
 			}
 		}
 
-		if score > 0 {
-			results = append(results, scored{skill: *s, score: score})
+		// Token matches in Description
+		for _, dt := range descTokens {
+			if dt == q {
+				score += weightDesc
+			} else if strings.Contains(dt, q) {
+				score += weightDesc / 2
+			}
+		}
+
+		// Tag matches
+		for _, tag := range skill.Tags {
+			tagLower := strings.ToLower(tag)
+			if tagLower == q {
+				score += weightTag
+			} else if strings.Contains(tagLower, q) {
+				score += weightTag / 2
+			}
 		}
 	}
 
-	sort.Slice(results, func(i, j int) bool {
-		return results[i].score > results[j].score
-	})
-
-	if len(results) > limit {
-		results = results[:limit]
-	}
-
-	skills := make([]SkillInfo, len(results))
-	for i, r := range results {
-		skills[i] = r.skill
-	}
-	return skills
+	return score
 }

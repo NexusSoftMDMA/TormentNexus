@@ -1,6 +1,6 @@
 {
     "name": "@borg/supervisor",
-    "version": "0.90.8",
+    "version": "1.0.0-alpha.55",
     "description": "Borg Supervisor - Watchdog and Automation Agent",
     "type": "module",
     "main": "dist/index.js",
