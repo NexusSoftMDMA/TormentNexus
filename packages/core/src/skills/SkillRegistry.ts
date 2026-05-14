@@ -25,6 +25,12 @@ export interface Skill {
     path: string;
 }
 
+export interface LoadedSkill extends Skill {
+    loadedAt: Date;
+    lastUsedAt: Date;
+    useCount: number;
+}
+
 function getErrorMessage(error: unknown): string {
     return error instanceof Error ? error.message : String(error);
 }
@@ -50,12 +56,17 @@ function getErrorMessage(error: unknown): string {
  *   MCP servers, harnesses, and skills for the library UI.
  */
 export class SkillRegistry {
-    /** In-memory cache of loaded skills, keyed by skill ID */
+    /** In-memory cache of all discovered skills, keyed by skill ID */
     private skills: Map<string, Skill> = new Map();
+    /** In-memory set of "loaded" skills currently in the model's context */
+    private loadedSkills: Map<string, LoadedSkill> = new Map();
     /** Directories to scan for SKILL.md files */
     private searchPaths: string[];
     /** Optional path to master library index (JSONC) */
     private masterIndexPath?: string;
+
+    private readonly SOFT_CAP = 10;
+    private readonly HARD_CAP = 20;
 
     constructor(searchPaths: string[]) {
         this.searchPaths = searchPaths;
@@ -139,19 +150,46 @@ export class SkillRegistry {
         return [
             {
                 name: "list_skills",
-                description: "List all available skills (runbooks)",
+                description: "List all available skills by ID only. Use read_skill or load_skill to see content.",
                 inputSchema: { type: "object", properties: {} }
             },
             {
                 name: "read_skill",
-                description: "Read the content/instructions of a specific skill",
+                description: "Read the content/instructions of a specific skill. Auto-loads the skill into the working set.",
                 inputSchema: {
                     type: "object",
                     properties: {
-                        skillName: { type: "string" }
+                        skillId: { type: "string" }
                     },
-                    required: ["skillName"]
+                    required: ["skillId"]
                 }
+            },
+            {
+                name: "load_skill",
+                description: "Explicitly load a skill into the active working set to make its content visible in the long-term context.",
+                inputSchema: {
+                    type: "object",
+                    properties: {
+                        skillId: { type: "string" }
+                    },
+                    required: ["skillId"]
+                }
+            },
+            {
+                name: "unload_skill",
+                description: "Unload a skill from the active working set to free up context space.",
+                inputSchema: {
+                    type: "object",
+                    properties: {
+                        skillId: { type: "string" }
+                    },
+                    required: ["skillId"]
+                }
+            },
+            {
+                name: "list_loaded_skills",
+                description: "List all skills currently loaded in the active working set with their metadata.",
+                inputSchema: { type: "object", properties: {} }
             },
             {
                 name: "create_skill",
@@ -168,7 +206,7 @@ export class SkillRegistry {
             },
             {
                 name: "search_skills",
-                description: "Search for skills (runbooks) by name or description",
+                description: "Search for skills (runbooks) by name or description. Returns ranked metadata.",
                 inputSchema: {
                     type: "object",
                     properties: {
@@ -203,7 +241,8 @@ export class SkillRegistry {
             .map(s => ({
                 id: s.id,
                 name: s.name,
-                description: s.description
+                description: s.description,
+                isLoaded: this.loadedSkills.has(s.id)
             }));
 
         return {
@@ -215,22 +254,23 @@ export class SkillRegistry {
     }
 
     async listSkills() {
-        // Progressive disclosure: only return the skill names/ids without descriptions
+        // Progressive disclosure: only return the skill IDs
         const skillList = Array.from(this.skills.values()).map(s => s.id);
 
         return {
             content: [{
                 type: "text",
-                text: JSON.stringify({ skills: skillList }, null, 2)
+                text: JSON.stringify({ skillIds: skillList }, null, 2)
             }]
         };
     }
 
-    async readSkill(skillName: string) {
-        const skill = this.skills.get(skillName);
+    async readSkill(skillId: string) {
+        await this.loadSkill(skillId);
+        const skill = this.skills.get(skillId);
         if (!skill) {
             return {
-                content: [{ type: "text", text: `Skill '${skillName}' not found.` }]
+                content: [{ type: "text", text: `Skill '${skillId}' not found.` }]
             };
         }
 
@@ -240,6 +280,77 @@ export class SkillRegistry {
                 text: skill.content
             }]
         };
+    }
+
+    async loadSkill(skillId: string) {
+        const skill = this.skills.get(skillId);
+        if (!skill) {
+            return { content: [{ type: "text", text: `Skill '${skillId}' not found.` }] };
+        }
+
+        if (this.loadedSkills.has(skillId)) {
+            const ls = this.loadedSkills.get(skillId)!;
+            ls.lastUsedAt = new Date();
+            ls.useCount++;
+            return { content: [{ type: "text", text: `Skill '${skillId}' already loaded.` }] };
+        }
+
+        // Evict if needed
+        this.evictIfNeeded();
+
+        this.loadedSkills.set(skillId, {
+            ...skill,
+            loadedAt: new Date(),
+            lastUsedAt: new Date(),
+            useCount: 1
+        });
+
+        return { content: [{ type: "text", text: `Loaded skill '${skillId}'.` }] };
+    }
+
+    async unloadSkill(skillId: string) {
+        const existed = this.loadedSkills.delete(skillId);
+        return { content: [{ type: "text", text: existed ? `Unloaded skill '${skillId}'.` : `Skill '${skillId}' was not loaded.` }] };
+    }
+
+    async listLoadedSkills() {
+        const list = Array.from(this.loadedSkills.values()).map(s => ({
+            id: s.id,
+            name: s.name,
+            description: s.description,
+            loadedAt: s.loadedAt,
+            useCount: s.useCount
+        }));
+
+        return {
+            content: [{
+                type: "text",
+                text: JSON.stringify({ loadedSkills: list }, null, 2)
+            }]
+        };
+    }
+
+    private evictIfNeeded() {
+        if (this.loadedSkills.size >= this.HARD_CAP) {
+            this.evictLRU();
+        }
+    }
+
+    private evictLRU() {
+        let oldestId: string | null = null;
+        let oldestTime: number = Date.now();
+
+        for (const [id, ls] of this.loadedSkills.entries()) {
+            if (ls.lastUsedAt.getTime() < oldestTime) {
+                oldestId = id;
+                oldestTime = ls.lastUsedAt.getTime();
+            }
+        }
+
+        if (oldestId) {
+            this.loadedSkills.delete(oldestId);
+            console.log(`SkillRegistry: Evicted skill '${oldestId}' (LRU)`);
+        }
     }
 
     async createSkill(id: string, name: string, description: string) {

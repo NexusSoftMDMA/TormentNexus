@@ -3,10 +3,7 @@
  * Automatically retries fixing code until tests/lints pass or max attempts reached
  */
 
-import { exec } from 'child_process';
-import { promisify } from 'util';
-
-const execAsync = promisify(exec);
+import { spawnAsync } from '../utils/exec.js';
 
 export interface LoopConfig {
     maxAttempts: number;
@@ -106,51 +103,45 @@ export class AutoDevService {
         if (!loop) return;
 
         const { config } = loop;
-        const command = this.getCommand(config);
+        const { cmd, args } = this.getCommandParts(config);
 
         while (loop.currentAttempt < config.maxAttempts && loop.status === 'running') {
             loop.currentAttempt++;
             console.log(`[AutoDev] Attempt ${loop.currentAttempt}/${config.maxAttempts}`);
 
             try {
-                const { stdout, stderr } = await execAsync(command, {
+                const result = await spawnAsync(cmd, args, {
                     cwd: this.rootDir,
                     timeout: 120000 // 2 minute timeout per attempt
                 });
 
-                loop.lastOutput = stdout || stderr;
+                loop.lastOutput = result.stdout || result.stderr;
 
-                // Success!
-                loop.status = 'success';
-                console.log(`[AutoDev] ✅ ${config.type} passed on attempt ${loop.currentAttempt}`);
-                return;
+                if (result.exitCode === 0) {
+                    loop.status = 'success';
+                    console.log(`[AutoDev] ✅ ${config.type} passed on attempt ${loop.currentAttempt}`);
+                    return;
+                }
+
+                throw new Error(loop.lastOutput);
 
             } catch (error: unknown) {
-                const errorRecord = error && typeof error === 'object'
-                    ? (error as Record<string, unknown>)
-                    : null;
-
-                const stdout = typeof errorRecord?.stdout === 'string' ? errorRecord.stdout : '';
-                const stderr = typeof errorRecord?.stderr === 'string' ? errorRecord.stderr : '';
                 const message = error instanceof Error ? error.message : String(error);
-
-                loop.lastOutput = stdout || stderr || message;
+                loop.lastOutput = message;
 
                 if (loop.status !== 'running') {
-                    // Cancelled
                     return;
                 }
 
                 console.log(`[AutoDev] ❌ Attempt ${loop.currentAttempt} failed`);
 
-                // Don't retry on last attempt
                 if (loop.currentAttempt >= config.maxAttempts) {
                     loop.status = 'failed';
                     console.log(`[AutoDev] 💀 Max attempts reached. Loop failed.`);
                     return;
                 }
 
-                // Wait before retry (exponential backoff)
+                // exponential backoff
                 const delay = Math.min(1000 * Math.pow(2, loop.currentAttempt - 1), 30000);
 
                 // AUTONOMOUS REPAIR
@@ -163,7 +154,6 @@ ${loop.lastOutput.substring(0, 2000)}
 Please analyze the file, fix the code, and ensure it passes.`;
 
                     try {
-                        // Give the director a few steps to fix it
                         await this.director.executeTask(goal, 5);
                     } catch (e) {
                         console.error(`[AutoDev] Director fix failed:`, e);
@@ -175,22 +165,29 @@ Please analyze the file, fix the code, and ensure it passes.`;
         }
     }
 
-    private getCommand(config: LoopConfig): string {
-        if (config.command) return config.command;
+    private getCommandParts(config: LoopConfig): { cmd: string, args: string[] } {
+        if (config.command) {
+            const parts = config.command.split(' ');
+            return { cmd: parts[0], args: parts.slice(1) };
+        }
+
+        const isWin = process.platform === 'win32';
+        const npx = isWin ? 'npx.cmd' : 'npx';
+        const npm = isWin ? 'npm.cmd' : 'npm';
 
         switch (config.type) {
             case 'test':
                 return config.target
-                    ? `npx vitest run ${config.target}`
-                    : 'npm test';
+                    ? { cmd: npx, args: ['vitest', 'run', config.target] }
+                    : { cmd: npm, args: ['test'] };
             case 'lint':
                 return config.target
-                    ? `npx eslint --fix ${config.target}`
-                    : 'npm run lint -- --fix';
+                    ? { cmd: npx, args: ['eslint', '--fix', config.target] }
+                    : { cmd: npm, args: ['run', 'lint', '--', '--fix'] };
             case 'build':
-                return 'npm run build';
+                return { cmd: npm, args: ['run', 'build'] };
             default:
-                return 'npm test';
+                return { cmd: npm, args: ['test'] };
         }
     }
 

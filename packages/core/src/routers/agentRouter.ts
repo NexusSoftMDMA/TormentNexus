@@ -72,6 +72,7 @@ export const agentRouter = t.router({
             const prompt = `You are Borg Agent Chat. Give concise, actionable guidance and suggest tool usage when helpful.\n\nUser:\n${input.message}${contextSnippet}`;
 
             try {
+                server.eventBus?.emitEvent("agent:chat", "agentRouter", { user: input.message, assistant: result?.text });
                 const result = await llm.generate(prompt, {
                     maxTokens: 600,
                 });

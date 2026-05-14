@@ -103,6 +103,27 @@ function getCompatRoute(procedurePath: string, input: unknown): string | null {
     return `/api/memory/session-summaries/recent?${params.toString()}`;
   }
 
+  if (procedurePath === 'mcpServers.syncTargets') {
+    return '/api/mcp/servers/sync-targets';
+  }
+
+  if (procedurePath === 'mcpServers.exportClientConfig') {
+    const client = typeof input === 'object' && input !== null && 'client' in input
+      ? (input as { client?: unknown }).client
+      : undefined;
+    const path = typeof input === 'object' && input !== null && 'path' in input
+      ? (input as { path?: unknown }).path
+      : undefined;
+    const params = new URLSearchParams();
+    if (typeof client === 'string') params.set('client', client);
+    if (typeof path === 'string') params.set('path', path);
+    return `/api/mcp/servers/export-client-config?${params.toString()}`;
+  }
+
+  if (procedurePath === 'mcpServers.syncClientConfig') {
+    return '/api/mcp/servers/sync-client-config';
+  }
+
   return null;
 }
 

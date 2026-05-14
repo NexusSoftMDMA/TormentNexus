@@ -1,5 +1,4 @@
-
-import { execAsync } from "../utils/exec.js";
+import { spawnAsync } from "../utils/exec.js";
 import path from "path";
 import fs from "fs";
 
@@ -12,8 +11,16 @@ interface WorktreeInfo {
 export class GitWorktreeManager {
     constructor(private rootDir: string) { }
 
+    private async runGit(args: string[]): Promise<string> {
+        const result = await spawnAsync("git", args, { cwd: this.rootDir });
+        if (result.exitCode !== 0) {
+            throw new Error(`Git command failed: git ${args.join(" ")}\n${result.stderr}`);
+        }
+        return result.stdout.trim();
+    }
+
     async listWorktrees(): Promise<WorktreeInfo[]> {
-        const { stdout } = await execAsync("git worktree list --porcelain", { cwd: this.rootDir });
+        const stdout = await this.runGit(["worktree", "list", "--porcelain"]);
         const worktrees: WorktreeInfo[] = [];
         let current: Partial<WorktreeInfo> = {};
 
@@ -38,25 +45,29 @@ export class GitWorktreeManager {
         fs.mkdirSync(path.dirname(fullPath), { recursive: true });
 
         // Check if branch exists
-        let command = `git worktree add ${fullPath} ${branch}`;
+        let exists = false;
         try {
-            await execAsync(`git show-ref --verify refs/heads/${branch}`, { cwd: this.rootDir });
+            await this.runGit(['show-ref', '--verify', `refs/heads/${branch}`]);
+            exists = true;
         } catch (e: unknown) {
-            // Branch doesn't exist, create it
-            command = `git worktree add -b ${branch} ${fullPath}`;
+            // Branch doesn't exist
         }
 
-        console.log(`[GitWorktree] Adding worktree: ${command}`);
-        await execAsync(command, { cwd: this.rootDir });
+        const args = exists
+            ? ['worktree', 'add', fullPath, branch]
+            : ['worktree', 'add', '-b', branch, fullPath];
+
+        console.log(`[GitWorktree] Adding worktree: git ${args.join(" ")}`);
+        await this.runGit(args);
         return fullPath;
     }
 
     async removeWorktree(pathOrBranch: string, force: boolean = false): Promise<void> {
-        let command = `git worktree remove ${pathOrBranch}`;
-        if (force) command += " --force";
+        const args = ['worktree', 'remove', pathOrBranch];
+        if (force) args.push("--force");
 
-        console.log(`[GitWorktree] Removing worktree: ${command}`);
-        await execAsync(command, { cwd: this.rootDir });
+        console.log(`[GitWorktree] Removing worktree: git ${args.join(" ")}`);
+        await this.runGit(args);
     }
 
     async createTaskEnvironment(taskId: string): Promise<string> {

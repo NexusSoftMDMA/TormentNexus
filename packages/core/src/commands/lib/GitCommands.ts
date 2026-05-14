@@ -1,12 +1,9 @@
 import { ICommand, CommandResult } from "../CommandRegistry.js";
-import { exec } from "child_process";
-import { promisify } from "util";
-
-const execAsync = promisify(exec);
+import { spawnAsync } from "../../utils/exec.js";
 
 export class GitCommand implements ICommand {
     name = "git";
-    description = "Execute git operations. Usage: /git <status|add|commit|push|pull|log> [args]";
+    description = "Execute git operations. Usage: /git <status|add|commit|push|pull|log|diff> [args]";
 
     async execute(args: string[]): Promise<CommandResult> {
         if (args.length === 0) {
@@ -14,25 +11,22 @@ export class GitCommand implements ICommand {
         }
 
         const subcommand = args[0];
-        const restArgs = args.slice(1).join(" "); // Keep quotes mostly intact? Warning: shell injection risk if not careful.
-        // For local tool, we trust the input mostly, but direct exec is risky.
-        // Ideally we use a proper git library or array-based spawn.
-        // For now, limited subcommands.
+        const restArgs = args.slice(1);
 
         if (!['status', 'add', 'commit', 'push', 'pull', 'log', 'diff'].includes(subcommand)) {
             return { handled: true, output: `❌ Unsupported git subcommand: ${subcommand}. Allowed: status, add, commit, push, pull, log, diff.` };
         }
 
         try {
-            // Safe construction?
-            const commandLine = `git ${subcommand} ${restArgs}`;
-            const { stdout, stderr } = await execAsync(commandLine, { cwd: process.cwd() });
+            const result = await spawnAsync("git", [subcommand, ...restArgs], { cwd: process.cwd() });
 
-            let output = stdout || stderr;
+            let output = result.stdout || result.stderr;
             if (subcommand === 'status') {
                 output = "📂 **Git Status**\n```\n" + output + "\n```";
+            } else if (result.exitCode !== 0) {
+                 output = `❌ Git Error (Exit ${result.exitCode}):\n```\n${result.stderr}\n``\*`;
             } else {
-                output = `✅ **Git ${subcommand}**\n\`\`\`\n${output}\n\`\`\``;
+                output = `✅ **Git ${subcommand}**\n```\n${output}\n``\*`;
             }
 
             return {
@@ -43,7 +37,7 @@ export class GitCommand implements ICommand {
         } catch (error: any) {
             return {
                 handled: true,
-                output: `❌ Git Error:\n\`\`\`\n${error.message}\n\`\`\``
+                output: `❌ Execution Error:\n```\n${error.message}\n``\*`
             };
         }
     }

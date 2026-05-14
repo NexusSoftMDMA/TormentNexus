@@ -1,12 +1,8 @@
-
-import { exec } from 'child_process';
-import { promisify } from 'util';
+import { spawnAsync } from '../utils/exec.js';
 import fs from 'fs';
 import path from 'path';
 
 import { MCPAggregator } from '../mcp/MCPAggregator.js';
-
-const execAsync = promisify(exec);
 
 export interface SubmoduleStatus {
     name: string;
@@ -37,34 +33,32 @@ export class SubmoduleService {
         }
 
         try {
-            const { stdout: statusOutput } = await execAsync('git submodule status', { cwd: this.rootDir });
-            const { stdout: configOutput } = await execAsync('git config --file .gitmodules --get-regexp path', { cwd: this.rootDir });
-            const { stdout: urlOutput } = await execAsync('git config --file .gitmodules --get-regexp url', { cwd: this.rootDir });
+            const statusRes = await spawnAsync('git', ['submodule', 'status'], { cwd: this.rootDir });
+            const configRes = await spawnAsync('git', ['config', '--file', '.gitmodules', '--get-regexp', 'path'], { cwd: this.rootDir });
+            const urlRes = await spawnAsync('git', ['config', '--file', '.gitmodules', '--get-regexp', 'url'], { cwd: this.rootDir });
 
             const submodules: SubmoduleStatus[] = [];
-            const lines = statusOutput.trim().split('\n');
+            const lines = statusRes.stdout.trim().split('\n');
 
             for (const line of lines) {
                 if (!line.trim()) continue;
 
                 const match = line.match(/^([ +-])([0-9a-f]+)\s+(.+?)(?:\s+\((.+)\))?$/);
                 if (match) {
-                    const [, indicator, commit, path, branch] = match;
+                    const [, indicator, commit, subPath, branch] = match;
                     let status: SubmoduleStatus['status'] = 'clean';
 
                     if (indicator === '+') status = 'out-of-sync';
                     if (indicator === '-') status = 'missing';
-                    // We'd need `git status --porcelain` inside the submodule to check for 'modified' accurately without being expensive
 
-                    // Find URL
-                    const url = this.extractUrl(path, urlOutput);
-                    const fullPath = require('path').join(this.rootDir, path);
-                    const { caps, startCommand } = this.detectCapabilities(path);
-                    const isInstalled = fs.existsSync(require('path').join(fullPath, 'node_modules')) || fs.existsSync(require('path').join(fullPath, '.venv')); // rough check
+                    const url = this.extractUrl(subPath, urlRes.stdout);
+                    const fullPath = path.join(this.rootDir, subPath);
+                    const { caps, startCommand } = this.detectCapabilities(subPath);
+                    const isInstalled = fs.existsSync(path.join(fullPath, 'node_modules')) || fs.existsSync(path.join(fullPath, '.venv'));
 
                     submodules.push({
-                        name: path.split('/').pop() || path,
-                        path,
+                        name: subPath.split('/').pop() || subPath,
+                        path: subPath,
                         commit,
                         branch: branch || 'HEAD',
                         status,
@@ -84,11 +78,9 @@ export class SubmoduleService {
     }
 
     private extractUrl(submodulePath: string, configOutput: string): string | undefined {
-        // configOutput lines look like: submodule.packages/foo.url https://...
         const lines = configOutput.split('\n');
-        // This is a naive match, robust implementation would match the submodule section name
         for (const line of lines) {
-            if (line.includes(submodulePath)) { // simplified
+            if (line.includes(submodulePath)) {
                 const parts = line.split(' ');
                 if (parts.length > 1) return parts[1];
             }
@@ -98,24 +90,26 @@ export class SubmoduleService {
 
     public async updateAll(): Promise<{ success: boolean; output: string }> {
         try {
-            const { stdout, stderr } = await execAsync('git submodule update --init --recursive --remote', { cwd: this.rootDir });
-            return { success: true, output: stdout + stderr };
+            const result = await spawnAsync('git', ['submodule', 'update', '--init', '--recursive', '--remote'], { cwd: this.rootDir });
+            return { success: true, output: result.stdout + result.stderr };
         } catch (error) {
             return { success: false, output: String(error) };
         }
     }
+
     public async installDependencies(submodulePath: string): Promise<{ success: boolean; output: string }> {
         const fullPath = path.join(this.rootDir, submodulePath);
+        const isWin = process.platform === 'win32';
         try {
-            // Check for package.json
             if (fs.existsSync(path.join(fullPath, 'package.json'))) {
-                const { stdout, stderr } = await execAsync('npm install', { cwd: fullPath });
-                return { success: true, output: stdout + stderr };
+                const npm = isWin ? 'npm.cmd' : 'npm';
+                const result = await spawnAsync(npm, ['install'], { cwd: fullPath });
+                return { success: true, output: result.stdout + result.stderr };
             }
-            // Check for requirements.txt (Python)
             if (fs.existsSync(path.join(fullPath, 'requirements.txt'))) {
-                const { stdout, stderr } = await execAsync('pip install -r requirements.txt', { cwd: fullPath });
-                return { success: true, output: stdout + stderr };
+                const pip = isWin ? 'pip.exe' : 'pip';
+                const result = await spawnAsync(pip, ['install', '-r', 'requirements.txt'], { cwd: fullPath });
+                return { success: true, output: result.stdout + result.stderr };
             }
             return { success: false, output: "No known package manager found (package.json or requirements.txt)" };
         } catch (error) {
@@ -125,12 +119,14 @@ export class SubmoduleService {
 
     public async buildSubmodule(submodulePath: string): Promise<{ success: boolean; output: string }> {
         const fullPath = path.join(this.rootDir, submodulePath);
+        const isWin = process.platform === 'win32';
         try {
             if (fs.existsSync(path.join(fullPath, 'package.json'))) {
                 const pkg = JSON.parse(fs.readFileSync(path.join(fullPath, 'package.json'), 'utf-8'));
                 if (pkg.scripts && pkg.scripts.build) {
-                    const { stdout, stderr } = await execAsync('npm run build', { cwd: fullPath });
-                    return { success: true, output: stdout + stderr };
+                    const npm = isWin ? 'npm.cmd' : 'npm';
+                    const result = await spawnAsync(npm, ['run', 'build'], { cwd: fullPath });
+                    return { success: true, output: result.stdout + result.stderr };
                 }
                 return { success: true, output: "No build script found, assuming raw source is fine." };
             }
@@ -142,8 +138,8 @@ export class SubmoduleService {
 
     public async enableSubmodule(submodulePath: string): Promise<{ success: boolean; output: string }> {
         try {
-            const { stdout, stderr } = await execAsync(`git submodule init ${submodulePath}`, { cwd: this.rootDir });
-            return { success: true, output: stdout + stderr };
+            const result = await spawnAsync('git', ['submodule', 'init', submodulePath], { cwd: this.rootDir });
+            return { success: true, output: result.stdout + result.stderr };
         } catch (error) {
             return { success: false, output: String(error) };
         }
@@ -158,15 +154,9 @@ export class SubmoduleService {
             if (fs.existsSync(path.join(fullPath, 'package.json'))) {
                 const pkg = JSON.parse(fs.readFileSync(path.join(fullPath, 'package.json'), 'utf-8'));
 
-                // 1. Detect MCP
-                if (pkg.keywords && pkg.keywords.includes('mcp-server')) {
-                    caps.push('mcp-server');
-                }
-                if (pkg.dependencies && pkg.dependencies['@modelcontextprotocol/sdk']) {
-                    caps.push('mcp-sdk');
-                }
+                if (pkg.keywords && pkg.keywords.includes('mcp-server')) caps.push('mcp-server');
+                if (pkg.dependencies && pkg.dependencies['@modelcontextprotocol/sdk']) caps.push('mcp-sdk');
 
-                // 2. Detect Start Command
                 if (pkg.scripts && pkg.scripts.start) {
                     startCommand = 'npm start';
                 } else if (pkg.bin) {
@@ -180,7 +170,6 @@ export class SubmoduleService {
                     startCommand = `node ${pkg.main}`;
                 }
             } else if (fs.existsSync(path.join(fullPath, 'requirements.txt'))) {
-                // Python detection
                 caps.push('python');
                 if (fs.existsSync(path.join(fullPath, 'main.py'))) {
                     startCommand = 'python main.py';

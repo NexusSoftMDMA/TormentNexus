@@ -5,6 +5,8 @@ import (
 	"sort"
 	"strings"
 	"sync"
+
+	"github.com/robertpelloni/borg/internal/search"
 )
 
 // SkillInfo describes a registered skill.
@@ -17,6 +19,15 @@ type SkillInfo struct {
 	AlwaysOn    bool     `json:"alwaysOn"`
 	Tags        []string `json:"tags,omitempty"`
 	Path        string   `json:"path,omitempty"`
+}
+
+// ScoredSkill represents a skill with its search score.
+type ScoredSkill struct {
+	SkillInfo
+	Score          float64            `json:"score"`
+	ScoreBreakdown map[string]float64 `json:"scoreBreakdown,omitempty"`
+	MatchReason    string             `json:"matchReason"`
+	Rank           int                `json:"rank"`
 }
 
 // SkillRegistry manages the global skill inventory.
@@ -70,59 +81,34 @@ func (sr *SkillRegistry) List() []SkillInfo {
 	return result
 }
 
-// Search performs a fuzzy search across skill names and descriptions.
-func (sr *SkillRegistry) Search(query string, limit int) []SkillInfo {
-	if limit <= 0 {
-		limit = 10
-	}
-	query = strings.ToLower(query)
+// Search performs a ranked fuzzy search across skill names and descriptions.
+// Implement search.Scorable interface
+func (s *SkillInfo) GetName() string        { return s.Name }
+func (s *SkillInfo) GetDescription() string { return s.Description }
+func (s *SkillInfo) GetTags() []string      { return s.Tags }
 
+// Search performs a ranked fuzzy search across skill names and descriptions.
+func (sr *SkillRegistry) Search(query string, limit int) []ScoredSkill {
 	sr.mu.RLock()
 	defer sr.mu.RUnlock()
 
-	type scored struct {
-		skill SkillInfo
-		score float64
-	}
-
-	var results []scored
+	var scorable []search.Scorable
 	for _, s := range sr.skills {
-		score := 0.0
-
-		if strings.ToLower(s.ID) == query || strings.ToLower(s.Name) == query {
-			score += 10.0
-		} else if strings.Contains(strings.ToLower(s.Name), query) {
-			score += 5.0
-		}
-
-		if strings.Contains(strings.ToLower(s.Description), query) {
-			score += 3.0
-		}
-
-		for _, tag := range s.Tags {
-			if strings.ToLower(tag) == query {
-				score += 4.0
-			} else if strings.Contains(strings.ToLower(tag), query) {
-				score += 1.0
-			}
-		}
-
-		if score > 0 {
-			results = append(results, scored{skill: *s, score: score})
-		}
+		scorable = append(scorable, s)
 	}
 
-	sort.Slice(results, func(i, j int) bool {
-		return results[i].score > results[j].score
-	})
+	ranked := search.RankItems(query, scorable, limit)
 
-	if len(results) > limit {
-		results = results[:limit]
+	var results []ScoredSkill
+	for _, r := range ranked {
+		results = append(results, ScoredSkill{
+			SkillInfo:      *(r.Item.(*SkillInfo)),
+			Score:          r.Score,
+			ScoreBreakdown: r.ScoreBreakdown,
+			MatchReason:    r.MatchReason,
+			Rank:           r.Rank,
+		})
 	}
 
-	skills := make([]SkillInfo, len(results))
-	for i, r := range results {
-		skills[i] = r.skill
-	}
-	return skills
+	return results
 }

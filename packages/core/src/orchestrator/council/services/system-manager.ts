@@ -1,8 +1,5 @@
-import { exec } from 'child_process';
-import { promisify } from 'util';
+import { spawnAsync } from '../../../utils/exec.js';
 import path from 'path';
-
-const execAsync = promisify(exec);
 
 export interface SubmoduleInfo {
   path: string;
@@ -15,29 +12,24 @@ export interface SubmoduleInfo {
 class SystemManagerService {
   async getSubmodules(): Promise<SubmoduleInfo[]> {
     try {
-      // Execute from two levels up (repo root) relative to this package
       const rootDir = path.resolve(process.cwd(), '../../');
-      const { stdout } = await execAsync('git submodule status --recursive', { cwd: rootDir });
-      const lines = stdout.trim().split('\n');
+      const result = await spawnAsync('git', ['submodule', 'status', '--recursive'], { cwd: rootDir });
+      const lines = result.stdout.trim().split('\n');
 
       const submodules: SubmoduleInfo[] = [];
 
       for (const line of lines) {
         if (!line.trim()) continue;
 
-        // Format: -d2e1... path/to/submodule (version)
-        // or:  d2e1... path/to/submodule (version)
-        // or: +d2e1... path/to/submodule (version)
-
         const match = line.match(/^([-\+ ])([0-9a-f]+)\s+(\S+)(?:\s+\((.*)\))?/);
         if (match) {
-          const [, indicator, commit, path, version] = match;
+          const [, indicator, commit, subPath, version] = match;
           let status: SubmoduleInfo['status'] = 'clean';
           if (indicator === '+') status = 'dirty';
-          if (indicator === '-') status = 'unknown'; // Not initialized
+          if (indicator === '-') status = 'unknown';
 
           submodules.push({
-            path,
+            path: subPath,
             commit,
             version,
             status
@@ -55,8 +47,8 @@ class SystemManagerService {
   async getProjectVersion(): Promise<string> {
     try {
       const rootDir = path.resolve(process.cwd(), '../../');
-      const { stdout } = await execAsync('git describe --tags --always', { cwd: rootDir });
-      return stdout.trim();
+      const result = await spawnAsync('git', ['describe', '--tags', '--always'], { cwd: rootDir });
+      return result.stdout.trim();
     } catch {
       return 'unknown';
     }

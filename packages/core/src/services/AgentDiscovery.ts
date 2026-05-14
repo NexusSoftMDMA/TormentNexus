@@ -1,9 +1,6 @@
-import { exec } from 'child_process';
-import { promisify } from 'util';
+import { spawnAsync } from '../utils/exec.js';
 import * as fs from 'fs/promises';
 import * as path from 'path';
-
-const execAsync = promisify(exec);
 
 export interface DiscoveredAgent {
     name: string;
@@ -24,9 +21,6 @@ export interface AgentCapability {
 export class AgentDiscovery {
     private discoveredAgents: Map<string, AgentCapability> = new Map();
 
-    /**
-     * Scans the local system for known AI agents and tools.
-     */
     async discover(): Promise<AgentCapability[]> {
         console.log('[Core:Discovery] Scanning for local agents...');
 
@@ -47,9 +41,10 @@ export class AgentDiscovery {
 
     private async scanForClaudeCode(): Promise<AgentCapability | null> {
         try {
-            // Check for 'claude' command in PATH
-            const { stdout } = await execAsync('where claude');
-            const claudePath = stdout.split('\n')[0].trim();
+            const isWin = process.platform === 'win32';
+            const cmd = isWin ? 'where.exe' : 'which';
+            const result = await spawnAsync(cmd, ['claude']);
+            const claudePath = result.stdout.split('\n')[0].trim();
 
             if (claudePath) {
                 return {
@@ -67,7 +62,6 @@ export class AgentDiscovery {
     }
 
     private async scanForElectronOrchestrator(): Promise<AgentCapability | null> {
-        // In the borg ecosystem, the electron-orchestrator desktop shell currently lives at apps/maestro.
         const electronOrchestratorPath = path.resolve(process.cwd(), 'apps/maestro');
         try {
             await fs.access(electronOrchestratorPath);
@@ -99,17 +93,13 @@ export class AgentDiscovery {
                     features: ['autopilot', 'debate', 'risk-scoring']
                 };
             } catch {
-                // Try the next candidate path.
             }
         }
         return null;
     }
 
     private async scanForStandardTools(): Promise<AgentCapability[]> {
-        const tools: AgentCapability[] = [];
-        // Scan for generic tools that act like agents (e.g. git, npm, etc.)
-        // For now, focusing on AI-specific agents.
-        return tools;
+        return [];
     }
 
     getAgent(id: string): AgentCapability | undefined {

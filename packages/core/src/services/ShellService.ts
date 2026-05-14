@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
-import { exec, spawn, type ChildProcessWithoutNullStreams, type SpawnOptionsWithoutStdio } from 'child_process';
+import { spawn, type ChildProcessWithoutNullStreams, type SpawnOptionsWithoutStdio } from 'child_process';
 
 export interface ShellCommandEntry {
     id: string;
@@ -212,12 +212,15 @@ export class ShellService {
         const timeoutMs = options.timeoutMs ?? 15_000;
         const session = options.session ?? 'api-call';
         const policy = options.executionPolicy ?? null;
-        const shellInvocation = buildShellInvocation(command, policy);
-        const startedAt = Date.now();
 
-        const result = shellInvocation
-            ? await this.executeViaSpawn(shellInvocation, cwd, env, timeoutMs)
-            : await this.executeViaExec(command, cwd, env, timeoutMs);
+        // Ensure we always use spawn logic for hardening.
+        const shellInvocation = buildShellInvocation(command, policy) || {
+            command: process.platform === 'win32' ? (process.env.COMSPEC || 'cmd.exe') : (process.env.SHELL || 'sh'),
+            args: process.platform === 'win32' ? ['/d', '/s', '/c', command] : ['-lc', command],
+        };
+
+        const startedAt = Date.now();
+        const result = await this.executeViaSpawn(shellInvocation, cwd, env, timeoutMs);
 
         await this.logCommand({
             command,
@@ -236,25 +239,6 @@ export class ShellService {
             shellPath: policy?.shellPath ?? null,
             durationMs: Date.now() - startedAt,
         };
-    }
-
-    private executeViaExec(command: string, cwd: string, env: NodeJS.ProcessEnv, timeoutMs: number): Promise<ShellExecutionRuntimeResult> {
-        return new Promise((resolve) => {
-            const startedAt = Date.now();
-            exec(command, { cwd, env, timeout: timeoutMs }, (error, stdout, stderr) => {
-                const resolvedStdout = stdout || '';
-                const resolvedStderr = stderr || '';
-                const output = resolvedStdout || resolvedStderr || '';
-                resolve({
-                    stdout: resolvedStdout,
-                    stderr: resolvedStderr,
-                    output,
-                    exitCode: error ? 1 : 0,
-                    durationMs: Date.now() - startedAt,
-                    succeeded: !error,
-                });
-            });
-        });
     }
 
     private executeViaSpawn(

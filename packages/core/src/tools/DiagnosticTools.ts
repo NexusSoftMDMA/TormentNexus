@@ -1,9 +1,4 @@
-
-import { execSync } from 'child_process';
 import os from 'os';
-import fs from 'fs';
-import path from 'path';
-
 import { getBridgeHealthUrl } from '../bridge/bridgePort.js';
 
 export interface HealthStatus {
@@ -41,7 +36,6 @@ export class DiagnosticTools {
         }
 
         // 3. VS Code Bridge
-        // Placeholder check - usually checked via WebSocket clients count in MCPServer
         results.push({
             component: 'VS Code Bridge',
             status: 'warning',

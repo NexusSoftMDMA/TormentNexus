@@ -1,8 +1,5 @@
-import { exec } from "child_process";
-import { promisify } from "util";
+import { spawnAsync } from "../utils/exec.js";
 import path from 'path';
-
-const execAsync = promisify(exec);
 
 function getErrorMessage(error: unknown): string {
     return error instanceof Error ? error.message : String(error);
@@ -29,15 +26,18 @@ export class GitService {
         this.cwd = cwd;
     }
 
-    private async run(command: string): Promise<string> {
-        const { stdout } = await execAsync(`git ${command}`, { cwd: this.cwd });
-        return stdout.trim();
+    private async run(args: string[]): Promise<string> {
+        const result = await spawnAsync("git", args, { cwd: this.cwd });
+        if (result.exitCode !== 0) {
+            throw new Error(`Git command failed: git ${args.join(" ")}\n${result.stderr}`);
+        }
+        return result.stdout.trim();
     }
 
     async getLog(limit: number = 20): Promise<CommitLog[]> {
         try {
             // Format: %H|%an|%aI|%s
-            const out = await this.run(`log -n ${limit} --pretty=format:"%H|%an|%aI|%s"`);
+            const out = await this.run(["log", "-n", String(limit), "--pretty=format:%H|%an|%aI|%s"]);
             return out.split('\n').filter(Boolean).map(line => {
                 const [hash, author, date, message] = line.split('|');
                 return { hash, author, date, message };
@@ -49,8 +49,8 @@ export class GitService {
 
     async getStatus(): Promise<GitStatus> {
         try {
-            const branch = await this.run('rev-parse --abbrev-ref HEAD');
-            const statusOut = await this.run('status --porcelain');
+            const branch = await this.run(['rev-parse', '--abbrev-ref', 'HEAD']);
+            const statusOut = await this.run(['status', '--porcelain']);
 
             const modified: string[] = [];
             const staged: string[] = [];
@@ -59,7 +59,7 @@ export class GitService {
                 const code = line.substring(0, 2);
                 const file = line.substring(3);
                 if (code.includes('M') || code.includes('?')) modified.push(file);
-                if (code.includes('A') || code.includes('M') && code[0] !== ' ') staged.push(file);
+                if (code.includes('A') || (code.includes('M') && code[0] !== ' ')) staged.push(file);
             });
 
             return {
@@ -75,11 +75,7 @@ export class GitService {
 
     async revert(hash: string): Promise<string> {
         try {
-            // Revert a specific commit (create a new commit that undoes it)
-            // Or reset to it? "Time Travel" usually implies resetting to that state.
-            // Let's implement checkout/detached head for viewing, or reset --hard for forceful rollback.
-            // Safer: revert command (preserves history).
-            const r = await this.run(`revert --no-edit ${hash}`);
+            const r = await this.run(['revert', '--no-edit', hash]);
             return r;
         } catch (e: unknown) {
             throw new Error(`Failed to revert: ${getErrorMessage(e)}`);
@@ -88,7 +84,7 @@ export class GitService {
 
     async resetTo(hash: string, mode: 'soft' | 'hard' = 'soft'): Promise<string> {
         try {
-            const r = await this.run(`reset --${mode} ${hash}`);
+            const r = await this.run(['reset', `--${mode}`, hash]);
             return r;
         } catch (e: unknown) {
             throw new Error(`Failed to reset: ${getErrorMessage(e)}`);

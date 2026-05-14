@@ -1,14 +1,14 @@
 {
-    "name": "@borg/ai",
-    "version": "1.0.0-alpha.48",
-    "private": true,
-    "main": "dist/index.js",
-    "types": "src/index.ts",
-    "type": "module",
-    "exports": {
-        ".": {
-            "import": "./dist/index.js",
-            "types": "./src/index.ts"
-        }
+  "name": "@borg/ai",
+  "version": "1.0.0-alpha.57",
+  "private": true,
+  "main": "dist/index.js",
+  "types": "src/index.ts",
+  "type": "module",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./src/index.ts"
     }
+  }
 }

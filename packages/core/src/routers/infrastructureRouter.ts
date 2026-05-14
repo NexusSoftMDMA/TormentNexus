@@ -1,12 +1,9 @@
-import { z } from 'zod';
 import { t, publicProcedure, adminProcedure } from '../lib/trpc-core.js';
-import { exec } from 'node:child_process';
-import { promisify } from 'node:util';
+import { spawnAsync } from '../utils/exec.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
 
-const execAsync = promisify(exec);
 const LEGACY_INFRA_BINARY = ['mcp', 'enetes'].join('');
 const INFRA_BINARY = process.env.BORG_INFRA_BINARY?.trim() || LEGACY_INFRA_BINARY;
 const INFRA_SUBMODULE_DIR = process.env.BORG_INFRA_SUBMODULE?.trim() || LEGACY_INFRA_BINARY;
@@ -25,14 +22,13 @@ export const infrastructureRouter = t.router({
                 isInstalled = true;
             } catch {
                 try {
-                    await execAsync(`${INFRA_BINARY} --version`);
-                    isInstalled = true;
+                    const result = await spawnAsync(INFRA_BINARY, ['--version']);
+                    isInstalled = result.exitCode === 0;
                 } catch {
                     isInstalled = false;
                 }
             }
 
-            // Check config files
             const configPath = path.join(os.homedir(), '.config', 'mcpetes', 'config.yaml');
             let hasConfig = false;
             try {
@@ -45,7 +41,7 @@ export const infrastructureRouter = t.router({
             return {
                 installed: isInstalled,
                 hasConfig,
-                daemonActive: false, // Would check port 3000/3010 if running UI
+                daemonActive: false,
                 version: isInstalled ? "latest" : null
             };
         } catch (error) {
@@ -64,10 +60,10 @@ export const infrastructureRouter = t.router({
      */
     runDoctor: adminProcedure.mutation(async () => {
         try {
-            const { stdout, stderr } = await execAsync(`${INFRA_BINARY} doctor`);
-            return { success: true, output: stdout || stderr };
+            const result = await spawnAsync(INFRA_BINARY, ['doctor']);
+            return { success: result.exitCode === 0, output: result.stdout || result.stderr };
         } catch (error: any) {
-            return { success: false, output: error.stdout || error.stderr || error.message };
+            return { success: false, output: error.message };
         }
     }),
 
@@ -76,10 +72,10 @@ export const infrastructureRouter = t.router({
      */
     applyConfigurations: adminProcedure.mutation(async () => {
         try {
-            const { stdout, stderr } = await execAsync(`${INFRA_BINARY} apply`);
-            return { success: true, output: stdout || stderr };
+            const result = await spawnAsync(INFRA_BINARY, ['apply']);
+            return { success: result.exitCode === 0, output: result.stdout || result.stderr };
         } catch (error: any) {
-            return { success: false, output: error.stdout || error.stderr || error.message };
+            return { success: false, output: error.message };
         }
     }),
 });

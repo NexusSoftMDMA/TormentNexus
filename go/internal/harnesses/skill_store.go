@@ -16,6 +16,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/borghq/borg-go/internal/skillregistry"
 )
 
 type Skill struct {
@@ -27,13 +29,17 @@ type Skill struct {
 }
 
 type SkillStore struct {
-	baseDir string
+	baseDir  string
+	registry *skillregistry.SkillRegistry
 }
 
-func NewSkillStore(mainConfigDir string) *SkillStore {
+func NewSkillStore(mainConfigDir string, registry *skillregistry.SkillRegistry) *SkillStore {
 	path := filepath.Join(mainConfigDir, "skills")
 	_ = os.MkdirAll(path, 0755)
-	return &SkillStore{baseDir: path}
+	return &SkillStore{
+		baseDir:  path,
+		registry: registry,
+	}
 }
 
 func (s *SkillStore) SaveSkill(id, name, description, content string) error {
@@ -50,7 +56,23 @@ description: %s
 
 %s`, name, description, content)
 
-	return os.WriteFile(filePath, []byte(fullContent), 0644)
+	err := os.WriteFile(filePath, []byte(fullContent), 0644)
+	if err != nil {
+		return err
+	}
+
+	// Update registry
+	if s.registry != nil {
+		_ = s.registry.Register(skillregistry.SkillInfo{
+			ID:          id,
+			Name:        name,
+			Description: description,
+			Content:     content,
+			Path:        filePath,
+		})
+	}
+
+	return nil
 }
 
 func (s *SkillStore) ListSkills() ([]string, error) {
@@ -105,44 +127,3 @@ func (s *SkillStore) GetSkill(id string) (*Skill, error) {
 	}, nil
 }
 
-func (s *SkillStore) ListLoadedSkills() []string {
-	// For now, in Go, "loaded" just means "exists"
-	ids, _ := s.ListSkills()
-	return ids
-}
-
-func (s *SkillStore) LoadSkill(id string) error {
-	// For now, in Go, loading is a no-op if it exists
-	_, err := s.GetSkill(id)
-	return err
-}
-
-func (s *SkillStore) UnloadSkill(id string) bool {
-	// For now, in Go, we don't actually "unload" from memory
-	return true
-}
-
-func (s *SkillStore) SearchSkills(query string) ([]Skill, error) {
-	ids, err := s.ListSkills()
-	if err != nil {
-		return nil, err
-	}
-
-	var results []Skill
-	query = strings.ToLower(query)
-
-	for _, id := range ids {
-		skill, err := s.GetSkill(id)
-		if err != nil {
-			continue
-		}
-
-		if strings.Contains(strings.ToLower(skill.Name), query) ||
-			strings.Contains(strings.ToLower(skill.Description), query) ||
-			strings.Contains(strings.ToLower(skill.Content), query) {
-			results = append(results, *skill)
-		}
-	}
-
-	return results, nil
-}

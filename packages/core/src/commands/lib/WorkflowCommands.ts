@@ -1,8 +1,5 @@
 import { ICommand, CommandResult } from "../CommandRegistry.js";
-import { exec } from "child_process";
-import { promisify } from "util";
-
-const execAsync = promisify(exec);
+import { spawnAsync } from "../../utils/exec.js";
 
 /**
  * /undo - Undo last commit or changes
@@ -13,35 +10,32 @@ export class UndoCommand implements ICommand {
 
     async execute(args: string[]): Promise<CommandResult> {
         const subcommand = args[0] || 'help';
-        const target = args.slice(1).join(' ');
+        const target = args[1]; // Correctly handle single file target if provided
 
         try {
             let output = '';
             switch (subcommand) {
                 case 'commit':
-                    // Soft reset last commit
-                    const { stdout: undoOut } = await execAsync('git reset --soft HEAD~1', { cwd: process.cwd() });
-                    output = `↩️ **Undo Last Commit**\nCommit undone (changes preserved in staging)\n${undoOut}`;
+                    const commitRes = await spawnAsync('git', ['reset', '--soft', 'HEAD~1'], { cwd: process.cwd() });
+                    output = `↩️ **Undo Last Commit**\nCommit undone (changes preserved in staging)\n${commitRes.stdout}`;
                     break;
 
                 case 'changes':
-                    // Discard unstaged changes
                     if (target) {
-                        await execAsync(`git checkout -- "${target}"`, { cwd: process.cwd() });
+                        await spawnAsync('git', ['checkout', '--', target], { cwd: process.cwd() });
                         output = `↩️ **Undo Changes**: ${target}\nUnstaged changes discarded.`;
                     } else {
-                        await execAsync('git checkout -- .', { cwd: process.cwd() });
+                        await spawnAsync('git', ['checkout', '--', '.'], { cwd: process.cwd() });
                         output = `↩️ **Undo All Changes**\nAll unstaged changes discarded.`;
                     }
                     break;
 
                 case 'staged':
-                    // Unstage files
                     if (target) {
-                        await execAsync(`git reset HEAD "${target}"`, { cwd: process.cwd() });
+                        await spawnAsync('git', ['reset', 'HEAD', target], { cwd: process.cwd() });
                         output = `↩️ **Unstaged**: ${target}`;
                     } else {
-                        await execAsync('git reset HEAD', { cwd: process.cwd() });
+                        await spawnAsync('git', ['reset', 'HEAD'], { cwd: process.cwd() });
                         output = `↩️ **Unstaged All Files**`;
                     }
                     break;
@@ -54,7 +48,7 @@ export class UndoCommand implements ICommand {
         } catch (error: any) {
             return {
                 handled: true,
-                output: `❌ Undo Error:\n\`\`\`\n${error.message}\n\`\`\``
+                output: `❌ Undo Error:\n```\n${error.message}\n````
             };
         }
     }
@@ -69,24 +63,25 @@ export class DiffCommand implements ICommand {
 
     async execute(args: string[]): Promise<CommandResult> {
         try {
-            let command = 'git diff';
+            let gitArgs = ['diff'];
             let label = 'Working Directory';
 
             if (args[0] === 'staged') {
-                command = 'git diff --cached';
+                gitArgs = ['diff', '--cached'];
                 label = 'Staged Changes';
             } else if (args[0]) {
-                command = `git diff -- "${args.join(' ')}"`;
+                // Handle optional multiple file args
+                gitArgs = ['diff', '--', ...args];
                 label = args.join(' ');
             }
 
-            const { stdout } = await execAsync(command, { cwd: process.cwd() });
+            const result = await spawnAsync('git', gitArgs, { cwd: process.cwd() });
+            const stdout = result.stdout;
 
             if (!stdout.trim()) {
                 return { handled: true, output: `📋 **Diff: ${label}**\nNo changes detected.` };
             }
 
-            // Truncate if too long
             const maxLen = 3000;
             const truncated = stdout.length > maxLen
                 ? stdout.substring(0, maxLen) + '\n... (truncated)'
@@ -94,12 +89,12 @@ export class DiffCommand implements ICommand {
 
             return {
                 handled: true,
-                output: `📋 **Diff: ${label}**\n\`\`\`diff\n${truncated}\n\`\`\``
+                output: `📋 **Diff: ${label}**\n```diff\n${truncated}\n````
             };
         } catch (error: any) {
             return {
                 handled: true,
-                output: `❌ Diff Error:\n\`\`\`\n${error.message}\n\`\`\``
+                output: `❌ Diff Error:\n```\n${error.message}\n````
             };
         }
     }
@@ -118,29 +113,29 @@ export class StashCommand implements ICommand {
 
         try {
             let output = '';
+            let gitArgs = ['stash', subcommand];
+
             switch (subcommand) {
                 case 'push':
-                    const pushCmd = message ? `git stash push -m "${message}"` : 'git stash push';
-                    const { stdout: pushOut } = await execAsync(pushCmd, { cwd: process.cwd() });
-                    output = `📦 **Stash Push**\n${pushOut || 'Changes stashed.'}`;
+                    if (message) {
+                        gitArgs.push('-m', message);
+                    }
+                    const pushRes = await spawnAsync('git', gitArgs, { cwd: process.cwd() });
+                    output = `📦 **Stash Push**\n${pushRes.stdout || 'Changes stashed.'}`;
                     break;
 
                 case 'pop':
-                    const { stdout: popOut } = await execAsync('git stash pop', { cwd: process.cwd() });
-                    output = `📤 **Stash Pop**\n${popOut || 'Stash applied and dropped.'}`;
-                    break;
-
                 case 'list':
-                    const { stdout: listOut } = await execAsync('git stash list', { cwd: process.cwd() });
-                    output = `📋 **Stash List**\n\`\`\`\n${listOut || '(empty)'}\n\`\`\``;
+                    const res = await spawnAsync('git', gitArgs, { cwd: process.cwd() });
+                    output = `✅ **Stash ${subcommand}**\n${res.stdout || res.stderr || '(empty)'}`;
                     break;
 
                 case 'show':
-                    const { stdout: showOut } = await execAsync('git stash show -p', { cwd: process.cwd() });
-                    const truncated = showOut.length > 2000
-                        ? showOut.substring(0, 2000) + '\n... (truncated)'
-                        : showOut;
-                    output = `📋 **Stash Show**\n\`\`\`diff\n${truncated || '(empty)'}\n\`\`\``;
+                    const showRes = await spawnAsync('git', ['stash', 'show', '-p'], { cwd: process.cwd() });
+                    const truncated = showRes.stdout.length > 2000
+                        ? showRes.stdout.substring(0, 2000) + '\n... (truncated)'
+                        : showRes.stdout;
+                    output = `📋 **Stash Show**\n```diff\n${truncated || '(empty)'}\n````
                     break;
 
                 default:
@@ -151,7 +146,7 @@ export class StashCommand implements ICommand {
         } catch (error: any) {
             return {
                 handled: true,
-                output: `❌ Stash Error:\n\`\`\`\n${error.message}\n\`\`\``
+                output: `❌ Stash Error:\n```\n${error.message}\n````
             };
         }
     }
@@ -176,7 +171,6 @@ export class FixCommand implements ICommand {
         const target = args.slice(1).join(' ');
 
         if (['test', 'lint', 'build'].includes(subcommand)) {
-            // Start Loop
             const id = await autoDev.startLoop({
                 type: subcommand as 'test' | 'lint' | 'build',
                 maxAttempts: 5,

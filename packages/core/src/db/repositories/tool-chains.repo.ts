@@ -42,10 +42,18 @@ export const toolChainsRepository = {
     async getAllChains(): Promise<PopulatedToolChain[]> {
         const chains = await db.select().from(toolChainsTable).orderBy(desc(toolChainsTable.createdAt));
         const steps = await db.select().from(toolChainStepsTable).orderBy(toolChainStepsTable.stepOrder);
-        
-        return chains.map(chain => ({
+
+        const stepsByChain = steps.reduce((acc, step) => {
+            if (!acc[step.chainId]) {
+                acc[step.chainId] = [];
+            }
+            acc[step.chainId].push(step);
+            return acc;
+        }, {} as Record<string, ToolChainStep[]>);
+
+        return chains.map((chain) => ({
             ...chain,
-            steps: steps.filter(s => s.chainId === chain.id),
+            steps: stepsByChain[chain.id] || [],
         }));
     },
 

@@ -64,7 +64,7 @@ func List(workspaceRoot string, tools []controlplane.Tool) []Definition {
 			Maturity:            "Experimental",
 			Primary:             true,
 			SubmodulePath:       "submodules/borg",
-			Upstream:            "https://github.com/robertpelloni/borg",
+			Upstream:            "https://github.com/borghq/borg-go",
 			Runtime:             "Go / Cobra / TUI",
 			LaunchCommand:       "go run .",
 			Capabilities:        []string{"repl", "pipe", "borg-adapter", "tool-registry"},

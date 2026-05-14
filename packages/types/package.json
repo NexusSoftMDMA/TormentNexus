@@ -1,17 +1,17 @@
 {
-    "name": "@borg/types",
-    "version": "1.0.0-alpha.48",
-    "private": true,
-    "main": "dist/index.js",
-    "types": "src/index.ts",
-    "dependencies": {
-        "zod": "^3.23.0"
-    },
-    "type": "module",
-    "exports": {
-        ".": {
-            "import": "./dist/index.js",
-            "types": "./src/index.ts"
-        }
+  "name": "@borg/types",
+  "version": "1.0.0-alpha.57",
+  "private": true,
+  "main": "dist/index.js",
+  "types": "src/index.ts",
+  "dependencies": {
+    "zod": "^3.23.0"
+  },
+  "type": "module",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./src/index.ts"
     }
+  }
 }
