@@ -1,22 +1,16 @@
-[SESSION_HANDOFF]
+# Handoff - v1.0.0-alpha.56
+
 ## Status
-- **Current Version**: 1.0.0-alpha.54
-- **Branch**: main
-- **State**: Maintenance complete. Local branches synchronized.
+- **Phase 1 Memory Foundation**: COMPLETED.
+- **Rebrand**: COMPLETED (Borg -> Nexus/HyperCode).
+- **Package Sync**: COMPLETED (All 57 packages at v1.0.0-alpha.56).
 
-## Key Changes
-1. **MCP Synchronization**: Ported authoritative MCP client synchronization (Claude Desktop, Cursor, VS Code) to Go sidecar (`go/internal/mcp/sync.go`). Full metadata parity achieved (Headers, BearerTokens).
-2. **UI Optimization**: Optimized `useResizeObserver` hook with `requestAnimationFrame`. Implemented automated `zoomToFit` in `KnowledgeGraph` and `GraphPanel`.
-3. **Visualization**: Enhanced `DebateVisualizer` with consensus progress bars and agreement metrics.
-4. **Automation**: Hardened `Borg Supervisor` submission logic for Antigravity surfaces.
+## Key Files
+- `packages/core/src/services/MemoryManager.ts`: Core heat logic and tool-outcome recording.
+- `packages/memory/src/LanceDBStore.ts`: LanceDB implementation with heat metadata.
+- `VISION.md`: Updated architecture and brand positioning.
 
-## Environment Observations
-- **Submodules**: Tracked in `.gitmodules` but dormant in current workspace to prevent build pollution.
-- **Sidecar**: Authoritative control plane running on port 4300.
-- **Node Hub**: Middleware and UI server running on port 4100.
-
-## Next Steps
-- Address P1: Stabilization of the agent chat tRPC stream.
-- Wire predictive tool ads preemptively into the chat prompt chain.
-- Audit mobile responsiveness across all dashboard pages.
-
+## Next Steps for Implementer
+1. **Phase 2: Autonomy Loop**: Implement the `execute-fix-verify-retry` cycle in the Go sidecar or TS core.
+2. **Phase 3: Skill Intelligence**: Apply the progressive disclosure ranking to Skills (mirroring the Tool Decision System).
+3. **Enterprise Scaffolding**: Begin implementing RBAC and SSO in the control plane dashboard.
