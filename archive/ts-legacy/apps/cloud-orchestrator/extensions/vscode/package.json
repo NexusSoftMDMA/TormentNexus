@@ -2,7 +2,7 @@
   "name": "jules-autopilot",
   "displayName": "Jules Autopilot",
   "description": "IDE Integration Bridge for Jules Autopilot Orchestrator — real-time session monitoring, keeper controls, and shadow pilot alerts.",
-  "version": "1.0.0-alpha.57",
+  "version": "1.0.0-alpha.31",
   "publisher": "jules-autopilot",
   "engines": {
     "vscode": "^1.85.0"

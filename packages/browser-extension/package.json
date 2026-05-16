@@ -1,6 +1,6 @@
 {
     "name": "@borg/browser-extension-pkg",
-    "version": "1.0.0-alpha.57",
+    "version": "1.0.0-alpha.55",
     "description": "borg Browser Extension for Hub Connectivity",
     "scripts": {
         "build": "echo \"stub package\"",

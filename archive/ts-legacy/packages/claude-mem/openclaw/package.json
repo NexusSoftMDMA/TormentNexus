@@ -1,6 +1,6 @@
 {
   "name": "@openclaw/claude-mem",
-  "version": "1.0.0-alpha.57",
+  "version": "1.0.0-alpha.9",
   "private": true,
   "type": "module",
   "main": "dist/index.js",

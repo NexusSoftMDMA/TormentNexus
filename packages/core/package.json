@@ -1,6 +1,6 @@
 {
     "name": "@borg/core",
-    "version": "1.0.0-alpha.57",
+    "version": "1.0.0-alpha.55",
     "type": "module",
     "main": "dist/index.js",
     "types": "dist/index.d.ts",

@@ -84,6 +84,9 @@ export class HealerService extends EventEmitter {
         this.shell = shell;
     }
 
+    /**
+     * The core autonomous loop: diagnose -> fix -> verify -> retry.
+     */
     public async healAndVerify(error: Error | string, context?: string, maxAttempts: number = 3): Promise<boolean> {
         let currentError = error;
         let currentContext = context;
@@ -129,6 +132,7 @@ export class HealerService extends EventEmitter {
                     console.warn(`[HealerService] ❌ Verification failed: ${verificationResult.error}`);
                     currentError = verificationResult.error || "Verification failed";
                     currentContext = `Attempted fix: ${plan.explanation}. But verification failed with: ${verificationResult.error}`;
+                    // Continue loop with new error
                 }
             } catch (e) {
                 console.error("[HealerService] ❌ Error during healing step:", e);
@@ -239,13 +243,21 @@ export class HealerService extends EventEmitter {
         }
     }
 
+    /**
+     * Verifies the fix by running relevant tests or type checking.
+     */
     private async verifyFix(culpritFile: string): Promise<{ success: boolean; error?: string }> {
+        // Simple heuristic: if it's a TS file, run tsc on it or run vitest if it's a test
+        // Better: run 'npm test' or similar if configured.
+        // For now, let's try to run the specific test if it exists, or just a generic check.
+
         const testFile = culpritFile.replace(/\.ts$/, '.test.ts');
         const commands = [];
 
         if (fs.existsSync(testFile)) {
             commands.push(`npx vitest run ${testFile}`);
         } else {
+            // Generic type check as fallback
             commands.push(`npx tsc --noEmit ${culpritFile}`);
         }
 

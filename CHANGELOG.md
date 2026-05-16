@@ -1,41 +1,5 @@
 # Changelog
 
-## [1.0.0-alpha.57] - 2026-05-16
-
-### Added
-- **Phase 2: Autonomy Loop**:
-  - `HealerService.healAndVerify`: Implemented a multi-turn autonomous healing loop (Diagnose -> Fix -> Verify -> Retry).
-  - `HealerReactor`: Added support for `StopHook` (`agent:stop_healing`) and `IdleHealer` (routine diagnostics during system inactivity).
-  - `SkillRegistry`: Implemented **Progressive Disclosure** for skills. Agents now receive only the most relevant skills based on chat history and active goals.
-  - Go Sidecar Bridge: Added `/api/skills/predict` endpoint for high-performance skill ranking and pre-loading.
-- **Documentation**:
-  - `docs/PHASE2_AUTONOMY.md`: Detailed documentation of the Phase 2 implementation.
-  - `docs/PROJECT_MEMORY.md`: Synthesized project memory and architectural decisions.
-
-### Changed
-- `HealerReactor`: Switched to the autonomous `healAndVerify` loop for more robust immune responses.
-- `SkillRegistry`: Refactored `list_skills` and `search_skills` to utilize the new ranking logic.
-- `MCPServer`: Integrated predictive skill ranking into the core tool loop.
-
-
-## [1.0.0-alpha.57] - 2026-05-16
-
-### Added
-- **Phase 2: Autonomy Loop**:
-  - `HealerService.healAndVerify`: Implemented a multi-turn autonomous healing loop (Diagnose -> Fix -> Verify -> Retry).
-  - `HealerReactor`: Added support for `StopHook` (`agent:stop_healing`) and `IdleHealer` (routine diagnostics during system inactivity).
-  - `SkillRegistry`: Implemented **Progressive Disclosure** for skills. Agents now receive only the most relevant skills based on chat history and active goals.
-  - Go Sidecar Bridge: Added `/api/skills/predict` endpoint for high-performance skill ranking and pre-loading.
-- **Documentation**:
-  - `docs/PHASE2_AUTONOMY.md`: Detailed documentation of the Phase 2 implementation.
-  - `docs/PROJECT_MEMORY.md`: Synthesized project memory and architectural decisions.
-
-### Changed
-- `HealerReactor`: Switched to the autonomous `healAndVerify` loop for more robust immune responses.
-- `SkillRegistry`: Refactored `list_skills` and `search_skills` to utilize the new ranking logic.
-- `MCPServer`: Integrated predictive skill ranking into the core tool loop.
-
-
 All notable changes to this project will be documented in this file.
 
 ## [1.0.0-alpha.54] - 2026-05-12

@@ -1,6 +1,6 @@
 {
   "name": "maestro-native",
-  "version": "1.0.0-alpha.57",
+  "version": "1.0.0-alpha.31",
   "description": "Native Qt/C++ frontend for Maestro (HyperCode)",
   "scripts": {
     "configure": "cmake -B build -S . -DCMAKE_BUILD_TYPE=Debug",

@@ -1,11 +1,11 @@
 {
 <<<<<<<< HEAD:archive/ts-legacy/packages/hypercode-supervisor/package.json
     "name": "@hypercode/supervisor",
-    "version": "1.0.0-alpha.57",
+    "version": "1.0.0-alpha.32",
     "description": "HyperCode Supervisor - Watchdog and Automation Agent",
 ========
     "name": "@borg/supervisor",
-    "version": "1.0.0-alpha.57",
+    "version": "1.0.0-alpha.1",
     "description": "borg Supervisor - Watchdog and Automation Agent",
 >>>>>>>> origin/dependabot/cargo/packages/zed-extension/cargo-64b2a50fd2:packages/borg-supervisor/package.json
     "type": "module",

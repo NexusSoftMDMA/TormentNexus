@@ -1,6 +1,6 @@
 {
     "name": "goose-ultra-ide",
-    "version": "1.0.0-alpha.57",
+    "version": "1.0.0-alpha.33",
     "description": "Goose Ultra - Vibe Coding IDE",
     "main": "electron/main.js",
     "type": "module",

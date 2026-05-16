@@ -1,10 +1,10 @@
 {
 <<<<<<< HEAD:archive/ts-legacy/packages/cli/package.json
     "name": "@hypercode/cli",
-    "version": "1.0.0-alpha.57",
+    "version": "1.0.0-alpha.32",
 =======
     "name": "@borg/cli",
-    "version": "1.0.0-alpha.57",
+    "version": "1.0.0-alpha.1",
 >>>>>>> origin/dependabot/cargo/packages/zed-extension/cargo-64b2a50fd2:packages/cli/package.json
     "type": "module",
     "bin": {

@@ -1,6 +1,6 @@
 {
   "name": "claude-mem-gemini",
-  "version": "1.0.0-alpha.57",
+  "version": "1.0.0-alpha.9",
   "description": "Gemini CLI extension for Claude-Mem persistent memory",
   "type": "module",
   "main": "dist/index.js",

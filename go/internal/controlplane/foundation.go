@@ -39,8 +39,9 @@ type LLMClient interface {
 type MemoryType string
 
 const (
-	MemoryRaw       MemoryType = "raw"       // Exact transcript and tool outputs
-	MemoryHeuristic MemoryType = "heuristic" // LLM-compressed summary of lessons learned
+	MemoryWorking   MemoryType = "working"   // Active L1 context or high-heat L2
+	MemoryLongTerm  MemoryType = "long_term" // Persistent L2 knowledge
+	MemoryArchive   MemoryType = "archive"   // L3 Cold storage
 )
 
 // L1Scratchpad is ephemeral, fast memory tied to an active goroutine/session
@@ -54,19 +55,19 @@ type L1Scratchpad struct {
 
 // L2VaultRecord is permanent storage in the on-disk SQLite vector database
 type L2VaultRecord struct {
-	ID         string     `json:"id"`
-	SessionID  string     `json:"session_id"`
-	Type       MemoryType `json:"memory_type"`
-	Content    string     `json:"content"`
-	Importance float64    `json:"importance"`
-	Embedding  []float32  `json:"-"` // sqlite-vec target
-	CreatedAt  time.Time  `json:"created_at"`
+	ID             string     `json:"id"`
+	SessionID      string     `json:"session_id"`
+	Type           MemoryType `json:"memory_type"`
+	Content        string     `json:"content"`
+	Importance     float64    `json:"importance"`
+	HeatScore      float64    `json:"heat_score"` // 0-100
+	Embedding      []float32  `json:"-"`          // sqlite-vec target
+	LastAccessedAt time.Time  `json:"last_accessed_at"`
+	CreatedAt      time.Time  `json:"created_at"`
 }
 
 type MemoryVault interface {
-	// Commit async goroutine to store L1 -> L2
 	Commit(ctx context.Context, entry L2VaultRecord) error
-	// SemanticSearch queries L2 Vault favoring heuristics
 	SemanticSearch(ctx context.Context, query string, limit int) ([]L2VaultRecord, error)
 }
 
@@ -86,7 +87,6 @@ CREATE TABLE IF NOT EXISTS mcp_directory (
 );
 
 -- sqlite-vec Virtual Table for hyper-fast tool search
--- Dimension 384 for all-MiniLM-L6-v2
 CREATE VIRTUAL TABLE IF NOT EXISTS vec_mcp_directory USING vec0(
     embedding float[384]
 );
@@ -95,9 +95,11 @@ CREATE VIRTUAL TABLE IF NOT EXISTS vec_mcp_directory USING vec0(
 CREATE TABLE IF NOT EXISTS l2_vault (
     id TEXT PRIMARY KEY,
     session_id TEXT NOT NULL,
-    memory_type TEXT NOT NULL CHECK(memory_type IN ('raw', 'heuristic')),
+    memory_type TEXT NOT NULL CHECK(memory_type IN ('working', 'long_term', 'archive')),
     content TEXT NOT NULL,
     importance REAL DEFAULT 0.5,
+    heat_score REAL DEFAULT 50.0,
+    last_accessed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -107,22 +109,6 @@ CREATE VIRTUAL TABLE IF NOT EXISTS vec_l2_vault USING vec0(
 );
 `
 
-// MemoryBridge connects L1 scratchpad to the L2 Vault
-type MemoryBridge struct {
-	Vault MemoryVault
-}
-
-func (b *MemoryBridge) Initialize(ctx context.Context, sessionID string, initialPrompt string) (*L1Scratchpad, error) {
-	// Implementation would query Vault for heuristics
-	return &L1Scratchpad{
-		SessionID:   sessionID,
-		Prompt:      initialPrompt,
-		ToolOutputs: make(map[string]string),
-		CreatedAt:   time.Now(),
-	}, nil
-}
-
-func (b *MemoryBridge) Teardown(ctx context.Context, pad *L1Scratchpad, summary string) error {
-	// Async commit to L2
-	return nil
+func Now() time.Time {
+	return time.Now().UTC()
 }

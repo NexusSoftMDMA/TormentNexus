@@ -1,6 +1,6 @@
 {
   "name": "hypercode-extension-plugin",
-  "version": "1.0.0-alpha.57",
+  "version": "1.0.0-alpha.9",
   "private": true,
   "description": "Runtime dependencies for hypercode-extension bundled hooks",
   "type": "module",

@@ -55,7 +55,7 @@ export class HealerReactor {
     private readonly BASE_COOLDOWN_MS = 10000;
     private readonly MAX_COOLDOWN_MS = 300000;
     private idleTimer: NodeJS.Timeout | null = null;
-    private readonly IDLE_THRESHOLD_MS = 60000;
+    private readonly IDLE_THRESHOLD_MS = 60000; // 1 minute idle
 
     constructor(eventBus: EventBus, healerService: HealerService) {
         this.eventBus = eventBus;
@@ -74,6 +74,7 @@ export class HealerReactor {
             this.isStopped = false;
         });
 
+        // Idle Healer: periodically check for issues when system is quiet
         this.resetIdleTimer();
         this.eventBus.subscribe('*', () => this.resetIdleTimer());
     }
@@ -86,6 +87,7 @@ export class HealerReactor {
     private onIdle() {
         if (this.isHealing || this.isStopped) return;
         console.log("[HealerReactor] 😴 System idle. Running routine diagnostics...");
+        // In the future, this could trigger 'npm test' or 'tsc' globally to find hidden issues
     }
 
     private async handleError(event: SystemEvent) {
@@ -113,6 +115,7 @@ export class HealerReactor {
         try {
             this.eventBus.emitEvent('task:update', 'HealerReactor', { message: 'Diagnosing error...' });
 
+            // Trigger the Healer Service with the new autonomous loop
             const success = await this.healerService.healAndVerify(errorLog);
 
             if (success) {

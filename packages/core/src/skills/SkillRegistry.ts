@@ -1,29 +1,66 @@
+
 import glob from 'fast-glob';
 import fs from 'fs/promises';
 import path from 'path';
 import matter from 'gray-matter';
 
+/**
+ * Skill — A portable, self-contained instruction set (runbook).
+ *
+ * Skills are markdown files with YAML frontmatter (name, description) stored
+ * as `SKILL.md` in directories under the configured search paths.
+ *
+ * Example: `.borg/skills/deploy-to-prod/SKILL.md`
+ */
 export interface Skill {
+    /** Unique identifier — derived from frontmatter `name` or parent directory name */
     id: string;
+    /** Human-readable skill name */
     name: string;
+    /** Brief description of what this skill does */
     description: string;
+    /** The full markdown body (instructions) of the skill */
     content: string;
+    /** Absolute path to the SKILL.md file on disk */
     path: string;
-    score?: number;
 }
 
 function getErrorMessage(error: unknown): string {
     return error instanceof Error ? error.message : String(error);
 }
 
+/**
+ * SkillRegistry
+ *
+ * Discovers, loads, and manages Borg's skill library.
+ * Skills are portable runbooks (SKILL.md files with YAML frontmatter) that
+ * agents can read and follow to perform specialized tasks.
+ *
+ * Discovery:
+ * - Scans configured `searchPaths` directories for `SKILL.md` files
+ * - Uses `fast-glob` with max depth 3 to find skill files
+ * - Parses YAML frontmatter via `gray-matter` for metadata
+ *
+ * MCP Tool Exposure:
+ * - `getSkillTools()` returns MCP-compatible tool definitions (list, read, create, update)
+ * - `skillsRouter.ts` exposes skills via tRPC for the dashboard frontend
+ *
+ * Master Index:
+ * - Optional `masterIndexPath` points to a JSONC file cataloging all available
+ *   MCP servers, harnesses, and skills for the library UI.
+ */
 export class SkillRegistry {
+    /** In-memory cache of loaded skills, keyed by skill ID */
     private skills: Map<string, Skill> = new Map();
+    /** Directories to scan for SKILL.md files */
     private searchPaths: string[];
+    /** Optional path to master library index (JSONC) */
     private masterIndexPath?: string;
 
     constructor(searchPaths: string[]) {
         this.searchPaths = searchPaths;
     }
+
 
     setMasterIndexPath(indexPath: string) {
         this.masterIndexPath = indexPath;
@@ -36,6 +73,7 @@ export class SkillRegistry {
 
         try {
             const content = await fs.readFile(this.masterIndexPath, 'utf-8');
+            // Remove comments (JSONC)
             const cleanJSON = content.replace(/\\"|"(?:\\"|[^"])*"|(\/\/.*|\/\*[\s\S]*?\*\/)/g, (m, g) => g ? "" : m);
             return JSON.parse(cleanJSON);
         } catch (e) {
@@ -45,6 +83,7 @@ export class SkillRegistry {
     }
 
     hasSkill(id: string): boolean {
+        // Skill IDs in the map are usually the folders/names
         return this.skills.has(id);
     }
 
@@ -57,24 +96,29 @@ export class SkillRegistry {
 
         for (const loc of this.searchPaths) {
             try {
+                // Find all SKILL.md files (case-insensitive for Windows, but explicit for Linux)
                 const entries = await glob(['**/SKILL.md', '**/skill.md'], {
                     cwd: loc,
                     absolute: true,
-                    deep: 3
+                    deep: 3 // Go deeper just in case
                 });
 
                 for (const file of entries) {
                     await this.parseSkill(file);
                 }
             } catch (e) {
+                // Ignore missing directories
             }
         }
+        console.log(`Borg Core: Loaded ${this.skills.size} skills.`);
     }
 
     private async parseSkill(filePath: string) {
         try {
             const raw = await fs.readFile(filePath, 'utf-8');
             const { data, content } = matter(raw);
+
+            // Use 'name' from frontmatter or folder name
             const id = data.name || path.basename(path.dirname(filePath));
 
             const skill: Skill = {
@@ -91,50 +135,12 @@ export class SkillRegistry {
         }
     }
 
-    async getPredictedSkills(chatHistory: string, activeGoal: string): Promise<Skill[]> {
-        const SIDECAR_URL = process.env.BORG_SIDECAR_URL || 'http://localhost:4300';
-        try {
-            const response = await fetch(`${SIDECAR_URL}/api/skills/predict`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ chatHistory, activeGoal }),
-            });
-
-            if (!response.ok) return [];
-            const result = (await response.json()) as any;
-            return result?.data?.predictedSkills || [];
-        } catch (e) {
-            console.warn('[SkillRegistry] Sidecar skill prediction failed, using local fallback.');
-            return this.localSearch(activeGoal || chatHistory.slice(-500), 5);
-        }
-    }
-
-    private localSearch(query: string, limit: number): Skill[] {
-        const queryLower = query.toLowerCase();
-        return Array.from(this.skills.values())
-            .map(s => {
-                let score = 0;
-                if (s.name.toLowerCase().includes(queryLower)) score += 10;
-                if (s.description.toLowerCase().includes(queryLower)) score += 5;
-                if (s.content.toLowerCase().includes(queryLower)) score += 1;
-                return { ...s, score };
-            })
-            .filter(s => (s.score || 0) > 0)
-            .sort((a, b) => (b.score || 0) - (a.score || 0))
-            .slice(0, limit);
-    }
-
     getSkillTools() {
         return [
             {
                 name: "list_skills",
-                description: "List all available skills (runbooks). Uses progressive disclosure.",
-                inputSchema: {
-                    type: "object",
-                    properties: {
-                        query: { type: "string", description: "Optional filter/context for ranking" }
-                    }
-                }
+                description: "List all available skills (runbooks)",
+                inputSchema: { type: "object", properties: {} }
             },
             {
                 name: "read_skill",
@@ -187,11 +193,18 @@ export class SkillRegistry {
     }
 
     async searchSkills(query: string) {
-        const matches = this.localSearch(query, 10).map(s => ({
-            id: s.id,
-            name: s.name,
-            description: s.description
-        }));
+        const queryLower = query.toLowerCase();
+        const matches = Array.from(this.skills.values())
+            .filter(s =>
+                s.id.toLowerCase().includes(queryLower) ||
+                s.name.toLowerCase().includes(queryLower) ||
+                s.description.toLowerCase().includes(queryLower)
+            )
+            .map(s => ({
+                id: s.id,
+                name: s.name,
+                description: s.description
+            }));
 
         return {
             content: [{
@@ -201,14 +214,14 @@ export class SkillRegistry {
         };
     }
 
-    async listSkills(query?: string) {
-        const skills = query ? this.localSearch(query, 5) : Array.from(this.skills.values()).slice(0, 10);
-        const skillList = skills.map(s => s.id);
+    async listSkills() {
+        // Progressive disclosure: only return the skill names/ids without descriptions
+        const skillList = Array.from(this.skills.values()).map(s => s.id);
 
         return {
             content: [{
                 type: "text",
-                text: JSON.stringify({ skills: skillList, note: query ? "Ranked by relevance" : "Showing first 10" }, null, 2)
+                text: JSON.stringify({ skills: skillList }, null, 2)
             }]
         };
     }
@@ -230,6 +243,7 @@ export class SkillRegistry {
     }
 
     async createSkill(id: string, name: string, description: string) {
+        // Default to the first search path (usually .borg/skills in cwd)
         const targetDir = this.searchPaths[0];
         const skillDir = path.join(targetDir, id);
         const skillFile = path.join(skillDir, 'SKILL.md');
@@ -250,6 +264,8 @@ ${description}
 1. ...
 `;
             await fs.writeFile(skillFile, content, 'utf-8');
+
+            // Reload to pick up new skill
             await this.parseSkill(skillFile);
 
             return {
@@ -268,7 +284,10 @@ ${description}
 
         try {
             await fs.writeFile(skill.path, content, 'utf-8');
+
+            // Update in-memory
             skill.content = content;
+            // Re-parse to update frontmatter if changed
             await this.parseSkill(skill.path);
 
             return { content: [{ type: "text", text: `Saved skill '${id}'.` }] };

@@ -1,6 +1,6 @@
 {
     "name": "@anthropic-ai/claude-code-source",
-    "version": "1.0.0-alpha.57",
+    "version": "1.0.0-alpha.33",
     "description": "Claude Code v2.1.88 — decompiled source for research",
     "type": "module",
     "private": true,

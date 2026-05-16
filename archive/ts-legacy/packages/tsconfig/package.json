@@ -1,10 +1,10 @@
 {
 <<<<<<< HEAD:archive/ts-legacy/packages/tsconfig/package.json
     "name": "@hypercode/tsconfig",
-    "version": "1.0.0-alpha.57",
+    "version": "1.0.0-alpha.32",
 =======
     "name": "@borg/tsconfig",
-    "version": "1.0.0-alpha.57",
+    "version": "1.0.0-alpha.1",
 >>>>>>> origin/dependabot/cargo/packages/zed-extension/cargo-64b2a50fd2:packages/tsconfig/package.json
     "private": true,
     "files": [

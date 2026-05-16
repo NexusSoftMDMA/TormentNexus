@@ -1,16 +1,5 @@
 package memorystore
 
-/**
- * @file archiver.go
- * @module go/internal/memorystore
- *
- * WHAT: Go-native implementation of session transcript archiving.
- * Converts raw JSON sessions into compressed plaintext archives.
- *
- * WHY: Total Autonomy — The Go sidecar should be able to manage session 
- * lifecycle and archiving independently of the Node control plane.
- */
-
 import (
 	"archive/zip"
 	"bytes"
@@ -23,6 +12,7 @@ import (
 	"time"
 
 	"github.com/borghq/borg-go/internal/ai"
+	"github.com/borghq/borg-go/internal/controlplane"
 )
 
 type ArchivedSessionMetadata struct {
@@ -36,12 +26,14 @@ type ArchivedSessionMetadata struct {
 type MemoryArchiver struct {
 	workspaceRoot string
 	archivePath   string
+	vectorStore   *VectorStore
 }
 
-func NewMemoryArchiver(workspaceRoot string) *MemoryArchiver {
+func NewMemoryArchiver(workspaceRoot string, vs *VectorStore) *MemoryArchiver {
 	return &MemoryArchiver{
 		workspaceRoot: workspaceRoot,
 		archivePath:   filepath.Join(workspaceRoot, "data", "archives", "sessions.zip"),
+		vectorStore:   vs,
 	}
 }
 
@@ -66,8 +58,8 @@ func (a *MemoryArchiver) ArchiveAndExtract(ctx context.Context, sessionData map[
 		return nil, fmt.Errorf("empty transcript or unrecognized format")
 	}
 
-	// 1. Extract Valuable Memories (Simulated or via AI package)
-	err := a.extractValuableMemories(ctx, transcript, title)
+	// 1. Extract Valuable Memories
+	err := a.extractValuableMemories(ctx, sessionID, transcript, title)
 	if err != nil {
 		fmt.Printf("[Go Archiver] Memory extraction failed: %v\n", err)
 	}
@@ -127,7 +119,7 @@ func (a *MemoryArchiver) formatToPlaintext(sessionData map[string]interface{}) s
 	return sb.String()
 }
 
-func (a *MemoryArchiver) extractValuableMemories(ctx context.Context, transcript string, title string) error {
+func (a *MemoryArchiver) extractValuableMemories(ctx context.Context, sessionID string, transcript string, title string) error {
 	prompt := fmt.Sprintf(`
 		Analyze the following session transcript titled "%s".
 		Identify the MOST VALUABLE pieces of knowledge, decisions made, or technical discoveries.
@@ -148,7 +140,6 @@ func (a *MemoryArchiver) extractValuableMemories(ctx context.Context, transcript
 		return err
 	}
 
-	// Heuristic parsing of JSON array
 	start := strings.Index(resp.Content, "[")
 	end := strings.LastIndex(resp.Content, "]")
 	if start == -1 || end == -1 {
@@ -160,7 +151,22 @@ func (a *MemoryArchiver) extractValuableMemories(ctx context.Context, transcript
 		return err
 	}
 
-	// In a real implementation, we would save these to the Go-native memory store
+	if a.vectorStore != nil {
+		for _, m := range memories {
+			entry := controlplane.L2VaultRecord{
+				ID:             fmt.Sprintf("mem-%d", time.Now().UnixNano()),
+				SessionID:      sessionID,
+				Type:           controlplane.MemoryLongTerm,
+				Content:        m,
+				Importance:     0.7,
+				HeatScore:      50.0,
+				LastAccessedAt: time.Now(),
+				CreatedAt:      time.Now(),
+			}
+			_ = a.vectorStore.Commit(ctx, entry)
+		}
+	}
+
 	fmt.Printf("[Go Archiver] Extracted %d memories from %s\n", len(memories), title)
 	return nil
 }
@@ -171,19 +177,14 @@ func (a *MemoryArchiver) writeToZip(sessionID, transcript, sourceTool string) (i
 		return 0, err
 	}
 
-	// Read existing or create new
 	var buf bytes.Buffer
 	var zipWriter *zip.Writer
 
 	if _, err := os.Stat(a.archivePath); err == nil {
 		data, err := os.ReadFile(a.archivePath)
-		if err != nil {
-			return 0, err
+		if err == nil {
+			buf.Write(data)
 		}
-		buf.Write(data)
-		
-		// This is a simplified approach. In a real world, you'd use a temporary file.
-		// For this implementation, we overwrite with a new zip.
 	}
 
 	zipWriter = zip.NewWriter(&buf)

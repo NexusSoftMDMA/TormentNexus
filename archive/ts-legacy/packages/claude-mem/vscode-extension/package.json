@@ -2,7 +2,7 @@
   "name": "hypercode-extension-vscode",
   "displayName": "Hypercode Extension for VSCode Copilot",
   "description": "Persistent memory for GitHub Copilot conversations powered by hypercode-extension",
-  "version": "1.0.0-alpha.57",
+  "version": "1.0.0-alpha.9",
   "publisher": "thedotmack",
   "engines": {
     "vscode": "^1.90.0"

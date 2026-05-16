@@ -1,6 +1,6 @@
 {
     "name": "@borg/mcp-router-cli",
-    "version": "1.0.0-alpha.57",
+    "version": "1.0.0-alpha.33",
     "description": "Borg MCP Router CLI - Manage MCP servers, configurations, and sessions",
     "type": "module",
     "bin": {

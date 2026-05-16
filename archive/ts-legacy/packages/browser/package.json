@@ -1,6 +1,6 @@
 {
     "name": "@hypercode/browser-legacy",
-    "version": "1.0.0-alpha.57",
+    "version": "1.0.0-alpha.32",
     "scripts": {
         "build": "webpack --config webpack.config.js"
     },

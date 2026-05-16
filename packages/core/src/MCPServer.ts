@@ -1866,7 +1866,7 @@ export class MCPServer {
                 };
             }
             else if (name === "list_skills") {
-                result = await this.skillRegistry.listSkills(args?.query as string);
+                result = await this.skillRegistry.listSkills();
             }
             else if (name === "search_skills") {
                 result = await this.skillRegistry.searchSkills(args?.query as string);

@@ -1,10 +1,10 @@
 {
 <<<<<<< HEAD:archive/ts-legacy/packages/adk/package.json
     "name": "@hypercode/adk",
-    "version": "1.0.0-alpha.57",
+    "version": "1.0.0-alpha.32",
 =======
     "name": "@borg/adk",
-    "version": "1.0.0-alpha.57",
+    "version": "1.0.0-alpha.1",
 >>>>>>> origin/dependabot/cargo/packages/zed-extension/cargo-64b2a50fd2:packages/adk/package.json
     "type": "module",
     "main": "dist/index.js",

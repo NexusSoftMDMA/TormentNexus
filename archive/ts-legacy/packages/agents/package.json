@@ -1,10 +1,10 @@
 {
 <<<<<<< HEAD:archive/ts-legacy/packages/agents/package.json
     "name": "@hypercode/agents",
-    "version": "1.0.0-alpha.57",
+    "version": "1.0.0-alpha.32",
 =======
     "name": "@borg/agents",
-    "version": "1.0.0-alpha.57",
+    "version": "1.0.0-alpha.1",
 >>>>>>> origin/dependabot/cargo/packages/zed-extension/cargo-64b2a50fd2:packages/agents/package.json
     "type": "module",
     "main": "dist/index.js",

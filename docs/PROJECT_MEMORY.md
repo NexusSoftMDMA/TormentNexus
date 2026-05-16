@@ -7,10 +7,10 @@ The project has evolved from its origin as "Borg" into a dual-brand architectura
 
 The "AI Hypervisor" model treats AI models as compute resources and tools as peripheral drivers, with Nexus acting as the management layer that optimizes model selection, context management, and execution loops.
 
-### 2. Current State (v1.0.0-alpha.57)
-The project is currently in **Phase 2 (Autonomy Loop)**.
-- **Phase 1 Status:** Complete.
-- **Phase 2 Status:** In Progress. The autonomous healer loop and progressive skill disclosure are implemented.
+### 2. Current State (v1.0.0-alpha.56)
+The project is currently in the transition between **Phase 1 (Active Memory)** and **Phase 2 (Autonomy Loop)**.
+- **Phase 1 Status:** Complete. The foundational memory substrate is production-ready.
+- **Phase 2 Status:** Initiated. Focus has shifted to self-healing reactors and the "execute-fix-verify-retry" autonomous loop.
 
 ### 3. Core Architectural Patterns
 - **Kernel/Control Plane Split:**
@@ -21,8 +21,8 @@ The project is currently in **Phase 2 (Autonomy Loop)**.
     - **Feedback Loops:** Tool success/failure directly modifies the heat of the context used to achieve that outcome.
 - **Provider Routing:**
     - Uses a waterfall fallback system. If one model/provider quota is exhausted, it automatically falls back to the next best available resource.
-- **Progressive Disclosure:**
-    - Tools and Skills are ranked and disclosure is limited to the most relevant entries based on the active goal.
+- **Progressive Tool Disclosure:**
+    - Instead of flooding context with all tools, Nexus uses semantic ranking to disclose only relevant tools based on the active goal.
 
 ### 4. Monorepo Structure & Module Roles
 - **`packages/core`:** The central hub ("Brain") of the TypeScript control plane. It hosts tRPC routers, session logic, and bridges to the Go sidecar.
@@ -34,13 +34,17 @@ The project is currently in **Phase 2 (Autonomy Loop)**.
 ### 5. Technical Decisions & Constraints
 - **Shell Hardening:** `child_process.exec` is strictly prohibited. All command execution must use `spawn` with tokenized argument arrays and `shell: false`.
 - **Environment:** Standardized on Node 24 and Go 1.24.3. Port 443 is restricted; local caches/binaries must be used for dependency management.
-- **Version Authority:** Versioning is synchronized globally. The current baseline is `1.0.0-alpha.57`.
+- **Version Authority:** Versioning is synchronized globally. The current baseline is `1.0.0-alpha.56`.
 
 ### 6. Roadmap: The Autonomy Path
 The next immediate milestones involve:
-1.  **Autonomous Healer:** Multi-turn fix-verify-retry loop (Implemented).
+1.  **The Healer Loop:** Implementing the full `execute-fix-verify-retry` autonomous cycle within the `HealerReactor`.
 2.  **Fleet Management:** Extending Nexus to manage multiple concurrent "HyperCode" sessions with shared organizational memory.
 3.  **Assimilation:** Systematically migrating high-performance logic (ranking, sync, memory) from TypeScript into the native Go kernel.
 
+### 7. Governance & Intelligence
+- **Supervisor/Council Pattern:** The system is designed to run under the supervision of an "Architect" or "Council" of models that verify plans before implementation.
+- **Passive Harvesting:** The system automatically extracts facts and patterns from agent traffic to populate its L2 "Vault" memory without manual operator intervention.
+
 ---
-*Last updated: Session v1.0.0-alpha.57*
+*Last updated: Session v1.0.0-alpha.56*

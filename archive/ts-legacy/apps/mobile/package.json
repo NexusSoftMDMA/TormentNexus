@@ -1,7 +1,7 @@
 {
 <<<<<<< HEAD:archive/ts-legacy/apps/mobile/package.json
   "name": "@hypercode/mobile",
-  "version": "1.0.0-alpha.57",
+  "version": "1.0.0-alpha.31",
 =======
   "name": "@borg/mobile",
   "version": "1.0.0",

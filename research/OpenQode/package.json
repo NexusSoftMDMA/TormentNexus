@@ -1,6 +1,6 @@
 {
     "name": "openqode-tui",
-    "version": "1.0.0-alpha.57",
+    "version": "1.0.0-alpha.33",
     "author": "Trae & Gemini",
     "private": true,
     "dependencies": {

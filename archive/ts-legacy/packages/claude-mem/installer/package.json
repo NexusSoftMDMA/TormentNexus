@@ -1,6 +1,6 @@
 {
   "name": "claude-mem-installer",
-  "version": "1.0.0-alpha.57",
+  "version": "1.0.0-alpha.9",
   "type": "module",
   "bin": {
     "claude-mem-installer": "./dist/index.js"

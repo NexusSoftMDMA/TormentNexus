@@ -86,6 +86,7 @@ func (s *Server) handleSkillSearch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Use native progressive disclosure search
 	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 	defer cancel()
 
@@ -102,47 +103,6 @@ func (s *Server) handleSkillSearch(w http.ResponseWriter, r *http.Request) {
 			"fallback":  "go-local-skills",
 			"procedure": "skills.search",
 			"reason":    "upstream unavailable; using Go decision system",
-		},
-	})
-}
-
-func (s *Server) handleSkillPredict(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		writeJSON(w, http.StatusMethodNotAllowed, map[string]any{"success": false, "error": "method not allowed"})
-		return
-	}
-
-	var payload struct {
-		ChatHistory string `json:"chatHistory"`
-		ActiveGoal  string `json:"activeGoal"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]any{"success": false, "error": "invalid JSON body"})
-		return
-	}
-
-	query := payload.ActiveGoal
-	if query == "" {
-		query = payload.ChatHistory
-		if len(query) > 200 {
-			query = query[len(query)-200:]
-		}
-	}
-
-	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
-	defer cancel()
-
-	ranked, err := s.skillDecision.SearchAndLoad(ctx, query)
-	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]any{"success": false, "error": err.Error()})
-		return
-	}
-
-	writeJSON(w, http.StatusOK, map[string]any{
-		"success": true,
-		"data": map[string]any{
-			"predictedSkills": ranked,
-			"reasoning":       "Ranked via Go BM25 + Progressive Disclosure",
 		},
 	})
 }
@@ -202,11 +162,6 @@ func (s *Server) handleSkillListLoaded(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleSkillSummary(w http.ResponseWriter, r *http.Request) {
 	skills := s.skillRegistry.List()
-	type SkillSummary struct {
-		ID     string `json:"id"`
-		Name   string `json:"name"`
-		Folder string `json:"folder"`
-	}
 	summary := make([]SkillSummary, len(skills))
 	for i, sk := range skills {
 		summary[i] = SkillSummary{

@@ -1,7 +1,7 @@
 {
   "name": "function-call-renderer",
 <<<<<<<< HEAD:archive/ts-legacy/apps/hypercode-extension/pages/content/src/render_prescript/package.json
-  "version": "1.0.0-alpha.57",
+  "version": "1.0.0-alpha.31",
 ========
   "version": "0.7.2",
 >>>>>>>> origin/dependabot/cargo/packages/zed-extension/cargo-64b2a50fd2:apps/borg-extension/pages/content/src/render_prescript/package.json

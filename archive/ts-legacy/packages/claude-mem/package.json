@@ -137,7 +137,7 @@
 =======
 {
   "name": "hypercode-extension",
-  "version": "1.0.0-alpha.57",
+  "version": "1.0.0-alpha.9",
   "description": "Memory compression system for Claude Code - persist context across sessions",
   "keywords": [
     "claude",
