@@ -1,15 +1,5 @@
 package orchestration
 
-/**
- * @file a2a_broker.go
- * @module go/internal/orchestration
- *
- * WHAT: Go-native implementation of the Agent-to-Agent (A2A) message broker.
- *
- * WHY: Total Autonomy — The Go sidecar must be capable of routing messages 
- * between autonomous agents without relying on the Node control plane.
- */
-
 import (
 	"context"
 	"fmt"
@@ -50,6 +40,7 @@ type A2ABroker struct {
 	history          []A2AMessage
 	pendingResponses map[string]chan A2AMessage
 	logger           *A2ALogger
+	signalProcessor  FleetSignalProcessor
 	bus              interface {
 		EmitEvent(eventType string, source string, payload interface{})
 	}
@@ -65,6 +56,12 @@ func NewA2ABroker(logger *A2ALogger) *A2ABroker {
 	}
 	go b.startHeartbeatMonitor()
 	return b
+}
+
+func (b *A2ABroker) SetSignalProcessor(proc FleetSignalProcessor) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.signalProcessor = proc
 }
 
 func (b *A2ABroker) Query(ctx context.Context, msg A2AMessage) (A2AMessage, error) {
@@ -93,16 +90,16 @@ func (b *A2ABroker) startHeartbeatMonitor() {
 	ticker := time.NewTicker(10 * time.Second)
 	defer ticker.Stop()
 	for range ticker.C {
-		now := nowMillis()
+		now := time.Now().UnixMilli()
 		b.mu.Lock()
 		for id, lastSeen := range b.heartbeats {
-			if now-lastSeen > 30000 { // 30 seconds
-				log.Printf("[Go A2A] Agent %s timed out after %dms. Pruned.", id, now-lastSeen)
+			if now-lastSeen > 30000 {
+				log.Printf("[Go A2A] Agent %s timed out. Pruned.", id)
 				if ch, ok := b.agents[id]; ok {
 					close(ch)
 					delete(b.agents, id)
-					}
-			delete(b.heartbeats, id)
+				}
+				delete(b.heartbeats, id)
 			}
 		}
 		b.mu.Unlock()
@@ -115,13 +112,11 @@ func (b *A2ABroker) RegisterAgent(id string) chan A2AMessage {
 
 	ch := make(chan A2AMessage, 100)
 	b.agents[id] = ch
-	b.heartbeats[id] = nowMillis()
-	fmt.Printf("[Go A2A] Registered agent: %s\n", id)
+	b.heartbeats[id] = time.Now().UnixMilli()
 
-	// Phase 105: Capability Exchange
 	go b.RouteMessage(A2AMessage{
-		ID:        fmt.Sprintf("cap-req-%s-%d", id, nowMillis()),
-		Timestamp: nowMillis(),
+		ID:        fmt.Sprintf("cap-req-%s-%d", id, time.Now().UnixMilli()),
+		Timestamp: time.Now().UnixMilli(),
 		Sender:    "BROKER",
 		Recipient: id,
 		Type:      StateUpdate,
@@ -139,7 +134,6 @@ func (b *A2ABroker) UnregisterAgent(id string) {
 		close(ch)
 		delete(b.agents, id)
 		delete(b.heartbeats, id)
-		fmt.Printf("[Go A2A] Unregistered agent: %s\n", id)
 	}
 }
 
@@ -158,7 +152,12 @@ func (b *A2ABroker) RouteMessage(msg A2AMessage) {
 
 	b.mu.RLock()
 	bus := b.bus
+	proc := b.signalProcessor
 	b.mu.RUnlock()
+
+	if proc != nil {
+		proc.ProcessSignal(context.Background(), msg)
+	}
 
 	if bus != nil {
 		bus.EmitEvent("a2a:signal", "A2ABroker", map[string]interface{}{
@@ -167,8 +166,8 @@ func (b *A2ABroker) RouteMessage(msg A2AMessage) {
 	}
 
 	b.mu.Lock()
-	if msg.Sender != "MCP_TOOL" && msg.Sender != "DASHBOARD" && msg.Sender != "BROKER" {
-		b.heartbeats[msg.Sender] = nowMillis()
+	if msg.Sender != "BROKER" {
+		b.heartbeats[msg.Sender] = time.Now().UnixMilli()
 	}
 
 	if msg.Type == Heartbeat {
@@ -176,7 +175,6 @@ func (b *A2ABroker) RouteMessage(msg A2AMessage) {
 		return
 	}
 
-	// Check for pending responses
 	if msg.ReplyTo != "" {
 		if ch, ok := b.pendingResponses[msg.ReplyTo]; ok {
 			select {
@@ -200,19 +198,14 @@ func (b *A2ABroker) RouteMessage(msg A2AMessage) {
 			select {
 			case ch <- msg:
 			default:
-				fmt.Printf("[Go A2A] Dropped message to %s (buffer full)\n", msg.Recipient)
 			}
 		}
 	} else {
-		// Broadcast
 		for id, ch := range b.agents {
-			if id == msg.Sender {
-				continue
-			}
+			if id == msg.Sender { continue }
 			select {
 			case ch <- msg:
 			default:
-				fmt.Printf("[Go A2A] Dropped broadcast to %s (buffer full)\n", id)
 			}
 		}
 	}
@@ -221,7 +214,6 @@ func (b *A2ABroker) RouteMessage(msg A2AMessage) {
 func (b *A2ABroker) GetHistory() []A2AMessage {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
-
 	h := make([]A2AMessage, len(b.history))
 	copy(h, b.history)
 	return h
@@ -230,10 +222,13 @@ func (b *A2ABroker) GetHistory() []A2AMessage {
 func (b *A2ABroker) ListAgents() []string {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
-
 	agents := make([]string, 0, len(b.agents))
 	for id := range b.agents {
 		agents = append(agents, id)
 	}
 	return agents
+}
+
+func _nowMillis_deprecated() int64 {
+	return time.Now().UnixMilli()
 }

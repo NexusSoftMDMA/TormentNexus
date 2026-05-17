@@ -111,12 +111,15 @@ type Server struct {
 	directorNotes     *orchestration.DirectorNotesManager
 	expertManager     *hsync.ExpertManager
 	memoryArchiver    *memorystore.MemoryArchiver
+	fleetManager      *orchestration.FleetManagerPlus
+	consensusEngine   *orchestration.ConsensusEngine
+	quotaManager      *providers.QuotaManager
+	modelSelector     *providers.ModelSelector
 
 	// --- New Go-native services (alpha.32+) ---
 	eventBus          *eventbus.EventBus
 	metricsService    *metrics.MetricsService
 	sessionManager    *session.SessionManager
-	fleetManager      *session.FleetManager
 	toolRegistry      *toolregistry.ToolRegistry
 	gitService        *gitservice.GitService
 	contextHarvester  *ctxharvester.ContextHarvester
@@ -125,7 +128,6 @@ type Server struct {
 	healerService     *healer.HealerService
 	cacheService      *cache.Cache
 	repoGraph         *repograph.RepoGraphService
-	consensusEngine   *orchestration.ConsensusEngine
 }
 
 // eventBusAdapter wraps *eventbus.EventBus so it satisfies the string-based
@@ -482,13 +484,8 @@ func New(cfg config.Config, detector controlplane.ToolProvider) *Server {
 	server.coderAgent.Start(context.Background())
 	server.goDirector = orchestration.NewDirector(server.swarmController, server.coderAgent, server.a2aBroker)
 	server.mcpConfig = mcp.NewConfigManager(cfg.MainConfigDir)
-	server.memoryReactor = memorystore.NewMemoryReactor(cfg.WorkspaceRoot)
 	server.highValueIngestor = hsync.NewHighValueIngestor(filepath.Join(cfg.MainConfigDir, "metamcp.db"), server.skillStore, server.mcpConfig)
-	// VectorStore for the archiver
-	vs, _ := memorystore.NewVectorStore(filepath.Join(cfg.ConfigDir, "memory.db"))
-	server.memoryArchiver = memorystore.NewMemoryArchiver(cfg.WorkspaceRoot, vs)
 	server.swarmController = orchestration.NewSwarmController(server.a2aBroker)
-	server.consensusEngine = orchestration.NewConsensusEngine(server.debateHistory)
 	server.mcpPredictor = mcp.NewToolPredictor(server.mcpAggregator)
 	server.supervisorManager.SetPredictor(server.mcpPredictor)
 
@@ -511,6 +508,10 @@ func New(cfg config.Config, detector controlplane.ToolProvider) *Server {
 
 	// --- Initialize new Go-native services ---
 	server.eventBus = eventbus.New(1000)
+	memoryVS, _ := memorystore.NewVectorStore(filepath.Join(cfg.ConfigDir, "memory.db"))
+	server.memoryReactor = memorystore.NewMemoryReactor(cfg.WorkspaceRoot, memoryVS)
+	server.memoryArchiver = memorystore.NewMemoryArchiver(cfg.WorkspaceRoot, memoryVS)
+	server.consensusEngine = orchestration.NewConsensusEngine(server.debateHistory, memoryVS)
 	server.eventBus.OnGlobal(func(ev eventbus.SystemEvent) {
 		if data, err := json.Marshal(ev); err == nil {
 			GlobalSSEBroker.Broadcast(data)
@@ -520,7 +521,10 @@ func New(cfg config.Config, detector controlplane.ToolProvider) *Server {
 	server.pairOrchestrator.SetEventBus(&eventBusAdapter{server.eventBus})
 	server.metricsService = metrics.NewMetricsService()
 	server.sessionManager = session.NewSessionManager(100)
-	server.fleetManager = session.NewFleetManager()
+	server.fleetManager = orchestration.NewFleetManagerPlus(memoryVS, server.eventBus, server.supervisorManager)
+	server.a2aBroker.SetSignalProcessor(server.fleetManager)
+	server.quotaManager = providers.NewQuotaManager()
+	server.modelSelector = providers.NewModelSelector(server.quotaManager)
 	server.toolRegistry = toolregistry.NewToolRegistry()
 	server.gitService = gitservice.NewGitService(cfg.WorkspaceRoot)
 	server.contextHarvester = ctxharvester.NewContextHarvester(nil)
@@ -613,7 +617,6 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("/api/providers/routing-summary", s.handleRoutingSummary)
 	s.mux.HandleFunc("/api/sessions", s.handleSessions)
 	s.mux.HandleFunc("/api/sessions/summary", s.handleSessionSummary)
-	s.mux.HandleFunc("/api/fleet/status", s.handleFleetStatus)
 	s.mux.HandleFunc("/api/sessions/context", s.handleSessionContext)
 	s.mux.HandleFunc("/api/sessions/supervisor/catalog", s.handleSupervisorSessionCatalog)
 	s.mux.HandleFunc("/api/sessions/supervisor/list", s.handleSupervisorSessionList)
