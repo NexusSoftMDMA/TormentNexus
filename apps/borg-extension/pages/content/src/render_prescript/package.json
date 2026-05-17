@@ -1,6 +1,6 @@
 {
     "name": "function-call-renderer",
-    "version": "1.0.0-alpha.33",
+    "version": "1.0.0-alpha.59",
     "description": "Renders function call blocks from preformatted text",
     "main": "dist/index.js",
     "types": "dist/index.d.ts",

@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.0.0-alpha.59] - 2026-05-16
+
+### Added
+- **Phase 3: Fleet Orchestration**:
+  - `FleetManager`: New Go service to track PIDs, health, and resource usage of all active CLI/TIU sessions.
+  - `TrafficObserver`: Implemented passive background fact extraction from A2A traffic.
+  - Shared Organizational Memory: Learnings from one session are now automatically indexed in the L2 Vault and shared globally across the fleet.
+  - API: Added `/api/fleet/status` endpoint to the Go sidecar.
+
+### Changed
+- `A2ABroker`: Integrated `FleetSignalProcessor` hook to enable real-time traffic observation.
+- `MemoryReactor`: Added background biological decay and heat-based tiering loop.
+- `MCPServer`: Updated status and health endpoints to reflect fleet-wide state.
+- Documentation: Authored `docs/PHASE3_FLEET.md`.
+
+
 All notable changes to this project will be documented in this file.
 
 ## [1.0.0-alpha.54] - 2026-05-12

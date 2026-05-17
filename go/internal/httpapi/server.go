@@ -116,6 +116,7 @@ type Server struct {
 	eventBus          *eventbus.EventBus
 	metricsService    *metrics.MetricsService
 	sessionManager    *session.SessionManager
+	fleetManager      *session.FleetManager
 	toolRegistry      *toolregistry.ToolRegistry
 	gitService        *gitservice.GitService
 	contextHarvester  *ctxharvester.ContextHarvester
@@ -519,6 +520,7 @@ func New(cfg config.Config, detector controlplane.ToolProvider) *Server {
 	server.pairOrchestrator.SetEventBus(&eventBusAdapter{server.eventBus})
 	server.metricsService = metrics.NewMetricsService()
 	server.sessionManager = session.NewSessionManager(100)
+	server.fleetManager = session.NewFleetManager()
 	server.toolRegistry = toolregistry.NewToolRegistry()
 	server.gitService = gitservice.NewGitService(cfg.WorkspaceRoot)
 	server.contextHarvester = ctxharvester.NewContextHarvester(nil)
@@ -611,6 +613,7 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("/api/providers/routing-summary", s.handleRoutingSummary)
 	s.mux.HandleFunc("/api/sessions", s.handleSessions)
 	s.mux.HandleFunc("/api/sessions/summary", s.handleSessionSummary)
+	s.mux.HandleFunc("/api/fleet/status", s.handleFleetStatus)
 	s.mux.HandleFunc("/api/sessions/context", s.handleSessionContext)
 	s.mux.HandleFunc("/api/sessions/supervisor/catalog", s.handleSupervisorSessionCatalog)
 	s.mux.HandleFunc("/api/sessions/supervisor/list", s.handleSupervisorSessionList)
@@ -18106,4 +18109,11 @@ func (s *Server) handleRepoGraphSearch(w http.ResponseWriter, r *http.Request) {
 
 	results := s.repoGraph.SearchSymbols(query, limit)
 	writeJSON(w, http.StatusOK, map[string]any{"success": true, "data": results})
+}
+
+func (s *Server) handleFleetStatus(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, map[string]any{
+		"success": true,
+		"data":    s.fleetManager.GetFleetStatus(),
+	})
 }
