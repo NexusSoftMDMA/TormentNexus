@@ -1,175 +1,175 @@
 {
-    "name": "borg-vscode-extension",
-    "displayName": "Borg Plugin",
-    "version": "0.90.0",
-    "description": "Connect VS Code to Borg Hub for AI agent orchestration, memory management, and tool invocation",
-    "publisher": "borg",
-    "engines": {
-        "vscode": "^1.85.0"
-    },
-    "enabledApiProposals": [
-        "terminalDataWriteEvent"
+  "name": "borg-vscode-extension",
+  "displayName": "Borg Plugin",
+  "version": "1.0.0-alpha.60",
+  "description": "Connect VS Code to Borg Hub for AI agent orchestration, memory management, and tool invocation",
+  "publisher": "borg",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "enabledApiProposals": [
+    "terminalDataWriteEvent"
+  ],
+  "categories": [
+    "Other",
+    "Machine Learning"
+  ],
+  "keywords": [
+    "ai",
+    "agents",
+    "mcp",
+    "orchestration",
+    "memory"
+  ],
+  "main": "./dist/extension.js",
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "borg.connect",
+        "title": "Borg: Connect to Core"
+      },
+      {
+        "command": "borg.disconnect",
+        "title": "Borg: Disconnect from Core"
+      },
+      {
+        "command": "borg.showStatus",
+        "title": "Borg: Show Hub Status"
+      },
+      {
+        "command": "borg.runAgent",
+        "title": "Borg: Run Agent"
+      },
+      {
+        "command": "borg.searchMemory",
+        "title": "Borg: Search Memory"
+      },
+      {
+        "command": "borg.ingestUrl",
+        "title": "Borg: Ingest URL to Knowledge"
+      },
+      {
+        "command": "borg.ingestSelectionToRag",
+        "title": "Borg: Ingest Selection to RAG"
+      },
+      {
+        "command": "borg.rememberSelection",
+        "title": "Borg: Remember Selection"
+      },
+      {
+        "command": "borg.listTools",
+        "title": "Borg: List Tools"
+      },
+      {
+        "command": "borg.invokeTool",
+        "title": "Borg: Invoke Tool"
+      },
+      {
+        "command": "borg.openDashboard",
+        "title": "Borg: Open Dashboard"
+      },
+      {
+        "command": "borg.showLogs",
+        "title": "Borg: Show Logs"
+      },
+      {
+        "command": "borg.startDebate",
+        "title": "Borg: Start Council Debate"
+      },
+      {
+        "command": "borg.viewAnalytics",
+        "title": "Borg: View Supervisor Analytics"
+      },
+      {
+        "command": "borg.listDebateTemplates",
+        "title": "Borg: List Debate Templates"
+      },
+      {
+        "command": "borg.architectMode",
+        "title": "Borg: Architect Mode (Two-Model)"
+      }
     ],
-    "categories": [
-        "Other",
-        "Machine Learning"
-    ],
-    "keywords": [
-        "ai",
-        "agents",
-        "mcp",
-        "orchestration",
-        "memory"
-    ],
-    "main": "./dist/extension.js",
-    "activationEvents": [
-        "onStartupFinished"
-    ],
-    "contributes": {
-        "commands": [
-            {
-                "command": "borg.connect",
-                "title": "Borg: Connect to Core"
-            },
-            {
-                "command": "borg.disconnect",
-                "title": "Borg: Disconnect from Core"
-            },
-            {
-                "command": "borg.showStatus",
-                "title": "Borg: Show Hub Status"
-            },
-            {
-                "command": "borg.runAgent",
-                "title": "Borg: Run Agent"
-            },
-            {
-                "command": "borg.searchMemory",
-                "title": "Borg: Search Memory"
-            },
-            {
-                "command": "borg.ingestUrl",
-                "title": "Borg: Ingest URL to Knowledge"
-            },
-            {
-                "command": "borg.ingestSelectionToRag",
-                "title": "Borg: Ingest Selection to RAG"
-            },
-            {
-                "command": "borg.rememberSelection",
-                "title": "Borg: Remember Selection"
-            },
-            {
-                "command": "borg.listTools",
-                "title": "Borg: List Tools"
-            },
-            {
-                "command": "borg.invokeTool",
-                "title": "Borg: Invoke Tool"
-            },
-            {
-                "command": "borg.openDashboard",
-                "title": "Borg: Open Dashboard"
-            },
-            {
-                "command": "borg.showLogs",
-                "title": "Borg: Show Logs"
-            },
-            {
-                "command": "borg.startDebate",
-                "title": "Borg: Start Council Debate"
-            },
-            {
-                "command": "borg.viewAnalytics",
-                "title": "Borg: View Supervisor Analytics"
-            },
-            {
-                "command": "borg.listDebateTemplates",
-                "title": "Borg: List Debate Templates"
-            },
-            {
-                "command": "borg.architectMode",
-                "title": "Borg: Architect Mode (Two-Model)"
-            }
-        ],
-        "viewsContainers": {
-            "activitybar": [
-                {
-                    "id": "borgSidebar",
-                    "title": "Borg",
-                    "icon": "resources/borg.svg"
-                }
-            ]
-        },
-        "views": {
-            "borgSidebar": [
-                {
-                    "type": "webview",
-                    "id": "borg.dispatchView",
-                    "name": "Mini Dashboard"
-                }
-            ]
-        },
-        "configuration": {
-            "title": "Borg",
-            "properties": {
-                "borg.coreUrl": {
-                    "type": "string",
-                    "default": "ws://localhost:3001",
-                    "description": "URL of the Borg Core WebSocket server"
-                },
-                "borg.apiKey": {
-                    "type": "string",
-                    "default": "",
-                    "description": "API key for authenticated Core access"
-                },
-                "borg.dashboardUrl": {
-                    "type": "string",
-                    "default": "http://localhost:3000",
-                    "description": "Base URL of the Borg web dashboard used for deep links from the VS Code extension"
-                },
-                "borg.autoConnect": {
-                    "type": "boolean",
-                    "default": true,
-                    "description": "Automatically connect to Core on startup"
-                }
-            }
-        },
-        "menus": {
-            "editor/context": [
-                {
-                    "command": "borg.ingestSelectionToRag",
-                    "when": "editorHasSelection",
-                    "group": "borg@1"
-                },
-                {
-                    "command": "borg.rememberSelection",
-                    "when": "editorHasSelection",
-                    "group": "borg@2"
-                }
-            ]
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "borgSidebar",
+          "title": "Borg",
+          "icon": "resources/borg.svg"
         }
+      ]
     },
-    "scripts": {
-        "vscode:prepublish": "npm run build",
-        "compile": "tsc -p ./",
-        "watch": "tsc -watch -p ./",
-        "lint": "eslint --no-eslintrc --parser @typescript-eslint/parser \"src/**/*.{ts,tsx,js,mjs,cjs}\"",
-        "build": "tsup src/extension.ts --format cjs --external vscode",
-        "package": "vsce package"
+    "views": {
+      "borgSidebar": [
+        {
+          "type": "webview",
+          "id": "borg.dispatchView",
+          "name": "Mini Dashboard"
+        }
+      ]
     },
-    "devDependencies": {
-        "@types/node": "20.x",
-        "@types/vscode": "^1.85.0",
-        "@types/ws": "^8.5.10",
-        "@typescript-eslint/eslint-plugin": "^6.13.1",
-        "@typescript-eslint/parser": "^6.13.1",
-        "eslint": "^9.26.0",
-        "tsup": "^8.0.2",
-        "typescript": "^5.3.3",
-        "vsce": "^2.15.0"
+    "configuration": {
+      "title": "Borg",
+      "properties": {
+        "borg.coreUrl": {
+          "type": "string",
+          "default": "ws://localhost:3001",
+          "description": "URL of the Borg Core WebSocket server"
+        },
+        "borg.apiKey": {
+          "type": "string",
+          "default": "",
+          "description": "API key for authenticated Core access"
+        },
+        "borg.dashboardUrl": {
+          "type": "string",
+          "default": "http://localhost:3000",
+          "description": "Base URL of the Borg web dashboard used for deep links from the VS Code extension"
+        },
+        "borg.autoConnect": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically connect to Core on startup"
+        }
+      }
     },
-    "dependencies": {
-        "ws": "^8.16.0"
+    "menus": {
+      "editor/context": [
+        {
+          "command": "borg.ingestSelectionToRag",
+          "when": "editorHasSelection",
+          "group": "borg@1"
+        },
+        {
+          "command": "borg.rememberSelection",
+          "when": "editorHasSelection",
+          "group": "borg@2"
+        }
+      ]
     }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run build",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "lint": "eslint --no-eslintrc --parser @typescript-eslint/parser \"src/**/*.{ts,tsx,js,mjs,cjs}\"",
+    "build": "tsup src/extension.ts --format cjs --external vscode",
+    "package": "vsce package"
+  },
+  "devDependencies": {
+    "@types/node": "20.x",
+    "@types/vscode": "^1.85.0",
+    "@types/ws": "^8.5.10",
+    "@typescript-eslint/eslint-plugin": "^6.13.1",
+    "@typescript-eslint/parser": "^6.13.1",
+    "eslint": "^9.26.0",
+    "tsup": "^8.0.2",
+    "typescript": "^5.3.3",
+    "vsce": "^2.15.0"
+  },
+  "dependencies": {
+    "ws": "^8.16.0"
+  }
 }
