@@ -2,7 +2,7 @@
 #    uv pip compile --no-strip-extras --output-file=requirements/common-constraints.txt requirements/requirements.in requirements/requirements-browser.in requirements/requirements-dev.in requirements/requirements-help.in requirements/requirements-playwright.in
 aiohappyeyeballs==2.6.1
     # via aiohttp
-aiohttp==3.13.4
+aiohttp==3.13.5
     # via
     #   huggingface-hub
     #   litellm
@@ -31,7 +31,7 @@ backoff==2.2.1
     # via
     #   -r requirements/requirements.in
     #   posthog
-banks==2.2.0
+banks==2.4.2
     # via llama-index-core
 beautifulsoup4==4.14.3
     # via -r requirements/requirements.in
@@ -452,7 +452,7 @@ regex==2025.11.3
     #   nltk
     #   tiktoken
     #   transformers
-requests==2.33.0
+requests==2.34.2
     # via
     #   google-api-core
     #   google-cloud-bigquery
@@ -593,9 +593,9 @@ tzdata==2025.3
     # via pandas
 uritemplate==4.2.0
     # via google-api-python-client
-urllib3==2.6.3
+urllib3==2.7.0
     # via requests
-uv==0.9.18
+uv==0.11.6
     # via -r requirements/requirements-dev.in
 virtualenv==20.36.1
     # via pre-commit
