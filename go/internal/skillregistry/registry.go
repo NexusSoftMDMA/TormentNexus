@@ -73,12 +73,19 @@ func (sr *SkillRegistry) List() []SkillInfo {
 // RankedSkill wraps SkillInfo with a relevance score.
 type RankedSkill struct {
 	SkillInfo
-	Score float64 `json:"score"`
-	Rank  int     `json:"rank"`
+	Score       float64            `json:"score"`
+	Rank        int                `json:"rank"`
+	MatchReason string             `json:"matchReason"`
+	Breakdown   map[string]float64 `json:"scoreBreakdown"`
 }
 
-// Search performs a ranked discovery search across skill names, descriptions, and tags.
+// Search performs a ranked discovery search.
 func (sr *SkillRegistry) Search(query string, limit int) []RankedSkill {
+	return sr.SearchWithProfile(query, limit, "")
+}
+
+// SearchWithProfile performs a ranked discovery search with profile-based boosting.
+func (sr *SkillRegistry) SearchWithProfile(query string, limit int, profile SkillProfile) []RankedSkill {
 	if limit <= 0 {
 		limit = 10
 	}
@@ -106,11 +113,13 @@ func (sr *SkillRegistry) Search(query string, limit int) []RankedSkill {
 	var ranked []RankedSkill
 
 	for _, s := range sr.skills {
-		score := calculateSkillScore(tokens, s)
+		score, breakdown, reason := sr.calculateSkillScore(tokens, s, profile)
 		if score > 0 {
 			ranked = append(ranked, RankedSkill{
-				SkillInfo: *s,
-				Score:     score,
+				SkillInfo:   *s,
+				Score:       score,
+				MatchReason: reason,
+				Breakdown:   breakdown,
 			})
 		}
 	}
@@ -147,8 +156,11 @@ func tokenize(text string) []string {
 	return tokens
 }
 
-func calculateSkillScore(queryTokens []string, skill *SkillInfo) float64 {
+func (sr *SkillRegistry) calculateSkillScore(queryTokens []string, skill *SkillInfo, profile SkillProfile) (float64, map[string]float64, string) {
 	score := 0.0
+	breakdown := make(map[string]float64)
+	var reasons []string
+
 	nameTokens := tokenize(skill.Name + " " + skill.ID)
 	descTokens := tokenize(skill.Description)
 
@@ -156,41 +168,97 @@ func calculateSkillScore(queryTokens []string, skill *SkillInfo) float64 {
 	const weightName = 10.0
 	const weightDesc = 3.0
 	const weightTag = 5.0
+	const weightProfile = 15.0
 
 	for _, q := range queryTokens {
 		// Exact ID/Name match
 		if strings.ToLower(skill.ID) == q || strings.ToLower(skill.Name) == q {
 			score += 20.0
+			breakdown["exact_match"] += 20.0
+			reasons = append(reasons, "Exact match")
 		}
 
 		// Token matches in Name
+		nameHit := 0.0
 		for _, nt := range nameTokens {
 			if nt == q {
-				score += weightName
+				nameHit += weightName
 			} else if strings.Contains(nt, q) {
-				score += weightName / 2
+				nameHit += weightName / 2
 			}
+		}
+		if nameHit > 0 {
+			score += nameHit
+			breakdown["name"] += nameHit
+			reasons = append(reasons, "Matched name")
 		}
 
 		// Token matches in Description
+		descHit := 0.0
 		for _, dt := range descTokens {
 			if dt == q {
-				score += weightDesc
+				descHit += weightDesc
 			} else if strings.Contains(dt, q) {
-				score += weightDesc / 2
+				descHit += weightDesc / 2
 			}
+		}
+		if descHit > 0 {
+			score += descHit
+			breakdown["description"] += descHit
+			reasons = append(reasons, "Matched description")
 		}
 
 		// Tag matches
+		tagHit := 0.0
 		for _, tag := range skill.Tags {
 			tagLower := strings.ToLower(tag)
 			if tagLower == q {
-				score += weightTag
+				tagHit += weightTag
 			} else if strings.Contains(tagLower, q) {
-				score += weightTag / 2
+				tagHit += weightTag / 2
 			}
+		}
+		if tagHit > 0 {
+			score += tagHit
+			breakdown["tags"] += tagHit
+			reasons = append(reasons, "Matched tags")
 		}
 	}
 
-	return score
+	// Profile-based boosting
+	if profile != "" {
+		profileMatch := false
+		switch profile {
+		case ProfileRepoCoding:
+			if strings.Contains(strings.ToLower(skill.Category), "code") || strings.Contains(strings.ToLower(skill.Category), "repo") {
+				profileMatch = true
+			}
+		case ProfileWebResearch:
+			if strings.Contains(strings.ToLower(skill.Category), "web") || strings.Contains(strings.ToLower(skill.Category), "search") {
+				profileMatch = true
+			}
+		case ProfileKernelOps:
+			if strings.Contains(strings.ToLower(skill.Category), "kernel") || strings.Contains(strings.ToLower(skill.Category), "sys") {
+				profileMatch = true
+			}
+		}
+
+		if profileMatch {
+			score += weightProfile
+			breakdown["profile_boost"] = weightProfile
+			reasons = append(reasons, fmt.Sprintf("Boosted for profile: %s", profile))
+		}
+	}
+
+	// Deduplicate reasons
+	seen := make(map[string]bool)
+	var uniqueReasons []string
+	for _, r := range reasons {
+		if !seen[r] {
+			uniqueReasons = append(uniqueReasons, r)
+			seen[r] = true
+		}
+	}
+
+	return score, breakdown, strings.Join(uniqueReasons, "; ")
 }

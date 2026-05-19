@@ -192,5 +192,11 @@ func (s *VectorStore) GetAllVaultRecords(ctx context.Context, limit int) ([]cont
 		r.Type = controlplane.MemoryType(mType)
 		results = append(results, r)
 	}
+
+	// Update heat and last_accessed_at for hits
+	for _, r := range results {
+		s.incrementHeatLocked(ctx, r.ID)
+	}
+
 	return results, nil
 }

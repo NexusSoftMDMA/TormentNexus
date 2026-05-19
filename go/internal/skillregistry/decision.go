@@ -35,17 +35,26 @@ func DefaultSkillDecisionConfig() SkillDecisionConfig {
 	return SkillDecisionConfig{
 		SoftCap:                 10,
 		HardCap:                 20,
-		HighConfidenceThreshold: 7.0,
+		HighConfidenceThreshold: 15.0,
 		SearchResultLimit:       5,
 		IdleTimeout:             30 * time.Minute,
 	}
 }
+
+type SkillProfile string
+
+const (
+	ProfileRepoCoding  SkillProfile = "repo-coding"
+	ProfileWebResearch SkillProfile = "web-research"
+	ProfileKernelOps   SkillProfile = "kernel-ops"
+)
 
 type SkillDecisionSystem struct {
 	cfg      SkillDecisionConfig
 	mu       sync.RWMutex
 	loaded   map[string]*SkillLoaded // keyed by ID
 	registry *SkillRegistry
+	profile  SkillProfile
 }
 
 func NewSkillDecisionSystem(cfg SkillDecisionConfig, registry *SkillRegistry) *SkillDecisionSystem {
@@ -53,16 +62,31 @@ func NewSkillDecisionSystem(cfg SkillDecisionConfig, registry *SkillRegistry) *S
 		cfg:      cfg,
 		loaded:   make(map[string]*SkillLoaded),
 		registry: registry,
+		profile:  ProfileRepoCoding,
 	}
 }
 
+func (ds *SkillDecisionSystem) SetProfile(p SkillProfile) {
+	ds.mu.Lock()
+	defer ds.mu.Unlock()
+	ds.profile = p
+}
+
 func (ds *SkillDecisionSystem) SearchSkills(ctx context.Context, query string) ([]RankedSkill, error) {
-	return ds.registry.Search(query, ds.cfg.SoftCap), nil
+	ds.mu.RLock()
+	profile := ds.profile
+	ds.mu.RUnlock()
+
+	return ds.registry.SearchWithProfile(query, ds.cfg.SoftCap, profile), nil
 }
 
 // SearchAndLoad performs a ranked search and auto-loads high-confidence skills.
 func (ds *SkillDecisionSystem) SearchAndLoad(ctx context.Context, query string) ([]RankedSkill, error) {
-	ranked := ds.registry.Search(query, ds.cfg.SoftCap)
+	ds.mu.RLock()
+	profile := ds.profile
+	ds.mu.RUnlock()
+
+	ranked := ds.registry.SearchWithProfile(query, ds.cfg.SoftCap, profile)
 	if len(ranked) == 0 {
 		return nil, nil
 	}
