@@ -14,6 +14,7 @@ import (
 	"github.com/borghq/borg-go/internal/controlplane"
 	"github.com/borghq/borg-go/internal/httpapi"
 	"github.com/borghq/borg-go/internal/lockfile"
+	"github.com/borghq/borg-go/internal/sessionimport"
 )
 
 func main() {
@@ -74,11 +75,21 @@ func runServe(args []string) int {
 	detector := controlplane.NewDetector(1500*time.Millisecond, 5*time.Minute)
 	server := httpapi.New(cfg, detector)
 
-	// Pre-warm the tool detector cache in the background
+	// Pre-warm caches in the background
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 		defer cancel()
 		_, _ = detector.DetectAll(ctx)
+	}()
+	go func() {
+		// Pre-warm import scan cache
+		homeDir, _ := os.UserHomeDir()
+		if homeDir == "" {
+			homeDir = cfg.MainConfigDir
+		}
+		scanner := sessionimport.NewScanner(cfg.WorkspaceRoot, homeDir, 50)
+		results, _ := scanner.ScanValidated()
+		server.PreWarmImportCache(results)
 	}()
 
 	log.Printf(

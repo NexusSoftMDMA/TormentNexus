@@ -18169,7 +18169,7 @@ type importScanCache struct {
 }
 
 func newImportScanCache() *importScanCache {
-	return &importScanCache{ttl: 15 * time.Second}
+	return &importScanCache{ttl: 5 * time.Minute}
 }
 
 func (c *importScanCache) get() ([]sessionimport.ValidationResult, bool) {
@@ -18186,4 +18186,11 @@ func (c *importScanCache) set(results []sessionimport.ValidationResult) {
 	defer c.mu.Unlock()
 	c.cached = results
 	c.cachedAt = time.Now()
+}
+
+// PreWarmImportCache seeds the import scan cache with pre-computed results.
+func (s *Server) PreWarmImportCache(results []sessionimport.ValidationResult) {
+	if s.importCache != nil {
+		s.importCache.set(results)
+	}
 }

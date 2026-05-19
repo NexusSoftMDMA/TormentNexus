@@ -16,7 +16,8 @@
       "C:\\Users\\hyper\\workspace\\"
     ],
     "env": {},
-    "enabled": true
+    "enabled": true,
+    "alwaysOn": true
   },
   "dbhub": {
     "command": "npx",
@@ -50,7 +51,8 @@
     "env": {
       "NODE_ENV": "production"
     },
-    "enabled": true
+    "enabled": true,
+    "alwaysOn": true
   },
   "mcp-supermemory-ai": {
     "command": "npx",
