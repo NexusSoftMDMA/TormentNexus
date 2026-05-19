@@ -1,145 +1,39 @@
-# Borg Deployment Instructions
+# Deployment Instructions
 
-_This document contains the latest deployment instructions for the Borg Universal AI Dashboard and Cognitive Control Plane._
+## HyperCode `1.0.0-alpha.62`
 
-## Prerequisites
+### 1. Build Requirements
+- Node.js >= 24
+- pnpm >= 10.28
+- Go >= 1.26 (For the authoritative Go Kernel)
 
-1.  **Node.js**: >= 24.x (For maximum runtime compatibility)
-2.  **pnpm**: Recommended package manager (`npm install -g pnpm@10`)
-3.  **Go**: >= 1.23 (For the experimental Go control plane sidecar)
-4.  **Git**: For submodule fetching and version control.
-
-## Initial Setup
-
-1.  **Clone the Repository**:
-    ```bash
-    git clone https://github.com/robertpelloni/borg.git
-    cd borg
-    ```
-
-2.  **Initialize Submodules**:
-    ```bash
-    git submodule update --init --recursive
-    ```
-
-3.  **Install Dependencies**:
-    ```bash
-    pnpm install
-    ```
-    *Note: If you are running Node 24, you must rebuild `better-sqlite3` bindings post-install:*
-    ```bash
-    pnpm rebuild better-sqlite3
-    ```
-
-4.  **Environment Variables**:
-    Copy `.env.example` to `.env` and fill in the required API keys (OpenAI, Anthropic, Gemini, etc.).
-    ```bash
-    cp .env.example .env
-    ```
-
-## Running the Platform
-
-Borg is designed as a long-running service that manages PC memory, CPU, disk, and bandwidth usage.
-
-### Standard Build & Run (Production/Development)
-
-To run the TypeScript monorepo and its dashboard in one shot:
+### 2. Standard Build & Run
 ```bash
+pnpm install
 pnpm run build
 pnpm run start
 ```
-This will compile all TypeScript packages, build the web assets, and launch the primary Node.js CLI orchestrator alongside the web dashboard.
+This will compile the TypeScript monorepo, build the web assets, and launch the primary Node.js `cli-orchestrator` along with the web dashboard on port `3000`.
 
-### Windows Startup Script
-
-Use the provided startup batch file:
-```powershell
-.\start.bat
-```
-`start.bat` defaults to `pnpm run build:workspace` (skipping extension-only build stages for a much faster boot). It also triggers a native-runtime preflight to verify SQLite and Electron bindings.
-
-**Startup Overrides**:
-- **Bypass Install**: `set BORG_SKIP_INSTALL=1`
-- **Bypass Build**: `set BORG_SKIP_BUILD=1`
-- **Force Full Monorepo Build**: `set BORG_FULL_BUILD=1`
-- **Bypass Native Preflight**: `set BORG_SKIP_NATIVE_PREFLIGHT=1`
-
-### Linux/macOS Startup Script
-
-```bash
-./start.sh
-```
-
-### Start Electron Maestro Separately
-
-Maestro is launched independently from the main control plane:
-```bash
-pnpm -C apps/maestro start
-```
-
----
-
-## Experimental Go Sidecar
-
-To build and run the Go control plane sidecar alongside the main TS engine:
+### 3. HyperCode Go Sidecar Kernel
+To run the Go bridge alongside the main control plane:
 ```bash
 cd go
 go run ./cmd/borg serve
 ```
-Alternatively, build the binary:
-```bash
-cd go
-go build -buildvcs=false ./cmd/borg
-```
 
----
-
-## Extensions
-
-To compile VS Code and Chrome/Firefox browser agents:
+### 4. Extensions
+To build extensions (VS Code, Chrome):
 ```bash
 pnpm run build:extensions
 ```
 
-## Production Docker
-
-Build the production bundle inside a container:
+### 5. Production Docker
 ```bash
-docker build -f Dockerfile.prod -t borg:latest .
-docker run -p 3000:3000 -p 4000:4000 -v borg-data:/root/.borg borg:latest
+docker build -f Dockerfile.prod -t hypercode:latest .
+docker run -p 3000:3000 -p 4000:4000 -v hypercode-data:/root/.borg hypercode:latest
 ```
 
----
-
-## Package Manager Requirement
-
-**pnpm v10 is required.** The root `package.json` locks `packageManager: pnpm@10.28.0`. Using pnpm v9 or below will produce `ERR_PNPM_BAD_PM_VERSION` and fail the build.
-```bash
-npm install -g pnpm@10
-```
-
-## Release Gate Validation
-
-Before checking in code, run the CI release verification pipeline:
-```bash
-pnpm run check:release-gate:ci
-```
-This will execute standard placeholder checks, perform type-checking across `packages/core`, and lint the entire workspace.
-
-To perform strict visual and screenshot sync checks:
-```bash
-pnpm run check:release-gate:ci:strict-visuals
-```
-
----
-
-## Ports & Endpoints
-
-| Service | Default Port | Override | Health Check Endpoint |
-|---------|-------------|----------|-----------------------|
-| Core API (TS Control Plane) | 4000 | `borg start --port <n>` | `http://localhost:4000/api/config/status` |
-| Web Dashboard (Next.js) | 3000 | `PORT` | `http://localhost:3000` |
-| Go Kernel sidecar | 4300 | — | `http://localhost:4300` |
-| Socket.io Swarm Server | 3001 | — | — |
-| tRPC Bridge Control | 4100 | — | — |
-| Orchestrator tRPC | 3847 | `BORG_ORCHESTRATOR_PORT` | `http://localhost:3847` |
+## Health Checks
+- `http://localhost:4000/api/config/status` - Main control plane health
+- `http://localhost:3000` - Dashboard

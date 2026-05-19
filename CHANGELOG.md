@@ -4,6 +4,12 @@
 
 ### Added
 - Protocol Scaffolding: Implemented the basic `hypercode://` handler in the Go kernel to support session attachment.
+- Next.js Dashboard Routes: Added dashboard routes for Blocks, Claude Chrome, Claude Cloud, Copilot, and OpenAI Codex.
+- L2 Vault Visualization: Wired the `vaultRecords` query to the Next.js frontend to show persistent heal history on the healer dashboard.
+
+### Changed
+- Standardized documentation identity to Nexus Kernel & HyperCode.
+- Replaced git merge conflict markers across multiple internal Kotlin and Markdown files with unified content logic.
 
 ## [1.0.0-alpha.61] - 2026-05-17
 

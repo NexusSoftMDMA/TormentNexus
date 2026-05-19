@@ -16,7 +16,7 @@ func (s *Server) handleMCPStatus(w http.ResponseWriter, r *http.Request) {
 	// Cache MCP status for 10s to reduce upstream calls
 	val, err := cache.Cached(s.cacheService, "mcp:status", func() (interface{}, error) {
 		return s.buildMCPStatus(r.Context())
-	}, 30000)
+	}, 10000)
 	if err != nil {
 		writeJSON(w, http.StatusServiceUnavailable, map[string]any{"success": false, "error": err.Error()})
 		return
@@ -332,7 +332,7 @@ func (s *Server) handleMCPServersList(w http.ResponseWriter, r *http.Request) {
 	// Cache MCP server list for 10s to reduce upstream calls
 	val, err := cache.Cached(s.cacheService, "mcp:servers", func() (interface{}, error) {
 		return s.buildMCPServersList(r.Context())
-	}, 30000)
+	}, 10000)
 	if err != nil {
 		writeJSON(w, http.StatusServiceUnavailable, map[string]any{"success": false, "error": err.Error()})
 		return

@@ -36,7 +36,7 @@ func (s *Server) handleStartupStatus(w http.ResponseWriter, r *http.Request) {
 	// Cache startup status for 5s (dashboard polls every 5s)
 	val, err := cache.Cached(s.cacheService, "startup:status", func() (interface{}, error) {
 		return s.buildStartupStatus(r.Context())
-	}, 30000)
+	}, 5000)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]any{"success": false, "error": err.Error()})
 		return

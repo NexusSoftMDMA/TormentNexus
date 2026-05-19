@@ -567,35 +567,6 @@ func (s *Server) Handler() http.Handler {
 	return s.mux
 }
 
-// PreWarmCaches triggers background cache population for frequently
-// accessed endpoints so that the first dashboard request is fast.
-func (s *Server) PreWarmCaches() {
-	go func() {
-		// Warm the startup status cache
-		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-		defer cancel()
-		if status, err := s.buildStartupStatus(ctx); err == nil {
-			s.cacheService.SetTTL("startup:status", status, 30000)
-		}
-	}()
-	go func() {
-		// Warm the MCP status cache
-		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-		defer cancel()
-		if status, err := s.buildMCPStatus(ctx); err == nil {
-			s.cacheService.SetTTL("mcp:status", status, 30000)
-		}
-	}()
-	go func() {
-		// Warm the MCP servers cache
-		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-		defer cancel()
-		if servers, err := s.buildMCPServersList(ctx); err == nil {
-			s.cacheService.SetTTL("mcp:servers", servers, 60000)
-		}
-	}()
-}
-
 func (s *Server) ListenAndServe(ctx context.Context) error {
 	httpServer := &http.Server{
 		Addr:              s.cfg.Host + ":" + jsonNumber(s.cfg.Port),
@@ -768,8 +739,6 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("/api/native/tools/register", s.handleNativeToolRegister)
 	s.mux.HandleFunc("/api/native/healer/diagnose", s.handleNativeHealerDiagnose)
 	s.mux.HandleFunc("/api/native/healer/history", s.handleNativeHealerHistory)
-	s.mux.HandleFunc("/api/native/healer/vault", s.handleNativeHealerVault)
-	s.mux.HandleFunc("/api/native/protocol/hypercode", s.handleHypercodeProtocol)
 	s.mux.HandleFunc("/api/native/harvester/add", s.handleHarvesterAdd)
 	s.mux.HandleFunc("/api/native/harvester/search", s.handleHarvesterSearch)
 	s.mux.HandleFunc("/api/native/harvester/report", s.handleHarvesterReport)

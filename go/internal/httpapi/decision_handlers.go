@@ -570,36 +570,6 @@ func (s *Server) handleNativeHealerHistory(w http.ResponseWriter, r *http.Reques
 	})
 }
 
-func (s *Server) handleNativeHealerVault(w http.ResponseWriter, r *http.Request) {
-	limit := 50
-	if limitStr := r.URL.Query().Get("limit"); limitStr != "" {
-		var parsed int
-		if _, err := fmt.Sscanf(limitStr, "%d", &parsed); err == nil && parsed > 0 {
-			limit = parsed
-		}
-	}
-
-	if s.memoryReactor == nil || s.memoryReactor.VectorStore() == nil {
-		writeJSON(w, http.StatusOK, map[string]interface{}{
-			"count":   0,
-			"records": []any{},
-			"error":   "vector store not initialized",
-		})
-		return
-	}
-
-	records, err := s.memoryReactor.VectorStore().GetAllVaultRecords(r.Context(), limit)
-	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
-		return
-	}
-
-	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"count":   len(records),
-		"records": records,
-	})
-}
-
 // ==================== Context Harvester ====================
 
 func (s *Server) handleHarvesterAdd(w http.ResponseWriter, r *http.Request) {

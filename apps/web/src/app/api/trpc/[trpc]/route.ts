@@ -239,11 +239,8 @@ async function handler(req: Request): Promise<Response> {
 
   // Go-native fast path: serve from Go sidecar first (<5ms),
   // fall back to tRPC upstream if Go sidecar is unavailable.
-  // Only use Go-native fast path for single-procedure requests
-  // (batch requests need all procedures to go through the same path)
-  const isBatch = procedurePath.includes(',');
-  const firstProc = isBatch ? '' : (procedurePath.trim() ?? '');
-  if (firstProc && GO_NATIVE_PROCEDURES.has(firstProc)) {
+  const firstProc = procedurePath.split(',')[0]?.trim() ?? '';
+  if (GO_NATIVE_PROCEDURES.has(firstProc)) {
     const batchInput = parseBatchInput(req);
     const compatPayload = await getCompatPayload(firstProc, batchInput['0'] ?? {});
     if (compatPayload !== null) {

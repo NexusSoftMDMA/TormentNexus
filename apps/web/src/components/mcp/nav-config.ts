@@ -196,36 +196,6 @@ export const INTEGRATIONS_NAV: NavItem[] = [
         icon: Rocket,
         variant: "ghost",
     },
-    {
-        title: "Copilot Cloud",
-        href: "/dashboard/copilot",
-        icon: Bot,
-        variant: "ghost",
-    },
-    {
-        title: "Claude Chrome",
-        href: "/dashboard/claude-chrome",
-        icon: Globe,
-        variant: "ghost",
-    },
-    {
-        title: "Claude Cloud",
-        href: "/dashboard/claude-cloud",
-        icon: Zap,
-        variant: "ghost",
-    },
-    {
-        title: "OpenAI Codex",
-        href: "/dashboard/openai-codex",
-        icon: FileCode,
-        variant: "ghost",
-    },
-    {
-        title: "Blocks",
-        href: "/dashboard/blocks",
-        icon: Box,
-        variant: "ghost",
-    },
 ];
 
 export const MAIN_DASHBOARD_NAV: NavItem[] = [

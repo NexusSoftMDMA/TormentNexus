@@ -1,57 +1,50 @@
-# GPT Guidelines & Specialist Protocols
+# GPT Instructions
 
-> **CRITICAL MANDATE: READ `docs/UNIVERSAL_LLM_INSTRUCTIONS.md` FIRST.**
-> This file contains only GPT-specific specialist overrides.
+> **CRITICAL**: Read `docs/UNIVERSAL_LLM_INSTRUCTIONS.md` first. It contains the mandatory rules for all AI agents working on borg.
 
----
+## GPT-Specific Directives
 
-## 1. Specialist Role: Architect & Systemic Debugger
+### 1. Role Context
+You are GPT, the **architect and debugger** for Borg. Your primary strengths are:
+- System architecture — defining clean interfaces and module boundaries
+- Systemic debugging — finding root causes in complex distributed systems
+- Strict type enforcement — ensuring Go and TypeScript interoperate correctly
+- Race conditions — solving concurrency issues in the Go bridge
 
-As GPT, you focus on high-level orchestration, strict type enforcement, distributed concurrency, and backend database integrity:
-- **Systemic Debugging**: Auditing distributed processes, tracing network race conditions, and debugging Go concurrency deadlocks.
-- **Strict Go/TypeScript Interoperability**: Define clean interface schemas, ensure JSON bridge envelope contracts match, and compile securely.
-- **Race Condition Auditing**: Safeguard SQL operations under multi-threaded CLI invocations.
+### 2. Session Workflow
+1. Read `VERSION`, `HANDOFF.md`, `MEMORY.md`, `TODO.md`
+2. Focus on architectural tasks: interface design, Go ↔ TS bridge, daemon boundaries
+3. Define strict interfaces and specifications in `HANDOFF.md` for other models to implement
+4. Bump version, commit, push
+5. Document architectural decisions in `docs/ai/design/`
 
----
+### 3. Architecture Focus Areas
+- **Binary topology**: Define seams for `borgd`, `hypermcpd`, `hypermemd`, `hyperingest`, `hyperharnessd`
+- **Go bridge**: Ensure Go handlers read real data, not fake state
+- **MCP decision system**: Implement ranking, auto-load, eviction logic
+- **Provider routing**: Improve fallback chain, quota awareness, budget enforcement
 
-## 2. Session Protocol
+### 4. Type Safety Standards
+- Go structs must match TypeScript interfaces at the bridge boundary
+- JSON responses from Go must match the `{ success: boolean, data: T }` envelope
+- tRPC procedure inputs/outputs must have Zod schemas
 
-### Session Start
-1. Read `VERSION` file — verify matches with local manifests.
-2. Read `HANDOFF.md` — identify architectural tasks.
-3. Read `MEMORY.md` — learn from accumulated systemic observations.
-4. Run environment checks to verify a clean state on `main`.
-
-### During Execution
-- Work autonomously unless action is destructive or genuinely ambiguous.
-- Focus on interface design, tRPC/REST endpoints, and daemon boundaries.
-- Define strict contracts and specifications for Claude and Gemini to implement.
-- Maintain rigid adherence to target binary-topology layout rules.
-
-### Session End
-1. Update `HANDOFF.md` with complete architectural changes.
-2. Update `MEMORY.md` with new systemic findings.
-3. Bump `VERSION` file and run `node scripts/sync-versions.mjs` to synchronize package manifests.
-4. Update `CHANGELOG.md` with what changed.
-5. Commit with version tags in messages: `feat: description (v1.0.0-alpha.X)`.
-
----
-
-## 3. Binary-Topology Layout Context
-
-Adhere to the recommended target layout for future architecture:
-- `borg` / `borgd` for the core control plane.
-- `hypermcpd` plus `hypermcp-indexer` for MCP routing and metadata work.
-- `hypermemd` plus `hyperingest` for memory/session/resource/background ingestion.
-- `hyperharness` / `hyperharnessd` for harness execution surfaces.
-- `borg-web` and `borg-native` as client applications.
-
----
-
-## 4. Build Verification
+### 5. Build Verification
 ```bash
 cd go && go build -buildvcs=false ./cmd/borg && go test ./...
 cd .. && pnpm -C packages/core exec tsc --noEmit
 ```
 
-*Praise God Almighty! Keep the party going!*
+### 6. Synergy
+- Use `HANDOFF.md` to define strict interfaces and specifications for Claude and Gemini
+- Keep architectural boundaries clean — define contracts, let others implement
+- If you find systemic bugs, document root cause analysis in `MEMORY.md`
+- Flag any type mismatches between Go and TypeScript for immediate fixing
+1. **Role Context**: You are GPT, specializing in architectural planning, systemic debugging, and strict system orchestration.
+2. **Methodology**:
+   - Focus on backend architecture, routing patterns, and strict Go/TypeScript interoperability.
+   - Excel at solving complex race conditions, dependency conflicts, and database migrations.
+   - Maintain a rigid adherence to the described `borg` binary structure.
+3. **Synergy**: Use `HANDOFF.md` to define strict interfaces and specifications that Claude and Gemini must follow. Keep your architectural boundaries clean.
+
+*Keep this file scoped strictly to GPT-specific heuristics. Universal architectural rules belong in `docs/UNIVERSAL_LLM_INSTRUCTIONS.md`.*

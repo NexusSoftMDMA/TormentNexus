@@ -1,17 +1,12 @@
 package main
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"flag"
 	"fmt"
-	"io"
 	"log"
-	"net/http"
 	"os"
 	"os/signal"
-	"strings"
 	"time"
 
 	"github.com/borghq/borg-go/internal/buildinfo"
@@ -29,9 +24,6 @@ func main() {
 func run(args []string) int {
 	command := "serve"
 	if len(args) > 0 {
-		if strings.HasPrefix(args[0], "hypercode://") {
-			return runDeepLink(args[0])
-		}
 		switch args[0] {
 		case "serve", "version":
 			command = args[0]
@@ -49,39 +41,6 @@ func run(args []string) int {
 		log.Printf("unknown command %q", command)
 		return 1
 	}
-}
-
-func runDeepLink(deepLink string) int {
-	cfg := config.Default()
-	record, err := lockfile.Read(cfg.LockPath())
-	if err != nil {
-		log.Printf("Borg sidecar server is not currently running. Please start it using 'borg serve' first.")
-		return 1
-	}
-
-	targetURL := fmt.Sprintf("http://%s:%d/api/native/protocol/hypercode", record.Host, record.Port)
-
-	payload, err := json.Marshal(map[string]string{"url": deepLink})
-	if err != nil {
-		log.Printf("Failed to marshal deep link payload: %v", err)
-		return 1
-	}
-
-	resp, err := http.Post(targetURL, "application/json", bytes.NewBuffer(payload))
-	if err != nil {
-		log.Printf("Failed to dispatch deep link to running Borg server: %v", err)
-		return 1
-	}
-	defer resp.Body.Close()
-
-	body, _ := io.ReadAll(resp.Body)
-	if resp.StatusCode != http.StatusOK {
-		log.Printf("Server returned error (%d): %s", resp.StatusCode, string(body))
-		return 1
-	}
-
-	log.Printf("Deep link dispatched successfully: %s", string(body))
-	return 0
 }
 
 func runServe(args []string) int {
@@ -142,7 +101,6 @@ func runServe(args []string) int {
 		cfg.BaseURL(),
 		cfg.BaseURL(),
 	)
-	server.PreWarmCaches()
 	if err := server.ListenAndServe(ctx); err != nil {
 		log.Printf("server failed: %v", err)
 		return 1
