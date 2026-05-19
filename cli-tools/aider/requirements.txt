@@ -4,7 +4,7 @@ aiohappyeyeballs==2.6.1
     # via
     #   -c requirements/common-constraints.txt
     #   aiohttp
-aiohttp==3.13.4
+aiohttp==3.13.5
     # via
     #   -c requirements/common-constraints.txt
     #   litellm
@@ -186,7 +186,7 @@ huggingface-hub==0.36.0
     # via
     #   -c requirements/common-constraints.txt
     #   tokenizers
-idna==3.11
+idna==3.15
     # via
     #   -c requirements/common-constraints.txt
     #   anyio
@@ -400,7 +400,7 @@ regex==2025.11.3
     # via
     #   -c requirements/common-constraints.txt
     #   tiktoken
-requests==2.33.0
+requests==2.34.2
     # via
     #   -c requirements/common-constraints.txt
     #   google-api-core
@@ -513,7 +513,7 @@ uritemplate==4.2.0
     # via
     #   -c requirements/common-constraints.txt
     #   google-api-python-client
-urllib3==2.6.3
+urllib3==2.7.0
     # via
     #   -c requirements/common-constraints.txt
     #   requests

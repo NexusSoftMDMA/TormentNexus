@@ -198,7 +198,7 @@ huggingface-hub[inference]==0.36.0
     #   transformers
 identify==2.6.15
     # via pre-commit
-idna==3.11
+idna==3.15
     # via
     #   anyio
     #   httpx
@@ -595,7 +595,7 @@ uritemplate==4.2.0
     # via google-api-python-client
 urllib3==2.7.0
     # via requests
-uv==0.11.6
+uv==0.11.15
     # via -r requirements/requirements-dev.in
 virtualenv==20.36.1
     # via pre-commit
