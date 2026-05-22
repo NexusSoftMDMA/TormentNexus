@@ -3,7 +3,7 @@
     "hypercode-supervisor": {
       "command": "node",
       "args": [
-        "C:\\Users\\hyper\\workspace\\hypercode\\packages\\hypercode-supervisor\\dist\\index.js"
+        "C:\\Users\\hyper\\workspace\\borg\\packages\\hypercode-supervisor\\dist\\index.js"
       ],
       "env": [
         "NODE_ENV"
@@ -706,7 +706,7 @@
     "hypercode-supervisor": {
       "command": "node",
       "args": [
-        "C:\\Users\\hyper\\workspace\\hypercode\\packages\\hypercode-supervisor\\dist\\index.js"
+        "C:\\Users\\hyper\\workspace\\borg\\packages\\hypercode-supervisor\\dist\\index.js"
       ],
       "env": [
         "NODE_ENV"
