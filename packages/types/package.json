@@ -1,6 +1,6 @@
 {
   "name": "@hypercode/types",
-  "version": "1.0.0-alpha.62",
+  "version": "1.0.0-alpha.64",
   "private": true,
   "main": "dist/index.js",
   "types": "src/index.ts",

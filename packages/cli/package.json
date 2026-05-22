@@ -1,6 +1,6 @@
 {
   "name": "@hypercode/cli",
-  "version": "1.0.0-alpha.62",
+  "version": "1.0.0-alpha.64",
   "type": "module",
   "bin": {
     "hypercode": "./dist/cli/src/index.js"
