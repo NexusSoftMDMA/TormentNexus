@@ -17,10 +17,10 @@ func TestHandleHypercodeProtocol(t *testing.T) {
 		expectedAction string
 	}{
 		{
-			name:           "Valid attach URI",
+			name:           "Valid attach URI (no supervisor)",
 			uri:            "hypercode://attach?session=xyz123",
-			expectedStatus: http.StatusOK,
-			expectedAction: "attach",
+			expectedStatus: http.StatusServiceUnavailable,
+			expectedAction: "",
 		},
 		{
 			name:           "Missing URI",

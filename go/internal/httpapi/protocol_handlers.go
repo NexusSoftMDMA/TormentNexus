@@ -79,6 +79,13 @@ func (s *Server) handleHypercodeProtocol(w http.ResponseWriter, r *http.Request)
 			return
 		}
 
+		if s.supervisorManager == nil {
+			writeJSON(w, http.StatusServiceUnavailable, map[string]any{
+				"success": false,
+				"error":  "session supervisor not available",
+			})
+			return
+		}
 		session, ok := s.supervisorManager.GetSession(sessionID)
 		if !ok {
 			writeJSON(w, http.StatusNotFound, map[string]any{
@@ -121,6 +128,13 @@ func (s *Server) handleHypercodeProtocol(w http.ResponseWriter, r *http.Request)
 		// Fallback command mapping
 		cmd, args := defaultLocalSessionCommand(cliType, nil)
 
+		if s.supervisorManager == nil {
+			writeJSON(w, http.StatusServiceUnavailable, map[string]any{
+				"success": false,
+				"error":  "session supervisor not available",
+			})
+			return
+		}
 		session, createErr := s.supervisorManager.CreateSessionWithOptions(supervisor.CreateSessionOptions{
 			CliType:             cliType,
 			Command:             cmd,

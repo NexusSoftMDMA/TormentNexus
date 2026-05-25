@@ -2683,6 +2683,15 @@ func (s *Server) handleMCPCallTool(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var result any
+		// Translate request format: toolName/arguments -> name/args
+	if tn, ok := payload["toolName"]; ok {
+		payload["name"] = tn
+		delete(payload, "toolName")
+	}
+	if args, ok := payload["arguments"]; ok {
+		payload["args"] = args
+		delete(payload, "arguments")
+	}
 	upstreamBase, err := s.callUpstreamJSON(r.Context(), "mcp.callTool", payload, &result)
 	if err == nil {
 		writeJSON(w, http.StatusOK, map[string]any{
@@ -17737,6 +17746,12 @@ func archivedImportedSessionRecord(sidecar importedSessionArchiveSidecar, metada
 }
 
 func (s *Server) loadArchivedImportedSessionRecords() ([]ImportedSessionRecord, error) {
+	// Fast path: return cached archive records (avoids re-reading 6000+ gzipped files)
+	if cached, ok := s.cacheService.Get("imported:archive:records"); ok {
+		if typed, ok := cached.([]ImportedSessionRecord); ok {
+			return typed, nil
+		}
+	}
 	archiveRoot := s.importedSessionsArchiveRoot()
 	if _, err := os.Stat(archiveRoot); err != nil {
 		if os.IsNotExist(err) {
@@ -17775,6 +17790,8 @@ func (s *Server) loadArchivedImportedSessionRecords() ([]ImportedSessionRecord, 
 		}
 		return records[i].ImportedAt > records[j].ImportedAt
 	})
+	// Cache the archive records for 5 minutes (avoids re-reading 6000+ gzipped files)
+	s.cacheService.SetTTL("imported:archive:records", records, 300000)
 	return records, nil
 }
 

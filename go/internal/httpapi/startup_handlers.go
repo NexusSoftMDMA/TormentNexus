@@ -196,16 +196,24 @@ func (s *Server) importedSessionMaintenanceStats(ctx context.Context) ImportedSe
 	// Fast path: use cached import scan results instead of calling TS core
 	candidates, cacheErr := s.scanValidatedImportSources()
 	if cacheErr == nil && len(candidates) > 0 {
-		// Check archived records for more detail
-		if archivedRecords, err := s.loadArchivedImportedSessionRecords(); err == nil && len(archivedRecords) > 0 {
-			return archivedImportedSessionMaintenanceStats(archivedRecords)
+		// Check archive cache first (avoids re-reading 6000+ gzipped files)
+		if cached, ok := s.cacheService.Get("imported:archive:records"); ok {
+			if typed, ok := cached.([]ImportedSessionRecord); ok && len(typed) > 0 {
+				return archivedImportedSessionMaintenanceStats(typed)
+			}
 		}
-		return ImportedSessionMaintenanceStats{
-			TotalSessions:                len(candidates),
-			InlineTranscriptCount:        0,
-			ArchivedTranscriptCount:      0,
+		// Return quick estimate from import cache while archive loads in background
+		stats := ImportedSessionMaintenanceStats{
+			TotalSessions: len(candidates),
+			InlineTranscriptCount: 0,
+			ArchivedTranscriptCount: 0,
 			MissingRetentionSummaryCount: 0,
 		}
+		// Kick off background archive load to populate cache for next call
+		go func() {
+			s.loadArchivedImportedSessionRecords()
+		}()
+		return stats
 	}
 	// Slow path: try upstream
 	var stats ImportedSessionMaintenanceStats
