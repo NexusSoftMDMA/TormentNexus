@@ -1,7 +1,6 @@
 import { EventEmitter } from 'events';
 import crypto from 'crypto';
 import { Redis } from 'ioredis';
-import { SwarmMessageSchema, type SwarmMessageMetadata as ProtocolSwarmMessageMetadata } from './protocol.js';
 
 export enum SwarmMessageType {
     CAPABILITY_QUERY = 'CAPABILITY_QUERY',
@@ -17,27 +16,18 @@ export enum SwarmMessageType {
     TASK_ASSIGN = 'TASK_ASSIGN',
     ARTIFACT_READ_REQUEST = 'ARTIFACT_READ_REQUEST',
     ARTIFACT_READ_RESPONSE = 'ARTIFACT_READ_RESPONSE',
-    A2A_BRIDGE_SIGNAL = 'A2A_BRIDGE_SIGNAL'
+    MARKETPLACE_PUBLISH = 'MARKETPLACE_PUBLISH',
+    MARKETPLACE_QUERY = 'MARKETPLACE_QUERY',
+    MARKETPLACE_RESPONSE = 'MARKETPLACE_RESPONSE'
 }
 
 export interface SwarmMessage {
-    version?: '1.0';
     id: string;
-    correlationId?: string;
     sender: string;
     target?: string;
     type: SwarmMessageType;
     payload: unknown;
     timestamp: number;
-    metadata?: ProtocolSwarmMessageMetadata;
-}
-
-interface PendingMeshRequest {
-    resolve: (message: SwarmMessage) => void;
-    reject: (error: Error) => void;
-    timer: NodeJS.Timeout;
-    responseTypes?: Set<SwarmMessageType>;
-    targetNodeId: string;
 }
 
 /**
@@ -55,7 +45,7 @@ globalMeshBus.setMaxListeners(100);
 
 let redisSubscriber: Redis | null = null;
 let redisPublisher: Redis | null = null;
-const REDIS_CHANNEL = 'hypercode:swarm:mesh';
+const REDIS_CHANNEL = 'borg:swarm:mesh';
 
 // Initialize Redis if REDIS_URL is provided in the environment
 if (process.env.REDIS_URL) {
@@ -125,16 +115,13 @@ export class MeshService extends EventEmitter {
     private readonly knownNodes: Set<string> = new Set();
     private readonly nodeCapabilities: Map<string, string[]> = new Map();
     private heartbeatInterval?: NodeJS.Timeout;
-    private readonly inboundHandler: (msg: SwarmMessage) => void;
-    private readonly pendingRequests = new Map<string, PendingMeshRequest>();
 
     constructor() {
         super();
         this.nodeId = crypto.randomUUID();
-        this.inboundHandler = this.handleGlobalMessage.bind(this);
 
         // Listen to global inbound network traffic
-        globalMeshBus.on('mesh_message_inbound', this.inboundHandler);
+        globalMeshBus.on('mesh_message_inbound', this.handleGlobalMessage.bind(this));
 
         this.startHeartbeat();
     }
@@ -161,141 +148,60 @@ export class MeshService extends EventEmitter {
     }
 
     private handleGlobalMessage(msg: SwarmMessage) {
-        const parsed = SwarmMessageSchema.safeParse(msg);
-        if (!parsed.success) {
-            return;
-        }
-
-        const normalizedMsg = parsed.data as SwarmMessage;
-
         // Ignore our own broadcast messages
-        if (normalizedMsg.sender === this.nodeId) return;
+        if (msg.sender === this.nodeId) return;
 
         // Keep track of known peers
-        this.knownNodes.add(normalizedMsg.sender);
+        this.knownNodes.add(msg.sender);
 
         // Update capabilities registry on heartbeat
-        if (normalizedMsg.type === SwarmMessageType.HEARTBEAT) {
-            const payload = normalizedMsg.payload as any;
+        if (msg.type === SwarmMessageType.HEARTBEAT) {
+            const payload = msg.payload as any;
             if (payload?.capabilities) {
-                this.nodeCapabilities.set(normalizedMsg.sender, payload.capabilities);
-            }
-        }
-
-        const correlationKey = normalizedMsg.correlationId ?? normalizedMsg.id;
-        const pending = this.pendingRequests.get(correlationKey);
-        if (pending && (!normalizedMsg.target || normalizedMsg.target === this.nodeId)) {
-            if (!pending.responseTypes || pending.responseTypes.has(normalizedMsg.type)) {
-                clearTimeout(pending.timer);
-                this.pendingRequests.delete(correlationKey);
-                pending.resolve(normalizedMsg);
+                this.nodeCapabilities.set(msg.sender, payload.capabilities);
             }
         }
 
         // If it's a direct message tailored to us, or a broadcast (no target)
-        if (!normalizedMsg.target || normalizedMsg.target === this.nodeId) {
-            this.emit('message', normalizedMsg);
+        if (!msg.target || msg.target === this.nodeId) {
+            this.emit('message', msg);
         }
     }
 
-    private buildMessage(input: {
-        type: SwarmMessageType;
-        payload: unknown;
-        target?: string;
-        id?: string;
-        correlationId?: string;
-        metadata?: ProtocolSwarmMessageMetadata;
-    }): SwarmMessage {
-        const message: SwarmMessage = {
-            version: '1.0',
-            id: input.id ?? crypto.randomUUID(),
-            correlationId: input.correlationId,
+    public broadcast(type: SwarmMessageType, payload: unknown) {
+        const msg: SwarmMessage = {
+            id: crypto.randomUUID(),
             sender: this.nodeId,
-            target: input.target,
-            type: input.type,
-            payload: input.payload,
-            timestamp: Date.now(),
-            metadata: input.metadata,
-        };
-        return SwarmMessageSchema.parse(message) as SwarmMessage;
-    }
-
-    public broadcast(type: SwarmMessageType, payload: unknown, metadata?: ProtocolSwarmMessageMetadata) {
-        const msg = this.buildMessage({
             type,
             payload,
-            metadata,
-        });
+            timestamp: Date.now()
+        };
         globalMeshBus.emit('mesh_message_outbound', msg);
     }
 
-    public sendDirect(
-        targetNodeId: string,
-        type: SwarmMessageType,
-        payload: unknown,
-        metadata?: ProtocolSwarmMessageMetadata,
-    ) {
-        const msg = this.buildMessage({
+    public sendDirect(targetNodeId: string, type: SwarmMessageType, payload: unknown) {
+        const msg: SwarmMessage = {
+            id: crypto.randomUUID(),
+            sender: this.nodeId,
             target: targetNodeId,
             type,
             payload,
-            metadata,
-        });
+            timestamp: Date.now()
+        };
         globalMeshBus.emit('mesh_message_outbound', msg);
     }
 
     public sendResponse(originalMsg: SwarmMessage, type: SwarmMessageType, payload: unknown) {
         // Respond directly to the sender of the original message
-        const response = this.buildMessage({
-            id: originalMsg.id,
-            correlationId: originalMsg.correlationId ?? originalMsg.id,
+        const response: SwarmMessage = {
+            id: originalMsg.id, // Preserve the ID so the receiver can match the response
+            sender: this.nodeId,
             target: originalMsg.sender,
             type,
             payload,
-            metadata: originalMsg.metadata,
-        });
+            timestamp: Date.now()
+        };
         globalMeshBus.emit('mesh_message_outbound', response);
-    }
-
-    public async request(
-        targetNodeId: string,
-        type: SwarmMessageType,
-        payload: unknown,
-        options: {
-            timeoutMs?: number;
-            responseTypes?: SwarmMessageType[];
-            metadata?: ProtocolSwarmMessageMetadata;
-        } = {},
-    ): Promise<SwarmMessage> {
-        const requestId = crypto.randomUUID();
-        const correlationId = requestId;
-        const timeoutMs = options.timeoutMs ?? 30_000;
-        const responseTypes = options.responseTypes ? new Set(options.responseTypes) : undefined;
-
-        return await new Promise<SwarmMessage>((resolve, reject) => {
-            const timer = setTimeout(() => {
-                this.pendingRequests.delete(correlationId);
-                reject(new Error(`Mesh request timed out after ${timeoutMs}ms (${type} -> ${targetNodeId})`));
-            }, timeoutMs);
-
-            this.pendingRequests.set(correlationId, {
-                resolve,
-                reject,
-                timer,
-                responseTypes,
-                targetNodeId,
-            });
-
-            const request = this.buildMessage({
-                id: requestId,
-                correlationId,
-                target: targetNodeId,
-                type,
-                payload,
-                metadata: options.metadata,
-            });
-            globalMeshBus.emit('mesh_message_outbound', request);
-        });
     }
 
     public getPeers(): string[] {
@@ -318,12 +224,7 @@ export class MeshService extends EventEmitter {
 
     public destroy() {
         if (this.heartbeatInterval) clearInterval(this.heartbeatInterval);
-        for (const pending of this.pendingRequests.values()) {
-            clearTimeout(pending.timer);
-            pending.reject(new Error('MeshService destroyed before request completed.'));
-        }
-        this.pendingRequests.clear();
-        globalMeshBus.off('mesh_message_inbound', this.inboundHandler);
+        globalMeshBus.off('mesh_message_inbound', this.handleGlobalMessage.bind(this));
         this.removeAllListeners();
     }
 }

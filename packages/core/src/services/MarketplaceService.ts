@@ -1,8 +1,8 @@
 import { z } from 'zod';
 import { McpmRegistry, RegistryItem } from '../skills/McpmRegistry.js';
 import { McpmInstaller } from '../skills/McpmInstaller.js';
-import { MeshService, SwarmMessageType } from '../mesh/MeshService.js';
-import { Registry } from '@hypercode/mcp-registry';
+import { MeshService, SwarmMessage, SwarmMessageType } from '../mesh/MeshService.js';
+import { Registry } from '@borg/mcp-registry';
 import path from 'path';
 
 export const MarketplaceEntrySchema = z.object({
@@ -27,8 +27,9 @@ export class MarketplaceService {
     private installer: McpmInstaller;
     private meshService?: MeshService;
     private installDir: string;
+    private peerTools: Map<string, { lastSeen: number, entries: MarketplaceEntry[] }> = new Map();
 
-    constructor(installDir: string, meshService?: any) {
+    constructor(installDir: string, meshService?: MeshService) {
         this.installDir = installDir;
         this.legacyRegistry = new McpmRegistry();
 
@@ -38,6 +39,24 @@ export class MarketplaceService {
 
         this.installer = new McpmInstaller(installDir);
         this.meshService = meshService;
+
+        if (this.meshService) {
+            this.meshService.on('message', this.handleMeshMessage.bind(this));
+        }
+    }
+
+    private handleMeshMessage(msg: SwarmMessage) {
+        if (msg.type === SwarmMessageType.MARKETPLACE_PUBLISH || msg.type === SwarmMessageType.MARKETPLACE_RESPONSE) {
+            const entries = msg.payload as MarketplaceEntry[];
+            this.peerTools.set(msg.sender, { lastSeen: Date.now(), entries });
+        } else if (msg.type === SwarmMessageType.MARKETPLACE_QUERY) {
+            // Send back our local tools
+            this.list().then(localTools => {
+                if (this.meshService) {
+                    this.meshService.sendResponse(msg, SwarmMessageType.MARKETPLACE_RESPONSE, localTools.filter(x => x.source === 'official'));
+                }
+            }).catch(e => console.error("MarketplaceService failed to resolve local tools for query", e));
+        }
     }
 
     /**
@@ -51,7 +70,7 @@ export class MarketplaceService {
             id: item.name,
             name: item.name,
             description: "Official Skill",
-            author: "Hypercode Ecosystem",
+            author: "Borg Ecosystem",
             type: 'skill', // Legacy are mostly skills
             source: 'official',
             url: item.url,
@@ -84,29 +103,17 @@ export class MarketplaceService {
             });
         }
 
-        // Mesh Discovery
+        // Mesh Discovery (Future: Listen for announcements)
         if (this.meshService) {
-            const meshCaps = this.meshService.getMeshCapabilities();
-            for (const [nodeId, caps] of Object.entries(meshCaps)) {
-                // Ignore self
-                if (nodeId === this.meshService.nodeId) continue;
-                
-                for (const cap of caps) {
-                    if (filter && !cap.toLowerCase().includes(filter.toLowerCase())) continue;
-                    
-                    entries.push({
-                        id: `${nodeId}:${cap}`,
-                        name: cap,
-                        description: `Shared tool from peer ${nodeId.slice(0, 8)}`,
-                        author: `Peer ${nodeId.slice(0, 8)}`,
-                        type: 'tool',
-                        source: 'community',
-                        url: `mesh://${nodeId}/${cap}`,
-                        verified: false,
-                        peerCount: 1,
-                        installed: false,
-                        tags: ['mesh', 'community']
-                    });
+            // Housekeeping: remove peers not seen in 120 seconds
+            const now = Date.now();
+            for (const [peerId, data] of this.peerTools.entries()) {
+                if (now - data.lastSeen > 120000) {
+                    this.peerTools.delete(peerId);
+                } else {
+                    // Inject community tags
+                    const formatted = data.entries.map(e => ({...e, source: 'community' as const, author: `Node ${peerId.substring(0,8)}`}));
+                    entries.push(...formatted);
                 }
             }
         }
@@ -130,10 +137,22 @@ export class MarketplaceService {
             throw new Error("MeshService not available for publishing.");
         }
         
-        // Publish capability to the mesh
-        this.meshService.broadcast(SwarmMessageType.CAPABILITY_RESPONSE, { capability: manifest.name });
+        const entry: MarketplaceEntry = {
+            id: manifest.id || 'unknown',
+            name: manifest.name || 'Unknown Tool',
+            description: manifest.description || '',
+            author: manifest.author || 'Borg Ecosystem',
+            type: manifest.type || 'tool',
+            source: 'community',
+            url: manifest.url,
+            verified: false,
+            peerCount: 1,
+            installed: false,
+            tags: manifest.tags || []
+        };
         
-        return `Published ${manifest.name} to Mesh network`;
+        this.meshService.broadcast(SwarmMessageType.MARKETPLACE_PUBLISH, [entry]);
+        return "Published to Mesh.";
     }
 
     private async checkInstalled(id: string): Promise<boolean> {
@@ -141,9 +160,9 @@ export class MarketplaceService {
 
         // 1. Check if it's an MCP server installed in mcp.json
         try {
-            const os = await import('os');
-            // Check the unified config path
-            const mcpJsonPath = path.join(os.homedir(), '.hypercode', 'mcp.json');
+            // Assume mcp.json is near the root or in a config dir
+            // The default MetaMCP Controller writes to mcp.json in the current working directory or a specific config path
+            const mcpJsonPath = path.join(process.cwd(), 'mcp.json');
             const mcpJsonRaw = await fs.readFile(mcpJsonPath, 'utf-8');
             const mcpConfig = JSON.parse(mcpJsonRaw);
 

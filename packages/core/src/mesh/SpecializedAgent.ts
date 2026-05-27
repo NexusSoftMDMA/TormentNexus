@@ -104,7 +104,7 @@ export abstract class SpecializedAgent {
                     console.log(`[${this.role}] ✋ Bidding for Task Offer: ${offer.task.slice(0, 30)}...`);
                     this.mesh.sendResponse(msg, SwarmMessageType.TASK_BID, {
                         task: offer.task,
-                        originalTaskId: msg.id,
+                        originalTaskId: offer.originalTaskId || msg.id,
                         load: 0 // In the future, report actual CPU/Token load here 
                     });
                 }

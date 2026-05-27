@@ -23,7 +23,7 @@ mcpServerDebugLog('[MCPServer] ✓ path/url/fs');
 import { Router } from "./Router.js";
 mcpServerDebugLog('[MCPServer] ✓ Router');
 
-import { ModelSelector, LLMService } from "@hypercode/ai";
+import { ModelSelector, LLMService } from "@borg/ai";
 import { CoreModelSelector } from './providers/CoreModelSelector.js';
 mcpServerDebugLog('[MCPServer] ✓ ModelSelector');
 
@@ -33,8 +33,8 @@ import http from 'http';
 mcpServerDebugLog('[MCPServer] ✓ ws/http');
 
 import { McpmInstaller } from "./skills/McpmInstaller.js";
-import { Director, ToolPredictor, PairOrchestrator, SwarmController, SwarmRole, a2aBroker, A2ALogger } from "@hypercode/agents";
-import { Council, CouncilRole } from "@hypercode/agents";
+import { Director } from "@borg/agents";
+import { Council, CouncilRole } from "@borg/agents";
 import { GeminiAgent } from "./agents/GeminiAgent.js";
 import { ClaudeAgent } from "./agents/ClaudeAgent.js";
 import { MetaArchitectAgent } from "./agents/MetaArchitectAgent.js";
@@ -52,7 +52,7 @@ import { MeshService, SwarmMessageType } from './mesh/MeshService.js';
 import { GitWorktreeManager } from "./orchestrator/GitWorktreeManager.js";
 import { AuditService } from "./security/AuditService.js";
 import { GitService } from "./services/GitService.js";
-import { Supervisor } from "@hypercode/agents";
+import { Supervisor } from "@borg/agents";
 import { SkillRegistry } from "./skills/SkillRegistry.js";
 import { SuggestionService } from "./suggestions/SuggestionService.js";
 import { ResearchService } from "./services/ResearchService.js";
@@ -71,11 +71,6 @@ import { WorkflowEngine } from "./orchestrator/WorkflowEngine.js";
 import { AgentMemoryService } from "./services/AgentMemoryService.js";
 import { SessionImportService } from "./services/SessionImportService.js";
 import { MemoryManager } from "./services/MemoryManager.js"; // Use legacy MemoryManager
-import { BobbyBookmarksSyncWorker } from "./daemons/hyperingest/BobbyBookmarksSyncWorker.js";
-import { LinkCrawlerWorker } from "./daemons/hyperingest/LinkCrawlerWorker.js";
-import { MemoryArchiver } from "./services/MemoryArchiver.js";
-import { workspaceTracker } from "./services/WorkspaceTracker.js";
-import { NativeSidecarDaemon } from "./daemons/NativeSidecarDaemon.js";
 mcpServerDebugLog('[MCPServer] ✓ Phase 51/53 Infrastructure');
 import { SkillAssimilationService } from "./services/SkillAssimilationService.js";
 import { MarketplaceService } from "./services/MarketplaceService.js";
@@ -99,7 +94,7 @@ import { ProjectTracker } from "./services/ProjectTracker.js";
 import { MissionService } from "./services/MissionService.js";
 import { buildToolObservationInput } from './services/toolObservationMemory.js';
 import { detectLocalExecutionEnvironment } from './services/execution-environment.js';
-import { loadHypercodeMcpConfig } from './mcp/mcpJsonConfig.js';
+import { loadBorgMcpConfig } from './mcp/mcpJsonConfig.js';
 import {
     buildAutomaticToolContextFingerprint,
     buildAutomaticToolContextMemory,
@@ -129,9 +124,8 @@ import {
     MetaTools,
     SystemStatusTool,
     ChainExecutor,
-    type ChainRequest,
-    getAllParityTools
-} from "@hypercode/tools";
+    type ChainRequest
+} from "@borg/tools";
 mcpServerDebugLog('[MCPServer] ✓ All Tools & ChainExecutor');
 
 mcpServerDebugLog('[MCPServer] ✓ All Tools & ChainExecutor');
@@ -160,8 +154,8 @@ import { EmbeddingService } from './services/rag/EmbeddingService.js';
 
 
 import { PermissionManager, AutonomyLevel } from "./security/PermissionManager.js";
-import { BrowserTool } from "@hypercode/tools";
-import { SearchService } from "@hypercode/search";
+import { BrowserTool } from "@borg/tools";
+import { SearchService } from "@borg/search";
 import { CouncilService } from "./services/CouncilService.js";
 import { BrowserService } from "./services/BrowserService.js";
 import type { ConnectedClient } from './services/mcp-client.service.js';
@@ -169,9 +163,6 @@ import { createCouncilTools } from "./mcp/tools/council_tools.js";
 import { NativeSessionMetaTools } from "./mcp/NativeSessionMetaTools.js";
 import { jsonConfigProvider } from './services/config/JsonConfigProvider.js';
 import { configImportService } from './services/config-import.service.js';
-import { publishedCatalogRepository } from './db/repositories/published-catalog.repo.js';
-
-mcpServerDebugLog('[MCPServer] ✓ PermissionManager');
 import { mcpServerPool } from './services/mcp-server-pool.service.js';
 import {
     applyBridgeClientHello,
@@ -289,11 +280,6 @@ export class MCPServer {
     public sessionManager: SessionManager; // Phase 57: State Persistence
     public sessionSupervisor: SessionSupervisor;
     public ptySupervisor: PtySupervisor;
-    private pairOrchestrator: PairOrchestrator;
-    public swarmController: SwarmController;
-    public a2aLogger: A2ALogger;
-    private memoryArchiver: MemoryArchiver;
-    private nativeSidecarDaemon: NativeSidecarDaemon;
 
     public projectTracker: ProjectTracker; // Phase 59: Autonomous Loop
     public missionService: MissionService; // Phase 80: Swarm Persistence
@@ -316,8 +302,6 @@ export class MCPServer {
     public lspTools: LSPTools;
     public agentMemoryService: AgentMemoryService;
     public sessionImportService: SessionImportService;
-    public bobbyBookmarksSyncWorker: BobbyBookmarksSyncWorker;
-    public linkCrawlerWorker: LinkCrawlerWorker;
     private readonly nativeSessionMetaTools: NativeSessionMetaTools;
     private readonly promptToClient: Record<string, ConnectedClient> = {};
     private readonly resourceToClient: Record<string, ConnectedClient> = {};
@@ -414,10 +398,10 @@ export class MCPServer {
     }
 
     /**
-     * Reason: Hypercode now captures session-start and stop-time memory, but still needs
+     * Reason: Borg now captures session-start and stop-time memory, but still needs
      * post-tool lifecycle observations without wiring every caller individually.
      * What: best-effort bridge from centralized tool execution into structured memory observations.
-     * Why: keeps hypercode-style lifecycle capture native to Hypercode while never blocking tool execution.
+     * Why: keeps claude-mem-style lifecycle capture native to Borg while never blocking tool execution.
      */
     private async captureToolObservation(event: {
         toolName: string;
@@ -439,11 +423,11 @@ export class MCPServer {
     }
 
     /**
-     * Reason: Hypercode can already rank relevant memories for a tool call, but until now
+     * Reason: Borg can already rank relevant memories for a tool call, but until now
      * that JIT context stayed behind an explicit helper instead of being used automatically.
      * What: resolves compact pre-tool context using current session goal/objective state,
      * broadcasts a short preview to the inspector, and stores deduped session memory.
-     * Why: gives Hypercode a native PreToolUse-style lifecycle seam without mutating downstream schemas.
+     * Why: gives Borg a native PreToolUse-style lifecycle seam without mutating downstream schemas.
      */
     private async resolveAutomaticToolContext(toolName: string, args: unknown): Promise<ToolContextPayload | null> {
         if (!shouldResolveAutomaticToolContext(toolName) || !this.agentMemoryService?.getToolContext) {
@@ -489,7 +473,7 @@ export class MCPServer {
 
     private async syncNativeToolPreferences(): Promise<void> {
         try {
-            const config = await loadHypercodeMcpConfig();
+            const config = await loadBorgMcpConfig();
             const settings = config.settings as { toolSelection?: { importantTools?: unknown; alwaysLoadedTools?: unknown } } | undefined;
             const preferences = readToolPreferencesFromSettings(settings?.toolSelection);
             this.nativeSessionMetaTools.setAlwaysLoadedTools(preferences.alwaysLoadedTools);
@@ -506,24 +490,14 @@ export class MCPServer {
         this.options = options;
         this.router = new Router();
         this.modelSelector = new CoreModelSelector();
-        this.llmService = new LLMService(this.modelSelector, {
-            onQuotaExhausted: (provider: string, modelId: string, reason: string) => {
-                this.eventBus?.emitEvent('system:llm_quota_exhausted', 'MCPServer', { provider, modelId, reason });
-            },
-            onFallback: (fromProvider: string, fromModelId: string, toProvider: string, toModelId: string, reason: string) => {
-                this.eventBus?.emitEvent('system:llm_fallback', 'MCPServer', { fromProvider, fromModelId, toProvider, toModelId, reason });
-            }
-        });
+        this.llmService = new LLMService(this.modelSelector);
+        // SkillRegistry initialized later with correct paths
         this.sessionManager = new SessionManager(process.cwd()); // Phase 57: State Persistence
         if (options.skipAutoDrive) {
             this.sessionManager.disableAutoDriveRestore();
         }
         this.projectTracker = new ProjectTracker(process.cwd()); // Phase 59: Autonomous Loop
         this.missionService = new MissionService(process.cwd()); // Phase 80: Swarm Persistence
-
-        this.memoryManager = new MemoryManager(process.cwd());
-        this.agentMemoryService = new AgentMemoryService({ persistDir: path.join(process.cwd(), '.hypercode', 'agent_memory') }, this.memoryManager);
-
         this.director = new Director(this);
         this.council = new Council(this.modelSelector);
         this.permissionManager = new PermissionManager('high'); // Default to HIGH AUTONOMY as requested
@@ -539,12 +513,6 @@ export class MCPServer {
             rootDir: process.cwd(),
             worktreeManager: this.gitWorktreeManager,
         });
-        this.pairOrchestrator = new PairOrchestrator(this, this.llmService);
-        this.pairOrchestrator.setupFrontierSquad();
-        this.swarmController = new SwarmController(this, this.llmService);
-        this.a2aLogger = new A2ALogger(process.cwd());
-        this.memoryArchiver = new MemoryArchiver(process.cwd(), this.llmService, this.agentMemoryService, this.a2aLogger);
-        this.nativeSidecarDaemon = new NativeSidecarDaemon(this.eventBus);
         this.metricsService = new MetricsService(); // Phase 31
         this.metricsService.startMonitoring();
         this.policyService = new PolicyService(process.cwd()); // Phase 32
@@ -553,12 +521,11 @@ export class MCPServer {
         this.systemStatusTool = options.systemStatusTool || new SystemStatusTool();
         this.processRegistry = options.processRegistry || new ProcessRegistry();
         this.terminalService = new TerminalService(this.processRegistry);
-        this.mcpmInstaller = new McpmInstaller(path.join(process.cwd(), '.hypercode', 'skills'));
+        this.mcpmInstaller = new McpmInstaller(path.join(process.cwd(), '.borg', 'skills'));
         this.spawnerService = SpawnerService.getInstance();
         this.configManager = new ConfigManager();
         this.mcpConfigService = new McpConfigService();
         this.nativeSessionMetaTools = new NativeSessionMetaTools(undefined, {
-            // @ts-expect-error -- type mismatch from inferred schema types
             llmService: this.llmService,
             delegatedToolCaller: async (name, args, meta) => {
                 return await this.handleDirectMetaTool(name, args, meta) ?? {
@@ -566,58 +533,22 @@ export class MCPServer {
                     isError: true,
                 };
             },
-            searchPublishedCatalog: async (query, limit) => {
-                const results = await publishedCatalogRepository.listServers({ search: query, limit: limit ?? 5 });
-                return results.map(r => ({
-                    canonical_id: r.canonical_id,
-                    display_name: r.display_name,
-                    description: r.description,
-                    transport: r.transport,
-                    install_method: r.install_method,
-                    updated_at: r.updated_at
-                }));
-            },
-            installPublishedServer: async (identifier) => {
-                let server = await publishedCatalogRepository.findServerByCanonicalId(identifier);
-                if (!server) {
-                    server = await publishedCatalogRepository.findServerByUuid(identifier);
-                }
-                if (!server) {
-                    return { success: false, message: `Server not found in catalog for identifier: ${identifier}` };
-                }
-                
-                const recipe = await publishedCatalogRepository.getActiveRecipe(server.uuid);
-                if (!recipe) {
-                    return { success: false, message: `No active installation recipe found for server: ${server.display_name}` };
-                }
-
-                // Add to Aggregator config
-                const config = {
-                    enabled: true,
-                    alwaysOn: false,
-                    ...recipe.template,
-                    env: recipe.required_env || {}
-                } as any;
-
-                const nameAlias = server.display_name.toLowerCase().replace(/[^a-z0-9_-]/g, '_');
-                await this.mcpAggregator.addServerConfig(nameAlias, config);
-                
-                return { success: true, message: `Successfully installed and connected server: ${server.display_name} as '${nameAlias}'.\nTools from this server are now available in your working set!` };
-            }
         });
-        // Fire and forget config sync; the service itself reports degraded SQLite state truthfully.
-        void this.mcpConfigService.syncWithDatabase();
+        // Fire and forget config sync
+        this.mcpConfigService.syncWithDatabase().catch(err => console.error("[MCPServer] Config Sync Failed:", err));
 
         this.autoTestService = new AutoTestService(process.cwd());
         this.sandboxService = new SandboxService();
-        this.healerService = new HealerService(this.llmService, this, this.shellService);
+        this.healerService = new HealerService(this.llmService, this);
         this.promptRegistry = new PromptRegistry();
         this.skillRegistry = new SkillRegistry([
             path.join(process.cwd(), 'packages', 'core', 'src', 'skills'),
-            path.join(process.cwd(), '.hypercode', 'skills')
+            path.join(process.cwd(), '.borg', 'skills')
         ]);
         // SearchService is needed for DeepResearchService types
         const searchService = new SearchService();
+        this.memoryManager = new MemoryManager(process.cwd());
+        this.agentMemoryService = new AgentMemoryService({ persistDir: path.join(process.cwd(), '.borg', 'agent_memory') }, this.memoryManager);
         this.deepResearchService = new DeepResearchService(this, this.llmService, searchService, this.memoryManager); // Initialize FIRST
         this.skillAssimilationService = new SkillAssimilationService(
             this.skillRegistry,
@@ -665,30 +596,14 @@ export class MCPServer {
             }
         });
 
-        // A2A to Mesh Bridge
-        a2aBroker.on('bridge_to_mesh', (message) => {
-            if (this.meshService) {
-                this.meshService.broadcast(SwarmMessageType.A2A_BRIDGE_SIGNAL, message);
-            }
-        });
-
-        // Mesh to A2A Bridge
-        this.meshService?.on('message', (msg) => {
-            if (msg.type === 'A2A_BRIDGE_SIGNAL') {
-                a2aBroker.routeMessage(msg.payload);
-            }
-        });
-
         // Phase 51: Core Infrastructure Services
         this.lspService = new LSPService(process.cwd());
         this.planService = new PlanService({ rootPath: process.cwd() });
         this.codeModeService = new CodeModeService({ timeout: 30000, allowAsync: true });
-        this.workflowEngine = new WorkflowEngine({ persistDir: path.join(process.cwd(), '.hypercode', 'workflows') });
+        this.workflowEngine = new WorkflowEngine({ persistDir: path.join(process.cwd(), '.borg', 'workflows') });
         this.lspTools = new LSPTools(process.cwd());
         // MemoryManager + AgentMemoryService initialized early
         this.sessionImportService = new SessionImportService(this.llmService, this.agentMemoryService, process.cwd());
-        this.bobbyBookmarksSyncWorker = new BobbyBookmarksSyncWorker(process.cwd());
-        this.linkCrawlerWorker = new LinkCrawlerWorker(this.llmService);
 
         // Phase 5 & 6 Init
         this.browserTool = new BrowserTool();
@@ -748,7 +663,7 @@ export class MCPServer {
         this.councilService = new CouncilService();
         this.browserService = new BrowserService();
 
-        this.squadService = new SquadService(this as any);
+        this.squadService = new SquadService(this);
         this.gitWorktreeManager = new GitWorktreeManager(process.cwd());
 
         // Phase 60: Mesh Service
@@ -781,8 +696,8 @@ export class MCPServer {
 
         // Phase 65: Marketplace (Depends on Mesh)
         this.marketplaceService = new MarketplaceService(
-            path.join(process.cwd(), '.hypercode', 'skills'),
-            undefined // this.meshService
+            path.join(process.cwd(), '.borg', 'skills'),
+            this.meshService
         );
 
         global.mcpServerInstance = this;
@@ -830,7 +745,7 @@ export class MCPServer {
 
     private createServerInstance(): { server: Server; ready: Promise<void> } {
         const s = new Server(
-            { name: "hypercode-core", version: "0.99.1" },
+            { name: "borg-core", version: "0.90.7" },
             {
                 capabilities: {
                     tools: {},
@@ -956,21 +871,21 @@ export class MCPServer {
             }
 
             if (permission === 'NEEDS_CONSULTATION') {
-                console.log(`[Hypercode Core] Consulting Council for: ${name}`);
+                console.log(`[Borg Core] Consulting Council for: ${name}`);
                 this.auditService.log('TOOL_CONSULTATION', { tool: name, args }, 'WARN');
                 const debate = await this.council.runConsensusSession(`Execute tool '${name}' with args: ${JSON.stringify(args)}`);
 
                 if (!debate.approved) {
                     throw new Error(`Council Denied Execution: ${debate.summary}`);
                 }
-                console.log(`[Hypercode Core] Council Approved: ${debate.summary}`);
+                console.log(`[Borg Core] Council Approved: ${debate.summary}`);
             }
 
             // 1. Internal Status / Config Tools
             let result;
             if (name === "router_status") {
                 result = {
-                    content: [{ type: "text", text: "Hypercode Router is active." }],
+                    content: [{ type: "text", text: "Borg Router is active." }],
                 };
             }
             else if (name === "set_autonomy") {
@@ -984,7 +899,7 @@ export class MCPServer {
                 const text = args?.text as string;
                 // SAFETY: Default to false to prevent feedback loops. Explicitly set true if needed.
                 const submit = args?.submit as boolean ?? false;
-                console.log(`[Hypercode Core] Chat Reply Requested: ${text} (submit: ${submit})`);
+                console.log(`[Borg Core] Chat Reply Requested: ${text} (submit: ${submit})`);
 
                 if (this.wssInstance) {
                     this.wssInstance.clients.forEach((client: any) => {
@@ -1119,7 +1034,7 @@ export class MCPServer {
             else if (name === "get_knowledge_graph") {
                 result = await this.knowledgeService.getGraph(args?.query, args?.depth);
             }
-            else if (name === "system_diagnostics" || name === "system_status") {
+            else if (name === "system_diagnostics") {
                 const status = await DiagnosticTools.checkHealth();
                 result = { content: [{ type: "text", text: DiagnosticTools.getDiagnosticsMarkup(status) }] };
             }
@@ -1167,7 +1082,11 @@ export class MCPServer {
                 result = { content: [{ type: "text", text: "ws://localhost:9222" }] };
             }
 
-            else if (name === "start_squad") {
+            // Log flow
+            mcpServerDebugLog(`[DEBUG] Flow check: name='${name}'`);
+
+            // --- SWARM TOOLS (Phase 51) ---
+            if (name === "start_squad") {
                 mcpServerDebugLog('[DEBUG] ENTERED start_squad BLOCK');
                 const branch = args?.branch as string;
                 const goal = args?.goal as string;
@@ -1255,7 +1174,7 @@ export class MCPServer {
                 }
             }
             // --- CORE INFRASTRUCTURE TOOLS (Phase 20) ---
-            else if (name === "lsp_symbol_search" || name === "symbol_search" || name === "list_workspace_symbols") {
+            else if (name === "lsp_symbol_search") {
                 const query = args?.query as string;
                 if (!query) throw new Error("Missing 'query' parameter");
                 const symbols = this.lspService.searchSymbols(query);
@@ -1314,66 +1233,6 @@ export class MCPServer {
                 await this.initializeMemorySystem();
                 const res = await this.memoryManager.search(query, limit);
                 result = { content: [{ type: "text", text: JSON.stringify(res, null, 2) }] };
-            }
-            else if (name === "run_pair_session") {
-                const task = args?.task as string;
-                const pairResult = await this.pairOrchestrator.runTask(task);
-                this.pairOrchestrator.rotateRoles(); // Rotate for next call
-                result = { 
-                    content: [
-                        { type: "text", text: `--- Final Implementation ---\n${pairResult.finalOutput}` },
-                        { type: "text", text: `--- Collaboration History ---\n${pairResult.history.join('\n\n')}` }
-                    ],
-                    isError: !pairResult.success
-                };
-            }
-            else if (name === "a2a_broadcast") {
-                const type = (args?.type as any) || 'STATE_UPDATE';
-                const payload = (args?.payload as any) || {};
-                await a2aBroker.routeMessage({
-                    id: `a2a-${Date.now()}`,
-                    timestamp: Date.now(),
-                    sender: 'MCP_TOOL',
-                    type: type,
-                    payload: payload
-                });
-                result = { content: [{ type: "text", text: `A2A Message '${type}' broadcasted.` }] };
-            }
-            else if (name === "a2a_list_agents") {
-                const agents = a2aBroker.listAgents();
-                result = { content: [{ type: "text", text: JSON.stringify({ agents }, null, 2) }] };
-            }
-            else if (name === "swarm_start_session") {
-                const goal = args?.goal as string;
-                const maxTurns = args?.maxTurns as number || 5;
-
-                // Setup default swarm if none configured
-                this.swarmController.addMember({ id: 'claude', name: 'Claude', role: SwarmRole.PLANNER, provider: 'anthropic', modelId: 'claude-3-5-sonnet-20241022', status: 'idle' });
-                this.swarmController.addMember({ id: 'gpt', name: 'GPT', role: SwarmRole.IMPLEMENTER, provider: 'openai', modelId: 'gpt-4o', status: 'idle' });
-                this.swarmController.addMember({ id: 'gemini', name: 'Gemini', role: SwarmRole.TESTER, provider: 'google', modelId: 'gemini-1.5-pro', status: 'idle' });
-                this.swarmController.addMember({ id: 'qwen', name: 'Qwen', role: SwarmRole.CRITIC, provider: 'google', modelId: 'gemini-2.5-flash', status: 'idle' });
-
-                const swarmResult = await this.swarmController.startSession(goal, {
-                    maxTurns,
-                    completionThreshold: 0.8,
-                    autoRotate: true
-                });
-
-                result = {
-                    content: [
-                        { type: "text", text: `Swarm session complete. Success: ${swarmResult.success}` },
-                        { type: "text", text: `Transcript:\n${swarmResult.transcript.join('\n\n')}` }
-                    ]
-                };
-            }
-            else if (name === "archive_session") {
-                const sessionData = args?.sessionData as any;
-                const archiveResult = await this.memoryArchiver.archiveAndExtract(sessionData);
-                if (archiveResult) {
-                    result = { content: [{ type: "text", text: `Successfully archived session "${archiveResult.title}" (${archiveResult.compressedSize} bytes compressed). Memories extracted and stored.` }] };
-                } else {
-                    result = { content: [{ type: "text", text: "Failed to archive session. Format not recognized." }], isError: true };
-                }
             }
             // --- DEEP RESEARCH (Phase 31) ---
             else if (name === "research_topic") {
@@ -1445,7 +1304,7 @@ export class MCPServer {
                 const error = args?.error as string;
                 const context = args?.context as string;
                 if (!error) throw new Error("Missing 'error' parameter");
-                const success = await this.healerService.healAndVerify(error, context);
+                const success = await this.healerService.heal(error, context);
                 result = { content: [{ type: "text", text: success ? "Healer successfully applied fix." : "Healer could not fix this error." }] };
             }
             // --- DARWIN TOOLS (Phase 34) ---
@@ -1823,7 +1682,7 @@ export class MCPServer {
             else if (name === "analyze_screenshot") {
                 const prompt = args.prompt as string;
                 try {
-                    console.log(`[Hypercode Core] 👁️ Analyzing screenshot with prompt: "${prompt}"...`);
+                    console.log(`[Borg Core] 👁️ Analyzing screenshot with prompt: "${prompt}"...`);
                     const data = await this.captureScreenshotFromBrowser();
                     const base64 = data.split(',')[1];
                     const mimeType = "image/jpeg";
@@ -1862,13 +1721,10 @@ export class MCPServer {
                 };
             }
             else if (name === "list_skills") {
-                result = await this.skillRegistry.listSkills();
-            }
-            else if (name === "search_skills") {
-                result = await this.skillRegistry.searchSkills(args?.query as string);
+                result = this.skillRegistry.listSkills();
             }
             else if (name === "read_skill") {
-                result = await this.skillRegistry.readSkill(args?.skillName as string);
+                result = this.skillRegistry.readSkill(args?.skillName as string);
             }
             else if (name === "mcpm_search") {
                 result = {
@@ -1948,7 +1804,21 @@ export class MCPServer {
                 await this.gitWorktreeManager.removeWorktree(pathOrBranch, force);
                 result = { content: [{ type: "text", text: `Worktree removed: ${pathOrBranch}` }] };
             }
-            else if (name === "execute_sandbox") {
+            // 2. Intercept File Reading for Suggestions (Engagement Module)
+            if (name === "read_file" || name === "view_file") {
+                const filePath = args.path || args.AbsolutePath;
+                if (!filePath) {
+                    // Fallthrough to standard handler which will likely error
+                } else {
+                    // Fire and forget suggestion analysis
+                    // We don't read content here to avoid double-read cost; 
+                    // ideally we'd tap into the result, but that requires waiting for the real tool.
+                    // For now, let's just log intent or trigger analysis if we can get content cheaply later.
+                    // Actually, let's tap the result AFTER execution.
+                }
+            }
+
+            if (name === "execute_sandbox") {
                 const lang = args?.language as 'python' | 'node';
                 const code = args?.code as string;
                 result = {
@@ -1957,7 +1827,7 @@ export class MCPServer {
             }
             else if (name === "index_codebase") {
                 const dir = args?.path || process.cwd();
-                console.log(`[Hypercode Core] Indexing codebase at ${dir}...`);
+                console.log(`[Borg Core] Indexing codebase at ${dir}...`);
                 const count = await this.memoryManager.indexCodebase(dir);
                 result = {
                     content: [{ type: "text", text: `Indexed ${count} documents/chunks from ${dir}.` }]
@@ -1965,7 +1835,7 @@ export class MCPServer {
             }
             else if (name === "search_codebase") {
                 const query = args?.query as string;
-                console.log(`[Hypercode Core] Semantic Searching for: ${query}`);
+                console.log(`[Borg Core] Semantic Searching for: ${query}`);
                 const matches = await this.memoryManager.search(query);
 
                 let text = `Searching for: "${query}"\n\n`;
@@ -2276,11 +2146,11 @@ export class MCPServer {
             else if (name === "auto_heal") {
                 const error = args.error as string;
                 const context = args.context as string;
-                const success = await this.healerService.healAndVerify(error, context);
+                const success = await this.healerService.heal(error, context);
                 result = { content: [{ type: "text", text: success ? "Healer successfully fixed the error." : "Healer could not fix this error autonomously." }] };
             }
             else if (name === "get_project_context") {
-                const contextPath = path.join(process.cwd(), '.hypercode', 'project_context.md');
+                const contextPath = path.join(process.cwd(), '.borg', 'project_context.md');
                 let projectContent = "";
                 if (fs.existsSync(contextPath)) {
                     projectContent = await fs.promises.readFile(contextPath, 'utf-8');
@@ -2303,9 +2173,9 @@ ${env.tools.filter((tool) => tool.installed).map((tool) => `- **${tool.name}**: 
                 result = { content: [{ type: "text", text: `${projectContent}\n\n---\n${envReport}` }] };
             }
             else if (name === "update_project_context") {
-                const contextPath = path.join(process.cwd(), '.hypercode', 'project_context.md');
-                const hypercodeDir = path.join(process.cwd(), '.hypercode');
-                if (!fs.existsSync(hypercodeDir)) fs.mkdirSync(hypercodeDir, { recursive: true });
+                const contextPath = path.join(process.cwd(), '.borg', 'project_context.md');
+                const borgDir = path.join(process.cwd(), '.borg');
+                if (!fs.existsSync(borgDir)) fs.mkdirSync(borgDir, { recursive: true });
                 
                 await fs.promises.writeFile(contextPath, args.content as string);
                 result = { content: [{ type: "text", text: "Project context updated successfully." }] };
@@ -2327,26 +2197,12 @@ ${env.tools.filter((tool) => tool.installed).map((tool) => `- **${tool.name}**: 
             else {
                 // Check Standard Library
                 const terminalTools = this.terminalService.getTools();
-                const standardTool = [
-                    ...FileSystemTools,
-                    ...terminalTools,
-                    ...MemoryTools,
-                    ...TunnelTools,
-                    ...LogTools,
-                    ...ConfigTools,
-                    ...SearchTools,
-                    ...ReaderTools,
-                    ...WorktreeTools,
-                    ...MetaTools,
-                    ...getAllParityTools(),
-                    WebSearchTool
-                ].find(t => t.name === name);
+                const standardTool = [...FileSystemTools, ...terminalTools, ...MemoryTools, ...TunnelTools, ...LogTools, ...ConfigTools, ...SearchTools, ...ReaderTools, ...WorktreeTools, ...MetaTools, WebSearchTool].find(t => t.name === name);
                 if (standardTool && this.isToolWithHandler(standardTool)) {
-                    result = (await standardTool.handler(args)) as CallToolResult;
+                    result = await standardTool.handler(args);
 
                     // Phase 93: P2P Artifact Federation Interception
-                    const firstContent = result?.content?.[0];
-                    if (name === 'read_file' && this.meshService && firstContent?.type === 'text' && (firstContent as any).text?.includes('ENOENT')) {
+                    if (name === 'read_file' && this.meshService && result?.content?.[0]?.text?.includes('ENOENT')) {
                         console.log(`[Mesh Artifact] Local read missed for ${args.path}. Querying Swarm...`);
 
                         const timeoutMs = 2000;
@@ -2404,9 +2260,9 @@ ${env.tools.filter((tool) => tool.installed).map((tool) => `- **${tool.name}**: 
                                 }
                             }
 
-                            // Skip proxy routing once the Hypercode-native aggregator path has run.
+                            // Skip proxy routing once the Borg-native aggregator path has run.
                         } else {
-                            // Hypercode-native fallback path for unscoped tools.
+                            // Borg-native fallback path for unscoped tools.
                             try {
                                 this.nativeSessionMetaTools.touchLoadedTool(name);
                                 result = await this.mcpAggregator.executeTool(name, args);
@@ -2500,30 +2356,6 @@ ${env.tools.filter((tool) => tool.installed).map((tool) => `- **${tool.name}**: 
         }
     }
 
-    /**
-     * Predictive Tool Advertising (Phase 112)
-     * Fetches predicted tools from the Go sidecar based on conversation context.
-     * These are used to "warm up" the model's tool surface without a search turn.
-     */
-    public async getPredictedToolAds(chatHistory: string, activeGoal: string): Promise<string[]> {
-        const SIDECAR_URL = process.env.HYPERCODE_SIDECAR_URL || 'http://localhost:4300';
-        try {
-            const response = await fetch(`${SIDECAR_URL}/api/mcp/tools/predict`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ chatHistory, activeGoal }),
-                signal: AbortSignal.timeout(3000)
-            });
-
-            if (!response.ok) return [];
-            const result = (await response.json()) as any;
-            return result?.data?.predictedTools || [];
-        } catch (e) {
-            console.error('[MCPServer] ⚠️ Tool prediction failed:', (e as Error).message);
-            return [];
-        }
-    }
-
     public async getNativeTools(options?: {
         downstreamTools?: Tool[];
         skipLiveDiscovery?: boolean;
@@ -2531,7 +2363,7 @@ ${env.tools.filter((tool) => tool.installed).map((tool) => `- **${tool.name}**: 
         const internalTools: any[] = [
             {
                 name: "router_status",
-                description: "Check the status of the Hypercode Router",
+                description: "Check the status of the Borg Router",
                 inputSchema: { type: "object", properties: {} },
             },
             {
@@ -2583,7 +2415,7 @@ ${env.tools.filter((tool) => tool.installed).map((tool) => `- **${tool.name}**: 
             },
             {
                 name: "assimilate_skill",
-                description: "Convert a research item into a functional Hypercode Skill (runbook)",
+                description: "Convert a research item into a functional Borg Skill (runbook)",
                 inputSchema: {
                     type: "object",
                     properties: {
@@ -2626,57 +2458,6 @@ ${env.tools.filter((tool) => tool.installed).map((tool) => `- **${tool.name}**: 
                         limit: { type: "number" }
                     },
                     required: ["query"]
-                }
-            },
-            {
-                name: "run_pair_session",
-                description: "Orchestrate a shared task with a squad of frontier models (Claude, GPT, Gemini) rotating roles.",
-                inputSchema: {
-                    type: "object",
-                    properties: {
-                        task: { type: "string", description: "The high-level task to solve via multi-model collaboration." }
-                    },
-                    required: ["task"]
-                }
-            },
-            {
-                name: "a2a_broadcast",
-                description: "Broadcast an A2A message to all registered Hypercode autonomous agents.",
-                inputSchema: {
-                    type: "object",
-                    properties: {
-                        type: { type: "string", description: "Message Type (TASK_REQUEST, STATE_UPDATE, etc.)" },
-                        payload: { type: "object", description: "Message payload" }
-                    },
-                    required: ["type", "payload"]
-                }
-            },
-            {
-                name: "a2a_list_agents",
-                description: "List all currently active and registered A2A-capable agents.",
-                inputSchema: { type: "object", properties: {} }
-            },
-            {
-                name: "swarm_start_session",
-                description: "Start a multi-model swarm collaboration session for a specific goal.",
-                inputSchema: {
-                    type: "object",
-                    properties: {
-                        goal: { type: "string" },
-                        maxTurns: { type: "number", default: 5 }
-                    },
-                    required: ["goal"]
-                }
-            },
-            {
-                name: "archive_session",
-                description: "Archive a session JSON into compressed plaintext and extract valuable memories.",
-                inputSchema: {
-                    type: "object",
-                    properties: {
-                        sessionData: { type: "object", description: "The raw session JSON object to archive." }
-                    },
-                    required: ["sessionData"]
                 }
             },
             {
@@ -3373,7 +3154,7 @@ ${env.tools.filter((tool) => tool.installed).map((tool) => `- **${tool.name}**: 
             },
             {
                 name: "auto_heal",
-                description: "Hands off a technical error or failing test to the Hypercode Healer. The system will autonomously diagnose the error, generate a fix, and apply it to the source code.",
+                description: "Hands off a technical error or failing test to the Borg Healer. The system will autonomously diagnose the error, generate a fix, and apply it to the source code.",
                 inputSchema: {
                     type: "object",
                     properties: {
@@ -3403,7 +3184,7 @@ ${env.tools.filter((tool) => tool.installed).map((tool) => `- **${tool.name}**: 
             // Phase 60: The Mesh tools
             {
                 name: "swarm_broadcast",
-                description: "Broadcast a message to the Hypercode P2P Swarm",
+                description: "Broadcast a message to the Borg P2P Swarm",
                 inputSchema: {
                     type: "object",
                     properties: {
@@ -3418,18 +3199,7 @@ ${env.tools.filter((tool) => tool.installed).map((tool) => `- **${tool.name}**: 
 
         // Standard Library Tools
         const terminalTools = this.terminalService.getTools();
-        const standardTools = [
-            ...FileSystemTools,
-            ...terminalTools,
-            ...MemoryTools,
-            ...TunnelTools,
-            ...LogTools,
-            ...ConfigTools,
-            ...SearchTools,
-            ...ReaderTools,
-            ...WorktreeTools,
-            ...getAllParityTools()
-        ].map(t => ({
+        const standardTools = [...FileSystemTools, ...terminalTools, ...MemoryTools, ...TunnelTools, ...LogTools, ...ConfigTools, ...SearchTools, ...ReaderTools, ...WorktreeTools].map(t => ({
             name: t.name,
             description: t.description,
             inputSchema: t.inputSchema
@@ -3467,7 +3237,7 @@ ${env.tools.filter((tool) => tool.installed).map((tool) => `- **${tool.name}**: 
     }
 
     private async setupHandlers(serverInstance: Server) {
-        mcpServerDebugLog('[MCPServer] Using Hypercode-native MCP handlers.');
+        mcpServerDebugLog('[MCPServer] Using Borg-native MCP handlers.');
         await this.setupDirectHandlers(serverInstance);
     }
 
@@ -3510,8 +3280,8 @@ ${env.tools.filter((tool) => tool.installed).map((tool) => `- **${tool.name}**: 
 
     private setupDirectDiscoveryHandlers(serverInstance: Server): void {
         const context = {
-            namespaceUuid: 'hypercode-core-namespace',
-            sessionId: 'hypercode-core-session',
+            namespaceUuid: 'borg-core-namespace',
+            sessionId: 'borg-core-session',
             includeInactiveServers: false,
         };
 
@@ -3584,14 +3354,11 @@ ${env.tools.filter((tool) => tool.installed).map((tool) => `- **${tool.name}**: 
         // baseTools (standard lib) are now LATENT by default to keep context clean.
         // They must be explicitly enabled via "Always On" in the dashboard or discovered via search.
         const alwaysOnDownstreamTools = cachedAdvertisedDownstreamTools.filter(t => t.alwaysOn);
-        
-        // MODIFICATION: Standard Tools and Parity Aliases are now ALWAYS ON by default 
-        // to ensure immediate usefulness for tools like pi, claude code, etc.
-        const alwaysOnBaseTools = baseTools; 
+        const alwaysOnBaseTools = baseTools.filter(t => (t as any).alwaysOn);
 
         const allVisibleTools = [
             ...this.nativeSessionMetaTools.listToolDefinitions(),
-            ...getDirectModeCompatibilityTools(), // Compatibility tools are now always on too
+            ...getDirectModeCompatibilityTools().filter(t => (t as any).alwaysOn), // Filter compatibility tools too
             ...alwaysOnBaseTools,
             ...alwaysOnDownstreamTools,
             ...savedScriptTools.filter(t => (t as any).alwaysOn),
@@ -3665,71 +3432,61 @@ ${env.tools.filter((tool) => tool.installed).map((tool) => `- **${tool.name}**: 
 
     async start() {
         mcpServerDebugLog('[MCPServer] Loading Skills...');
+        // Non-blocking initialization of aggregator to prevent stalling Stdio/WS start
+        this.mcpAggregator.initialize()
+            .then(async () => {
+                const inventory = await getCachedToolInventory();
+                const toolCountsByName = new Map(
+                    inventory.servers.map((server) => [server.name, inventory.toolCounts.get(server.uuid) ?? 0]),
+                );
 
-        // CRITICAL: Connect stdio transport FIRST so the MCP client receives
-        // its initialize response immediately. Heavy initialization happens
-        // in the background after transport is connected.
-        // Tool handlers are already registered in the constructor (setupHandlers),
-        // so the server can respond to requests right away.
+                this.mcpAggregator.seedAdvertisedInventory({
+                    servers: inventory.servers.map((server) => ({
+                        name: server.name,
+                        alwaysOnAdvertised: server.alwaysOnAdvertised,
+                        advertisedToolCount: toolCountsByName.get(server.name) ?? 0,
+                    })),
+                    source: inventory.source,
+                });
+                const { lazySessionMode } = mcpServerPool.getLifecycleModes();
+                // Keep aggregator in sync with the resolved lifecycle mode so that
+                // any restarts or hot-reload paths also respect the latest setting.
+                this.mcpAggregator.setLazyMode(lazySessionMode);
+                if (lazySessionMode) {
+                    mcpServerDebugLog('[MCPServer] Lazy MCP session mode enabled; skipping eager advertised-server warmup.');
+                } else {
+                    this.mcpAggregator.warmAdvertisedServers();
+                }
+            })
+            .catch(e => console.error("[MCPServer] Aggregator Init Failed:", e));
+
+        // Startup readiness should only report memory as ready once the runtime flag
+        // is actually set. The current memory bootstrap is lightweight, so we prime
+        // it during core startup instead of advertising a false-positive ready state.
+        await this.initializeMemorySystem();
+
+        // Start Services
+        // this.director.startChatDaemon(); // Removed, auto-drive handles this
+
+        // Trigger automatic session log import in the background
+        this.sessionImportService.scanAndImport().catch(e => console.error("[SessionImport] Failed:", e));
+
+        // Build Graph in Background
+        this.autoTestService.repoGraph.buildGraph().catch(e => console.error("Graph build failed", e));
+
+        mcpServerDebugLog('[MCPServer] 🚀 Borg Core ready.');
+        mcpServerDebugLog('[MCPServer] Preparing request handlers...');
         await this.serverSetupPromise;
 
-        // 1. Start Stdio (for local CLI usage) — MOVED TO TOP
+        // 1. Start Stdio (for local CLI usage)
         if (!this.options.skipStdio) {
-            mcpServerDebugLog('[MCPServer] Connecting Stdio (early)...');
+            mcpServerDebugLog('[MCPServer] Connecting Stdio...');
             const stdioTransport = new StdioServerTransport();
             await this.server.connect(stdioTransport);
-            mcpServerDebugLog('Hypercode Core: Stdio Transport Active');
+            mcpServerDebugLog('Borg Core: Stdio Transport Active');
         } else {
             mcpServerDebugLog('[MCPServer] Skipping Stdio transport (managed by external loader).');
         }
-
-        // Heavy initialization runs in the background — the transport is already
-        // connected, so tool calls will be handled as soon as inventory is available.
-        const backgroundInit = (async () => {
-            const aggregatorStartup = this.mcpAggregator.initialize()
-                .then(async () => {
-                    const inventory = await getCachedToolInventory();
-                    const toolCountsByName = new Map(
-                        inventory.servers.map((server) => [server.name, inventory.toolCounts.get(server.uuid) ?? 0]),
-                    );
-                    this.mcpAggregator.seedAdvertisedInventory({
-                        servers: inventory.servers.map((server) => ({
-                            name: server.name,
-                            alwaysOnAdvertised: server.alwaysOnAdvertised,
-                            advertisedToolCount: toolCountsByName.get(server.name) ?? 0,
-                        })),
-                        source: inventory.source,
-                    });
-                    const { lazySessionMode } = mcpServerPool.getLifecycleModes();
-                    this.mcpAggregator.setLazyMode(lazySessionMode);
-                    if (lazySessionMode) {
-                        mcpServerDebugLog('[MCPServer] Lazy MCP session mode enabled; skipping eager advertised-server warmup.');
-                    } else {
-                        this.mcpAggregator.warmAdvertisedServers();
-                    }
-                })
-                .catch(e => console.error("[MCPServer] Aggregator Init Failed:", e));
-
-            await this.initializeMemorySystem();
-            await aggregatorStartup;
-
-            // Start Services
-            workspaceTracker.registerWorkspace(process.cwd());
-            this.sessionImportService.startAutoImport();
-            this.bobbyBookmarksSyncWorker.start();
-            this.linkCrawlerWorker.start();
-            this.nativeSidecarDaemon.start().catch(e => console.error("[MCPServer] Native sidecar daemon failed to start:", e));
-            this.autoTestService.repoGraph.buildGraph().catch(e => console.error("Graph build failed", e));
-
-            mcpServerDebugLog('[MCPServer] 🚀 Hypercode Core ready (background init complete).');
-        })();
-
-        // Don't await backgroundInit — let it run while the server is already
-        // accepting requests. The server will return partial tool lists until
-        // the aggregator finishes initializing.
-        void backgroundInit;
-
-        mcpServerDebugLog('[MCPServer] Stdio connected, background init in progress...');
 
         // 2. Start WebSocket (for Extension/Web usage)
         if (this.wsServer && !this.wssInstance) {
@@ -3765,7 +3522,7 @@ ${env.tools.filter((tool) => tool.installed).map((tool) => `- **${tool.name}**: 
                         status: 'online',
                         uptime: process.uptime(),
                         timestamp: Date.now(),
-                        version: '0.99.1'
+                        version: '0.90.7'
                     }));
                 } else if (req.url === '/mcp/servers') {
                     const servers = await this.mcpAggregator.listServers();
@@ -3781,20 +3538,15 @@ ${env.tools.filter((tool) => tool.installed).map((tool) => `- **${tool.name}**: 
                     req.on('end', async () => {
                         try {
                             const data = JSON.parse(body);
-                            const writeSuccessJson = (payload: unknown) => {
-                                if (!res.headersSent) {
-                                    res.writeHead(200, {
-                                        'Content-Type': 'application/json',
-                                        'Access-Control-Allow-Origin': '*'
-                                    });
-                                }
-                                res.end(JSON.stringify(payload));
-                            };
+                            res.writeHead(200, {
+                                'Content-Type': 'application/json',
+                                'Access-Control-Allow-Origin': '*'
+                            });
 
                             if (req.url === '/director.chat') {
                                 // Direct chat interface
                                 const result = await this.director.executeTask(data.message);
-                                writeSuccessJson({ result: { data: result } });
+                                res.end(JSON.stringify({ result: { data: result } }));
                             } else if (req.url === '/expert.dispatch') {
                                 const kind = String(data.kind ?? '').toLowerCase();
 
@@ -3826,7 +3578,7 @@ ${env.tools.filter((tool) => tool.installed).map((tool) => `- **${tool.name}**: 
                                         }
                                     });
 
-                                    writeSuccessJson({ success: true, kind: 'research', result });
+                                    res.end(JSON.stringify({ success: true, kind: 'research', result }));
                                 } else if (kind === 'code') {
                                     if (!this.coderAgent) {
                                         res.writeHead(503, {
@@ -3848,7 +3600,7 @@ ${env.tools.filter((tool) => tool.installed).map((tool) => `- **${tool.name}**: 
                                     }
 
                                     const result = await this.coderAgent.handleTask({ task });
-                                    writeSuccessJson({ success: true, kind: 'code', result });
+                                    res.end(JSON.stringify({ success: true, kind: 'code', result }));
                                 } else {
                                     res.writeHead(400, {
                                         'Content-Type': 'application/json',
@@ -3857,11 +3609,11 @@ ${env.tools.filter((tool) => tool.installed).map((tool) => `- **${tool.name}**: 
                                     res.end(JSON.stringify({ success: false, error: 'Unsupported expert dispatch kind' }));
                                 }
                             } else if (req.url === '/expert.status') {
-                                writeSuccessJson({
+                                res.end(JSON.stringify({
                                     success: true,
                                     researcher: this.researcherAgent ? 'active' : 'offline',
                                     coder: this.coderAgent ? 'active' : 'offline',
-                                });
+                                }));
                             } else if (req.url === '/knowledge.capture') {
                                 const content = String(data.content ?? '').trim();
                                 const title = String(data.title ?? 'Captured Page');
@@ -3899,7 +3651,7 @@ ${env.tools.filter((tool) => tool.installed).map((tool) => `- **${tool.name}**: 
                                     }
                                 });
 
-                                writeSuccessJson({ success: true, id: ctxId });
+                                res.end(JSON.stringify({ success: true, id: ctxId }));
                             } else if (req.url === '/knowledge.ingest-url') {
                                 const url = String(data.url ?? '').trim();
                                 if (!url) {
@@ -3912,7 +3664,7 @@ ${env.tools.filter((tool) => tool.installed).map((tool) => `- **${tool.name}**: 
                                 }
 
                                 const result = await this.deepResearchService.ingest(url);
-                                writeSuccessJson({ success: true, result });
+                                res.end(JSON.stringify({ success: true, result }));
                             } else if (req.url === '/rag.ingest-text') {
                                 const text = String(data.text ?? '').trim();
                                 const sourceName = String(data.sourceName ?? data.title ?? data.url ?? 'browser-extension-page');
@@ -3950,21 +3702,19 @@ ${env.tools.filter((tool) => tool.installed).map((tool) => `- **${tool.name}**: 
                                     }
                                 });
 
-                                writeSuccessJson({ success: result.success, chunksIngested: result.chunks });
+                                res.end(JSON.stringify({ success: result.success, chunksIngested: result.chunks }));
                             } else if (req.url === '/tool/execute') {
                                 // Generic tool execution
                                 const result = await this.executeTool(data.name, data.args);
-                                writeSuccessJson({ result: { data: result } });
+                                res.end(JSON.stringify({ result: { data: result } }));
                             } else {
                                 // Forward to TRPC-like structure if needed, or 404
                                 res.writeHead(404);
                                 res.end(JSON.stringify({ error: 'Endpoint not found' }));
                             }
                         } catch (e: any) {
-                            if (!res.headersSent) {
-                                res.writeHead(500, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
-                                res.end(JSON.stringify({ error: e.message }));
-                            }
+                            res.writeHead(500, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+                            res.end(JSON.stringify({ error: e.message }));
                         }
                     });
                 } else {
@@ -3981,21 +3731,6 @@ ${env.tools.filter((tool) => tool.installed).map((tool) => `- **${tool.name}**: 
             const wss = new WebSocketServer({ server: httpServer });
             this.wssInstance = wss;
 
-            // Neural Pulse & A2A Bridge
-            wss.on('connection', (ws) => {
-                ws.on('message', async (data) => {
-                    try {
-                        const str = data.toString();
-                        const message = JSON.parse(str);
-                        if (message.type === 'A2A_SIGNAL') {
-                            await a2aBroker.routeMessage(message.payload);
-                        }
-                    } catch (e) {
-                        // Ignore non-JSON or malformed pulse signals
-                    }
-                });
-            });
-
             let bridgePortConflictHandled = false;
             const handleBridgePortConflict = () => {
                 if (bridgePortConflictHandled) {
@@ -4003,7 +3738,7 @@ ${env.tools.filter((tool) => tool.installed).map((tool) => `- **${tool.name}**: 
                 }
 
                 bridgePortConflictHandled = true;
-                console.warn(`[Hypercode Core] ⚠️ WebSocket bridge port ${PORT} is already in use. Skipping bridge startup while keeping the rest of Hypercode online.`);
+                console.warn(`[Borg Core] ⚠️ WebSocket bridge port ${PORT} is already in use. Skipping bridge startup while keeping the rest of Borg online.`);
                 this.wssInstance = null;
             };
 
@@ -4013,7 +3748,7 @@ ${env.tools.filter((tool) => tool.installed).map((tool) => `- **${tool.name}**: 
                     return;
                 }
 
-                console.error(`[Hypercode Core] ❌ WebSocket Server Error (Port ${PORT}):`, err.message);
+                console.error(`[Borg Core] ❌ WebSocket Server Error (Port ${PORT}):`, err.message);
             });
 
             wss.on('error', (err: any) => {
@@ -4022,7 +3757,7 @@ ${env.tools.filter((tool) => tool.installed).map((tool) => `- **${tool.name}**: 
                     return;
                 }
 
-                console.error(`[Hypercode Core] ❌ WebSocket bridge runtime error (Port ${PORT}):`, err.message);
+                console.error(`[Borg Core] ❌ WebSocket bridge runtime error (Port ${PORT}):`, err.message);
             });
 
             const bridgeListening = await new Promise<boolean>((resolve) => {
@@ -4038,7 +3773,7 @@ ${env.tools.filter((tool) => tool.installed).map((tool) => `- **${tool.name}**: 
                 };
 
                 httpServer.once('listening', () => {
-                    mcpServerDebugLog(`Hypercode Core: WebSocket Transport Active on ws://localhost:${PORT}`);
+                    mcpServerDebugLog(`Borg Core: WebSocket Transport Active on ws://localhost:${PORT}`);
                     finalize(true);
                 });
 
@@ -4082,14 +3817,14 @@ ${env.tools.filter((tool) => tool.installed).map((tool) => `- **${tool.name}**: 
                 ws.on('message', async (data: any) => {
                     try {
                         const msg = JSON.parse(data.toString());
-                        if (msg.type === 'HYPERCODE_CLIENT_HELLO') {
+                        if (msg.type === 'BORG_CLIENT_HELLO') {
                             const existing = this.bridgeClients.get(ws) ?? createDefaultBridgeClient(clientId);
                             const updated = applyBridgeClientHello(existing, msg, Date.now());
                             this.bridgeClients.set(ws, updated);
 
                             if (ws.readyState === 1) {
                                 ws.send(JSON.stringify({
-                                    type: 'HYPERCODE_CORE_MANIFEST',
+                                    type: 'BORG_CORE_MANIFEST',
                                     manifest: buildBridgeManifest(Array.from(this.bridgeClients.values())),
                                 }));
                             }
@@ -4150,7 +3885,7 @@ ${env.tools.filter((tool) => tool.installed).map((tool) => `- **${tool.name}**: 
                             if (level === 'error') {
                                 this.auditService.log('BROWSER_ERROR', { url, error: content }, 'ERROR');
                                 // TRIGGER HEALER
-                                this.healerService.healAndVerify(content, `URL: ${url}, Timestamp: ${timestamp}`)
+                                this.healerService.heal(content, `URL: ${url}, Timestamp: ${timestamp}`)
                                     .catch(e => console.error("Healer Error:", e));
                             }
                         }
@@ -4256,24 +3991,24 @@ ${env.tools.filter((tool) => tool.installed).map((tool) => `- **${tool.name}**: 
             const rootDir = this.findMonorepoRoot(__dirname);
             mcpServerDebugLog(`[MCPServer] DEBUG rootDir: ${rootDir}`);
             if (rootDir) {
-                const supervisorPath = path.join(rootDir, 'packages', 'hypercode-supervisor', 'dist', 'index.js');
+                const supervisorPath = path.join(rootDir, 'packages', 'borg-supervisor', 'dist', 'index.js');
                 mcpServerDebugLog(`[MCPServer] Supervisor Path Resolved: ${supervisorPath}`);
 
-                await this.router.connectToServer('hypercode-supervisor', 'node', [supervisorPath]);
-                mcpServerDebugLog(`Hypercode Core: Connected to Supervisor at ${supervisorPath}`);
+                await this.router.connectToServer('borg-supervisor', 'node', [supervisorPath]);
+                mcpServerDebugLog(`Borg Core: Connected to Supervisor at ${supervisorPath}`);
 
                 // Phase 16: Google Workspace Integration
                 const workspacePath = path.join(rootDir, 'external', 'mcp-servers', 'workspace', 'workspace-server', 'dist', 'index.js');
                 mcpServerDebugLog(`[MCPServer] Google Workspace Server Path: ${workspacePath}`);
                 if (fs.existsSync(workspacePath)) {
                     await this.router.connectToServer('google-workspace', 'node', [workspacePath]);
-                    mcpServerDebugLog('Hypercode Core: Connected to Google Workspace Server (GMail/Calendar)');
+                    mcpServerDebugLog('Borg Core: Connected to Google Workspace Server (GMail/Calendar)');
                 }
             } else {
                 console.error("[MCPServer] Failed to locate Monorepo Root. Skipping Supervisor.");
             }
         } catch (e: any) {
-            console.error("Hypercode Core: Failed to connect to Supervisor. Native automation disabled.", e.message);
+            console.error("Borg Core: Failed to connect to Supervisor. Native automation disabled.", e.message);
         }
 
         if (this.wsServer && this.wssInstance) {
@@ -4333,20 +4068,20 @@ async function startDirectlyIfExecuted(): Promise<void> {
     redirectProtocolUnsafeConsoleMethodsForDirectExecution();
 
     process.on('unhandledRejection', (reason) => {
-        console.error('[Hypercode Core] Unhandled promise rejection:', reason);
+        console.error('[Borg Core] Unhandled promise rejection:', reason);
     });
 
     process.on('uncaughtException', (error) => {
-        console.error('[Hypercode Core] Uncaught exception:', error);
+        console.error('[Borg Core] Uncaught exception:', error);
         process.exit(1);
     });
 
     try {
         const mcp = new MCPServer({ skipWebsocket: true });
         await mcp.start();
-        console.error('[Hypercode Core] MCPServer direct entrypoint started.');
+        console.error('[Borg Core] MCPServer direct entrypoint started.');
     } catch (error) {
-        console.error('[Hypercode Core] Failed to start direct MCP entrypoint:', error);
+        console.error('[Borg Core] Failed to start direct MCP entrypoint:', error);
         process.exit(1);
     }
 }
