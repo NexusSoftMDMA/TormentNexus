@@ -1,6 +1,6 @@
 {
   "name": "@hypercode/web",
-  "version": "1.0.0-alpha.64",
+  "version": "1.0.0-alpha.65",
   "private": true,
   "scripts": {
     "dev": "node ./scripts/dev.mjs",

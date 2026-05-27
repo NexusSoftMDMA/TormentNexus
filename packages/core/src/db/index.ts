@@ -434,6 +434,24 @@ function initializeSchema(database: InstanceType<typeof Database>): void {
     } catch (err) {
         console.warn("[DB Migration] Failed to alter tools table:", err);
     }
+
+    try {
+        const tableInfo = database.pragma("table_info(imported_sessions)") as Array<{ name: string }>;
+        if (tableInfo.length > 0) {
+            const hasSourceSize = tableInfo.some((col) => col.name === "source_size");
+            if (!hasSourceSize) {
+                database.exec(`ALTER TABLE imported_sessions ADD COLUMN source_size INTEGER;`);
+                console.info("[DB Migration] Added 'source_size' column to imported_sessions table.");
+            }
+            const hasSourceMtime = tableInfo.some((col) => col.name === "source_mtime");
+            if (!hasSourceMtime) {
+                database.exec(`ALTER TABLE imported_sessions ADD COLUMN source_mtime INTEGER;`);
+                console.info("[DB Migration] Added 'source_mtime' column to imported_sessions table.");
+            }
+        }
+    } catch (err) {
+        console.warn("[DB Migration] Failed to alter imported_sessions table:", err);
+    }
     // Add missing tables for hypercode-schema
     try {
         database.exec(`

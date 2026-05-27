@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.0.0-alpha.65] - 2026-05-27
+
+### Added
+- **Dynamic Database Migration**:
+  - Implemented automatic, safe, dynamic SQLite migrations for existing databases to append the missing `source_size` and `source_mtime` columns to the `imported_sessions` table on server initialization.
+- **Robust MCP Tool Calling and Validation**:
+  - Fixed client callTool parameter signature mismatch by explicitly passing `undefined` as the second argument when calling tools with custom options (resolving `safeParse` collision crash).
+  - Validated full bidirectional MCP client-server communication over standard I/O (StdioClientTransport).
+  - Tested native tools (`router_status`, `system_status`), filesystem fallbacks, and verified graceful connection recovery on downstream aggregated server crash (Healer Immune System reactor activation).
+
 ## [1.0.0-alpha.64] - 2026-05-25
 
 ### Added

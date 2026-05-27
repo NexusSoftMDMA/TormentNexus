@@ -192,5 +192,8 @@
 ### 47. TypeScript Compile Security & Telemetry Alignment (Added 2026-05-25)
 **Observation**: The environment-telemetry model updates introduced compile discrepancies in `NormalizedQuotaService.ts` due to missing properties on core `types.ts` interfaces (`ProviderAuthState`, `ProviderQuotaSnapshot`).
 **Resolution**: Formally defined `ProviderAuthTruth` and added the missing telemetry properties (`authTruth`, `quotaConfidence`, `quotaRefreshedAt`) to `packages/core/src/providers/types.ts`. Eliminated all redundant `@ts-expect-error` directives, achieving a 100% clean build.
+### 48. Zod Dual-Instance and callTool Options Param Collision (Added 2026-05-27)
+**Observation**: The standard `@modelcontextprotocol/sdk` client signature is `client.callTool(params, resultSchema = CallToolResultSchema, options)`. If caller passes options as the second argument (e.g. `client.callTool(params, { timeout })`), the SDK treats the options object as a Zod schema. The internal `zod-compat.js` helper checks if the schema is a Zod v4 schema (using `schema._zod`), and when it returns false, falls back to Zod v3 parsing by calling `v3Schema.safeParse()`. Since the options object is a plain JS object, this throws: `TypeError: v3Schema.safeParse is not a function`.
+**Resolution**: Always explicitly pass `undefined` as the second parameter when specifying custom client call options: `client.callTool(params, undefined, { timeout })`. Robustified the test suite to use this correct calling convention.
 
 *Update this file whenever a major systemic pattern, recurring bug, or deep architectural quirk is discovered.*
