@@ -30,6 +30,7 @@ export interface QuotaConfig {
   dailyBudgetUsd?: number;
   monthlyBudgetUsd?: number;
   providerLimits?: Record<string, any>;
+  preEmptiveSwitchThreshold?: number;
 }
 
 export interface IAgent {

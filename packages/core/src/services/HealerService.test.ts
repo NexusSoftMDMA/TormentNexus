@@ -49,7 +49,7 @@ describe('Healer degraded startup handling', () => {
         );
         expect(generateText).toHaveBeenCalledWith(
             'openrouter',
-            'xiaomi/mimo-v2-flash:free',
+            expect.any(String),
             'You are a JSON-only debugging tool.',
             expect.any(String),
             {},

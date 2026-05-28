@@ -1,6 +1,6 @@
 # TODO
 
-_Last updated: 2026-05-20, version 1.0.0-alpha.62_
+_Last updated: 2026-05-25, version 1.0.0-alpha.63_
 
 ## P0 — Must do now (Stability & Truth)
 
@@ -21,6 +21,11 @@ _Last updated: 2026-05-20, version 1.0.0-alpha.62_
 - [x] **Intelligence Heatmap**: Create a 3D visualization of the L2 Vault using the embedding vectors.
 - [x] **Skill Marketplace**: Implement the REST API for downloading community-contributed skills.
 - [x] **Decentralized Memory**: Scoping Phase for P2P memory sync using gossip protocols.
+
+## Completed (v1.0.0-alpha.63)
+- [x] Bridged TypeScript `healerRouter` to Go-native `HealerService` and `VectorStore`.
+- [x] Implemented total count metrics for L2 Vault records in Go.
+- [x] Standardized field mapping (snake_case -> PascalCase) for native record UI compatibility.
 
 ## Completed (v1.0.0-alpha.62)
 - [x] Autonomous Healer Loop (diagnose -> fix -> verify -> retry) in Go.

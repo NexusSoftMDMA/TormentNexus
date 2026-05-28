@@ -33,6 +33,8 @@ function createSchema(database: Database.Database): void {
             uuid TEXT PRIMARY KEY,
             source_tool TEXT NOT NULL,
             source_path TEXT NOT NULL,
+            source_size INTEGER,
+            source_mtime INTEGER,
             external_session_id TEXT,
             title TEXT,
             session_format TEXT NOT NULL,
@@ -131,17 +133,10 @@ describe('ImportedSessionStore', () => {
     });
 
     it('returns false and logs a concise warning when transcript deduplication is unavailable', async () => {
-        vi.resetModules();
         const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-        vi.doMock('../db/index.js', () => ({
-            get sqliteInstance() {
-                return {
-                    prepare() {
-                        throw new Error('SQLite runtime is unavailable for this run.');
-                    },
-                };
-            },
-        }));
+        const prepareSpy = vi.spyOn(sqliteForTest, 'prepare').mockImplementation(() => {
+            throw new Error('SQLite runtime is unavailable for this run.');
+        });
 
         const { ImportedSessionStore } = await import('./ImportedSessionStore.js') as ImportedSessionStoreModule;
         const store = new ImportedSessionStore(await createTempRoot());
@@ -150,6 +145,7 @@ describe('ImportedSessionStore', () => {
         expect(warnSpy).toHaveBeenCalledWith(
             '[ImportedSessionStore] Transcript deduplication is unavailable: SQLite runtime is unavailable for this run.',
         );
+        prepareSpy.mockRestore();
     });
 
     it('upserts, lists, and fetches imported sessions with parsed memories', async () => {

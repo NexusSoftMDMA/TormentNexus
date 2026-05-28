@@ -193,7 +193,6 @@ function createSnapshot(
         authMethod: connection.authMethod,
         configured: true,
         authenticated: true,
-        // @ts-expect-error -- type mismatch from inferred schema types
         authTruth: 'authenticated',
         detail,
         used: summary.used,
@@ -218,7 +217,6 @@ function createMissingSnapshot(spec: ProviderBalanceSpec): ProviderQuotaSnapshot
         authMethod: spec.defaultAuthMethod,
         configured: false,
         authenticated: false,
-        // @ts-expect-error -- type mismatch from inferred schema types
         authTruth: 'not_configured',
         detail: `No ${spec.provider} balance connection configured.`,
         used: 0,
@@ -244,7 +242,6 @@ function createErrorSnapshot(spec: ProviderBalanceSpec, connection: ProviderBala
         authMethod: connection.authMethod,
         configured: true,
         authenticated: true,
-        // @ts-expect-error -- type mismatch from inferred schema types
         authTruth: 'authenticated',
         detail: 'Balance lookup failed.',
         used: 0,

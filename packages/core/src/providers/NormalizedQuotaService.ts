@@ -25,12 +25,13 @@ export class NormalizedQuotaService extends QuotaService {
         providerLimits: {},
     };
     private readonly snapshots = new Map<string, ProviderQuotaSnapshot>();
+    private lastEnv: NodeJS.ProcessEnv = process.env;
 
     constructor(registry: ProviderRegistry, balanceService: ProviderBalanceService = new ProviderBalanceService()) {
         super();
         this.registry = registry;
         this.balanceService = balanceService;
-        this.refreshAuthStates();
+        this.refreshAuthStates(this.lastEnv);
     }
 
     public setConfig(config: QuotaConfig) {
@@ -42,25 +43,57 @@ export class NormalizedQuotaService extends QuotaService {
                 ...(config.providerLimits ?? {}),
             },
         };
-        this.refreshAuthStates();
+        this.refreshAuthStates(this.lastEnv);
+    }
+
+    private readonly revokedProviders = new Set<string>();
+
+    public markAuthRevoked(provider: string, reason?: string) {
+        this.revokedProviders.add(provider);
+        const snapshot = this.snapshots.get(provider);
+        if (snapshot) {
+            this.snapshots.set(provider, {
+                ...snapshot,
+                authTruth: 'revoked',
+                authenticated: false,
+                availability: 'missing_auth',
+                lastError: reason ?? 'Authentication revoked',
+            });
+        }
     }
 
     public refreshAuthStates(env: NodeJS.ProcessEnv = process.env) {
+        this.lastEnv = env;
         for (const authState of this.registry.getAuthStates(env)) {
             const existing = this.snapshots.get(authState.provider);
             const limit = this.configState.providerLimits?.[authState.provider] ?? existing?.limit ?? null;
             const used = existing?.used ?? 0;
+
+            const isRevoked = this.revokedProviders.has(authState.provider);
+            const authTruth = isRevoked ? 'revoked' : authState.authTruth;
+            const authenticated = isRevoked ? false : authState.authenticated;
+            const availability = isRevoked 
+                ? 'missing_auth'
+                : authenticated ? (existing?.availability ?? 'available') : 'missing_auth';
+
+            const quotaConfidence = existing?.quotaConfidence ?? 'estimated';
+            const quotaRefreshedAt = existing?.quotaRefreshedAt ?? null;
+
             this.snapshots.set(authState.provider, {
                 ...authState,
+                authTruth,
+                authenticated,
                 used,
                 limit,
                 remaining: typeof limit === 'number' ? Math.max(limit - used, 0) : null,
                 resetDate: existing?.resetDate ?? null,
                 rateLimitRpm: existing?.rateLimitRpm ?? null,
                 tier: existing?.tier ?? this.registry.getProvider(authState.provider)?.models[0]?.tier ?? 'standard',
-                availability: authState.authenticated ? (existing?.availability ?? 'available') : 'missing_auth',
+                availability,
                 lastError: existing?.lastError,
                 retryAfter: existing?.retryAfter ?? null,
+                quotaConfidence,
+                quotaRefreshedAt,
             });
         }
     }
@@ -85,11 +118,22 @@ export class NormalizedQuotaService extends QuotaService {
         if (snapshot) {
             const nextUsed = snapshot.used + costUsd;
             const limit = snapshot.limit;
+            const threshold = this.configState.preEmptiveSwitchThreshold ?? 0.95;
+
+            let availability = snapshot.availability;
+            if (typeof limit === 'number' && limit > 0) {
+                if (nextUsed >= limit) {
+                    availability = 'quota_exhausted';
+                } else if (nextUsed / limit >= threshold) {
+                    availability = 'cooldown';
+                }
+            }
+
             this.snapshots.set(provider, {
                 ...snapshot,
                 used: nextUsed,
                 remaining: typeof limit === 'number' ? Math.max(limit - nextUsed, 0) : null,
-                availability: typeof limit === 'number' && nextUsed >= limit ? 'quota_exhausted' : snapshot.availability,
+                availability,
             });
         }
     }
@@ -125,6 +169,23 @@ export class NormalizedQuotaService extends QuotaService {
         return this.getDailyTotal() >= this.configState.dailyBudgetUsd;
     }
 
+    public getNearQuotaWarnings(): Array<{ provider: string; usedPercent: number }> {
+        const warnings: Array<{ provider: string; usedPercent: number }> = [];
+        const threshold = this.configState.preEmptiveSwitchThreshold ?? 0.95;
+        for (const [provider, snapshot] of this.snapshots.entries()) {
+            if (typeof snapshot.limit === 'number' && snapshot.limit > 0) {
+                const usedPercent = snapshot.used / snapshot.limit;
+                if (usedPercent >= threshold && usedPercent < 1.0) {
+                    warnings.push({
+                        provider,
+                        usedPercent: Math.round(usedPercent * 100),
+                    });
+                }
+            }
+        }
+        return warnings;
+    }
+
     public getReport() {
         return {
             session: this.getSessionTotal(),
@@ -138,9 +199,21 @@ export class NormalizedQuotaService extends QuotaService {
         const liveSnapshots = await this.balanceService.fetchSnapshots();
         for (const snapshot of liveSnapshots) {
             const existing = this.snapshots.get(snapshot.provider);
+
+            let quotaRefreshedAt = snapshot.quotaRefreshedAt ?? existing?.quotaRefreshedAt ?? null;
+            if ((quotaRefreshedAt as any) instanceof Date) {
+                quotaRefreshedAt = (quotaRefreshedAt as any).toISOString();
+            } else if (typeof quotaRefreshedAt === 'number') {
+                quotaRefreshedAt = new Date(quotaRefreshedAt).toISOString();
+            } else if (quotaRefreshedAt === null) {
+                quotaRefreshedAt = new Date().toISOString();
+            }
+
             this.snapshots.set(snapshot.provider, {
                 ...existing,
                 ...snapshot,
+                quotaConfidence: 'real-time',
+                quotaRefreshedAt,
                 windows: snapshot.windows ?? existing?.windows,
                 source: snapshot.source ?? existing?.source ?? 'balance',
                 connectionId: snapshot.connectionId ?? existing?.connectionId ?? null,
@@ -174,9 +247,13 @@ export class NormalizedQuotaService extends QuotaService {
             return;
         }
 
+        this.revokedProviders.delete(provider);
+        const standardAuthState = this.registry.getAuthStates(process.env).find(s => s.provider === provider);
+
         this.snapshots.set(provider, {
             ...snapshot,
-            availability: snapshot.authenticated ? 'available' : 'missing_auth',
+            authTruth: standardAuthState?.authTruth ?? 'authenticated',
+            availability: standardAuthState?.authenticated ? 'available' : 'missing_auth',
             retryAfter: null,
             lastError: undefined,
         });

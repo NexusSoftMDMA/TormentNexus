@@ -124,6 +124,18 @@ func (s *VectorStore) SemanticSearch(ctx context.Context, query string, limit in
 	return results, nil
 }
 
+func (s *VectorStore) GetVaultRecordCount(ctx context.Context) (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	var count int
+	err := s.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM l2_vault").Scan(&count)
+	if err != nil {
+		return 0, fmt.Errorf("GetVaultRecordCount: %w", err)
+	}
+	return count, nil
+}
+
 func (s *VectorStore) incrementHeatLocked(ctx context.Context, id string) {
 	_, _ = s.db.ExecContext(ctx, `
 		UPDATE l2_vault

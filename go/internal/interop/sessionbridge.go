@@ -91,10 +91,17 @@ func ResolveTRPCBases(mainLockPath string) []string {
 }
 
 func CallTRPCProcedure(ctx context.Context, mainLockPath string, procedure string, payload any) (UpstreamCallResult, error) {
-	requestBody, err := json.Marshal(map[string]any{"json": payload})
-	if err != nil {
-		return UpstreamCallResult{}, err
+	var requestBody []byte
+	var err error
+	if payload == nil {
+		requestBody = []byte("{}")
+	} else {
+		requestBody, err = json.Marshal(payload)
+		if err != nil {
+			return UpstreamCallResult{}, err
+		}
 	}
+	
 	var lastErr error
 	client := sharedTRPCClient()
 
@@ -195,7 +202,7 @@ func callTRPCOnce(ctx context.Context, client *http.Client, targetBase string, r
 	}
 
 	if resp.StatusCode >= http.StatusBadRequest {
-		return UpstreamCallResult{}, fmt.Errorf("upstream %s returned %d: %s", targetBase, resp.StatusCode, strings.TrimSpace(string(body)))
+		return UpstreamCallResult{}, fmt.Errorf("upstream %s returned %d: %s (req: %s)", targetBase, resp.StatusCode, strings.TrimSpace(string(body)), string(requestBody))
 	}
 
 	data, extractErr := extractTRPCData(body)

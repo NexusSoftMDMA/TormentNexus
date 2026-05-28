@@ -71,7 +71,7 @@ export function DashboardHomeClient() {
     refetchInterval: 5000,
     retry: false,
   });
-  const healerVaultQuery = trpc.healer.vaultRecords.useQuery({ limit: 1 }, {
+  const healerVaultCountQuery = trpc.healer.vaultRecordCount.useQuery(undefined, {
     refetchInterval: 10000,
     retry: false,
   });
@@ -97,6 +97,8 @@ export function DashboardHomeClient() {
       utils.billing.getFallbackChain.invalidate(),
       utils.session.list.invalidate(),
       installArtifactsQuery.refetch(),
+      utils.healer.getHistory.invalidate(),
+      utils.healer.vaultRecordCount.invalidate(),
     ]);
   };
 
@@ -240,8 +242,7 @@ export function DashboardHomeClient() {
   // ── Healer Status: derived from healer history and vault queries ──
   const healerStatus = useMemo<DashboardHealerSummary>(() => {
     const history = (healerHistoryQuery.data ?? []) as any[];
-    const vaultData = healerVaultQuery.data as { records: any[], totalCount: number } | undefined;
-    const vaultRecords = vaultData?.records;
+    const vaultRecordCount = (healerVaultCountQuery.data as number) ?? 0;
     const activePathogens = history.filter((e: any) => !e.success).length;
     const resolvedCount = history.filter((e: any) => e.success).length;
     const total = activePathogens + resolvedCount;
@@ -250,8 +251,7 @@ export function DashboardHomeClient() {
     const lastHealTime = lastSuccess.length > 0
       ? new Date(lastSuccess[lastSuccess.length - 1]?.timestamp).toLocaleString()
       : null;
-    const vaultRecordCount = vaultData?.totalCount ?? 0;
-    const isLive = healerHistoryQuery.isSuccess || healerVaultQuery.isSuccess;
+    const isLive = healerHistoryQuery.isSuccess || healerVaultCountQuery.isSuccess;
     return {
       activePathogens,
       resolvedCount,
@@ -260,7 +260,7 @@ export function DashboardHomeClient() {
       vaultRecordCount,
       isLive,
     };
-  }, [healerHistoryQuery.data, healerVaultQuery.data, healerHistoryQuery.isSuccess, healerVaultQuery.isSuccess]);
+  }, [healerHistoryQuery.data, healerVaultCountQuery.data, healerHistoryQuery.isSuccess, healerVaultCountQuery.isSuccess]);
 
   return (
     <DashboardHomeView

@@ -3,7 +3,6 @@ import { DEFAULT_OPENROUTER_FREE_MODEL } from '@hypercode/ai';
 import {
     type FallbackCandidateSnapshot,
     type ProviderAuthState,
-    // @ts-expect-error -- type mismatch from inferred schema types
     type ProviderAuthTruth,
     type ProviderDefinition,
     type ProviderModelDefinition,
@@ -415,7 +414,6 @@ export class ProviderRegistry {
             configured,
             authenticated,
             detail: this.getAuthDetail(provider, configured),
-            // @ts-expect-error -- type mismatch from inferred schema types
             authTruth,
         };
     }

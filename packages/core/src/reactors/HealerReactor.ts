@@ -25,6 +25,7 @@ export function shouldIgnoreExpectedStartupError(errorLog: string): boolean {
     'cannot open database because the directory does not exist',
     'bobbybookmarks db not found',
     'hypercodeingest',
+    'sqlite runtime is unavailable',
     ];
 
     return ignoredFragments.some((fragment) => normalized.includes(fragment));

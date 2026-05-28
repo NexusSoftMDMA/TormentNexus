@@ -33,6 +33,8 @@ export interface ProviderDefinition {
     preferredTasks?: ProviderTaskType[];
 }
 
+export type ProviderAuthTruth = 'not_configured' | 'authenticated' | 'expired' | 'revoked';
+
 export interface ProviderAuthState {
     provider: string;
     name: string;
@@ -40,6 +42,7 @@ export interface ProviderAuthState {
     configured: boolean;
     authenticated: boolean;
     detail: string;
+    authTruth?: ProviderAuthTruth;
 }
 
 export interface ProviderQuotaWindowSnapshot {
@@ -65,6 +68,8 @@ export interface ProviderQuotaSnapshot extends ProviderAuthState {
     windows?: ProviderQuotaWindowSnapshot[];
     source?: 'runtime' | 'balance';
     connectionId?: string | null;
+    quotaConfidence?: 'real-time' | 'cached' | 'estimated' | 'unknown';
+    quotaRefreshedAt?: string | null;
 }
 
 export interface ProviderBalanceConnection {

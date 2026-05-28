@@ -35,6 +35,8 @@ function createSchema(database: Database.Database): void {
             uuid TEXT PRIMARY KEY,
             source_tool TEXT NOT NULL,
             source_path TEXT NOT NULL,
+            source_size INTEGER,
+            source_mtime INTEGER,
             external_session_id TEXT,
             title TEXT,
             session_format TEXT NOT NULL,

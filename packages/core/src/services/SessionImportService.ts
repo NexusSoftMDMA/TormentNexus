@@ -1467,6 +1467,14 @@ export class SessionImportService {
             }
 
             try {
+                // Check file size before opening
+                const MAX_DB_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+                const stat = await fs.stat(dbPath);
+                if (stat.size > MAX_DB_FILE_SIZE) {
+                    console.warn(`[SessionImport] Skipping database too large for scanning (>10MB): ${dbPath} (${stat.size} bytes)`);
+                    continue;
+                }
+
                 const llmDb = new Database(dbPath, { readonly: true, fileMustExist: true });
 
                 try {

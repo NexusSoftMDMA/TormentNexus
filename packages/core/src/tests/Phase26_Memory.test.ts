@@ -4,7 +4,7 @@ import { MemoryManager } from '../services/MemoryManager.js';
 
 describe('Phase 26: Infinite Context V3', () => {
     it('should pruning long conversation history', () => {
-        const memory = new MemoryManager();
+        const memory = new MemoryManager(process.cwd());
 
         // Generate a synthetic conversation
         // System Prompt + 50 User/Assistant turns
@@ -46,7 +46,7 @@ describe('Phase 26: Infinite Context V3', () => {
     });
 
     it('should not prune if within limits', () => {
-        const memory = new MemoryManager();
+        const memory = new MemoryManager(process.cwd());
         const messages = [
             { role: 'system', content: 'Hi' },
             { role: 'user', content: 'Hello' }

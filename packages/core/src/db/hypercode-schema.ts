@@ -432,6 +432,8 @@ export const importedSessionsTable = sqliteTable(
         uuid: text("uuid").primaryKey(),
         source_tool: text("source_tool").notNull(),
         source_path: text("source_path").notNull(),
+        source_size: integer("source_size"),
+        source_mtime: integer("source_mtime"),
         external_session_id: text("external_session_id"),
         title: text("title"),
         session_format: text("session_format").notNull().default("generic"),

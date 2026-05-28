@@ -205,7 +205,14 @@ export class MemoryManager {
     }
   }
 
-  public pruneContext(messages: Message[], _options?: Partial<PruningOptions>): Message[] {
+  public getContextSize(messages: Message[]): number {
+    return this.pruner.estimateTokens(messages);
+  }
+
+  public pruneContext(messages: Message[], options?: Partial<PruningOptions>): Message[] {
+    if (options) {
+      return new ContextPruner(options).prune(messages);
+    }
     return this.pruner.prune(messages);
   }
 

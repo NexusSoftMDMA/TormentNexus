@@ -570,6 +570,37 @@ func (s *Server) handleNativeHealerHistory(w http.ResponseWriter, r *http.Reques
 	})
 }
 
+func (s *Server) handleNativeHealerHeal(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "POST required", http.StatusMethodNotAllowed)
+		return
+	}
+	var req struct {
+		Error   string `json:"error"`
+		Context string `json:"context,omitempty"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 120*time.Second)
+	defer cancel()
+
+	success, err := s.healerService.Heal(ctx, req.Error, req.Context)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{
+			"success": false,
+			"error":   err.Error(),
+		})
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"success": success,
+	})
+}
+
 func (s *Server) handleNativeHealerVault(w http.ResponseWriter, r *http.Request) {
 	limit := 50
 	if limitStr := r.URL.Query().Get("limit"); limitStr != "" {
@@ -594,7 +625,7 @@ func (s *Server) handleNativeHealerVault(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	totalCount, _ := s.memoryReactor.VectorStore().GetVaultCount(r.Context())
+	totalCount, _ := s.memoryReactor.VectorStore().GetVaultRecordCount(r.Context())
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"count":      len(records),

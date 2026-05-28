@@ -3,11 +3,7 @@
     "hypercode-supervisor": {
       "command": "node",
       "args": [
-<<<<<<< Updated upstream
-        "C:\\Users\\hyper\\workspace\\hypercode\\packages\\hypercode-supervisor\\dist\\index.js"
-=======
         "C:\\Users\\jakeg\\workspace\\borg\\packages\\borg-supervisor\\dist\\index.js"
->>>>>>> Stashed changes
       ],
       "env": [
         "NODE_ENV"
@@ -706,15 +702,6 @@
         "ide-assistant"
       ],
       "env": []
-    },
-    "hypercode-supervisor": {
-      "command": "node",
-      "args": [
-        "C:\\Users\\jakeg\\workspace\\hypercode\\packages\\hypercode-supervisor\\dist\\index.js"
-      ],
-      "env": [
-        "NODE_ENV"
-      ]
     }
   }
 }
