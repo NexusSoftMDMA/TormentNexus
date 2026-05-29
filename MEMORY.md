@@ -196,4 +196,8 @@
 **Observation**: The standard `@modelcontextprotocol/sdk` client signature is `client.callTool(params, resultSchema = CallToolResultSchema, options)`. If caller passes options as the second argument (e.g. `client.callTool(params, { timeout })`), the SDK treats the options object as a Zod schema. The internal `zod-compat.js` helper checks if the schema is a Zod v4 schema (using `schema._zod`), and when it returns false, falls back to Zod v3 parsing by calling `v3Schema.safeParse()`. Since the options object is a plain JS object, this throws: `TypeError: v3Schema.safeParse is not a function`.
 **Resolution**: Always explicitly pass `undefined` as the second parameter when specifying custom client call options: `client.callTool(params, undefined, { timeout })`. Robustified the test suite to use this correct calling convention.
 
+### 49. MCP Database Enrichment & Deduplication (Added 2026-05-29)
+**Observation**: We integrated `bobbybookmarks` containing a massive SQLite repository of 10k+ rows with the `borg` internal catalog database. Standardized and normalized all bookmark URLs using custom URL-cleaners to generate deduplicated `canonical_id` keys, resulting in **6,124 new, unique MCP servers** indexed in `published_mcp_servers` in `borg.db`.
+**Resolution**: Implemented recursive deduplication patterns across `imported_sessions` and `imported_session_memories` to clear out duplicate chat/session logs, reducing database clutter by pruning 2.6k duplicate sessions and 15k duplicate memories.
+
 *Update this file whenever a major systemic pattern, recurring bug, or deep architectural quirk is discovered.*

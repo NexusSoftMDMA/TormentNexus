@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.0.0-alpha.68] - 2026-05-29
+
+### Added
+- **MCP Catalog Registry Ingestion & Integration**:
+  - Integrated `bobbybookmarks` bookmarks database (`bookmarks.db` and `atlas.db`) into the central `borg.db` catalog.
+  - Extracted **6,124 new, unique public MCP servers** and consolidated **72 existing servers** with rich descriptions, tags, and category taxonomies.
+  - Automatically generated standard CLI stdio recipes for all newly ingested servers.
+- **Aggressive Session and Memory Deduplication**:
+  - Pruned **2,641 duplicate conversation/import sessions** in `imported_sessions`.
+  - Pruned **15,104 duplicate memory blocks** in `imported_session_memories` to drastically optimize LLM context window payloads and database index speed.
+
 ## [1.0.0-alpha.65] - 2026-05-27
 
 ### Added

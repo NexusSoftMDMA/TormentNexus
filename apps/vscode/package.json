@@ -1,7 +1,7 @@
 {
   "name": "hypercode-vscode-extension",
   "displayName": "Hypercode Plugin",
-  "version": "1.0.0-alpha.67",
+  "version": "1.0.0-alpha.68",
   "description": "Connect VS Code to Hypercode Hub for AI agent orchestration, memory management, and tool invocation",
   "publisher": "hypercode",
   "engines": {
