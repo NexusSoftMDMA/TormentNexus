@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.0.0-alpha.75] - 2026-05-30
+
+### Added
+- **Dashboard Persistent Auto-Startup (Lazy Boot)**:
+  - Added an automated, lazy background boot handler (`ensureDashboardRunning`) in `backgroundCoreBootstrap.ts`.
+  - Seamlessly starts up the Next.js WebUI server (running either `.next/standalone/server.js` or `next dev` as fallback) on the first stdio/client request.
+  - Spawned as a detached, unreferenced background server that remains running persistently.
+  - Verified with 100% clean TypeScript compilation check.
+
 ## [1.0.0-alpha.74] - 2026-05-29
 
 ### Added

@@ -1,6 +1,9 @@
+import path from 'path';
+import fs from 'fs';
+import { fileURLToPath } from 'url';
 import { spawn, type ChildProcess } from 'child_process';
 
-import { resolveCliEntryPath } from './orchestratorPaths.js';
+import { resolveCliEntryPath, resolveMonorepoRoot } from './orchestratorPaths.js';
 
 export interface BackgroundCoreBootstrapOptions {
     healthUrl?: string;
@@ -85,6 +88,55 @@ export async function waitForCoreBridge(
     return false;
 }
 
+export async function ensureDashboardRunning(log: (msg?: unknown) => void = () => undefined): Promise<void> {
+    const dashboardPort = 3000;
+    const dashboardUrl = `http://127.0.0.1:${dashboardPort}/dashboard`;
+
+    try {
+        const res = await fetch(dashboardUrl, { method: 'GET', signal: AbortSignal.timeout(1000) });
+        if (res.ok) {
+            return; // Already healthy
+        }
+    } catch {}
+
+    const root = resolveMonorepoRoot(process.cwd()) || resolveMonorepoRoot(path.dirname(fileURLToPath(import.meta.url)));
+    if (!root) {
+        log('[Hypercode Dashboard] Monorepo root not found. Skipping auto-start.');
+        return;
+    }
+
+    const webDir = path.join(root, 'apps', 'web');
+    const startScript = path.join(webDir, 'scripts', 'start.mjs');
+    const devScript = path.join(webDir, 'scripts', 'dev.mjs');
+    const standaloneServer = path.join(webDir, '.next', 'standalone', 'apps', 'web', 'server.js');
+
+    const hasStandalone = fs.existsSync(standaloneServer);
+    const scriptToRun = hasStandalone ? startScript : devScript;
+
+    if (!fs.existsSync(scriptToRun)) {
+        log(`[Hypercode Dashboard] Start script not found at ${scriptToRun}. Skipping auto-start.`);
+        return;
+    }
+
+    log(`[Hypercode Dashboard] Lazy spawning dashboard server via ${path.basename(scriptToRun)} on port ${dashboardPort}...`);
+    try {
+        const child = spawn(process.execPath, [scriptToRun, '--port', String(dashboardPort), '--host', '127.0.0.1'], {
+            detached: true,
+            stdio: 'ignore',
+            windowsHide: true,
+            cwd: webDir,
+            env: {
+                ...process.env,
+                HYPERCODE_TRPC_UPSTREAM: 'http://127.0.0.1:4100/trpc',
+            }
+        });
+        child.unref?.();
+        log(`[Hypercode Dashboard] Dashboard background server spawned successfully (PID: ${child.pid}).`);
+    } catch (e: any) {
+        log(`[Hypercode Dashboard] Failed to spawn dashboard server: ${e.message}`);
+    }
+}
+
 export async function ensureBackgroundCoreRunning(
     options: BackgroundCoreBootstrapOptions = {},
     deps: BackgroundCoreBootstrapDeps = {},
@@ -95,6 +147,7 @@ export async function ensureBackgroundCoreRunning(
     const waitImpl = deps.waitImpl ?? delay;
 
     if (await isCoreBridgeHealthy(healthUrl, fetchImpl)) {
+        void ensureDashboardRunning(log);
         return { status: 'already-running' };
     }
 
@@ -119,6 +172,9 @@ export async function ensureBackgroundCoreRunning(
         windowsHide: true,
     });
     child.unref?.();
+
+    // Trigger lazy dashboard boot in parallel
+    void ensureDashboardRunning(log);
 
     if (options.waitForReady === false) {
         return {

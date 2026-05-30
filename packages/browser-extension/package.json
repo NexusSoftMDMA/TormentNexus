@@ -1,6 +1,6 @@
 {
   "name": "@hypercode/browser-extension-pkg",
-  "version": "1.0.0-alpha.74",
+  "version": "1.0.0-alpha.75",
   "description": "hypercode Browser Extension for Hub Connectivity",
   "scripts": {
     "build": "echo \"stub package\"",
