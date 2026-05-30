@@ -177,6 +177,19 @@ export class CoreModelSelector extends ModelSelector {
         const selected = candidates[0];
 
         if (!selected) {
+            // Cascade fallback: try any other executable models in the catalog first
+            const allAvailable = this.registry.listExecutableModels();
+            const activeFallback = allAvailable.find(c => c.provider === 'openrouter' || c.provider === 'google');
+            if (activeFallback) {
+                const result: SelectedModel = {
+                    provider: activeFallback.provider,
+                    modelId: activeFallback.id,
+                    reason: 'EMERGENCY_CATALOG_CASCADE',
+                };
+                this.recordFallbackEvent(result, taskType, strategy, request.provider, 'fallback_provider');
+                return result;
+            }
+
             const fallbackModelId = this.registry.getProvider('lmstudio')?.defaultModel || 'local';
             const result: SelectedModel = {
                 provider: 'lmstudio',

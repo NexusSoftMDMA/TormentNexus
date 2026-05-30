@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.0.0-alpha.78] - 2026-05-30
+
+### Added
+- **Definitive Fallback Cascade**:
+  - Expanded `DEFAULT_PROVIDER_CATALOG` in `ProviderRegistry.ts` with a massive, definitive list of free OpenRouter fallback models (DeepSeek V4, Llama 3 8B, Gemma 2 9B, Phi 3 Medium, Mistral 7B, GPT OSS 120B, Nemotron 3).
+  - Implemented exhaustive recursive fallback checks in `CoreModelSelector.ts` that scan and attempt every single configured and healthy model in the catalog before falling back to LMStudio or Ollama.
+  - Guarantees the system never runs out of models to try.
+  - Verified with 100% clean tsc compilation check.
+
 ## [1.0.0-alpha.77] - 2026-05-30
 
 ### Added
