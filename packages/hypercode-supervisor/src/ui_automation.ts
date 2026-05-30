@@ -240,10 +240,10 @@ function Get-ForegroundAutomationWindow() {
 }
 
 function Get-WindowProcessName($window) {
-    $pid = $window.Current.ProcessId
-    if (-not $pid) { return $null }
+    $processId = $window.Current.ProcessId
+    if (-not $processId) { return $null }
     try {
-        return (Get-Process -Id $pid -ErrorAction Stop).ProcessName
+        return (Get-Process -Id $processId -ErrorAction Stop).ProcessName
     } catch {
         return $null
     }
