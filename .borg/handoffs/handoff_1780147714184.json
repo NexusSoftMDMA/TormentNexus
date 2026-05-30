@@ -1,0 +1,387 @@
+{
+  "version": "0.99.1",
+  "timestamp": 1780147714183,
+  "sessionId": "current",
+  "stats": {
+    "totalCount": 144,
+    "sessionCount": 27,
+    "workingCount": 35,
+    "longTermCount": 82,
+    "observationCount": 35,
+    "uniqueObservationCount": 27,
+    "promptCount": 0,
+    "sessionSummaryCount": 22,
+    "session": 27,
+    "working": 35,
+    "long_term": 82,
+    "user": 0,
+    "agent": 0,
+    "project": 144,
+    "discovery": 11,
+    "decision": 0,
+    "progress": 1,
+    "warning": 23,
+    "fix": 0
+  },
+  "recentContext": [
+    {
+      "content": "JIT tool context for filesystem__write_file:\nFocus query: filesystem__write_file\nPotentially relevant observations:\n- filesystem__read_text_file failed — filesystem__read_text_file failed after 15166ms. Failed to connect to downstream MCP server 'filesystem'. (warning · filesystem__read_text_file)\n- filesystem__read_multiple_files failed — filesystem__read_multiple_files failed after 15219ms. Failed to connect to downstream MCP server 'filesystem'. (warning · filesystem__read_multiple_files)\n- filesystem__read_media_file failed — filesystem__read_media_file failed after 15164ms. Failed to connect to downstream MCP server 'filesystem'. (warning · filesystem__read_media_file)\n- filesystem__read_file failed — filesystem__read_file failed after 15161ms. Failed to connect to downstream MCP server 'filesystem'. (warning · filesystem__read_file)\nPotentially relevant session summaries:\n- { (hypercode) ended with status imported. Working directory: C:/Users/hyper/workspace/borg/.hypercode/handoffs Log tail: \"query\": \"filesystem__list_allowed_directories\", | \"matchedPaths\": [ | \".\" | ], | \"observationCount\": 2, | \"summaryCoun\n- { (hypercode) ended with status imported. Working directory: C:/Users/hyper/workspace/borg/.hypercode/handoffs Log tail: \"query\": \"filesystem__list_allowed_directories\", | \"matchedPaths\": [ | \".\" | ], | \"observationCount\": 2, | \"summaryCoun\nUse only the parts that still match the current intent; ignore stale context.",
+      "metadata": {
+        "source": "pre_tool_context",
+        "tags": [
+          "tool-context",
+          "pre-tool",
+          "filesystem__write_file"
+        ],
+        "toolName": "filesystem__write_file",
+        "query": "filesystem__write_file",
+        "matchedPaths": [],
+        "observationCount": 4,
+        "summaryCount": 2,
+        "preview": "JIT context: 4 observations · 2 summarysummaries"
+      }
+    },
+    {
+      "content": "JIT tool context for filesystem__search_files:\nFocus query: filesystem__search_files\nPotentially relevant observations:\n- filesystem__read_multiple_files failed — filesystem__read_multiple_files failed after 15219ms. Failed to connect to downstream MCP server 'filesystem'. (warning · filesystem__read_multiple_files)\n- filesystem__read_media_file failed — filesystem__read_media_file failed after 15164ms. Failed to connect to downstream MCP server 'filesystem'. (warning · filesystem__read_media_file)\n- filesystem__read_file failed — filesystem__read_file failed after 15161ms. Failed to connect to downstream MCP server 'filesystem'. (warning · filesystem__read_file)\n- filesystem__move_file failed — filesystem__move_file failed after 15159ms. Failed to connect to downstream MCP server 'filesystem'. (warning · filesystem__move_file)\nPotentially relevant session summaries:\n- { (hypercode) ended with status imported. Working directory: C:/Users/hyper/workspace/borg/.hypercode/handoffs Log tail: \"query\": \"filesystem__list_allowed_directories\", | \"matchedPaths\": [ | \".\" | ], | \"observationCount\": 2, | \"summaryCoun\n- { (hypercode) ended with status imported. Working directory: C:/Users/hyper/workspace/borg/.hypercode/handoffs Log tail: \"query\": \"filesystem__list_allowed_directories\", | \"matchedPaths\": [ | \".\" | ], | \"observationCount\": 2, | \"summaryCoun\nUse only the parts that still match the current intent; ignore stale context.",
+      "metadata": {
+        "source": "pre_tool_context",
+        "tags": [
+          "tool-context",
+          "pre-tool",
+          "filesystem__search_files"
+        ],
+        "toolName": "filesystem__search_files",
+        "query": "filesystem__search_files",
+        "matchedPaths": [],
+        "observationCount": 4,
+        "summaryCount": 2,
+        "preview": "JIT context: 4 observations · 2 summarysummaries"
+      }
+    },
+    {
+      "content": "JIT tool context for filesystem__read_text_file:\nFocus query: filesystem__read_text_file\nPotentially relevant observations:\n- filesystem__read_media_file failed — filesystem__read_media_file failed after 15164ms. Failed to connect to downstream MCP server 'filesystem'. (warning · filesystem__read_media_file)\n- filesystem__read_file failed — filesystem__read_file failed after 15161ms. Failed to connect to downstream MCP server 'filesystem'. (warning · filesystem__read_file)\n- filesystem__move_file failed — filesystem__move_file failed after 15159ms. Failed to connect to downstream MCP server 'filesystem'. (warning · filesystem__move_file)\n- filesystem__list_directory_with_sizes failed — filesystem__list_directory_with_sizes failed after 15170ms. Failed to connect to downstream MCP server 'filesystem'. (warning · filesystem__list_directory_with_sizes)\nPotentially relevant session summaries:\n- { (hypercode) ended with status imported. Working directory: C:/Users/hyper/workspace/borg/.hypercode/handoffs Log tail: \"query\": \"filesystem__list_allowed_directories\", | \"matchedPaths\": [ | \".\" | ], | \"observationCount\": 2, | \"summaryCoun\n- { (hypercode) ended with status imported. Working directory: C:/Users/hyper/workspace/borg/.hypercode/handoffs Log tail: \"query\": \"filesystem__list_allowed_directories\", | \"matchedPaths\": [ | \".\" | ], | \"observationCount\": 2, | \"summaryCoun\nUse only the parts that still match the current intent; ignore stale context.",
+      "metadata": {
+        "source": "pre_tool_context",
+        "tags": [
+          "tool-context",
+          "pre-tool",
+          "filesystem__read_text_file"
+        ],
+        "toolName": "filesystem__read_text_file",
+        "query": "filesystem__read_text_file",
+        "matchedPaths": [],
+        "observationCount": 4,
+        "summaryCount": 2,
+        "preview": "JIT context: 4 observations · 2 summarysummaries"
+      }
+    },
+    {
+      "content": "JIT tool context for filesystem__read_multiple_files:\nFocus query: filesystem__read_multiple_files\nPotentially relevant observations:\n- filesystem__read_file failed — filesystem__read_file failed after 15161ms. Failed to connect to downstream MCP server 'filesystem'. (warning · filesystem__read_file)\n- filesystem__move_file failed — filesystem__move_file failed after 15159ms. Failed to connect to downstream MCP server 'filesystem'. (warning · filesystem__move_file)\n- filesystem__list_directory_with_sizes failed — filesystem__list_directory_with_sizes failed after 15170ms. Failed to connect to downstream MCP server 'filesystem'. (warning · filesystem__list_directory_with_sizes)\n- filesystem__list_directory failed — filesystem__list_directory failed after 15161ms. Failed to connect to downstream MCP server 'filesystem'. (warning · filesystem__list_directory)\nPotentially relevant session summaries:\n- { (hypercode) ended with status imported. Working directory: C:/Users/hyper/workspace/borg/.hypercode/handoffs Log tail: \"query\": \"filesystem__list_allowed_directories\", | \"matchedPaths\": [ | \".\" | ], | \"observationCount\": 2, | \"summaryCoun\n- { (hypercode) ended with status imported. Working directory: C:/Users/hyper/workspace/borg/.hypercode/handoffs Log tail: \"query\": \"filesystem__list_allowed_directories\", | \"matchedPaths\": [ | \".\" | ], | \"observationCount\": 2, | \"summaryCoun\nUse only the parts that still match the current intent; ignore stale context.",
+      "metadata": {
+        "source": "pre_tool_context",
+        "tags": [
+          "tool-context",
+          "pre-tool",
+          "filesystem__read_multiple_files"
+        ],
+        "toolName": "filesystem__read_multiple_files",
+        "query": "filesystem__read_multiple_files",
+        "matchedPaths": [],
+        "observationCount": 4,
+        "summaryCount": 2,
+        "preview": "JIT context: 4 observations · 2 summarysummaries"
+      }
+    },
+    {
+      "content": "JIT tool context for filesystem__read_media_file:\nFocus query: filesystem__read_media_file\nPotentially relevant observations:\n- filesystem__move_file failed — filesystem__move_file failed after 15159ms. Failed to connect to downstream MCP server 'filesystem'. (warning · filesystem__move_file)\n- filesystem__list_directory_with_sizes failed — filesystem__list_directory_with_sizes failed after 15170ms. Failed to connect to downstream MCP server 'filesystem'. (warning · filesystem__list_directory_with_sizes)\n- filesystem__list_directory failed — filesystem__list_directory failed after 15161ms. Failed to connect to downstream MCP server 'filesystem'. (warning · filesystem__list_directory)\n- filesystem__list_allowed_directories failed — filesystem__list_allowed_directories failed after 15161ms. Failed to connect to downstream MCP server 'filesystem'. (warning · filesystem__list_allowed_directories)\nPotentially relevant session summaries:\n- { (hypercode) ended with status imported. Working directory: C:/Users/hyper/workspace/borg/.hypercode/handoffs Log tail: \"query\": \"filesystem__list_allowed_directories\", | \"matchedPaths\": [ | \".\" | ], | \"observationCount\": 2, | \"summaryCoun\n- { (hypercode) ended with status imported. Working directory: C:/Users/hyper/workspace/borg/.hypercode/handoffs Log tail: \"query\": \"filesystem__list_allowed_directories\", | \"matchedPaths\": [ | \".\" | ], | \"observationCount\": 2, | \"summaryCoun\nUse only the parts that still match the current intent; ignore stale context.",
+      "metadata": {
+        "source": "pre_tool_context",
+        "tags": [
+          "tool-context",
+          "pre-tool",
+          "filesystem__read_media_file"
+        ],
+        "toolName": "filesystem__read_media_file",
+        "query": "filesystem__read_media_file",
+        "matchedPaths": [],
+        "observationCount": 4,
+        "summaryCount": 2,
+        "preview": "JIT context: 4 observations · 2 summarysummaries"
+      }
+    },
+    {
+      "content": "JIT tool context for filesystem__read_file:\nFocus query: filesystem__read_file\nPotentially relevant observations:\n- filesystem__list_directory_with_sizes failed — filesystem__list_directory_with_sizes failed after 15170ms. Failed to connect to downstream MCP server 'filesystem'. (warning · filesystem__list_directory_with_sizes)\n- filesystem__list_directory failed — filesystem__list_directory failed after 15161ms. Failed to connect to downstream MCP server 'filesystem'. (warning · filesystem__list_directory)\n- filesystem__list_allowed_directories failed — filesystem__list_allowed_directories failed after 15161ms. Failed to connect to downstream MCP server 'filesystem'. (warning · filesystem__list_allowed_directories)\n- filesystem__get_file_info failed — filesystem__get_file_info failed after 15161ms. Failed to connect to downstream MCP server 'filesystem'. (warning · filesystem__get_file_info)\nPotentially relevant session summaries:\n- { (hypercode) ended with status imported. Working directory: C:/Users/hyper/workspace/borg/.hypercode/handoffs Log tail: \"query\": \"filesystem__list_allowed_directories\", | \"matchedPaths\": [ | \".\" | ], | \"observationCount\": 2, | \"summaryCoun\n- { (hypercode) ended with status imported. Working directory: C:/Users/hyper/workspace/borg/.hypercode/handoffs Log tail: \"query\": \"filesystem__list_allowed_directories\", | \"matchedPaths\": [ | \".\" | ], | \"observationCount\": 2, | \"summaryCoun\nUse only the parts that still match the current intent; ignore stale context.",
+      "metadata": {
+        "source": "pre_tool_context",
+        "tags": [
+          "tool-context",
+          "pre-tool",
+          "filesystem__read_file"
+        ],
+        "toolName": "filesystem__read_file",
+        "query": "filesystem__read_file",
+        "matchedPaths": [],
+        "observationCount": 4,
+        "summaryCount": 2,
+        "preview": "JIT context: 4 observations · 2 summarysummaries"
+      }
+    },
+    {
+      "content": "JIT tool context for filesystem__move_file:\nFocus query: filesystem__move_file\nPotentially relevant observations:\n- filesystem__list_directory failed — filesystem__list_directory failed after 15161ms. Failed to connect to downstream MCP server 'filesystem'. (warning · filesystem__list_directory)\n- filesystem__list_allowed_directories failed — filesystem__list_allowed_directories failed after 15161ms. Failed to connect to downstream MCP server 'filesystem'. (warning · filesystem__list_allowed_directories)\n- filesystem__get_file_info failed — filesystem__get_file_info failed after 15161ms. Failed to connect to downstream MCP server 'filesystem'. (warning · filesystem__get_file_info)\n- filesystem__edit_file failed — filesystem__edit_file failed after 15137ms. Failed to connect to downstream MCP server 'filesystem'. (warning · filesystem__edit_file)\nPotentially relevant session summaries:\n- { (hypercode) ended with status imported. Working directory: C:/Users/hyper/workspace/borg/.hypercode/handoffs Log tail: \"query\": \"filesystem__list_allowed_directories\", | \"matchedPaths\": [ | \".\" | ], | \"observationCount\": 2, | \"summaryCoun\n- { (hypercode) ended with status imported. Working directory: C:/Users/hyper/workspace/borg/.hypercode/handoffs Log tail: \"query\": \"filesystem__list_allowed_directories\", | \"matchedPaths\": [ | \".\" | ], | \"observationCount\": 2, | \"summaryCoun\nUse only the parts that still match the current intent; ignore stale context.",
+      "metadata": {
+        "source": "pre_tool_context",
+        "tags": [
+          "tool-context",
+          "pre-tool",
+          "filesystem__move_file"
+        ],
+        "toolName": "filesystem__move_file",
+        "query": "filesystem__move_file",
+        "matchedPaths": [],
+        "observationCount": 4,
+        "summaryCount": 2,
+        "preview": "JIT context: 4 observations · 2 summarysummaries"
+      }
+    },
+    {
+      "content": "JIT tool context for filesystem__list_directory_with_sizes:\nFocus query: filesystem__list_directory_with_sizes\nRelevant files: .\nPotentially relevant observations:\n- filesystem__list_allowed_directories failed — filesystem__list_allowed_directories failed after 15161ms. Failed to connect to downstream MCP server 'filesystem'. (warning · filesystem__list_allowed_directories)\n- filesystem__directory_tree failed — filesystem__directory_tree failed after 15146ms. Failed to connect to downstream MCP server 'filesystem'. (warning · filesystem__directory_tree)\n- filesystem__create_directory failed — filesystem__create_directory failed after 15132ms. Failed to connect to downstream MCP server 'filesystem'. (warning · filesystem__create_directory)\n- list_directory completed — list_directory completed in 1ms. { \"content\": [] } (discovery · list_directory)\nPotentially relevant session summaries:\n- { (hypercode) ended with status imported. Working directory: C:/Users/hyper/workspace/borg/.hypercode/handoffs Log tail: \"query\": \"filesystem__list_allowed_directories\", | \"matchedPaths\": [ | \".\" | ], | \"observationCount\": 2, | \"summaryCoun\n- { (hypercode) ended with status imported. Working directory: C:/Users/hyper/workspace/borg/.hypercode/handoffs Log tail: \"query\": \"filesystem__list_allowed_directories\", | \"matchedPaths\": [ | \".\" | ], | \"observationCount\": 2, | \"summaryCoun\nUse only the parts that still match the current intent; ignore stale context.",
+      "metadata": {
+        "source": "pre_tool_context",
+        "tags": [
+          "tool-context",
+          "pre-tool",
+          "filesystem__list_directory_with_sizes"
+        ],
+        "toolName": "filesystem__list_directory_with_sizes",
+        "query": "filesystem__list_directory_with_sizes",
+        "matchedPaths": [
+          "."
+        ],
+        "observationCount": 4,
+        "summaryCount": 2,
+        "preview": "JIT context: 4 observations · 2 summarysummaries · 1 file hit"
+      }
+    },
+    {
+      "content": "JIT tool context for filesystem__list_directory:\nFocus query: filesystem__list_directory\nRelevant files: .\nPotentially relevant observations:\n- filesystem__directory_tree failed — filesystem__directory_tree failed after 15146ms. Failed to connect to downstream MCP server 'filesystem'. (warning · filesystem__directory_tree)\n- filesystem__create_directory failed — filesystem__create_directory failed after 15132ms. Failed to connect to downstream MCP server 'filesystem'. (warning · filesystem__create_directory)\n- list_directory completed — list_directory completed in 1ms. { \"content\": [] } (discovery · list_directory)\n- list_directory completed — list_directory completed in 1ms. { \"content\": [] } (discovery · list_directory)\nPotentially relevant session summaries:\n- { (hypercode) ended with status imported. Working directory: C:/Users/hyper/workspace/borg/.hypercode/handoffs Log tail: \"query\": \"filesystem__list_allowed_directories\", | \"matchedPaths\": [ | \".\" | ], | \"observationCount\": 2, | \"summaryCoun\n- { (hypercode) ended with status imported. Working directory: C:/Users/hyper/workspace/borg/.hypercode/handoffs Log tail: \"query\": \"filesystem__list_allowed_directories\", | \"matchedPaths\": [ | \".\" | ], | \"observationCount\": 2, | \"summaryCoun\nUse only the parts that still match the current intent; ignore stale context.",
+      "metadata": {
+        "source": "pre_tool_context",
+        "tags": [
+          "tool-context",
+          "pre-tool",
+          "filesystem__list_directory"
+        ],
+        "toolName": "filesystem__list_directory",
+        "query": "filesystem__list_directory",
+        "matchedPaths": [
+          "."
+        ],
+        "observationCount": 4,
+        "summaryCount": 2,
+        "preview": "JIT context: 4 observations · 2 summarysummaries · 1 file hit"
+      }
+    },
+    {
+      "content": "JIT tool context for filesystem__list_allowed_directories:\nFocus query: filesystem__list_allowed_directories\nRelevant files: .\nPotentially relevant observations:\n- filesystem__edit_file failed — filesystem__edit_file failed after 15137ms. Failed to connect to downstream MCP server 'filesystem'. (warning · filesystem__edit_file)\n- filesystem__directory_tree failed — filesystem__directory_tree failed after 15146ms. Failed to connect to downstream MCP server 'filesystem'. (warning · filesystem__directory_tree)\n- filesystem__create_directory failed — filesystem__create_directory failed after 15132ms. Failed to connect to downstream MCP server 'filesystem'. (warning · filesystem__create_directory)\n- list_directory completed — list_directory completed in 1ms. { \"content\": [] } (discovery · list_directory)\nPotentially relevant session summaries:\n- { (hypercode) ended with status imported. Working directory: C:/Users/hyper/workspace/borg/.hypercode/handoffs Log tail: \"query\": \"filesystem__list_allowed_directories\", | \"matchedPaths\": [ | \".\" | ], | \"observationCount\": 2, | \"summaryCoun\n- { (hypercode) ended with status imported. Working directory: C:/Users/hyper/workspace/borg/.hypercode/handoffs Log tail: \"query\": \"filesystem__list_allowed_directories\", | \"matchedPaths\": [ | \".\" | ], | \"observationCount\": 2, | \"summaryCoun\nUse only the parts that still match the current intent; ignore stale context.",
+      "metadata": {
+        "source": "pre_tool_context",
+        "tags": [
+          "tool-context",
+          "pre-tool",
+          "filesystem__list_allowed_directories"
+        ],
+        "toolName": "filesystem__list_allowed_directories",
+        "query": "filesystem__list_allowed_directories",
+        "matchedPaths": [
+          "."
+        ],
+        "observationCount": 4,
+        "summaryCount": 2,
+        "preview": "JIT context: 4 observations · 2 summarysummaries · 1 file hit"
+      }
+    },
+    {
+      "content": "JIT tool context for filesystem__get_file_info:\nFocus query: filesystem__get_file_info\nRelevant files: .\nPotentially relevant observations:\n- filesystem__directory_tree failed — filesystem__directory_tree failed after 15146ms. Failed to connect to downstream MCP server 'filesystem'. (warning · filesystem__directory_tree)\n- filesystem__create_directory failed — filesystem__create_directory failed after 15132ms. Failed to connect to downstream MCP server 'filesystem'. (warning · filesystem__create_directory)\n- get_eviction_history completed — get_eviction_history completed in 108ms. [] (progress · get_eviction_history)\n- list_directory completed — list_directory completed in 1ms. { \"content\": [] } (discovery · list_directory)\nPotentially relevant session summaries:\n- { (hypercode) ended with status imported. Working directory: C:/Users/hyper/workspace/borg/.hypercode/handoffs Log tail: \"query\": \"filesystem__list_allowed_directories\", | \"matchedPaths\": [ | \".\" | ], | \"observationCount\": 2, | \"summaryCoun\n- { (hypercode) ended with status imported. Working directory: C:/Users/hyper/workspace/borg/.hypercode/handoffs Log tail: \"query\": \"filesystem__list_allowed_directories\", | \"matchedPaths\": [ | \".\" | ], | \"observationCount\": 2, | \"summaryCoun\nUse only the parts that still match the current intent; ignore stale context.",
+      "metadata": {
+        "source": "pre_tool_context",
+        "tags": [
+          "tool-context",
+          "pre-tool",
+          "filesystem__get_file_info"
+        ],
+        "toolName": "filesystem__get_file_info",
+        "query": "filesystem__get_file_info",
+        "matchedPaths": [
+          "."
+        ],
+        "observationCount": 4,
+        "summaryCount": 2,
+        "preview": "JIT context: 4 observations · 2 summarysummaries · 1 file hit"
+      }
+    },
+    {
+      "content": "JIT tool context for filesystem__edit_file:\nFocus query: filesystem__edit_file\nRelevant files: .\nPotentially relevant observations:\n- filesystem__create_directory failed — filesystem__create_directory failed after 15132ms. Failed to connect to downstream MCP server 'filesystem'. (warning · filesystem__create_directory)\n- list_directory completed — list_directory completed in 1ms. { \"content\": [] } (discovery · list_directory)\n- list_directory completed — list_directory completed in 1ms. { \"content\": [] } (discovery · list_directory)\n- list_directory completed — list_directory completed in 2ms. { \"content\": [] } (discovery · list_directory)\nPotentially relevant session summaries:\n- { (hypercode) ended with status imported. Working directory: C:/Users/hyper/workspace/borg/.hypercode/handoffs Log tail: \"query\": \"filesystem__list_allowed_directories\", | \"matchedPaths\": [ | \".\" | ], | \"observationCount\": 2, | \"summaryCoun\n- { (hypercode) ended with status imported. Working directory: C:/Users/hyper/workspace/borg/.hypercode/handoffs Log tail: \"query\": \"filesystem__list_allowed_directories\", | \"matchedPaths\": [ | \".\" | ], | \"observationCount\": 2, | \"summaryCoun\nUse only the parts that still match the current intent; ignore stale context.",
+      "metadata": {
+        "source": "pre_tool_context",
+        "tags": [
+          "tool-context",
+          "pre-tool",
+          "filesystem__edit_file"
+        ],
+        "toolName": "filesystem__edit_file",
+        "query": "filesystem__edit_file",
+        "matchedPaths": [
+          "."
+        ],
+        "observationCount": 4,
+        "summaryCount": 2,
+        "preview": "JIT context: 4 observations · 2 summarysummaries · 1 file hit"
+      }
+    },
+    {
+      "content": "JIT tool context for filesystem__directory_tree:\nFocus query: filesystem__directory_tree\nRelevant files: .\nPotentially relevant observations:\n- list_directory completed — list_directory completed in 1ms. { \"content\": [] } (discovery · list_directory)\n- list_directory completed — list_directory completed in 1ms. { \"content\": [] } (discovery · list_directory)\n- list_directory completed — list_directory completed in 2ms. { \"content\": [] } (discovery · list_directory)\n- list_directory completed — list_directory completed in 1ms. { \"content\": [] } (discovery · list_directory)\nPotentially relevant session summaries:\n- { (hypercode) ended with status imported. Working directory: C:/Users/hyper/workspace/borg/.hypercode/handoffs Log tail: \"query\": \"filesystem__list_allowed_directories\", | \"matchedPaths\": [ | \".\" | ], | \"observationCount\": 2, | \"summaryCoun\n- { (hypercode) ended with status imported. Working directory: C:/Users/hyper/workspace/borg/.hypercode/handoffs Log tail: \"query\": \"filesystem__list_allowed_directories\", | \"matchedPaths\": [ | \".\" | ], | \"observationCount\": 2, | \"summaryCoun\nUse only the parts that still match the current intent; ignore stale context.",
+      "metadata": {
+        "source": "pre_tool_context",
+        "tags": [
+          "tool-context",
+          "pre-tool",
+          "filesystem__directory_tree"
+        ],
+        "toolName": "filesystem__directory_tree",
+        "query": "filesystem__directory_tree",
+        "matchedPaths": [
+          "."
+        ],
+        "observationCount": 4,
+        "summaryCount": 2,
+        "preview": "JIT context: 4 observations · 2 summarysummaries · 1 file hit"
+      }
+    },
+    {
+      "content": "JIT tool context for filesystem__create_directory:\nFocus query: filesystem__create_directory\nRelevant files: .\nPotentially relevant observations:\n- list_directory completed — list_directory completed in 1ms. { \"content\": [] } (discovery · list_directory)\n- list_directory completed — list_directory completed in 1ms. { \"content\": [] } (discovery · list_directory)\n- list_directory completed — list_directory completed in 2ms. { \"content\": [] } (discovery · list_directory)\n- list_directory completed — list_directory completed in 1ms. { \"content\": [] } (discovery · list_directory)\nPotentially relevant session summaries:\n- { (hypercode) ended with status imported. Working directory: C:/Users/hyper/workspace/borg/.hypercode/handoffs Log tail: \"query\": \"filesystem__list_allowed_directories\", | \"matchedPaths\": [ | \".\" | ], | \"observationCount\": 2, | \"summaryCoun\n- { (hypercode) ended with status imported. Working directory: C:/Users/hyper/workspace/borg/.hypercode/handoffs Log tail: \"query\": \"filesystem__list_allowed_directories\", | \"matchedPaths\": [ | \".\" | ], | \"observationCount\": 2, | \"summaryCoun\nUse only the parts that still match the current intent; ignore stale context.",
+      "metadata": {
+        "source": "pre_tool_context",
+        "tags": [
+          "tool-context",
+          "pre-tool",
+          "filesystem__create_directory"
+        ],
+        "toolName": "filesystem__create_directory",
+        "query": "filesystem__create_directory",
+        "matchedPaths": [
+          "."
+        ],
+        "observationCount": 4,
+        "summaryCount": 2,
+        "preview": "JIT context: 4 observations · 2 summarysummaries · 1 file hit"
+      }
+    },
+    {
+      "content": "JIT tool context for get_eviction_history:\nFocus query: get_eviction_history\nPotentially relevant session summaries:\n- # Technical Implementation Plan: Resolve Typescript Compile Errors (antigravity) ended with status imported. Working directory: C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43 Log tail: - Update `NativeSessionM\nUse only the parts that still match the current intent; ignore stale context.",
+      "metadata": {
+        "source": "pre_tool_context",
+        "tags": [
+          "tool-context",
+          "pre-tool",
+          "get_eviction_history"
+        ],
+        "toolName": "get_eviction_history",
+        "query": "get_eviction_history",
+        "matchedPaths": [],
+        "observationCount": 0,
+        "summaryCount": 1,
+        "preview": "JIT context: 1 summary"
+      }
+    },
+    {
+      "content": "JIT tool context for windows-mcp__SystemInfo:\nFocus query: windows-mcp__SystemInfo\nPotentially relevant observations:\n- windows-mcp__SystemInfo failed — windows-mcp__SystemInfo failed after 2147ms. Failed to connect to downstream MCP server 'windows-mcp'. (warning · windows-mcp__SystemInfo)\n- windows-mcp__SystemInfo failed — windows-mcp__SystemInfo failed after 1496ms. Failed to connect to downstream MCP server 'windows-mcp'. (warning · windows-mcp__SystemInfo)\n- windows-mcp__SystemInfo failed — windows-mcp__SystemInfo failed after 2006ms. Failed to connect to downstream MCP server 'windows-mcp'. (warning · windows-mcp__SystemInfo)\nPotentially relevant session summaries:\n- # Technical Implementation Plan: Resolve Typescript Compile Errors (antigravity) ended with status imported. Working directory: C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43 Log tail: - Update `NativeSessionM\n- - [ ] Update packages/core/tsconfig.json (antigravity) ended with status imported. Working directory: C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43 Log tail: - [ ] Update packages/core/tsconfig.json | - [ ] F\nUse only the parts that still match the current intent; ignore stale context.",
+      "metadata": {
+        "source": "pre_tool_context",
+        "tags": [
+          "tool-context",
+          "pre-tool",
+          "windows-mcp__SystemInfo"
+        ],
+        "toolName": "windows-mcp__SystemInfo",
+        "query": "windows-mcp__SystemInfo",
+        "matchedPaths": [],
+        "observationCount": 3,
+        "summaryCount": 2,
+        "preview": "JIT context: 3 observations · 2 summarysummaries"
+      }
+    },
+    {
+      "content": "JIT tool context for list_directory:\nFocus query: list_directory .\nRelevant files: .\nPotentially relevant observations:\n- list_directory completed — list_directory completed in 1ms. { \"content\": [] } (discovery · list_directory)\n- list_directory completed — list_directory completed in 2ms. { \"content\": [] } (discovery · list_directory)\n- list_directory completed — list_directory completed in 1ms. { \"content\": [] } (discovery · list_directory)\n- list_directory completed — list_directory completed in 1ms. { \"content\": [] } (discovery · list_directory)\nPotentially relevant session summaries:\n- - [ ] Update packages/core/tsconfig.json (antigravity) ended with status imported. Working directory: C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43 Log tail: - [ ] Update packages/core/tsconfig.json | - [ ] F\n- A TODO task tracking list for resolving packages/core compilation and tool verification. (antigravity) ended with status imported. Working directory: C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43 Log tail: A \nUse only the parts that still match the current intent; ignore stale context.",
+      "metadata": {
+        "source": "pre_tool_context",
+        "tags": [
+          "tool-context",
+          "pre-tool",
+          "list_directory"
+        ],
+        "toolName": "list_directory",
+        "query": "list_directory .",
+        "matchedPaths": [
+          "."
+        ],
+        "observationCount": 4,
+        "summaryCount": 2,
+        "preview": "JIT context: 4 observations · 2 summarysummaries · 1 file hit"
+      }
+    },
+    {
+      "content": "JIT tool context for system_diagnostics:\nFocus query: system_diagnostics\nPotentially relevant observations:\n- system_diagnostics completed — system_diagnostics completed in 30ms. ## 🩺 System Health Report | Component | Status | Details | |-----------|--------|---------| | Core API | ✅ ONLINE | Healthy | | Web UI | ❌ OFFLINE | Dashboard not running | | VS Cod (warning · system_diagnostics)\n- system_diagnostics completed — system_diagnostics completed in 26ms. ## 🩺 System Health Report | Component | Status | Details | |-----------|--------|---------| | Core API | ✅ ONLINE | Healthy | | Web UI | ❌ OFFLINE | Dashboard not running | | VS Cod (warning · system_diagnostics)\n- system_diagnostics completed — system_diagnostics completed in 22ms. ## 🩺 System Health Report | Component | Status | Details | |-----------|--------|---------| | Core API | ✅ ONLINE | Healthy | | Web UI | ❌ OFFLINE | Dashboard not running | | VS Cod (warning · system_diagnostics)\n- system_diagnostics completed — system_diagnostics completed in 24ms. ## 🩺 System Health Report | Component | Status | Details | |-----------|--------|---------| | Core API | ✅ ONLINE | Healthy | | Web UI | ❌ OFFLINE | Dashboard not running | | VS Cod (warning · system_diagnostics)\nPotentially relevant session summaries:\n- { (hypercode) ended with status imported. Working directory: C:/Users/hyper/workspace/borg/.hypercode/handoffs Log tail: \"query\": \"filesystem__list_allowed_directories\", | \"matchedPaths\": [ | \".\" | ], | \"observationCount\": 2, | \"summaryCoun\n- { (hypercode) ended with status imported. Working directory: C:/Users/hyper/workspace/borg/.hypercode/handoffs Log tail: \"query\": \"filesystem__list_allowed_directories\", | \"matchedPaths\": [ | \".\" | ], | \"observationCount\": 2, | \"summaryCoun\nUse only the parts that still match the current intent; ignore stale context.",
+      "metadata": {
+        "source": "pre_tool_context",
+        "tags": [
+          "tool-context",
+          "pre-tool",
+          "system_diagnostics"
+        ],
+        "toolName": "system_diagnostics",
+        "query": "system_diagnostics",
+        "matchedPaths": [],
+        "observationCount": 4,
+        "summaryCount": 2,
+        "preview": "JIT context: 4 observations · 2 summarysummaries"
+      }
+    },
+    {
+      "content": "JIT tool context for windows-mcp__SystemInfo:\nFocus query: windows-mcp__SystemInfo\nPotentially relevant observations:\n- windows-mcp__SystemInfo failed — windows-mcp__SystemInfo failed after 2147ms. Failed to connect to downstream MCP server 'windows-mcp'. (warning · windows-mcp__SystemInfo)\n- windows-mcp__SystemInfo failed — windows-mcp__SystemInfo failed after 1496ms. Failed to connect to downstream MCP server 'windows-mcp'. (warning · windows-mcp__SystemInfo)\n- windows-mcp__SystemInfo failed — windows-mcp__SystemInfo failed after 2006ms. Failed to connect to downstream MCP server 'windows-mcp'. (warning · windows-mcp__SystemInfo)\nPotentially relevant session summaries:\n- # Technical Implementation Plan: Resolve Typescript Compile Errors (antigravity) ended with status imported. Working directory: C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43 Log tail: - Update `NativeSessionM\n- - [ ] Update packages/core/tsconfig.json (antigravity) ended with status imported. Working directory: C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43 Log tail: - [ ] Update packages/core/tsconfig.json | - [ ] F\nUse only the parts that still match the current intent; ignore stale context.",
+      "metadata": {
+        "source": "pre_tool_context",
+        "tags": [
+          "tool-context",
+          "pre-tool",
+          "windows-mcp__SystemInfo"
+        ],
+        "toolName": "windows-mcp__SystemInfo",
+        "query": "windows-mcp__SystemInfo",
+        "matchedPaths": [],
+        "observationCount": 3,
+        "summaryCount": 2,
+        "preview": "JIT context: 3 observations · 2 summarysummaries"
+      }
+    },
+    {
+      "content": "JIT tool context for list_directory:\nFocus query: list_directory .\nRelevant files: .\nPotentially relevant observations:\n- list_directory completed — list_directory completed in 2ms. { \"content\": [] } (discovery · list_directory)\n- list_directory completed — list_directory completed in 1ms. { \"content\": [] } (discovery · list_directory)\n- list_directory completed — list_directory completed in 1ms. { \"content\": [] } (discovery · list_directory)\n- list_directory completed — list_directory completed in 2ms. { \"content\": [] } (discovery · list_directory)\nPotentially relevant session summaries:\n- - [ ] Update packages/core/tsconfig.json (antigravity) ended with status imported. Working directory: C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43 Log tail: - [ ] Update packages/core/tsconfig.json | - [ ] F\n- A TODO task tracking list for resolving packages/core compilation and tool verification. (antigravity) ended with status imported. Working directory: C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43 Log tail: A \nUse only the parts that still match the current intent; ignore stale context.",
+      "metadata": {
+        "source": "pre_tool_context",
+        "tags": [
+          "tool-context",
+          "pre-tool",
+          "list_directory"
+        ],
+        "toolName": "list_directory",
+        "query": "list_directory .",
+        "matchedPaths": [
+          "."
+        ],
+        "observationCount": 4,
+        "summaryCount": 2,
+        "preview": "JIT context: 4 observations · 2 summarysummaries · 1 file hit"
+      }
+    }
+  ],
+  "notes": "Automatic background handoff"
+}

@@ -2348,12 +2348,12 @@ ${env.tools.filter((tool) => tool.installed).map((tool) => `- **${tool.name}**: 
                 });
             }
 
-            await this.captureToolObservation({
-                toolName: name,
-                args,
-                result,
-                durationMs: Date.now() - startTime,
-            });
+            this.captureToolObservation({
+      toolName: name,
+      args,
+      result,
+      durationMs: Date.now() - startTime,
+    }).catch(err => console.error("[MCPServer] BG observation failed:", err?.message || err));
 
             // ENGAGEMENT MODULE: Suggestion Trigger
             if ((name === "read_file" || name === "view_file") && result) {
@@ -2390,12 +2390,12 @@ ${env.tools.filter((tool) => tool.installed).map((tool) => `- **${tool.name}**: 
                 });
             }
 
-            await this.captureToolObservation({
-                toolName: name,
-                args,
-                error: e,
-                durationMs: Date.now() - startTime,
-            });
+            this.captureToolObservation({
+      toolName: name,
+      args,
+      error: e,
+      durationMs: Date.now() - startTime,
+    }).catch(err => console.error("[MCPServer] BG observation failed:", err?.message || err));
 
             // Return Error as Content (Don't throw, it kills the MCP stream)
             return {
