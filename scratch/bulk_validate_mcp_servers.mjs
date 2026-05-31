@@ -19,7 +19,14 @@ const db = new sqlite3(dbPath);
 db.pragma('busy_timeout = 20000');
 db.pragma('journal_mode = WAL');
 
-console.log(`[Bulk-Validator] Connected to tormentnexus.db at: ${dbPath}`);
+const catalogPath = path.resolve(__dirname, "..", "catalog.db");
+if (!fs.existsSync(catalogPath)) {
+    console.error(`Catalog database not found at ${catalogPath}`);
+    process.exit(1);
+}
+db.prepare(`ATTACH DATABASE '${catalogPath}' AS catalog`).run();
+
+console.log(`[Bulk-Validator] Connected to tormentnexus.db and attached catalog.db successfully.`);
 
 // Brand-reconciliation helper
 function reconcileNaming(text) {
@@ -63,19 +70,31 @@ async function validatePublishedServer(pubServer) {
         recipe = JSON.parse(pubServer.recipe_template);
     } catch (e) {
         console.error(`[Bulk-Validator] Failed to parse recipe template for ${pubServer.canonical_id}:`, e.message);
-        db.prepare("UPDATE published_mcp_servers SET status = 'failed' WHERE uuid = ?").run(pubServer.uuid);
+        db.prepare("UPDATE catalog.published_mcp_servers SET status = 'failed' WHERE uuid = ?").run(pubServer.uuid);
         return;
     }
 
     if (!recipe || recipe.type !== 'stdio' || !recipe.command) {
         console.log(`[Bulk-Validator] Skip: non-stdio or empty recipe template for ${pubServer.canonical_id}.`);
-        db.prepare("UPDATE published_mcp_servers SET status = 'failed' WHERE uuid = ?").run(pubServer.uuid);
+        db.prepare("UPDATE catalog.published_mcp_servers SET status = 'failed' WHERE uuid = ?").run(pubServer.uuid);
         return;
     }
 
-    let command = reconcileNaming(recipe.command);
-    let args = recipe.args || [];
-    let env = recipe.env || {};
+    const originalCommand = reconcileNaming(recipe.command);
+    const originalArgs = recipe.args || [];
+    const env = recipe.env || {};
+
+    // Resolve original arguments
+    const originalArgsParsed = originalArgs.map(arg => {
+        let resolved = reconcileNaming(arg);
+        if (typeof resolved === 'string') {
+            resolved = resolved.replace(/YOUR_[A-Z0-9_]+_HERE/g, "YOUR_KEY_HERE");
+        }
+        return resolved;
+    });
+
+    let runCommand = originalCommand;
+    let runArgsParsed = [...originalArgsParsed];
 
     // SMART REWRITE: If it's a Smithery server, use the Smithery CLI to run it correctly!
     let isSmithery = false;
@@ -92,30 +111,23 @@ async function validatePublishedServer(pubServer) {
     }
 
     if (isSmithery && smitherySlug) {
-        console.log(`[Bulk-Validator] Smart Rewrite: Smithery slug "${smitherySlug}" found! Using @smithery/cli.`);
-        command = "npx";
-        args = ["-y", "@smithery/cli@latest", "run", smitherySlug];
+        console.log(`[Bulk-Validator] Smart Rewrite: Smithery slug "${smitherySlug}" found! Using @smithery/cli for verification run.`);
+        runCommand = "npx";
+        runArgsParsed = ["-y", "@smithery/cli@latest", "run", smitherySlug];
     }
 
     // Standardize & enrich env
     let childEnv = { ...process.env, ...env };
     childEnv = populateEnvSecrets(childEnv);
 
-    // Resolve arguments
-    let argsParsed = args.map(arg => {
-        let resolved = reconcileNaming(arg);
-        if (typeof resolved === 'string') {
-            resolved = resolved.replace(/YOUR_[A-Z0-9_]+_HERE/g, "YOUR_KEY_HERE");
-        }
-        return resolved;
-    });
-
-    console.log(`[Bulk-Validator] Stdio executable: "${command}"`);
-    console.log(`[Bulk-Validator] Stdio args:`, argsParsed);
+    console.log(`[Bulk-Validator] Stdio executable (original): "${originalCommand}"`);
+    console.log(`[Bulk-Validator] Stdio args (original):`, originalArgsParsed);
+    console.log(`[Bulk-Validator] Stdio executable (run): "${runCommand}"`);
+    console.log(`[Bulk-Validator] Stdio args (run):`, runArgsParsed);
 
     const transport = new StdioClientTransport({
-        command: command,
-        args: argsParsed,
+        command: runCommand,
+        args: runArgsParsed,
         env: childEnv
     });
 
@@ -161,9 +173,9 @@ async function validatePublishedServer(pubServer) {
                     mcpUuid,
                     pubServer.display_name,
                     pubServer.description || '',
-                    command,
-                    JSON.stringify(argsParsed),
-                    JSON.stringify(childEnv),
+                    originalCommand,
+                    JSON.stringify(originalArgsParsed),
+                    JSON.stringify(env),
                     pubServer.uuid
                 );
             } else {
@@ -171,7 +183,7 @@ async function validatePublishedServer(pubServer) {
                     UPDATE mcp_servers 
                     SET command = ?, args = ?, env = ?, error_status = '', user_id = 'system'
                     WHERE uuid = ?
-                `).run(command, JSON.stringify(argsParsed), JSON.stringify(childEnv), mcpUuid);
+                `).run(originalCommand, JSON.stringify(originalArgsParsed), JSON.stringify(env), mcpUuid);
             }
 
             // Remove existing tools associated with this server
@@ -195,7 +207,7 @@ async function validatePublishedServer(pubServer) {
 
             // Mark published catalog server as verified
             db.prepare(`
-                UPDATE published_mcp_servers
+                UPDATE catalog.published_mcp_servers
                 SET status = 'verified', confidence = 1.0, last_verified_at = strftime('%s','now'), updated_at = strftime('%s','now')
                 WHERE uuid = ?
             `).run(pubServer.uuid);
@@ -209,7 +221,7 @@ async function validatePublishedServer(pubServer) {
         findingsSummary = err.message;
 
         db.prepare(`
-            UPDATE published_mcp_servers
+            UPDATE catalog.published_mcp_servers
             SET status = 'failed', updated_at = strftime('%s','now')
             WHERE uuid = ?
         `).run(pubServer.uuid);
@@ -221,7 +233,7 @@ async function validatePublishedServer(pubServer) {
         const endTime = Date.now();
         // Log to published_mcp_validation_runs
         db.prepare(`
-            INSERT INTO published_mcp_validation_runs (uuid, server_uuid, run_mode, started_at, finished_at, outcome, failure_class, tool_count, findings_summary, performed_by, created_at)
+            INSERT INTO catalog.published_mcp_validation_runs (uuid, server_uuid, run_mode, started_at, finished_at, outcome, failure_class, tool_count, findings_summary, performed_by, created_at)
             VALUES (?, ?, 'automated_bulk', ?, ?, ?, ?, ?, ?, 'BulkValidatorNode', strftime('%s','now'))
         `).run(
             randomUUID(),
@@ -240,9 +252,9 @@ async function main() {
     // Select discovered servers, joining with recipes and sources to get correct Smithery URLs
     const query = `
         SELECT s.uuid, s.canonical_id, s.display_name, s.description, r.template as recipe_template, src.source_url
-        FROM published_mcp_servers s
-        JOIN published_mcp_config_recipes r ON s.uuid = r.server_uuid
-        LEFT JOIN published_mcp_server_sources src ON s.uuid = src.server_uuid AND src.source_name = 'smithery.ai'
+        FROM catalog.published_mcp_servers s
+        JOIN catalog.published_mcp_config_recipes r ON s.uuid = r.server_uuid
+        LEFT JOIN catalog.published_mcp_server_sources src ON s.uuid = src.server_uuid AND src.source_name = 'smithery.ai'
         WHERE s.status = 'discovered'
         LIMIT 100
     `;
