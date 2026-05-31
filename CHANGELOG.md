@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.0.0-alpha.83] - 2026-05-31
+### Added
+- **Smart Smithery CLI Rewrite Engine**:
+  - Implemented smart translation in `bulk_validate_mcp_servers.mjs` to automatically extract canonical Smithery slugs and run them using `npx -y @smithery/cli@latest run <slug>`, resolving NPM E404 package errors for hundreds of servers.
+- **SQLite Concurrency Optimization**:
+  - Activated Write-Ahead Logging (`journal_mode = WAL`) and increased write transaction busy timeout (`busy_timeout = 20000`) across all validator and DB-updater connections.
+  - Patched long-running uncommitted transactions in the scraper (`patched_enrich_metadata.py`) to commit after every single page fetch, immediately releasing write locks and preventing database collisions.
+- **Rogue Process Sanitization**:
+  - Forcefully terminated all active background python processes, completely resolving write lock contentions and returning the database to a completely clean concurrent state.
+- **Progress Tracking & Catalog Logging**:
+  - Validated and recorded runs for `Reddit`, `Google Tasks`, and `Google Drive` sequentially inside `published_mcp_validation_runs` and documented their status inside `tormentnexus.db`.
+
 ## [1.0.0-alpha.82] - 2026-05-31
 ### Added
 - **Massive MCP Registry Enrichment**:
