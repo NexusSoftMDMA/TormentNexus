@@ -4,5 +4,5 @@
   "description": "Curated system prompt: system-prompts/tool-description-write.md from Piebald-AI/claude-code-system-prompts",
   "template": "<!--\nname: 'Tool Description: Write'\ndescription: Tool for writing files to the local filesystem\nccVersion: 2.1.97\nvariables:\n  - GET_NEW_FILE_NOTE_FN\n-->\nWrites a file to the local filesystem.\n\nUsage:\n- This tool will overwrite the existing file if there is one at the provided path.${GET_NEW_FILE_NOTE_FN()}\n- Prefer the Edit tool for modifying existing files \u2014 it only sends the diff. Only use this tool to create new files or for complete rewrites.\n- NEVER create documentation files (*.md) or README files unless explicitly requested by the User.\n- Only use emojis if the user explicitly requests it. Avoid writing emojis to files unless asked.\n",
   "variables": [],
-  "updatedAt": "2026-05-30T17:12:56.752913Z"
+  "updatedAt": "2026-05-30T23:45:43.377220Z"
 }

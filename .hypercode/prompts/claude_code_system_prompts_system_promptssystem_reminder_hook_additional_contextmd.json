@@ -4,5 +4,5 @@
   "description": "Curated system prompt: system-prompts/system-reminder-hook-additional-context.md from Piebald-AI/claude-code-system-prompts",
   "template": "<!--\nname: 'System Reminder: Hook additional context'\ndescription: Additional context from a hook\nccVersion: 2.1.18\nvariables:\n  - ATTACHMENT_OBJECT\n-->\n${ATTACHMENT_OBJECT.hookName} hook additional context: ${ATTACHMENT_OBJECT.content.join(`\n`)}\n",
   "variables": [],
-  "updatedAt": "2026-05-30T17:12:37.201028Z"
+  "updatedAt": "2026-05-30T23:45:16.843275Z"
 }

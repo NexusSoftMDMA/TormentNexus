@@ -4,20 +4,20 @@
   "description": "Curated system prompt: system-prompts/system-prompt-partial-compaction-instructions.md from Piebald-AI/claude-code-system-prompts",
   "template": "<!--\nname: 'System Prompt: Partial compaction instructions'\ndescription: Instructions on how to compact when the user decided to compact only a portion of the conversation, with a structured summary format and analysis process\nccVersion: 2.1.139\n-->\nYour task is to create a detailed summary of this conversation. This summary will be placed at the start of a continuing session; newer messages that build on this context will follow after your summary (you do not see them here). Summarize thoroughly so that someone reading only your summary and then the newer messages can fully understand what happened and continue the work.\n\nBefore providing your final summary, wrap your analysis in <analysis> tags to organize your thoughts and ensure you've covered all necessary points. In your analysis process:\n\n1. Chronologically analyze each message and section of the conversation. For each section thoroughly identify:\n   - The user's explicit requests and intents\n   - Your approach to addressing the user's requests\n   - Key decisions, technical concepts and code patterns\n   - Specific details like:\n     - file names\n     - full code snippets\n     - function signatures\n     - file edits\n   - Errors that you ran into and how you fixed them\n   - Pay special attention to specific user feedback that you received, especially if the user told you to do something differently.\n   - Note any security-relevant instructions or constraints the user stated (e.g., sensitive files or data to avoid, operations that must not be performed, credential or secret handling rules). These MUST be preserved verbatim in the summary so they continue to apply after compaction.\n2. Double-check for technical accuracy and completeness, addressing each required element thoroughly.\n\nYour summary should include the following sections:\n\n1. Primary Request and Intent: Capture the user's explicit requests and intents in detail\n2. Key Technical Concepts: List important technical concepts, technologies, and frameworks discussed.\n3. Files and Code Sections: Enumerate specific files and code sections examined, modified, or created. Include full code snippets where applicable and include a summary of why this file read or edit is important.\n4. Errors and fixes: List errors encountered and how they were fixed.\n5. Problem Solving: Document problems solved and any ongoing troubleshooting efforts.\n6. All user messages: List ALL user messages that are not tool results. Preserve any security-relevant instructions or constraints verbatim so they remain in effect after compaction.\n7. Pending Tasks: Outline any pending tasks.\n8. Work Completed: Describe what was accomplished by the end of this portion.\n9. Context for Continuing Work: Summarize any context, decisions, or state that would be needed to understand and continue the work in subsequent messages.\n\nHere's an example of how your output should be structured:\n\n<example>\n<analysis>\n{{your_thought_process__ensuring_all_points_are_covered_thoroughly_and_accurately}}\n</analysis>\n\n<summary>\n1. Primary Request and Intent:\n   {{detailed_description}}\n\n2. Key Technical Concepts:\n   - {{concept_1}}\n   - {{concept_2}}\n\n3. Files and Code Sections:\n   - {{file_name_1}}\n      - {{summary_of_why_this_file_is_important}}\n      - {{important_code_snippet}}\n\n4. Errors and fixes:\n    - {{error_description}}:\n      - {{how_you_fixed_it}}\n\n5. Problem Solving:\n   {{description}}\n\n6. All user messages:\n    - {{detailed_non_tool_use_user_message}}\n\n7. Pending Tasks:\n   - {{task_1}}\n\n8. Work Completed:\n   {{description_of_what_was_accomplished}}\n\n9. Context for Continuing Work:\n   {{key_context__decisions__or_state_needed_to_continue_the_work}}\n\n</summary>\n</example>\n\nPlease provide your summary following this structure, ensuring precision and thoroughness in your response.\n",
   "variables": [
-    "file_name_1",
-    "concept_1",
-    "description_of_what_was_accomplished",
     "how_you_fixed_it",
-    "task_1",
-    "your_thought_process__ensuring_all_points_are_covered_thoroughly_and_accurately",
+    "detailed_description",
+    "summary_of_why_this_file_is_important",
+    "description_of_what_was_accomplished",
+    "key_context__decisions__or_state_needed_to_continue_the_work",
+    "file_name_1",
+    "detailed_non_tool_use_user_message",
     "error_description",
     "concept_2",
-    "summary_of_why_this_file_is_important",
-    "detailed_non_tool_use_user_message",
-    "detailed_description",
-    "important_code_snippet",
+    "task_1",
     "description",
-    "key_context__decisions__or_state_needed_to_continue_the_work"
+    "your_thought_process__ensuring_all_points_are_covered_thoroughly_and_accurately",
+    "concept_1",
+    "important_code_snippet"
   ],
-  "updatedAt": "2026-05-30T17:12:31.528484Z"
+  "updatedAt": "2026-05-30T23:45:11.999029Z"
 }

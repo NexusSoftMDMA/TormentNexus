@@ -4,5 +4,5 @@
   "description": "Curated system prompt: system-prompts/tool-description-bash-sandbox-explain-restriction.md from Piebald-AI/claude-code-system-prompts",
   "template": "<!--\nname: 'Tool Description: Bash (sandbox \u2014 explain restriction)'\ndescription: Explain which sandbox restriction caused the failure\nccVersion: 2.1.53\n-->\nBriefly explain what sandbox restriction likely caused the failure. Be sure to mention that the user can use the `/sandbox` command to manage restrictions.\n",
   "variables": [],
-  "updatedAt": "2026-05-30T17:12:47.839436Z"
+  "updatedAt": "2026-05-30T23:45:25.584112Z"
 }

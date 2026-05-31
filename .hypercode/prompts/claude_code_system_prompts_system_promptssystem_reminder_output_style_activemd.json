@@ -4,5 +4,5 @@
   "description": "Curated system prompt: system-prompts/system-reminder-output-style-active.md from Piebald-AI/claude-code-system-prompts",
   "template": "<!--\nname: 'System Reminder: Output style active'\ndescription: Notification that an output style is active\nccVersion: 2.1.141\nvariables:\n  - OUTPUT_STYLE_CONFIG\n  - OUTPUT_STYLE_TURN_REMINDER\n-->\n${OUTPUT_STYLE_CONFIG.name} output style is active. ${OUTPUT_STYLE_TURN_REMINDER.turnReminder??\"Remember to follow the specific guidelines for this style.\"}\n",
   "variables": [],
-  "updatedAt": "2026-05-30T17:12:38.965103Z"
+  "updatedAt": "2026-05-30T23:45:18.493880Z"
 }

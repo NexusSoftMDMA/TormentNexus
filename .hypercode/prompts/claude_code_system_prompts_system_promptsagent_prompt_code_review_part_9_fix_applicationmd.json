@@ -4,5 +4,5 @@
   "description": "Curated system prompt: system-prompts/agent-prompt-code-review-part-9-fix-application.md from Piebald-AI/claude-code-system-prompts",
   "template": "<!--\nname: 'Agent Prompt: /code-review part 9 fix application'\ndescription: Optional /code-review instructions for applying findings to the working tree when --fix is passed\nccVersion: 2.1.152\n-->\n\n\n## Applying fixes (--fix)\n\nThe `--fix` flag was passed. After producing the findings list, apply the\nfindings to the working tree instead of stopping at the report: fix each one\ndirectly \u2014 correctness bugs and reuse/simplification/efficiency cleanups alike.\nSkip any finding whose fix would change intended behavior, require changes well\noutside the reviewed diff, or that you judge to be a false positive \u2014 note the\nskip rather than arguing with it. Finish with a brief summary of what was fixed\nand what was skipped.\n",
   "variables": [],
-  "updatedAt": "2026-05-30T17:11:52.553467Z"
+  "updatedAt": "2026-05-30T23:44:45.093520Z"
 }

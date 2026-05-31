@@ -4,5 +4,5 @@
   "description": "Curated system prompt: system-prompts/tool-description-bash-sleep-use-check-commands.md from Piebald-AI/claude-code-system-prompts",
   "template": "<!--\nname: 'Tool Description: Bash (sleep \u2014 use check commands)'\ndescription: Bash tool instruction: use check commands rather than sleeping when polling\nccVersion: 2.1.53\n-->\nIf you must poll an external process, use a check command (e.g. `gh run view`) rather than sleeping first.\n",
   "variables": [],
-  "updatedAt": "2026-05-30T17:12:50.500021Z"
+  "updatedAt": "2026-05-30T23:45:27.902975Z"
 }

@@ -4,5 +4,5 @@
   "description": "Curated system prompt: system-prompts/tool-description-bash-git-prefer-new-commits.md from Piebald-AI/claude-code-system-prompts",
   "template": "<!--\nname: 'Tool Description: Bash (git \u2014 prefer new commits)'\ndescription: Bash tool git instruction: prefer new commits over amending\nccVersion: 2.1.53\n-->\nPrefer to create a new commit rather than amending an existing commit.\n",
   "variables": [],
-  "updatedAt": "2026-05-30T17:12:44.809610Z"
+  "updatedAt": "2026-05-30T23:45:23.262303Z"
 }

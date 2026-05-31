@@ -4,5 +4,5 @@
   "description": "Curated system prompt: system-prompts/tool-description-bash-alternative-file-search.md from Piebald-AI/claude-code-system-prompts",
   "template": "<!--\nname: 'Tool Description: Bash (alternative \u2014 file search)'\ndescription: Bash tool alternative: use Glob for file search instead of find/ls\nccVersion: 2.1.53\nvariables:\n  - GLOB_TOOL_NAME\n-->\nFile search: Use ${GLOB_TOOL_NAME} (NOT find or ls)\n",
   "variables": [],
-  "updatedAt": "2026-05-30T17:12:43.664203Z"
+  "updatedAt": "2026-05-30T23:45:22.185009Z"
 }

@@ -4,5 +4,5 @@
   "description": "Curated system prompt: system-prompts/tool-description-bash-sandbox-evidence-network-failures.md from Piebald-AI/claude-code-system-prompts",
   "template": "<!--\nname: 'Tool Description: Bash (sandbox \u2014 evidence: network failures)'\ndescription: Sandbox evidence: network connection failures to non-whitelisted hosts\nccVersion: 2.1.53\n-->\nNetwork connection failures to non-whitelisted hosts\n",
   "variables": [],
-  "updatedAt": "2026-05-30T17:12:47.288973Z"
+  "updatedAt": "2026-05-30T23:45:25.144289Z"
 }

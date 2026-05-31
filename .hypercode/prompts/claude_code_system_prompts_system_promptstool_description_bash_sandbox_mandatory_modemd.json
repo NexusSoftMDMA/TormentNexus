@@ -4,5 +4,5 @@
   "description": "Curated system prompt: system-prompts/tool-description-bash-sandbox-mandatory-mode.md from Piebald-AI/claude-code-system-prompts",
   "template": "<!--\nname: 'Tool Description: Bash (sandbox \u2014 mandatory mode)'\ndescription: Policy: all commands must run in sandbox mode\nccVersion: 2.1.53\n-->\nAll commands MUST run in sandbox mode - the `dangerouslyDisableSandbox` parameter is disabled by policy.\n",
   "variables": [],
-  "updatedAt": "2026-05-30T17:12:48.179072Z"
+  "updatedAt": "2026-05-30T23:45:25.841487Z"
 }

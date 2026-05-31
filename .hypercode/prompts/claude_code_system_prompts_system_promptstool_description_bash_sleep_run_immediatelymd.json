@@ -4,5 +4,5 @@
   "description": "Curated system prompt: system-prompts/tool-description-bash-sleep-run-immediately.md from Piebald-AI/claude-code-system-prompts",
   "template": "<!--\nname: 'Tool Description: Bash (sleep \u2014 run immediately)'\ndescription: Bash tool instruction: do not sleep between commands that can run immediately\nccVersion: 2.1.53\n-->\nDo not sleep between commands that can run immediately \u2014 just run them.\n",
   "variables": [],
-  "updatedAt": "2026-05-30T17:12:50.337478Z"
+  "updatedAt": "2026-05-30T23:45:27.676505Z"
 }

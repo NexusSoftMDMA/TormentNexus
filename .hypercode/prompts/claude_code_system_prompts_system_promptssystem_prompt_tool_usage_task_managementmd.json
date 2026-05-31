@@ -4,5 +4,5 @@
   "description": "Curated system prompt: system-prompts/system-prompt-tool-usage-task-management.md from Piebald-AI/claude-code-system-prompts",
   "template": "<!--\nname: 'System Prompt: Tool usage (task management)'\ndescription: Use TodoWrite to break down and track work progress\nccVersion: 2.1.81\nvariables:\n  - TODOWRITE_TOOL_NAME\n-->\nBreak down and manage your work with the ${TODOWRITE_TOOL_NAME} tool. These tools are helpful for planning your work and helping the user track your progress. Mark each task as completed as soon as you are done with the task. Do not batch up multiple tasks before marking them as completed.\n",
   "variables": [],
-  "updatedAt": "2026-05-30T17:12:34.332545Z"
+  "updatedAt": "2026-05-30T23:45:14.343580Z"
 }

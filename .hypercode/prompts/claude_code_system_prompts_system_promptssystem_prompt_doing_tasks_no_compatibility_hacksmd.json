@@ -4,5 +4,5 @@
   "description": "Curated system prompt: system-prompts/system-prompt-doing-tasks-no-compatibility-hacks.md from Piebald-AI/claude-code-system-prompts",
   "template": "<!--\nname: 'System Prompt: Doing tasks (no compatibility hacks)'\ndescription: Delete unused code completely rather than adding compatibility shims\nccVersion: 2.1.53\n-->\nAvoid backwards-compatibility hacks like renaming unused _vars, re-exporting types, adding // removed comments for removed code, etc. If you are certain that something is unused, you can delete it completely.\n",
   "variables": [],
-  "updatedAt": "2026-05-30T17:12:25.471966Z"
+  "updatedAt": "2026-05-30T23:45:08.042840Z"
 }

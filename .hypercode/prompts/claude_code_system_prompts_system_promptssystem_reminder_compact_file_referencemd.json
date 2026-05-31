@@ -4,5 +4,5 @@
   "description": "Curated system prompt: system-prompts/system-reminder-compact-file-reference.md from Piebald-AI/claude-code-system-prompts",
   "template": "<!--\nname: 'System Reminder: Compact file reference'\ndescription: Reference to file read before conversation summarization\nccVersion: 2.1.18\nvariables:\n  - ATTACHMENT_OBJECT\n  - READ_TOOL_OBJECT\n-->\nNote: ${ATTACHMENT_OBJECT.filename} was read before the last conversation was summarized, but the contents are too large to include. Use ${READ_TOOL_OBJECT.name} tool if you need to access it.\n",
   "variables": [],
-  "updatedAt": "2026-05-30T17:12:35.562958Z"
+  "updatedAt": "2026-05-30T23:45:15.409527Z"
 }

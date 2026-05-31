@@ -4,5 +4,5 @@
   "description": "Curated system prompt: system-prompts/agent-prompt-code-review-part-4-three-state-verification-phase.md from Piebald-AI/claude-code-system-prompts",
   "template": "<!--\nname: 'Agent Prompt: /code-review part 4 three-state verification phase'\ndescription: Verification phase for /code-review that asks one agent verifier to classify each candidate as confirmed, plausible, or refuted\nccVersion: 2.1.147\nvariables:\n  - AGENT_TOOL_NAME\n-->\n## Phase 2 \u2014 Verify (1-vote, 3-state)\n\nDedup candidates that point at the same line/mechanism, keeping the one with\nthe most concrete failure scenario. For each remaining candidate, run **one\nverifier** via the ${AGENT_TOOL_NAME} tool: give it the diff, the relevant\nfile(s), and the candidate, and have it return exactly one of:\n\n- **CONFIRMED** \u2014 can name the inputs/state that trigger it and the wrong\n  output or crash. Quote the line.\n- **PLAUSIBLE** \u2014 mechanism is real, trigger is uncertain (timing, env,\n  config). State what would confirm it.\n- **REFUTED** \u2014 factually wrong (code doesn't say that) or guarded elsewhere.\n  Quote the line that proves it.\n\nKeep candidates where the vote is CONFIRMED or PLAUSIBLE.\n",
   "variables": [],
-  "updatedAt": "2026-05-30T17:11:51.743792Z"
+  "updatedAt": "2026-05-30T23:44:44.292492Z"
 }

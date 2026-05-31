@@ -4,5 +4,5 @@
   "description": "Curated system prompt: system-prompts/tool-description-bash-built-in-tools-note.md from Piebald-AI/claude-code-system-prompts",
   "template": "<!--\nname: 'Tool Description: Bash (built-in tools note)'\ndescription: Note that built-in tools provide better UX than Bash equivalents\nccVersion: 2.1.53\nvariables:\n  - BASH_TOOL_NAME\n-->\nWhile the ${BASH_TOOL_NAME} tool can do similar things, it\u2019s better to use the built-in tools as they provide a better user experience and make it easier to review tool calls and give permission.\n",
   "variables": [],
-  "updatedAt": "2026-05-30T17:12:44.152768Z"
+  "updatedAt": "2026-05-30T23:45:22.703587Z"
 }

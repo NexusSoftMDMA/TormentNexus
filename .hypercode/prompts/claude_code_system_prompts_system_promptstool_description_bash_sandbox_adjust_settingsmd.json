@@ -4,5 +4,5 @@
   "description": "Curated system prompt: system-prompts/tool-description-bash-sandbox-adjust-settings.md from Piebald-AI/claude-code-system-prompts",
   "template": "<!--\nname: 'Tool Description: Bash (sandbox \u2014 adjust settings)'\ndescription: Work with user to adjust sandbox settings on failure\nccVersion: 2.1.53\n-->\nIf a command fails due to sandbox restrictions, work with the user to adjust sandbox settings instead.\n",
   "variables": [],
-  "updatedAt": "2026-05-30T17:12:46.615155Z"
+  "updatedAt": "2026-05-30T23:45:24.536854Z"
 }

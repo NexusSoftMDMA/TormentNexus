@@ -4,5 +4,5 @@
   "description": "Curated system prompt: system-prompts/system-reminder-previously-invoked-skills.md from Piebald-AI/claude-code-system-prompts",
   "template": "<!--\nname: 'System Reminder: Previously invoked skills'\ndescription: Restores skills invoked before conversation compaction as context only, warning not to re-execute their setup actions or treat prior inputs as current instructions\nccVersion: 2.1.119\nvariables:\n  - FORMATTED_SKILLS_LIST\n-->\nThe following skills were invoked EARLIER in this session (before the conversation was compacted), not on the current turn. They are shown here for context only so you remain aware of their guidelines.\n\nIMPORTANT: Do NOT re-execute these skills or perform their one-time setup actions (e.g., scheduling, creating files) again. The \"## Input\" sections below reflect the original arguments from when each skill was first invoked \u2014 they are NOT the user's current message. Only continue to apply ongoing behavioral guidelines from these skills where still relevant.\n\n${FORMATTED_SKILLS_LIST}\n",
   "variables": [],
-  "updatedAt": "2026-05-30T17:12:40.406231Z"
+  "updatedAt": "2026-05-30T23:45:19.430406Z"
 }

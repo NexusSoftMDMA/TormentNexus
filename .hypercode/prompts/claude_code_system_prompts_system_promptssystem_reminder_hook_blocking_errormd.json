@@ -4,5 +4,5 @@
   "description": "Curated system prompt: system-prompts/system-reminder-hook-blocking-error.md from Piebald-AI/claude-code-system-prompts",
   "template": "<!--\nname: 'System Reminder: Hook blocking error'\ndescription: Error from a blocking hook command\nccVersion: 2.1.18\nvariables:\n  - ATTACHMENT_OBJECT\n-->\n${ATTACHMENT_OBJECT.hookName} hook blocking error from command: \"${ATTACHMENT_OBJECT.blockingError.command}\": ${ATTACHMENT_OBJECT.blockingError.blockingError}\n",
   "variables": [],
-  "updatedAt": "2026-05-30T17:12:37.336229Z"
+  "updatedAt": "2026-05-30T23:45:17.016847Z"
 }

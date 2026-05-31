@@ -4,5 +4,5 @@
   "description": "Curated system prompt: system-prompts/system-prompt-doing-tasks-no-unnecessary-error-handling.md from Piebald-AI/claude-code-system-prompts",
   "template": "<!--\nname: 'System Prompt: Doing tasks (no unnecessary error handling)'\ndescription: Do not add error handling for impossible scenarios; only validate at boundaries\nccVersion: 2.1.53\n-->\nDon't add error handling, fallbacks, or validation for scenarios that can't happen. Trust internal code and framework guarantees. Only validate at system boundaries (user input, external APIs). Don't use feature flags or backwards-compatibility shims when you can just change the code.\n",
   "variables": [],
-  "updatedAt": "2026-05-30T17:12:25.684881Z"
+  "updatedAt": "2026-05-30T23:45:08.181875Z"
 }

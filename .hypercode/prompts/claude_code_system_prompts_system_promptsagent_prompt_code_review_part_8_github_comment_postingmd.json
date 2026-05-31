@@ -4,5 +4,5 @@
   "description": "Curated system prompt: system-prompts/agent-prompt-code-review-part-8-github-comment-posting.md from Piebald-AI/claude-code-system-prompts",
   "template": "<!--\nname: 'Agent Prompt: /code-review part 8 GitHub comment posting'\ndescription: Optional /code-review instructions for posting findings as GitHub inline PR comments when --comment is passed\nccVersion: 2.1.147\n-->\n\n\n## Posting to GitHub (--comment)\n\nThe `--comment` flag was passed. After producing the findings list, if the\nreview target is a GitHub PR, post each finding as an inline PR comment via\n`mcp__github_inline_comment__create_inline_comment` (one call per finding;\ninclude a suggestion block only when it fully fixes the issue). If that tool\nis not available in this session, fall back to `gh api` (repos/{owner}/{repo}/pulls/{pr}/comments)\nor print the findings instead. If the target is not a PR, print the findings\nto the terminal and note that `--comment` was ignored.\n",
   "variables": [],
-  "updatedAt": "2026-05-30T17:11:52.395312Z"
+  "updatedAt": "2026-05-30T23:44:44.885996Z"
 }

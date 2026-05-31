@@ -4,5 +4,5 @@
   "description": "Curated system prompt: system-prompts/tool-description-bash-working-directory.md from Piebald-AI/claude-code-system-prompts",
   "template": "<!--\nname: 'Tool Description: Bash (working directory)'\ndescription: Bash tool note about working directory persistence and shell state\nccVersion: 2.1.53\n-->\nThe working directory persists between commands, but shell state does not. The shell environment is initialized from the user's profile (bash or zsh).\n",
   "variables": [],
-  "updatedAt": "2026-05-30T17:12:50.978417Z"
+  "updatedAt": "2026-05-30T23:45:29.720548Z"
 }

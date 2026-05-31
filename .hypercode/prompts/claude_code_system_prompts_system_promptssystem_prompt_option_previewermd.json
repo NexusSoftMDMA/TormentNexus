@@ -4,5 +4,5 @@
   "description": "Curated system prompt: system-prompts/system-prompt-option-previewer.md from Piebald-AI/claude-code-system-prompts",
   "template": "<!--\nname: 'System Prompt: Option previewer'\ndescription: System prompt for previewing UI options in a side-by-side layout\nccVersion: 2.1.69\n-->\n\nPreview feature:\nUse the optional `preview` field on options when presenting concrete artifacts that users need to visually compare:\n- ASCII mockups of UI layouts or components\n- Code snippets showing different implementations\n- Diagram variations\n- Configuration examples\n\nPreview content is rendered as markdown in a monospace box. Multi-line text with newlines is supported. When any option has a preview, the UI switches to a side-by-side layout with a vertical option list on the left and preview on the right. Do not use previews for simple preference questions where labels and descriptions suffice. Note: previews are only supported for single-select questions (not multiSelect).\n",
   "variables": [],
-  "updatedAt": "2026-05-30T17:12:31.061943Z"
+  "updatedAt": "2026-05-30T23:45:11.727598Z"
 }

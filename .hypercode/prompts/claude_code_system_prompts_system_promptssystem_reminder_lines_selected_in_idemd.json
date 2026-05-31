@@ -4,5 +4,5 @@
   "description": "Curated system prompt: system-prompts/system-reminder-lines-selected-in-ide.md from Piebald-AI/claude-code-system-prompts",
   "template": "<!--\nname: 'System Reminder: Lines selected in IDE'\ndescription: Notification about lines selected by user in IDE\nccVersion: 2.1.18\nvariables:\n  - ATTACHMENT_OBJECT\n  - TRUNCATED_CONTENT\n-->\nThe user selected the lines ${ATTACHMENT_OBJECT.lineStart} to ${ATTACHMENT_OBJECT.lineEnd} from ${ATTACHMENT_OBJECT.filename}:\n${TRUNCATED_CONTENT}\n\nThis may or may not be related to the current task.\n",
   "variables": [],
-  "updatedAt": "2026-05-30T17:12:37.980050Z"
+  "updatedAt": "2026-05-30T23:45:17.631998Z"
 }

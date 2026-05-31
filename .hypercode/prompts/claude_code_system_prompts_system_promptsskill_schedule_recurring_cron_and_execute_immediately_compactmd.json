@@ -4,5 +4,5 @@
   "description": "Curated system prompt: system-prompts/skill-schedule-recurring-cron-and-execute-immediately-compact.md from Piebald-AI/claude-code-system-prompts",
   "template": "<!--\nname: 'Skill: Schedule recurring cron and execute immediately (compact)'\ndescription: Instructions for creating a recurring cron job, confirming the schedule with the user, and immediately executing the parsed prompt without waiting for the first cron fire\nccVersion: 2.1.101\nvariables:\n  - CRON_CREATE_TOOL_NAME\n  - CANCEL_TIMEFRAME_DAYS\n  - CRON_DELETE_TOOL_NAME\n  - ADDITIONAL_INFO_FN\n-->\n1. Call ${CRON_CREATE_TOOL_NAME} with: `cron` (the expression above), `prompt` (the parsed prompt verbatim), `recurring: true`.\n2. Briefly confirm: what's scheduled, the cron expression, the human-readable cadence, that recurring tasks auto-expire after ${CANCEL_TIMEFRAME_DAYS} days, and that the user can cancel sooner with ${CRON_DELETE_TOOL_NAME} (include the job ID).${ADDITIONAL_INFO_FN()}\n3. **Then immediately execute the parsed prompt now** \u2014 don't wait for the first cron fire. If it's a slash command, invoke it via the Skill tool; otherwise act on it directly.\n",
   "variables": [],
-  "updatedAt": "2026-05-30T17:12:18.448648Z"
+  "updatedAt": "2026-05-30T23:45:03.799384Z"
 }

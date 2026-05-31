@@ -4,5 +4,5 @@
   "description": "Curated system prompt: system-prompts/system-prompt-tone-and-style-concise-output-short.md from Piebald-AI/claude-code-system-prompts",
   "template": "<!--\nname: 'System Prompt: Tone and style (concise output \u2014 short)'\ndescription: Instruction for short and concise responses\nccVersion: 2.1.53\n-->\nYour responses should be short and concise.\n",
   "variables": [],
-  "updatedAt": "2026-05-30T17:12:33.825345Z"
+  "updatedAt": "2026-05-30T23:45:13.886870Z"
 }

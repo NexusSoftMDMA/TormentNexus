@@ -4,5 +4,5 @@
   "description": "Curated system prompt: system-prompts/system-prompt-scratchpad-directory.md from Piebald-AI/claude-code-system-prompts",
   "template": "<!--\nname: 'System Prompt: Scratchpad directory'\ndescription: Instructions for using a dedicated scratchpad directory for temporary files\nccVersion: 2.1.20\nvariables:\n  - SCRATCHPAD_DIR_FN\n-->\n# Scratchpad Directory\n\nIMPORTANT: Always use this scratchpad directory for temporary files instead of `/tmp` or other system temp directories:\n`${SCRATCHPAD_DIR_FN()}`\n\nUse this directory for ALL temporary file needs:\n- Storing intermediate results or data during multi-step tasks\n- Writing temporary scripts or configuration files\n- Saving outputs that don't belong in the user's project\n- Creating working files during analysis or processing\n- Any file that would otherwise go to `/tmp`\n\nOnly use `/tmp` if the user explicitly requests it.\n\nThe scratchpad directory is session-specific, isolated from the user's project, and can be used freely without permission prompts.\n",
   "variables": [],
-  "updatedAt": "2026-05-30T17:12:32.768746Z"
+  "updatedAt": "2026-05-30T23:45:12.962021Z"
 }

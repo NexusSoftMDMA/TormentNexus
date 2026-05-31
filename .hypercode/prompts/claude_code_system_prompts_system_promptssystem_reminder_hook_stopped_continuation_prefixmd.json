@@ -4,5 +4,5 @@
   "description": "Curated system prompt: system-prompts/system-reminder-hook-stopped-continuation-prefix.md from Piebald-AI/claude-code-system-prompts",
   "template": "<!--\nname: 'System Reminder: Hook stopped continuation prefix'\ndescription: Prefix for hook stopped continuation messages\nccVersion: 2.1.31\n-->\n hook stopped continuation: \n",
   "variables": [],
-  "updatedAt": "2026-05-30T17:12:37.487563Z"
+  "updatedAt": "2026-05-30T23:45:17.190567Z"
 }

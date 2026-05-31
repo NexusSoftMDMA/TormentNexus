@@ -4,5 +4,5 @@
   "description": "Curated system prompt: system-prompts/tool-description-askuserquestion-preview-field.md from Piebald-AI/claude-code-system-prompts",
   "template": "<!--\nname: 'Tool Description: AskUserQuestion (preview field)'\ndescription: Instructions for using the HTML preview field on single-select question options to display visual artifacts like UI mockups, code snippets, and diagrams\nccVersion: 2.1.69\n-->\n\nPreview feature:\nUse the optional `preview` field on options when presenting concrete artifacts that users need to visually compare:\n- HTML mockups of UI layouts or components\n- Formatted code snippets showing different implementations\n- Visual comparisons or diagrams\n\nPreview content must be a self-contained HTML fragment (no <html>/<body> wrapper, no <script> or <style> tags \u2014 use inline style attributes instead). Do not use previews for simple preference questions where labels and descriptions suffice. Note: previews are only supported for single-select questions (not multiSelect).\n",
   "variables": [],
-  "updatedAt": "2026-05-30T17:12:42.648080Z"
+  "updatedAt": "2026-05-30T23:45:21.272957Z"
 }

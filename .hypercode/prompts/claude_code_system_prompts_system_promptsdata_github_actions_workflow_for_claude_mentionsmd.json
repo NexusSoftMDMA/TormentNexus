@@ -4,10 +4,10 @@
   "description": "Curated system prompt: system-prompts/data-github-actions-workflow-for-claude-mentions.md from Piebald-AI/claude-code-system-prompts",
   "template": "<!--\nname: 'Data: GitHub Actions workflow for @claude mentions'\ndescription: GitHub Actions workflow template for triggering Claude Code via @claude mentions\nccVersion: 2.1.108\n-->\nname: Claude Code\n\non:\n  issue_comment:\n    types: {{created}}\n  pull_request_review_comment:\n    types: {{created}}\n  issues:\n    types: {{opened__assigned}}\n  pull_request_review:\n    types: {{submitted}}\n\njobs:\n  claude:\n    if: |\n      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||\n      (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude')) ||\n      (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude')) ||\n      (github.event_name == 'issues' && (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude')))\n    runs-on: ubuntu-latest\n    permissions:\n      contents: read\n      pull-requests: read\n      issues: read\n      id-token: write\n      actions: read # Required for Claude to read CI results on PRs\n    steps:\n      - name: Checkout repository\n        uses: actions/checkout@v4\n        with:\n          fetch-depth: 1\n\n      - name: Run Claude Code\n        id: claude\n        uses: anthropics/claude-code-action@v1\n        with:\n          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}\n\n          # This is an optional setting that allows Claude to read CI results on PRs\n          additional_permissions: |\n            actions: read\n\n          # Optional: Give a custom prompt to Claude. If this is not specified, Claude will perform the instructions specified in the comment that tagged it.\n          # prompt: 'Update the pull request description to include a summary of changes.'\n\n          # Optional: Add claude_args to customize behavior and configuration\n          # See https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md\n          # or https://code.claude.com/docs/en/cli-reference for available options\n          # claude_args: '--allowed-tools Bash(gh pr *)'\n\n",
   "variables": [
+    "created",
     "opened__assigned",
     "secrets_anthropic_api_key",
-    "created",
     "submitted"
   ],
-  "updatedAt": "2026-05-30T17:12:02.674340Z"
+  "updatedAt": "2026-05-30T23:44:55.239238Z"
 }

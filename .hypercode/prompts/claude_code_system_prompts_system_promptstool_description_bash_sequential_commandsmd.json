@@ -4,5 +4,5 @@
   "description": "Curated system prompt: system-prompts/tool-description-bash-sequential-commands.md from Piebald-AI/claude-code-system-prompts",
   "template": "<!--\nname: 'Tool Description: Bash (sequential commands)'\ndescription: Bash tool instruction: chain dependent commands with &&\nccVersion: 2.1.53\nvariables:\n  - BASH_TOOL_NAME\n-->\nIf the commands depend on each other and must run sequentially, use a single ${BASH_TOOL_NAME} call with '&&' to chain them together.\n",
   "variables": [],
-  "updatedAt": "2026-05-30T17:12:49.799688Z"
+  "updatedAt": "2026-05-30T23:45:27.178710Z"
 }

@@ -4,5 +4,5 @@
   "description": "Curated system prompt: system-prompts/tool-description-bash-alternative-content-search.md from Piebald-AI/claude-code-system-prompts",
   "template": "<!--\nname: 'Tool Description: Bash (alternative \u2014 content search)'\ndescription: Bash tool alternative: use Grep for content search instead of grep/rg\nccVersion: 2.1.53\nvariables:\n  - GREP_TOOL_NAME\n-->\nContent search: Use ${GREP_TOOL_NAME} (NOT grep or rg)\n",
   "variables": [],
-  "updatedAt": "2026-05-30T17:12:43.331232Z"
+  "updatedAt": "2026-05-30T23:45:21.865918Z"
 }

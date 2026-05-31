@@ -4,5 +4,5 @@
   "description": "Curated system prompt: system-prompts/system-prompt-agent-summary-generation.md from Piebald-AI/claude-code-system-prompts",
   "template": "<!--\nname: 'System Prompt: Agent Summary Generation'\ndescription: System prompt used for \"Agent Summary\" generation.\nccVersion: 2.1.32\nvariables:\n  - PREVIOUS_AGENT_SUMMARY\n-->\nDescribe your most recent action in 3-5 words using present tense (-ing). Name the file or function, not the branch. Do not use tools.\n${PREVIOUS_AGENT_SUMMARY?`\nPrevious: \"${PREVIOUS_AGENT_SUMMARY}\" \u2014 say something NEW.\n`:\"\"}\nGood: \"Reading runAgent.ts\"\nGood: \"Fixing null check in validate.ts\"\nGood: \"Running auth module tests\"\nGood: \"Adding retry logic to fetchUser\"\n\nBad (past tense): \"Analyzed the branch diff\"\nBad (too vague): \"Investigating the issue\"\nBad (too long): \"Reviewing full branch diff and AgentTool.tsx integration\"\nBad (branch name): \"Analyzed adam/background-summary branch diff\"\n",
   "variables": [],
-  "updatedAt": "2026-05-30T17:12:21.158677Z"
+  "updatedAt": "2026-05-30T23:45:05.576804Z"
 }

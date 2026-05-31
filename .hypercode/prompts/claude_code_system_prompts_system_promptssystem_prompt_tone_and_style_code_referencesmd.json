@@ -4,5 +4,5 @@
   "description": "Curated system prompt: system-prompts/system-prompt-tone-and-style-code-references.md from Piebald-AI/claude-code-system-prompts",
   "template": "<!--\nname: 'System Prompt: Tone and style (code references)'\ndescription: Instruction to include file_path:line_number when referencing code\nccVersion: 2.1.53\n-->\nWhen referencing specific functions or pieces of code include the pattern file_path:line_number to allow the user to easily navigate to the source code location.\n",
   "variables": [],
-  "updatedAt": "2026-05-30T17:12:33.667186Z"
+  "updatedAt": "2026-05-30T23:45:13.759953Z"
 }

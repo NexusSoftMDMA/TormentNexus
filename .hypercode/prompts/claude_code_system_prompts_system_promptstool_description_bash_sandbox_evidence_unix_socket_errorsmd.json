@@ -4,5 +4,5 @@
   "description": "Curated system prompt: system-prompts/tool-description-bash-sandbox-evidence-unix-socket-errors.md from Piebald-AI/claude-code-system-prompts",
   "template": "<!--\nname: 'Tool Description: Bash (sandbox \u2014 evidence: unix socket errors)'\ndescription: Sandbox evidence: unix socket connection errors\nccVersion: 2.1.53\n-->\nUnix socket connection errors\n",
   "variables": [],
-  "updatedAt": "2026-05-30T17:12:47.678266Z"
+  "updatedAt": "2026-05-30T23:45:25.444858Z"
 }

@@ -4,5 +4,5 @@
   "description": "Curated system prompt: system-prompts/tool-description-notebookedit.md from Piebald-AI/claude-code-system-prompts",
   "template": "<!--\nname: 'Tool Description: NotebookEdit'\ndescription: Tool description for editing Jupyter notebook cells\nccVersion: 2.0.14\n-->\nCompletely replaces the contents of a specific cell in a Jupyter notebook (.ipynb file) with new source. Jupyter notebooks are interactive documents that combine code, text, and visualizations, commonly used for data analysis and scientific computing. The notebook_path parameter must be an absolute path, not a relative path. The cell_number is 0-indexed. Use edit_mode=insert to add a new cell at the index specified by cell_number. Use edit_mode=delete to delete the cell at the index specified by cell_number.\n",
   "variables": [],
-  "updatedAt": "2026-05-30T17:12:52.970301Z"
+  "updatedAt": "2026-05-30T23:45:39.243635Z"
 }

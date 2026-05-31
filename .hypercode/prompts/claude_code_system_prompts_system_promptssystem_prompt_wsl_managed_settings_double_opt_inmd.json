@@ -4,5 +4,5 @@
   "description": "Curated system prompt: system-prompts/system-prompt-wsl-managed-settings-double-opt-in.md from Piebald-AI/claude-code-system-prompts",
   "template": "<!--\nname: 'System Prompt: WSL managed settings double opt-in'\ndescription: Explains that WSL can read the Windows managed settings policy chain only when the admin-enabled flag is set, with HKCU requiring an additional user opt-in\nccVersion: 2.1.118\n-->\nWhen set to true in either admin-only Windows source \u2014 the HKLM SOFTWARE/Policies/ClaudeCode registry key or C:/Program Files/ClaudeCode/managed-settings.json \u2014 WSL reads managed settings from the full Windows policy chain (HKLM, C:/Program Files/ClaudeCode via DrvFs, HKCU) in addition to /etc/claude-code. Windows sources take priority. The flag is also required in HKCU itself for HKCU policy to apply on WSL (double opt-in: admin enables the chain, user confirms HKCU). On native Windows the flag has no effect.\n",
   "variables": [],
-  "updatedAt": "2026-05-30T17:12:34.958725Z"
+  "updatedAt": "2026-05-30T23:45:14.827279Z"
 }

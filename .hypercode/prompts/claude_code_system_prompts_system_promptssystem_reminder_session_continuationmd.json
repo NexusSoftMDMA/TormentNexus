@@ -4,5 +4,5 @@
   "description": "Curated system prompt: system-prompts/system-reminder-session-continuation.md from Piebald-AI/claude-code-system-prompts",
   "template": "<!--\nname: 'System Reminder: Session continuation'\ndescription: Notification that session continues from another machine\nccVersion: 2.1.18\nvariables:\n  - GET_CWD_FN\n-->\nThis session is being continued from another machine. Application state may have changed. The updated working directory is ${GET_CWD_FN()}\n",
   "variables": [],
-  "updatedAt": "2026-05-30T17:12:40.559539Z"
+  "updatedAt": "2026-05-30T23:45:19.573167Z"
 }

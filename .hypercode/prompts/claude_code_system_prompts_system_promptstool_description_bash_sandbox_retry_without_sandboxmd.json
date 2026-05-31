@@ -4,5 +4,5 @@
   "description": "Curated system prompt: system-prompts/tool-description-bash-sandbox-retry-without-sandbox.md from Piebald-AI/claude-code-system-prompts",
   "template": "<!--\nname: 'Tool Description: Bash (sandbox \u2014 retry without sandbox)'\ndescription: Immediately retry with dangerouslyDisableSandbox on sandbox failure\nccVersion: 2.1.53\n-->\nImmediately retry with `dangerouslyDisableSandbox: true` (don't ask, just do it)\n",
   "variables": [],
-  "updatedAt": "2026-05-30T17:12:49.115572Z"
+  "updatedAt": "2026-05-30T23:45:26.629586Z"
 }

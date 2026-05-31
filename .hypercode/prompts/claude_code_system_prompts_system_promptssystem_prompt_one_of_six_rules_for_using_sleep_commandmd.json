@@ -4,5 +4,5 @@
   "description": "Curated system prompt: system-prompts/system-prompt-one-of-six-rules-for-using-sleep-command.md from Piebald-AI/claude-code-system-prompts",
   "template": "<!--\nname: 'System Prompt: One of six rules for using sleep command'\ndescription: One of the six rules for using the sleep command.\nccVersion: 2.1.75\n-->\nDo not retry failing commands in a sleep loop \u2014 diagnose the root cause.\n",
   "variables": [],
-  "updatedAt": "2026-05-30T17:12:30.639300Z"
+  "updatedAt": "2026-05-30T23:45:11.580400Z"
 }

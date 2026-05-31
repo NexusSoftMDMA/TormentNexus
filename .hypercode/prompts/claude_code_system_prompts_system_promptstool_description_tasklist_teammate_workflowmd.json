@@ -4,5 +4,5 @@
   "description": "Curated system prompt: system-prompts/tool-description-tasklist-teammate-workflow.md from Piebald-AI/claude-code-system-prompts",
   "template": "<!--\nname: 'Tool Description: TaskList (teammate workflow)'\ndescription: Conditional section appended to TaskList tool description\nccVersion: 2.1.38\n-->\n\n## Teammate Workflow\n\nWhen working as a teammate:\n1. After completing your current task, call TaskList to find available work\n2. Look for tasks with status 'pending', no owner, and empty blockedBy\n3. **Prefer tasks in ID order** (lowest ID first) when multiple tasks are available, as earlier tasks often set up context for later ones\n4. Claim an available task using TaskUpdate (set `owner` to your name), or wait for leader assignment\n5. If blocked, focus on unblocking tasks or notify the team lead\n",
   "variables": [],
-  "updatedAt": "2026-05-30T17:12:55.267521Z"
+  "updatedAt": "2026-05-30T23:45:41.151628Z"
 }

@@ -4,5 +4,5 @@
   "description": "Curated system prompt: system-prompts/system-prompt-parallel-tool-call-note-part-of-tool-usage-policy.md from Piebald-AI/claude-code-system-prompts",
   "template": "<!--\nname: 'System Prompt: Parallel tool call note (part of \"Tool usage policy\")'\ndescription: System prompt for telling Claude to using parallel tool calls\nccVersion: 2.1.30\n-->\nYou can call multiple tools in a single response. If you intend to call multiple tools and there are no dependencies between them, make all independent tool calls in parallel. Maximize use of parallel tool calls where possible to increase efficiency. However, if some tool calls depend on previous calls to inform dependent values, do NOT call these tools in parallel and instead call them sequentially. For instance, if one operation must complete before another starts, run these operations sequentially instead.\n",
   "variables": [],
-  "updatedAt": "2026-05-30T17:12:31.380109Z"
+  "updatedAt": "2026-05-30T23:45:11.858585Z"
 }

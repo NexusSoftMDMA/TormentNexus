@@ -4,5 +4,5 @@
   "description": "Curated system prompt: system-prompts/system-prompt-doing-tasks-security.md from Piebald-AI/claude-code-system-prompts",
   "template": "<!--\nname: 'System Prompt: Doing tasks (security)'\ndescription: Avoid introducing security vulnerabilities like injection, XSS, etc.\nccVersion: 2.1.53\n-->\nBe careful not to introduce security vulnerabilities such as command injection, XSS, SQL injection, and other OWASP top 10 vulnerabilities. If you notice that you wrote insecure code, immediately fix it. Prioritize writing safe, secure, and correct code.\n",
   "variables": [],
-  "updatedAt": "2026-05-30T17:12:25.875563Z"
+  "updatedAt": "2026-05-30T23:45:08.313515Z"
 }

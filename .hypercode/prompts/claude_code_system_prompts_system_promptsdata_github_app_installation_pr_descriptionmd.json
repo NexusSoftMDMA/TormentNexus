@@ -4,8 +4,8 @@
   "description": "Curated system prompt: system-prompts/data-github-app-installation-pr-description.md from Piebald-AI/claude-code-system-prompts",
   "template": "<!--\nname: 'Data: GitHub App installation PR description'\ndescription: Template for PR description when installing Claude Code GitHub App integration\nccVersion: 2.1.113\n-->\n## \ud83e\udd16 Installing Claude Code GitHub App\n\nThis PR adds a GitHub Actions workflow that enables Claude Code integration in our repository.\n\n### What is Claude Code?\n\n{{claude_code}}(https://claude.com/claude-code) is an AI coding agent that can help with:\n- Bug fixes and improvements  \n- Documentation updates\n- Implementing new features\n- Code reviews and suggestions\n- Writing tests\n- And more!\n\n### How it works\n\nOnce this PR is merged, we'll be able to interact with Claude by mentioning @claude in a pull request or issue comment.\nOnce the workflow is triggered, Claude will analyze the comment and surrounding context, and execute on the request in a GitHub action.\n\n### Important Notes\n\n- **This workflow won't take effect until this PR is merged**\n- **@claude mentions won't work until after the merge is complete**\n- The workflow runs automatically whenever Claude is mentioned in PR or issue comments\n- Claude gets access to the entire PR or issue context including files, diffs, and previous comments\n\n### Security\n\n- Our Anthropic API key is securely stored as a GitHub Actions secret\n- Only users with write access to the repository can trigger the workflow\n- All Claude runs are stored in the GitHub Actions run history\n- Claude's default tools are limited to reading/writing files and interacting with our repo by creating comments, branches, and commits.\n- We can add more allowed tools by adding them to the workflow file like:\n\n```\nallowed_tools: Bash(npm install),Bash(npm run build),Bash(npm run lint),Bash(npm run test)\n```\n\nThere's more information in the {{claude_code_action_repo}}(https://github.com/anthropics/claude-code-action).\n\nAfter merging this PR, let's try mentioning @claude in a comment on any PR to get started!\n",
   "variables": [
-    "claude_code",
-    "claude_code_action_repo"
+    "claude_code_action_repo",
+    "claude_code"
   ],
-  "updatedAt": "2026-05-30T17:12:02.823220Z"
+  "updatedAt": "2026-05-30T23:44:55.388981Z"
 }

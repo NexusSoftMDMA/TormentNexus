@@ -4,5 +4,5 @@
   "description": "Curated system prompt: system-prompts/system-prompt-chrome-browser-mcp-tools.md from Piebald-AI/claude-code-system-prompts",
   "template": "<!--\nname: 'System Prompt: Chrome browser MCP tools'\ndescription: Instructions for loading Chrome browser MCP tools via MCPSearch before use\nccVersion: 2.1.20\n-->\n**IMPORTANT: Before using any chrome browser tools, you MUST first load them using ToolSearch.**\n\nChrome browser tools are MCP tools that require loading before use. Before calling any mcp__claude-in-chrome__* tool:\n1. Use ToolSearch with `select:mcp__claude-in-chrome__<tool_name>` to load the specific tool\n2. Then call the tool\n\nFor example, to get tab context:\n1. First: ToolSearch with query \"select:mcp__claude-in-chrome__tabs_context_mcp\"\n2. Then: Call mcp__claude-in-chrome__tabs_context_mcp\n",
   "variables": [],
-  "updatedAt": "2026-05-30T17:12:23.147523Z"
+  "updatedAt": "2026-05-30T23:45:06.735675Z"
 }

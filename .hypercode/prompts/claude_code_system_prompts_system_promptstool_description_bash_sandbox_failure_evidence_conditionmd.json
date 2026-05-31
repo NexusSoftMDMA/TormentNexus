@@ -4,5 +4,5 @@
   "description": "Curated system prompt: system-prompts/tool-description-bash-sandbox-failure-evidence-condition.md from Piebald-AI/claude-code-system-prompts",
   "template": "<!--\nname: 'Tool Description: Bash (sandbox \u2014 failure evidence condition)'\ndescription: Condition: command failed with evidence of sandbox restrictions\nccVersion: 2.1.53\n-->\nA specific command just failed and you see evidence of sandbox restrictions causing the failure. Note that commands can fail for many reasons unrelated to the sandbox (missing files, wrong arguments, network issues, etc.).\n",
   "variables": [],
-  "updatedAt": "2026-05-30T17:12:48.010624Z"
+  "updatedAt": "2026-05-30T23:45:25.709827Z"
 }

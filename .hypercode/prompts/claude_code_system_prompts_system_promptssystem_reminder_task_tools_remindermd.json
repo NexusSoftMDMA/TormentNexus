@@ -4,5 +4,5 @@
   "description": "Curated system prompt: system-prompts/system-reminder-task-tools-reminder.md from Piebald-AI/claude-code-system-prompts",
   "template": "<!--\nname: 'System Reminder: Task tools reminder'\ndescription: Reminder to use task tracking tools\nccVersion: 2.1.139\nvariables:\n  - TASK_CREATE_TOOL_NAME\n  - TASK_UPDATE_TOOL_NAME\n-->\nThe task tools haven't been used recently. If you're working on tasks that would benefit from tracking progress, consider using ${TASK_CREATE_TOOL_NAME} to add new tasks and ${TASK_UPDATE_TOOL_NAME} to update task status (set to in_progress when starting, completed when done). Also consider cleaning up the task list if it has become stale. Only use these if relevant to the current work. This is just a gentle reminder - ignore if not applicable.\n",
   "variables": [],
-  "updatedAt": "2026-05-30T17:12:40.867101Z"
+  "updatedAt": "2026-05-30T23:45:19.856382Z"
 }

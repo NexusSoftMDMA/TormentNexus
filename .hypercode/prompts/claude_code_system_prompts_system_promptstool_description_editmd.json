@@ -4,5 +4,5 @@
   "description": "Curated system prompt: system-prompts/tool-description-edit.md from Piebald-AI/claude-code-system-prompts",
   "template": "<!--\nname: 'Tool Description: Edit'\ndescription: Tool for performing exact string replacements in files\nccVersion: 2.1.136\nvariables:\n  - MUST_READ_FIRST_FN\n  - LINE_NUMBER_PREFIX_FORMAT\n  - ADDITIONAL_EDIT_GUIDELINES_NOTE\n-->\nPerforms exact string replacements in files.\n\nUsage:${MUST_READ_FIRST_FN()}\n- When editing text from Read tool output, ensure you preserve the exact indentation (tabs/spaces) as it appears AFTER the line number prefix. The line number prefix format is: ${LINE_NUMBER_PREFIX_FORMAT}. Everything after that is the actual file content to match. Never include any part of the line number prefix in the old_string or new_string.\n- ALWAYS prefer editing existing files in the codebase. NEVER write new files unless explicitly required.\n- Only use emojis if the user explicitly requests it. Avoid adding emojis to files unless asked.${ADDITIONAL_EDIT_GUIDELINES_NOTE}\n- Use `replace_all` for replacing and renaming strings across the file. This parameter is useful if you want to rename a variable for instance.\n",
   "variables": [],
-  "updatedAt": "2026-05-30T17:12:51.611381Z"
+  "updatedAt": "2026-05-30T23:45:33.415343Z"
 }

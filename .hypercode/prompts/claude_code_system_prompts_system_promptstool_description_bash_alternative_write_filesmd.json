@@ -4,5 +4,5 @@
   "description": "Curated system prompt: system-prompts/tool-description-bash-alternative-write-files.md from Piebald-AI/claude-code-system-prompts",
   "template": "<!--\nname: 'Tool Description: Bash (alternative \u2014 write files)'\ndescription: Bash tool alternative: use Write for file writing instead of echo/cat\nccVersion: 2.1.53\nvariables:\n  - WRITE_TOOL_NAME\n-->\nWrite files: Use ${WRITE_TOOL_NAME} (NOT echo >/cat <<EOF)\n",
   "variables": [],
-  "updatedAt": "2026-05-30T17:12:43.990947Z"
+  "updatedAt": "2026-05-30T23:45:22.549111Z"
 }

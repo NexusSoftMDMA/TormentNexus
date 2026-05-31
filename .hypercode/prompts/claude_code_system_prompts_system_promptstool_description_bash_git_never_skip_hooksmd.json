@@ -4,5 +4,5 @@
   "description": "Curated system prompt: system-prompts/tool-description-bash-git-never-skip-hooks.md from Piebald-AI/claude-code-system-prompts",
   "template": "<!--\nname: 'Tool Description: Bash (git \u2014 never skip hooks)'\ndescription: Bash tool git instruction: never skip hooks or bypass signing unless user requests it\nccVersion: 2.1.53\n-->\nNever skip hooks (--no-verify) or bypass signing (--no-gpg-sign, -c commit.gpgsign=false) unless the user has explicitly asked for it. If a hook fails, investigate and fix the underlying issue.\n",
   "variables": [],
-  "updatedAt": "2026-05-30T17:12:44.622946Z"
+  "updatedAt": "2026-05-30T23:45:23.124987Z"
 }

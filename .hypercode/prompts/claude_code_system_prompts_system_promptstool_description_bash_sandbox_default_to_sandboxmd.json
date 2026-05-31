@@ -4,5 +4,5 @@
   "description": "Curated system prompt: system-prompts/tool-description-bash-sandbox-default-to-sandbox.md from Piebald-AI/claude-code-system-prompts",
   "template": "<!--\nname: 'Tool Description: Bash (sandbox \u2014 default to sandbox)'\ndescription: Default to sandbox; only bypass when user asks or evidence of sandbox restriction\nccVersion: 2.1.53\n-->\nYou should always default to running commands within the sandbox. Do NOT attempt to set `dangerouslyDisableSandbox: true` unless:\n",
   "variables": [],
-  "updatedAt": "2026-05-30T17:12:46.771852Z"
+  "updatedAt": "2026-05-30T23:45:24.707666Z"
 }

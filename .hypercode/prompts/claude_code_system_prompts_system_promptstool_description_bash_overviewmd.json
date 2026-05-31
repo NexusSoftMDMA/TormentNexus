@@ -4,5 +4,5 @@
   "description": "Curated system prompt: system-prompts/tool-description-bash-overview.md from Piebald-AI/claude-code-system-prompts",
   "template": "<!--\nname: 'Tool Description: Bash (overview)'\ndescription: Opening line of the Bash tool description\nccVersion: 2.1.53\n-->\nExecutes a given bash command and returns its output.\n",
   "variables": [],
-  "updatedAt": "2026-05-30T17:12:45.335513Z"
+  "updatedAt": "2026-05-30T23:45:23.803151Z"
 }

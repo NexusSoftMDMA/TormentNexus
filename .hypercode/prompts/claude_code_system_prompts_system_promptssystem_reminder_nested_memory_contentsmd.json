@@ -4,5 +4,5 @@
   "description": "Curated system prompt: system-prompts/system-reminder-nested-memory-contents.md from Piebald-AI/claude-code-system-prompts",
   "template": "<!--\nname: 'System Reminder: Nested memory contents'\ndescription: Contents of a nested memory file\nccVersion: 2.1.18\nvariables:\n  - ATTACHMENT_OBJECT\n-->\nContents of ${ATTACHMENT_OBJECT.content.path}:\n\n${ATTACHMENT_OBJECT.content.content}\n",
   "variables": [],
-  "updatedAt": "2026-05-30T17:12:38.621305Z"
+  "updatedAt": "2026-05-30T23:45:18.206394Z"
 }

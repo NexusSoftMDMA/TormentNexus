@@ -4,5 +4,5 @@
   "description": "Curated system prompt: system-prompts/system-prompt-memory-description-of-user-details.md from Piebald-AI/claude-code-system-prompts",
   "template": "<!--\nname: 'System Prompt: Memory description of user details'\ndescription: Describes the purpose and guidelines for per-user memory files that accumulate details about the user's role, goals, knowledge, and preferences across sessions\nccVersion: 2.1.94\n-->\n    <description>Contain information about the user \u2014 one detail per file. Over many sessions these accumulate into a picture of who the user is and how to collaborate with them. Each memory captures one thing: their role, a goal, a responsibility, an area of knowledge, or a preference. For example, you should collaborate with a senior software engineer differently than a student who is coding for the very first time. Avoid writing memories that could be viewed as a negative judgement or that are not relevant to the work you're trying to accomplish together.</description>\n",
   "variables": [],
-  "updatedAt": "2026-05-30T17:12:29.460065Z"
+  "updatedAt": "2026-05-30T23:45:10.761865Z"
 }

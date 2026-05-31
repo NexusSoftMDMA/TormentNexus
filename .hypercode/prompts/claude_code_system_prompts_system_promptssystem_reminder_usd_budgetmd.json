@@ -4,5 +4,5 @@
   "description": "Curated system prompt: system-prompts/system-reminder-usd-budget.md from Piebald-AI/claude-code-system-prompts",
   "template": "<!--\nname: 'System Reminder: USD budget'\ndescription: Current USD budget statistics\nccVersion: 2.1.18\nvariables:\n  - ATTACHMENT_OBJECT\n-->\nUSD budget: $${ATTACHMENT_OBJECT.used}/$${ATTACHMENT_OBJECT.total}; $${ATTACHMENT_OBJECT.remaining} remaining\n",
   "variables": [],
-  "updatedAt": "2026-05-30T17:12:41.953457Z"
+  "updatedAt": "2026-05-30T23:45:20.720953Z"
 }

@@ -4,5 +4,5 @@
   "description": "Curated system prompt: system-prompts/system-reminder-stop-hook-blocking-error.md from Piebald-AI/claude-code-system-prompts",
   "template": "<!--\nname: 'System Reminder: Stop hook blocking error'\ndescription: Error from a blocking hook command\nccVersion: 2.1.107\nvariables:\n  - HOOK_NAME\n-->\nStop hook blocking error from command \"${HOOK_NAME}\":\n",
   "variables": [],
-  "updatedAt": "2026-05-30T17:12:40.732988Z"
+  "updatedAt": "2026-05-30T23:45:19.710910Z"
 }

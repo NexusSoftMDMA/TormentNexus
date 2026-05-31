@@ -4,5 +4,5 @@
   "description": "Curated system prompt: system-prompts/system-reminder-token-usage.md from Piebald-AI/claude-code-system-prompts",
   "template": "<!--\nname: 'System Reminder: Token usage'\ndescription: Current token usage statistics\nccVersion: 2.1.18\nvariables:\n  - ATTACHMENT_OBJECT\n-->\nToken usage: ${ATTACHMENT_OBJECT.used}/${ATTACHMENT_OBJECT.total}; ${ATTACHMENT_OBJECT.remaining} remaining\n",
   "variables": [],
-  "updatedAt": "2026-05-30T17:12:41.590908Z"
+  "updatedAt": "2026-05-30T23:45:20.415088Z"
 }

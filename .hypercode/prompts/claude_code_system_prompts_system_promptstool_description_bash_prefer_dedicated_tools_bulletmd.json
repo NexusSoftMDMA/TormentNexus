@@ -4,5 +4,5 @@
   "description": "Curated system prompt: system-prompts/tool-description-bash-prefer-dedicated-tools-bullet.md from Piebald-AI/claude-code-system-prompts",
   "template": "<!--\nname: 'Tool Description: Bash (prefer dedicated tools bullet)'\ndescription: Bulleted warning to prefer dedicated tools over Bash for find, grep, cat, etc.\nccVersion: 2.1.133\nvariables:\n  - READ_ONLY_SEARCHING_BASH_COMMANDS\n-->\n- IMPORTANT: Avoid using this tool to run ${READ_ONLY_SEARCHING_BASH_COMMANDS} commands, unless explicitly instructed or after you have verified that a dedicated tool cannot accomplish your task. Instead, use the appropriate dedicated tool as this will provide a much better experience for the user.\n",
   "variables": [],
-  "updatedAt": "2026-05-30T17:12:45.715607Z"
+  "updatedAt": "2026-05-30T23:45:24.099071Z"
 }

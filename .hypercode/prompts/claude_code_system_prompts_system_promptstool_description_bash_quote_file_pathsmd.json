@@ -4,5 +4,5 @@
   "description": "Curated system prompt: system-prompts/tool-description-bash-quote-file-paths.md from Piebald-AI/claude-code-system-prompts",
   "template": "<!--\nname: 'Tool Description: Bash (quote file paths)'\ndescription: Bash tool instruction: quote file paths containing spaces\nccVersion: 2.1.53\n-->\nAlways quote file paths that contain spaces with double quotes in your command (e.g., cd \"path with spaces/file.txt\")\n",
   "variables": [],
-  "updatedAt": "2026-05-30T17:12:46.448642Z"
+  "updatedAt": "2026-05-30T23:45:24.363132Z"
 }

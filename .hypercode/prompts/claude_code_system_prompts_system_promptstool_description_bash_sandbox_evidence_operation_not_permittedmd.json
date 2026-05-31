@@ -4,5 +4,5 @@
   "description": "Curated system prompt: system-prompts/tool-description-bash-sandbox-evidence-operation-not-permitted.md from Piebald-AI/claude-code-system-prompts",
   "template": "<!--\nname: 'Tool Description: Bash (sandbox \u2014 evidence: operation not permitted)'\ndescription: Sandbox evidence: operation not permitted errors\nccVersion: 2.1.53\n-->\n\"Operation not permitted\" errors for file/network operations\n",
   "variables": [],
-  "updatedAt": "2026-05-30T17:12:47.492535Z"
+  "updatedAt": "2026-05-30T23:45:25.275464Z"
 }

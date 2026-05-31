@@ -4,5 +4,5 @@
   "description": "Curated system prompt: system-prompts/tool-description-write-read-existing-file-first.md from Piebald-AI/claude-code-system-prompts",
   "template": "<!--\nname: 'Tool Description: Write (read existing file first)'\ndescription: Tool description for Write in environments where existing files must be read before overwrite\nccVersion: 2.1.140\nvariables:\n  - READ_TOOL_NAME\n  - EDIT_TOOL_NAME\n-->\nWrites a file to the local filesystem, overwriting if one exists.\n\nWhen to use: creating a new file, or fully replacing one you've already ${READ_TOOL_NAME}. Overwriting an existing file you haven't ${READ_TOOL_NAME} will fail. For partial changes, use ${EDIT_TOOL_NAME} instead.\n",
   "variables": [],
-  "updatedAt": "2026-05-30T17:12:56.589586Z"
+  "updatedAt": "2026-05-30T23:45:43.056608Z"
 }

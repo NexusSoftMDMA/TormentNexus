@@ -4,5 +4,5 @@
   "description": "Curated system prompt: system-prompts/tool-description-bash-verify-parent-directory.md from Piebald-AI/claude-code-system-prompts",
   "template": "<!--\nname: 'Tool Description: Bash (verify parent directory)'\ndescription: Bash tool instruction: verify parent directory before creating files\nccVersion: 2.1.53\n-->\nIf your command will create new directories or files, first use this tool to run `ls` to verify the parent directory exists and is the correct location.\n",
   "variables": [],
-  "updatedAt": "2026-05-30T17:12:50.818700Z"
+  "updatedAt": "2026-05-30T23:45:28.900296Z"
 }

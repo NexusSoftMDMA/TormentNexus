@@ -4,5 +4,5 @@
   "description": "Curated system prompt: system-prompts/system-reminder-memory-file-contents.md from Piebald-AI/claude-code-system-prompts",
   "template": "<!--\nname: 'System Reminder: Memory file contents'\ndescription: Contents of a memory file by path\nccVersion: 2.1.79\nvariables:\n  - MEMORY_ITEM\n  - MEMORY_TYPE_DESCRIPTION\n  - MEMORY_CONTENT\n-->\nContents of ${MEMORY_ITEM.path}${MEMORY_TYPE_DESCRIPTION}:\n\n${MEMORY_CONTENT}\n",
   "variables": [],
-  "updatedAt": "2026-05-30T17:12:38.460037Z"
+  "updatedAt": "2026-05-30T23:45:18.066222Z"
 }

@@ -4,5 +4,5 @@
   "description": "Curated system prompt: system-prompts/system-reminder-file-exists-but-empty.md from Piebald-AI/claude-code-system-prompts",
   "template": "<!--\nname: 'System Reminder: File exists but empty'\ndescription: Warning when reading an empty file\nccVersion: 2.1.18\n-->\n<system-reminder>Warning: the file exists but the contents are empty.</system-reminder>\n",
   "variables": [],
-  "updatedAt": "2026-05-30T17:12:35.937066Z"
+  "updatedAt": "2026-05-30T23:45:15.727576Z"
 }

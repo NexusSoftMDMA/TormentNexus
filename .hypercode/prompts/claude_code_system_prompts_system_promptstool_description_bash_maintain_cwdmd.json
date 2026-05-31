@@ -4,5 +4,5 @@
   "description": "Curated system prompt: system-prompts/tool-description-bash-maintain-cwd.md from Piebald-AI/claude-code-system-prompts",
   "template": "<!--\nname: 'Tool Description: Bash (maintain cwd)'\ndescription: Bash tool instruction: use absolute paths and avoid cd\nccVersion: 2.1.113\n-->\nTry to maintain your current working directory throughout the session by using absolute paths and avoiding usage of `cd`. You may use `cd` if the User explicitly requests it. In particular, never prepend `cd <current-directory>` to a `git` command \u2014 `git` already operates on the current working tree, and the compound triggers a permission prompt.\n",
   "variables": [],
-  "updatedAt": "2026-05-30T17:12:44.984446Z"
+  "updatedAt": "2026-05-30T23:45:23.513220Z"
 }

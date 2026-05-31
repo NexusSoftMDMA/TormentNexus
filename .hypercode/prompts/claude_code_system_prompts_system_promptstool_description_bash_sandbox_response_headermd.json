@@ -4,5 +4,5 @@
   "description": "Curated system prompt: system-prompts/tool-description-bash-sandbox-response-header.md from Piebald-AI/claude-code-system-prompts",
   "template": "<!--\nname: 'Tool Description: Bash (sandbox \u2014 response header)'\ndescription: Header for how to respond when seeing sandbox-caused failures\nccVersion: 2.1.53\n-->\nWhen you see evidence of sandbox-caused failure:\n",
   "variables": [],
-  "updatedAt": "2026-05-30T17:12:48.950863Z"
+  "updatedAt": "2026-05-30T23:45:26.468122Z"
 }

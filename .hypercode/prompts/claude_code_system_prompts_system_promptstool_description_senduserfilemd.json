@@ -4,5 +4,5 @@
   "description": "Curated system prompt: system-prompts/tool-description-senduserfile.md from Piebald-AI/claude-code-system-prompts",
   "template": "<!--\nname: 'Tool Description: SendUserFile'\ndescription: Describes the SendUserFile tool for surfacing generated deliverable files to the user, with optional captions and normal or proactive status\nccVersion: 2.1.142\n-->\nSend files to the user. Use this when the file *is* the deliverable \u2014 a generated diagram, a report, a screenshot, a built artifact \u2014 and you want it surfaced, not just mentioned. Paths can be absolute or relative to the current working directory.\n\nAdd a `caption` when a one-liner of context helps (\"the failing case is row 42\", \"before vs after\"). Skip it if the file speaks for itself.\n\nSet `status` on every call. Use `proactive` when you're initiating \u2014 the user is away and you want this to reach their phone (build artifact ready, report generated). Use `normal` when replying to something the user just said.\n",
   "variables": [],
-  "updatedAt": "2026-05-30T17:12:54.521247Z"
+  "updatedAt": "2026-05-30T23:45:40.588769Z"
 }

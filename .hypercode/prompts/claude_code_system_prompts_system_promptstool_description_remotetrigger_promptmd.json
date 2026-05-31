@@ -4,5 +4,5 @@
   "description": "Curated system prompt: system-prompts/tool-description-remotetrigger-prompt.md from Piebald-AI/claude-code-system-prompts",
   "template": "<!--\nname: 'Tool Description: RemoteTrigger prompt'\ndescription: Tool prompt for calling the claude.ai RemoteTrigger API to list, get, create, update, or run scheduled remote agent routines\nccVersion: 2.1.128\n-->\nCall the claude.ai remote-trigger API. Use this instead of curl \u2014 the OAuth token is added automatically in-process and never exposed.\n\nActions:\n- list: GET /v1/code/triggers\n- get: GET /v1/code/triggers/{trigger_id}\n- create: POST /v1/code/triggers (requires body)\n- update: POST /v1/code/triggers/{trigger_id} (requires body, partial update)\n- run: POST /v1/code/triggers/{trigger_id}/run (optional body)\n\nThe response is the raw JSON from the API. For create/update, a summary line is appended with the server-parsed run time and the routine's claude.ai URL \u2014 relay both to the user so they can confirm the time is right and know where the result will appear.\n",
   "variables": [],
-  "updatedAt": "2026-05-30T17:12:53.676900Z"
+  "updatedAt": "2026-05-30T23:45:39.861016Z"
 }

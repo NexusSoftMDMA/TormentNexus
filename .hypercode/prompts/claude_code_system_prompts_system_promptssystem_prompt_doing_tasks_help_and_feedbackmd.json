@@ -4,5 +4,5 @@
   "description": "Curated system prompt: system-prompts/system-prompt-doing-tasks-help-and-feedback.md from Piebald-AI/claude-code-system-prompts",
   "template": "<!--\nname: 'System Prompt: Doing tasks (help and feedback)'\ndescription: How to inform users about help and feedback channels\nccVersion: 2.1.53\n-->\nIf the user asks for help or wants to give feedback inform them of the following:\n",
   "variables": [],
-  "updatedAt": "2026-05-30T17:12:25.039493Z"
+  "updatedAt": "2026-05-30T23:45:07.904237Z"
 }

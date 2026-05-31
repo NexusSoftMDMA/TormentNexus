@@ -4,5 +4,5 @@
   "description": "Curated system prompt: system-prompts/system-reminder-verify-plan-reminder.md from Piebald-AI/claude-code-system-prompts",
   "template": "<!--\nname: 'System Reminder: Verify plan reminder'\ndescription: Reminder to verify completed plan\nccVersion: 2.1.18\nvariables:\n  - TASK_TOOL_NAME\n-->\nYou have completed implementing the plan. Please call the \"\" tool directly (NOT the ${TASK_TOOL_NAME} tool or an agent) to verify that all plan items were completed correctly.\n",
   "variables": [],
-  "updatedAt": "2026-05-30T17:12:42.122749Z"
+  "updatedAt": "2026-05-30T23:45:20.852047Z"
 }

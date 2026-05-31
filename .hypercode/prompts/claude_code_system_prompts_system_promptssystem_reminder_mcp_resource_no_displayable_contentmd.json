@@ -4,5 +4,5 @@
   "description": "Curated system prompt: system-prompts/system-reminder-mcp-resource-no-displayable-content.md from Piebald-AI/claude-code-system-prompts",
   "template": "<!--\nname: 'System Reminder: MCP resource no displayable content'\ndescription: Shown when MCP resource has no displayable content\nccVersion: 2.1.18\nvariables:\n  - ATTACHMENT_OBJECT\n-->\n<mcp-resource server=\"${ATTACHMENT_OBJECT.server}\" uri=\"${ATTACHMENT_OBJECT.uri}\">(No displayable content)</mcp-resource>\n",
   "variables": [],
-  "updatedAt": "2026-05-30T17:12:38.301540Z"
+  "updatedAt": "2026-05-30T23:45:17.929959Z"
 }

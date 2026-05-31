@@ -4,5 +4,5 @@
   "description": "Curated system prompt: system-prompts/agent-prompt-rename-auto-generate-session-name.md from Piebald-AI/claude-code-system-prompts",
   "template": "<!--\nname: 'Agent Prompt: /rename auto-generate session name'\ndescription: Prompt used by /rename (no args) to auto-generate a kebab-case session name from conversation context\nccVersion: 2.1.147\n-->\nGenerate a short kebab-case name (2-4 words) that captures the main topic of this conversation. Use lowercase words separated by hyphens. Examples: \"fix-login-bug\", \"add-auth-feature\", \"refactor-api-client\", \"debug-test-failures\". Return JSON with a \"name\" field.\n",
   "variables": [],
-  "updatedAt": "2026-05-30T17:11:55.922917Z"
+  "updatedAt": "2026-05-30T23:44:49.723262Z"
 }

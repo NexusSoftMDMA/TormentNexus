@@ -4,5 +4,5 @@
   "description": "Curated system prompt: system-prompts/tool-description-bash-sandbox-evidence-access-denied.md from Piebald-AI/claude-code-system-prompts",
   "template": "<!--\nname: 'Tool Description: Bash (sandbox \u2014 evidence: access denied)'\ndescription: Sandbox evidence: access denied to paths outside allowed directories\nccVersion: 2.1.53\n-->\nAccess denied to specific paths outside allowed directories\n",
   "variables": [],
-  "updatedAt": "2026-05-30T17:12:46.928020Z"
+  "updatedAt": "2026-05-30T23:45:24.858846Z"
 }

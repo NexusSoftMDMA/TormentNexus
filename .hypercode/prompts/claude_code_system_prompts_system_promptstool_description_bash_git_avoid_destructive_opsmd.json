@@ -4,5 +4,5 @@
   "description": "Curated system prompt: system-prompts/tool-description-bash-git-avoid-destructive-ops.md from Piebald-AI/claude-code-system-prompts",
   "template": "<!--\nname: 'Tool Description: Bash (git \u2014 avoid destructive ops)'\ndescription: Bash tool git instruction: consider safer alternatives to destructive operations\nccVersion: 2.1.53\n-->\nBefore running destructive operations (e.g., git reset --hard, git push --force, git checkout --), consider whether there is a safer alternative that achieves the same goal. Only use destructive operations when they are truly the best approach.\n",
   "variables": [],
-  "updatedAt": "2026-05-30T17:12:44.289674Z"
+  "updatedAt": "2026-05-30T23:45:22.838435Z"
 }

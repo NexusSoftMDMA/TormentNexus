@@ -4,5 +4,5 @@
   "description": "Curated system prompt: system-prompts/tool-description-bash-sandbox-per-command.md from Piebald-AI/claude-code-system-prompts",
   "template": "<!--\nname: 'Tool Description: Bash (sandbox \u2014 per-command)'\ndescription: Treat each command individually; default to sandbox for future commands\nccVersion: 2.1.53\n-->\nTreat each command you execute with `dangerouslyDisableSandbox: true` individually. Even if you have recently run a command with this setting, you should default to running future commands within the sandbox.\n",
   "variables": [],
-  "updatedAt": "2026-05-30T17:12:48.754472Z"
+  "updatedAt": "2026-05-30T23:45:26.340490Z"
 }

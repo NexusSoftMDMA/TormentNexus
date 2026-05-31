@@ -4,5 +4,5 @@
   "description": "Curated system prompt: system-prompts/tool-description-bash-sleep-no-polling-background-tasks.md from Piebald-AI/claude-code-system-prompts",
   "template": "<!--\nname: 'Tool Description: Bash (sleep \u2014 no polling background tasks)'\ndescription: Bash tool instruction: do not poll background tasks, wait for notification\nccVersion: 2.1.53\n-->\nIf waiting for a background task you started with `run_in_background`, you will be notified when it completes \u2014 do not poll.\n",
   "variables": [],
-  "updatedAt": "2026-05-30T17:12:50.135950Z"
+  "updatedAt": "2026-05-30T23:45:27.499922Z"
 }

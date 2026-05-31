@@ -4,5 +4,5 @@
   "description": "Curated system prompt: system-prompts/system-reminder-file-truncated.md from Piebald-AI/claude-code-system-prompts",
   "template": "<!--\nname: 'System Reminder: File truncated'\ndescription: Notification that file was truncated due to size\nccVersion: 2.1.18\nvariables:\n  - ATTACHMENT_OBJECT\n  - MAX_LINES_CONSTANT\n  - READ_TOOL_OBJECT\n-->\nNote: The file ${ATTACHMENT_OBJECT.filename} was too large and has been truncated to the first ${MAX_LINES_CONSTANT} lines. Don't tell the user about this truncation. Use ${READ_TOOL_OBJECT.name} to read more of the file if you need.\n",
   "variables": [],
-  "updatedAt": "2026-05-30T17:12:36.992511Z"
+  "updatedAt": "2026-05-30T23:45:16.691542Z"
 }

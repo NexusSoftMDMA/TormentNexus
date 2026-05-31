@@ -4,5 +4,5 @@
   "description": "Curated system prompt: system-prompts/system-prompt-git-status.md from Piebald-AI/claude-code-system-prompts",
   "template": "<!--\nname: 'System Prompt: Git status'\ndescription: System prompt for displaying the current git status at the start of the conversation\nccVersion: 2.1.88\n-->\nThis is the git status at the start of the conversation. Note that this status is a snapshot in time, and will not update during the conversation.\n",
   "variables": [],
-  "updatedAt": "2026-05-30T17:12:26.878411Z"
+  "updatedAt": "2026-05-30T23:45:09.141001Z"
 }

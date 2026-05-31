@@ -4,5 +4,5 @@
   "description": "Curated system prompt: system-prompts/skill-insights-report-output.md from Piebald-AI/claude-code-system-prompts",
   "template": "<!--\nname: 'Skill: /insights report output'\ndescription: Formats and displays the insights usage report results after the user runs the /insights slash command\nccVersion: 2.1.139\nvariables:\n  - INSIGHTS_DATA\n  - REPORT_URL\n  - HTML_FILE_PATH\n  - FACETS_DIRECTORY\n  - AT_A_GLANCE_SUMMARY\n  - ADDITIONAL_CONTEXT_BLOCK\n-->\nThe user just ran /insights to generate a usage report analyzing their Claude Code sessions.\n\nHere is the full insights data:\n${INSIGHTS_DATA}\n\nReport URL: ${REPORT_URL}\nHTML file: ${HTML_FILE_PATH}\nFacets directory: ${FACETS_DIRECTORY}\n\nAt-a-glance summary (for your context only \u2014 the user has not seen any output yet):\n${AT_A_GLANCE_SUMMARY}${ADDITIONAL_CONTEXT_BLOCK}\n\nOutput the text between <message> tags verbatim as your entire response. Do not omit any line:\n\n<message>\nYour shareable insights report is ready:\n${REPORT_URL}\n\nWant to dig into any section or try one of the suggestions?\n</message>\n",
   "variables": [],
-  "updatedAt": "2026-05-30T17:12:14.638512Z"
+  "updatedAt": "2026-05-30T23:45:01.162194Z"
 }

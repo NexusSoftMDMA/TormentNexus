@@ -4,5 +4,5 @@
   "description": "Curated system prompt: system-prompts/system-reminder-exited-plan-mode.md from Piebald-AI/claude-code-system-prompts",
   "template": "<!--\nname: 'System Reminder: Exited plan mode'\ndescription: Notification when exiting plan mode\nccVersion: 2.1.105\nvariables:\n  - CONDITIONAL_NOTE\n-->\n## Exited Plan Mode\n\nYou have exited plan mode. You can now make edits, run tools, and take actions.${CONDITIONAL_NOTE}\n",
   "variables": [],
-  "updatedAt": "2026-05-30T17:12:35.723680Z"
+  "updatedAt": "2026-05-30T23:45:15.572330Z"
 }

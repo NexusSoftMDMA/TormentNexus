@@ -4,5 +4,5 @@
   "description": "Curated system prompt: system-prompts/system-reminder-todowrite-reminder.md from Piebald-AI/claude-code-system-prompts",
   "template": "<!--\nname: 'System Reminder: TodoWrite reminder'\ndescription: Reminder to use TodoWrite tool for task tracking\nccVersion: 2.1.139\n-->\nThe TodoWrite tool hasn't been used recently. If you're working on tasks that would benefit from tracking progress, consider using the TodoWrite tool to track progress. Also consider cleaning up the todo list if has become stale and no longer matches what you are working on. Only use it if it's relevant to the current work. This is just a gentle reminder - ignore if not applicable.\n",
   "variables": [],
-  "updatedAt": "2026-05-30T17:12:41.408981Z"
+  "updatedAt": "2026-05-30T23:45:20.286072Z"
 }

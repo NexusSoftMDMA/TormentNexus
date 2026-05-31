@@ -4,5 +4,5 @@
   "description": "Curated system prompt: system-prompts/tool-description-bash-sleep-keep-short.md from Piebald-AI/claude-code-system-prompts",
   "template": "<!--\nname: 'Tool Description: Bash (sleep \u2014 keep short)'\ndescription: Bash tool instruction: keep sleep duration to 1-5 seconds\nccVersion: 2.1.108\n-->\nIf you must sleep, keep the duration short to avoid blocking the user.\n",
   "variables": [],
-  "updatedAt": "2026-05-30T17:12:49.972597Z"
+  "updatedAt": "2026-05-30T23:45:27.319903Z"
 }

@@ -4,5 +4,5 @@
   "description": "Curated system prompt: system-prompts/system-reminder-file-opened-in-ide.md from Piebald-AI/claude-code-system-prompts",
   "template": "<!--\nname: 'System Reminder: File opened in IDE'\ndescription: Notification that user opened a file in IDE\nccVersion: 2.1.18\nvariables:\n  - ATTACHMENT_OBJECT\n-->\nThe user opened the file ${ATTACHMENT_OBJECT.filename} in the IDE. This may or may not be related to the current task.\n",
   "variables": [],
-  "updatedAt": "2026-05-30T17:12:36.595396Z"
+  "updatedAt": "2026-05-30T23:45:16.152606Z"
 }

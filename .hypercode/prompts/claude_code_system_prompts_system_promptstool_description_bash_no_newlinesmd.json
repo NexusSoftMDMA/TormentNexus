@@ -4,5 +4,5 @@
   "description": "Curated system prompt: system-prompts/tool-description-bash-no-newlines.md from Piebald-AI/claude-code-system-prompts",
   "template": "<!--\nname: 'Tool Description: Bash (no newlines)'\ndescription: Bash tool instruction: do not use newlines to separate commands\nccVersion: 2.1.53\n-->\nDO NOT use newlines to separate commands (newlines are ok in quoted strings).\n",
   "variables": [],
-  "updatedAt": "2026-05-30T17:12:45.200955Z"
+  "updatedAt": "2026-05-30T23:45:23.649408Z"
 }

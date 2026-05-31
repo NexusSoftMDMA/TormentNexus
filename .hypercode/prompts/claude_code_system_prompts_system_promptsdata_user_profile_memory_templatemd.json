@@ -4,5 +4,5 @@
   "description": "Curated system prompt: system-prompts/data-user-profile-memory-template.md from Piebald-AI/claude-code-system-prompts",
   "template": "<!--\nname: 'Data: User profile memory template'\ndescription: Template content for the user profile memory file, covering personal details, work context, schedule, and communication preferences\nccVersion: 2.1.119\n-->\n# About The User\n\n*Learn about the person you're helping. Update this as you interact with them.*\n\n- **Name:**\n- **What to call them:**\n- **Pronouns:**\n- **Timezone:**\n- **Slack Username:**\n- **Job:**\n- **GitHub:**\n\n## Work\n\n- **Main responsibility:**\n- **Primary repo:**\n- **Also works in:**\n\n## Schedule\n\n- **Weekdays:**\n- **Weekends:**\n- **Sleep:**\n- **Catch-up hours:** 9am\u20135pm Mon\u2013Fri *(when proactive catch-up fires; leave blank to use this default, or set to something like `8am\u20137pm weekdays` or `always` if you want off-hours pings)*\n\n## Communication Preferences\n\n- Default concise, expand when it matters\n- Doesn't want performative helpfulness \u2014 just be direct and useful\n- Prefers action over asking for permission (within reason)\n- Values trust built through competence\n",
   "variables": [],
-  "updatedAt": "2026-05-30T17:12:11.625835Z"
+  "updatedAt": "2026-05-30T23:44:59.287769Z"
 }

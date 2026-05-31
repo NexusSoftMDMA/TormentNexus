@@ -4,5 +4,5 @@
   "description": "Curated system prompt: system-prompts/tool-description-bash-timeout.md from Piebald-AI/claude-code-system-prompts",
   "template": "<!--\nname: 'Tool Description: Bash (timeout)'\ndescription: Bash tool instruction: optional timeout configuration\nccVersion: 2.1.53\nvariables:\n  - GET_MAX_TIMEOUT_MS\n  - GET_DEFAULT_TIMEOUT_MS\n-->\nYou may specify an optional timeout in milliseconds (up to ${GET_MAX_TIMEOUT_MS()}ms / ${GET_MAX_TIMEOUT_MS()/60000} minutes). By default, your command will timeout after ${GET_DEFAULT_TIMEOUT_MS()}ms (${GET_DEFAULT_TIMEOUT_MS()/60000} minutes).\n",
   "variables": [],
-  "updatedAt": "2026-05-30T17:12:50.654177Z"
+  "updatedAt": "2026-05-30T23:45:28.347784Z"
 }

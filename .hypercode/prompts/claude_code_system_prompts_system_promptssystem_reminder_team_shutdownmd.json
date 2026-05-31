@@ -4,5 +4,5 @@
   "description": "Curated system prompt: system-prompts/system-reminder-team-shutdown.md from Piebald-AI/claude-code-system-prompts",
   "template": "<!--\nname: 'System Reminder: Team Shutdown'\ndescription: System reminder for team shutdown\nccVersion: 2.1.16\n-->\n<system-reminder>\nYou are running in non-interactive mode and cannot return a response to the user until your team is shut down.\n\nYou MUST shut down your team before preparing your final response:\n1. Use requestShutdown to ask each team member to shut down gracefully\n2. Wait for shutdown approvals\n3. Use the cleanup operation to clean up the team\n4. Only then provide your final response to the user\n\nThe user cannot receive your response until the team is completely shut down.\n</system-reminder>\n\nShut down your team and prepare your final response for the user.\n",
   "variables": [],
-  "updatedAt": "2026-05-30T17:12:41.263724Z"
+  "updatedAt": "2026-05-30T23:45:20.141634Z"
 }
