@@ -1,6 +1,6 @@
 {
   "name": "@tormentnexus/agents",
-  "version": "1.0.0-alpha.98",
+  "version": "1.0.0-alpha.99",
   "private": true,
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
