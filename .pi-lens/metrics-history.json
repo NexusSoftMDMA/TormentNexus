@@ -228,14 +228,14 @@
     },
     "packages\\core\\src\\lib\\trpc-core.ts": {
       "latest": {
-        "commit": "683897b3c",
-        "timestamp": "2026-04-29T23:36:56.554Z",
-        "mi": 11.2,
-        "cognitive": 18,
+        "commit": "85be73436",
+        "timestamp": "2026-06-03T11:31:21.643Z",
+        "mi": 9.2,
+        "cognitive": 25,
         "nesting": 4,
-        "lines": 702,
-        "maxCyclomatic": 4,
-        "entropy": 6.87
+        "lines": 849,
+        "maxCyclomatic": 5,
+        "entropy": 6.9
       },
       "history": [
         {
@@ -247,6 +247,16 @@
           "lines": 702,
           "maxCyclomatic": 4,
           "entropy": 6.87
+        },
+        {
+          "commit": "85be73436",
+          "timestamp": "2026-06-03T11:31:21.643Z",
+          "mi": 9.2,
+          "cognitive": 25,
+          "nesting": 4,
+          "lines": 849,
+          "maxCyclomatic": 5,
+          "entropy": 6.9
         }
       ],
       "trend": "stable"
@@ -335,7 +345,32 @@
         }
       ],
       "trend": "stable"
+    },
+    "packages\\core\\src\\Router.ts": {
+      "latest": {
+        "commit": "85be73436",
+        "timestamp": "2026-06-03T11:31:28.135Z",
+        "mi": 41.8,
+        "cognitive": 34,
+        "nesting": 5,
+        "lines": 138,
+        "maxCyclomatic": 4,
+        "entropy": 5.8
+      },
+      "history": [
+        {
+          "commit": "85be73436",
+          "timestamp": "2026-06-03T11:31:28.135Z",
+          "mi": 41.8,
+          "cognitive": 34,
+          "nesting": 5,
+          "lines": 138,
+          "maxCyclomatic": 4,
+          "entropy": 5.8
+        }
+      ],
+      "trend": "stable"
     }
   },
-  "capturedAt": "2026-06-02T22:04:55.638Z"
+  "capturedAt": "2026-06-03T11:31:33.339Z"
 }

@@ -1,6 +1,6 @@
 {
   "version": "0.99.1",
-<<<<<<<< HEAD:.borg/handoffs/handoff_1779486369706.json
+<<<<<<<< HEAD:.tormentnexus/handoffs/handoff_1779486369706.json
   "timestamp": 1779486369706,
   "sessionId": "current",
   "stats": {
@@ -38,7 +38,7 @@
     "agent": 0,
     "project": 57,
     "discovery": 2,
->>>>>>>> e9cc2af6adf767f647f9f605e164adf1db131b73:.borg/handoffs/handoff_1780147778416.json
+>>>>>>>> e9cc2af6adf767f647f9f605e164adf1db131b73:.tormentnexus/handoffs/handoff_1780147778416.json
     "decision": 0,
     "progress": 0,
     "warning": 0,

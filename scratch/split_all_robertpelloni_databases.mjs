@@ -131,6 +131,9 @@ async function run() {
     
     console.log(`Found ${robertRepos.length} repositories owned by github/robertpelloni.`);
     
+    // Sort repositories by path length descending to process subdirectories before parents
+    robertRepos.sort((a, b) => b.length - a.length);
+    
     let migratedSessionsTotal = 0;
     let migratedMemoriesTotal = 0;
     
@@ -140,11 +143,13 @@ async function run() {
         const relativePath = path.relative(WORKSPACE_ROOT, repoPath);
         
         // Query sessions that belong to this repo or subfolders
-        // We match by working_directory starting with the repoPath
+        // We normalize backslashes to forward slashes for matching since the DB has mixed formats
+        const normalizedRepoPath = repoPath.replace(/\\/g, '/');
         const sessionsToMigrate = globalDb.prepare(`
             SELECT * FROM imported_sessions 
-            WHERE working_directory = ? OR working_directory LIKE ?
-        `).all(repoPath, `${repoPath}${path.sep}%`);
+            WHERE lower(replace(working_directory, '\\', '/')) = lower(?) 
+               OR lower(replace(working_directory, '\\', '/')) LIKE lower(?)
+        `).all(normalizedRepoPath, `${normalizedRepoPath}/%`);
         
         if (sessionsToMigrate.length === 0) {
             continue; // No sessions in global DB to migrate for this repo
@@ -159,8 +164,9 @@ async function run() {
         const projectDb = new Database(projectDbPath);
         initializeProjectSchema(projectDb);
         
+        const checkSession = projectDb.prepare(`SELECT updated_at FROM imported_sessions WHERE uuid = ?`);
         const insertSession = projectDb.prepare(`
-            INSERT OR REPLACE INTO imported_sessions (
+            INSERT INTO imported_sessions (
                 uuid, source_tool, source_path, source_size, source_mtime,
                 external_session_id, title, session_format, transcript, excerpt,
                 working_directory, transcript_hash, transcript_archive_path,
@@ -169,9 +175,19 @@ async function run() {
                 discovered_at, imported_at, last_modified_at, created_at, updated_at
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `);
+        const updateSession = projectDb.prepare(`
+            UPDATE imported_sessions SET
+                source_tool = ?, source_path = ?, source_size = ?, source_mtime = ?,
+                external_session_id = ?, title = ?, session_format = ?, transcript = ?, excerpt = ?,
+                working_directory = ?, transcript_hash = ?, transcript_archive_path = ?,
+                transcript_metadata_archive_path = ?, transcript_archive_format = ?,
+                transcript_stored_bytes = ?, normalized_session = ?, metadata = ?,
+                discovered_at = ?, imported_at = ?, last_modified_at = ?, created_at = ?, updated_at = ?
+            WHERE uuid = ?
+        `);
         
         const insertMemory = projectDb.prepare(`
-            INSERT OR REPLACE INTO imported_session_memories (
+            INSERT OR IGNORE INTO imported_session_memories (
                 uuid, imported_session_uuid, memory_index, kind, content, tags, source, metadata, created_at
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         `);
@@ -183,32 +199,26 @@ async function run() {
             // Fetch memories from global DB
             const memories = globalDb.prepare('SELECT * FROM imported_session_memories WHERE imported_session_uuid = ?').all(session.uuid);
             
-            // Insert session in project-specific DB
-            insertSession.run(
-                session.uuid,
-                session.source_tool,
-                session.source_path,
-                session.source_size,
-                session.source_mtime,
-                session.external_session_id,
-                session.title,
-                session.session_format,
-                session.transcript,
-                session.excerpt,
-                session.working_directory,
-                session.transcript_hash,
-                session.transcript_archive_path,
-                session.transcript_metadata_archive_path,
-                session.transcript_archive_format,
-                session.transcript_stored_bytes,
-                session.normalized_session,
-                session.metadata,
-                session.discovered_at,
-                session.imported_at,
-                session.last_modified_at,
-                session.created_at,
-                session.updated_at
-            );
+            // Check existing session
+            const existingSession = checkSession.get(session.uuid);
+            
+            const sessionArgs = [
+                session.uuid, session.source_tool, session.source_path, session.source_size, session.source_mtime,
+                session.external_session_id, session.title, session.session_format, session.transcript, session.excerpt,
+                session.working_directory, session.transcript_hash, session.transcript_archive_path,
+                session.transcript_metadata_archive_path, session.transcript_archive_format,
+                session.transcript_stored_bytes, session.normalized_session, session.metadata,
+                session.discovered_at, session.imported_at, session.last_modified_at, session.created_at, session.updated_at
+            ];
+            
+            if (!existingSession) {
+                // Insert session in project-specific DB
+                insertSession.run(...sessionArgs);
+            } else if (session.updated_at > existingSession.updated_at) {
+                // Global session is newer, update it
+                const updateArgs = [...sessionArgs.slice(1), session.uuid]; // shift uuid to end
+                updateSession.run(...updateArgs);
+            }
             
             // Insert memories in project-specific DB
             for (const memory of memories) {
