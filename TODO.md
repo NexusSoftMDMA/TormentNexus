@@ -17,7 +17,7 @@ _Last updated: 2026-05-30, version 1.0.0-alpha.80_
 
 ## Completed in v1.0.0-alpha.80
 
-- [x] Renamed all references to borg, nexus, hypervisor, aios, metamcp, and claude-mem to TormentNexus (case-specific mapping).
+- [x] Renamed all references to tormentnexus, nexus, hypervisor, aios, metamcp, and claude-mem to TormentNexus (case-specific mapping).
 - [x] Ingested and deduplicated all public catalogs, loading **11,024 MCP servers** into `tormentnexus.db`.
 - [x] Pruned all 22 uninitialized, redundant submodules from `.gitmodules` and compiled a master auditing log.
 - [x] Integrated `Tabby (tabby-go)` and `Warp GUI` wrappers with `Pi-Mono` and `Hermes Agent` harnesses in the supervisor.

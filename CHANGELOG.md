@@ -113,7 +113,7 @@
   - Resolved Next.js compile settings, Turbo v2 extends parsing errors, and HMR socket watch hangs.
   - Successfully performed a full workspace production build (`pnpm run build` exiting with code 0).
 - **Supervisor Package Rebranding**:
-  - Renamed `packages/hypercode-supervisor` to `packages/tormentnexus-supervisor` and successfully aligned package identity to `@tormentnexus/supervisor`, eliminating potential `MODULE_NOT_FOUND` startup failures.
+  - Renamed `packages/TormentNexus-supervisor` to `packages/tormentnexus-supervisor` and successfully aligned package identity to `@tormentnexus/supervisor`, eliminating potential `MODULE_NOT_FOUND` startup failures.
 
 ## [1.0.0-alpha.64] - 2026-05-25
 - **TypeScript Compile Security & Alignment**:
@@ -134,9 +134,9 @@
 
 ## [1.0.0-alpha.62] - 2026-05-19
 ### Added
-- **Deep Link Protocol Scheme (`hypercode://`) in Go**:
-  - Built robust URI handling for `hypercode://attach?session=ID` and `hypercode://create?cliType=aider` commands.
-  - Implemented single-instance CLI dispatcher. Clicking deep links routes actions through the active `hypercoded` daemon via HTTP REST.
+- **Deep Link Protocol Scheme (`TormentNexus://`) in Go**:
+  - Built robust URI handling for `TormentNexus://attach?session=ID` and `TormentNexus://create?cliType=aider` commands.
+  - Implemented single-instance CLI dispatcher. Clicking deep links routes actions through the active `TormentNexusd` daemon via HTTP REST.
 - **SQLite L2 Vector Vault Visualizer**:
   - Implemented persistent database queries (`GetAllVaultRecords`) in Go fetching chronic vault memories ordered by importance and heat.
   - Wired the new tRPC `vaultRecords` query to the Next.js control plane to hook persistent SQLite vector records into the UI.
@@ -146,7 +146,7 @@
 - **LLM Instruction Unification**:
   - Resolved merge conflict markers and aligned role guidelines across `CLAUDE.md`, `AGENTS.md`, `GEMINI.md`, `GPT.md`, and `copilot-instructions.md` under `docs/UNIVERSAL_LLM_INSTRUCTIONS.md`.
 ### Changed
-- Standardized documentation identity to Hypercode Kernel & HyperCode.
+- Standardized documentation identity to Hypercode Kernel & TormentNexus.
 - Replaced git merge conflict markers across multiple internal Kotlin and Markdown files with unified content logic.
 
 ## [1.0.0-alpha.61] - 2026-05-17
@@ -160,7 +160,7 @@
 
 ## [1.0.0-alpha.60] - 2026-05-16
 - Fully integrated Go-native `MemoryManager` into the core TS control plane.
-- Wires up `sqlite-vec` storage backend, replacing the deprecated `@hypercode/hypercode` implementation.
+- Wires up `sqlite-vec` storage backend, replacing the deprecated `@TormentNexus/TormentNexus` implementation.
 - Dual-tier cache invalidation for the L1/L2 memory boundaries.
 - Shifted authority of MCP configuration sync entirely to the Go sidecar.
 - Removed legacy TS synchronization scripts for VSCode and Cursor.

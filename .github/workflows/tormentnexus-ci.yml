@@ -1,4 +1,4 @@
-name: hypercode Native CI
+name: TormentNexus Native CI
 
 on:
   push:
@@ -13,7 +13,7 @@ jobs:
     defaults:
       run:
         working-directory: ./submodules/hyperharness
-        working-directory: ./submodules/hypercode
+        working-directory: ./submodules/TormentNexus
 
     steps:
     - uses: actions/checkout@v4

@@ -2,11 +2,11 @@
 
 This document serves as the authoritative summary of the project's architecture, established patterns, and strategic decisions as of version **1.0.0-alpha.56**.
 
-## 1. Core Brand Strategy: Hypercode & HyperCode
+## 1. Core Brand Strategy: Hypercode & TormentNexus
 The project has transitioned from "Hypercode" to a sophisticated dual-brand strategy:
 *   **Hypercode (The Kernel/Substrate):** The underlying "AI Hypercode" and coordination runtime. It treats Large Language Models as "guest operating systems" and manages the low-level memory, routing, and execution buses.
-*   **HyperCode (The Flagship Product):** The user-facing, local-first autonomous coding environment powered by the Hypercode kernel.
-*   **Rationale:** This separation prevents "identity collapse" by allowing the infrastructure (Hypercode) to remain a general-purpose agent coordination layer while the product (HyperCode) focuses on delivering a world-class developer experience.
+*   **TormentNexus (The Flagship Product):** The user-facing, local-first autonomous coding environment powered by the Hypercode kernel.
+*   **Rationale:** This separation prevents "identity collapse" by allowing the infrastructure (Hypercode) to remain a general-purpose agent coordination layer while the product (TormentNexus) focuses on delivering a world-class developer experience.
 
 ## 2. Active Tiered Memory Substrate (Implemented Phase 1)
 Memory has been transitioned from a passive storage model into an active, biological-inspired system:
@@ -25,7 +25,7 @@ The repository is organized into two primary functional layers:
 *   **/control-plane**: The "observer" layer.
     *   `UI`: Dashboards and TUI/Web interfaces.
     *   `Telemetry`: Real-time traffic inspection and execution graphs.
-*   **Rationale:** Ensures the system can run headless (as `hypercoded`) while multiple clients (CLI, Web, Browser Extension) interact with it via standardized tRPC/Go APIs.
+*   **Rationale:** Ensures the system can run headless (as `TormentNexusd`) while multiple clients (CLI, Web, Browser Extension) interact with it via standardized tRPC/Go APIs.
 
 ## 4. State Authority & The Go Sidecar
 *   **Go Sidecar (Port 4300):** Acts as the high-performance state authority and BM25 ranking engine.
@@ -52,4 +52,4 @@ The system is being architected to support "AI Hypercode Enterprise" features:
 *   **Version Synchronization:** Every major functional increment must sync `VERSION`, `CHANGELOG.md`, `VISION.md`, and all monorepo `package.json` manifests.
 
 ---
-*This memory is the definitive record of the Hypercode/HyperCode architecture and directs all subsequent implementation turns.*
+*This memory is the definitive record of the Hypercode/TormentNexus architecture and directs all subsequent implementation turns.*

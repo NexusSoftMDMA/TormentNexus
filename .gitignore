@@ -170,3 +170,7 @@ tmp_*.js
 
 # Jules AI session logs (auto-generated, not needed in repo)
 .jules/sessions/
+
+# Auto-generated MCP server context (added automatically)
+.mcp-server-context.md
+nul

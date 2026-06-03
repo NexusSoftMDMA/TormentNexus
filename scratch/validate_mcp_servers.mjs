@@ -22,11 +22,11 @@ function reconcileNaming(text) {
     if (typeof text !== 'string') return text;
     // Replace specific paths first
     let result = text
-        .replace(/borg-supervisor/gi, 'tormentnexus-supervisor')
-        .replace(/hypercode-supervisor/gi, 'tormentnexus-supervisor');
+        .replace(/tormentnexus-supervisor/gi, 'tormentnexus-supervisor')
+        .replace(/TormentNexus-supervisor/gi, 'tormentnexus-supervisor');
     
     // Replace exact obsolete brand names
-    if (result.toLowerCase() === 'borg' || result.toLowerCase() === 'nexus' || result.toLowerCase() === 'hypercode') {
+    if (result.toLowerCase() === 'tormentnexus' || result.toLowerCase() === 'nexus' || result.toLowerCase() === 'TormentNexus') {
         return 'tormentnexus';
     }
     return result;

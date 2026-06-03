@@ -28,8 +28,33 @@
     },
     {
       "type": "file",
+      "name": "scratch/db_stats.mjs",
+      "file": "scratch/db_stats.mjs"
+    },
+    {
+      "type": "file",
+      "name": "scratch/ingest_all_sessions.mjs",
+      "file": "scratch/ingest_all_sessions.mjs"
+    },
+    {
+      "type": "file",
       "name": "scratch/mask_secrets.js",
       "file": "scratch/mask_secrets.js"
+    },
+    {
+      "type": "file",
+      "name": "scratch/merge_session_folders.mjs",
+      "file": "scratch/merge_session_folders.mjs"
+    },
+    {
+      "type": "file",
+      "name": "scratch/parallel_batch_validator.mjs",
+      "file": "scratch/parallel_batch_validator.mjs"
+    },
+    {
+      "type": "file",
+      "name": "scratch/reset_in_progress.mjs",
+      "file": "scratch/reset_in_progress.mjs"
     },
     {
       "type": "file",
@@ -43,8 +68,18 @@
     },
     {
       "type": "file",
+      "name": "scratch/split_all_robertpelloni_databases.mjs",
+      "file": "scratch/split_all_robertpelloni_databases.mjs"
+    },
+    {
+      "type": "file",
       "name": "scratch/split_database.js",
       "file": "scratch/split_database.js"
+    },
+    {
+      "type": "file",
+      "name": "scratch/split_session_databases.mjs",
+      "file": "scratch/split_session_databases.mjs"
     },
     {
       "type": "file",
@@ -65,6 +100,11 @@
       "type": "file",
       "name": "scripts/build_startup.mjs",
       "file": "scripts/build_startup.mjs"
+    },
+    {
+      "type": "file",
+      "name": "scripts/embedder-healthcheck.mjs",
+      "file": "scripts/embedder-healthcheck.mjs"
     },
     {
       "type": "file",
@@ -98,8 +138,8 @@
     },
     {
       "type": "file",
-      "name": "apps/borg-extension/eslint.config.js",
-      "file": "apps/borg-extension/eslint.config.js"
+      "name": "apps/tormentnexus-extension/eslint.config.js",
+      "file": "apps/tormentnexus-extension/eslint.config.js"
     },
     {
       "type": "file",
@@ -343,11 +383,6 @@
     },
     {
       "type": "file",
-      "name": "apps/web/src/components/memory/MemoryGraph.tsx",
-      "file": "apps/web/src/components/memory/MemoryGraph.tsx"
-    },
-    {
-      "type": "file",
       "name": "apps/web/src/components/mcp/EditEndpoint.tsx",
       "file": "apps/web/src/components/mcp/EditEndpoint.tsx"
     },
@@ -365,6 +400,11 @@
       "type": "file",
       "name": "apps/web/src/components/mcp/LogEntry.tsx",
       "file": "apps/web/src/components/mcp/LogEntry.tsx"
+    },
+    {
+      "type": "file",
+      "name": "apps/web/src/components/memory/MemoryGraph.tsx",
+      "file": "apps/web/src/components/memory/MemoryGraph.tsx"
     },
     {
       "type": "file",
@@ -445,16 +485,6 @@
       "type": "file",
       "name": "packages/cli/src/ui/components/Header.tsx",
       "file": "packages/cli/src/ui/components/Header.tsx"
-    },
-    {
-      "type": "file",
-      "name": "packages/ui/src/hooks/use-terminal-available.ts",
-      "file": "packages/ui/src/hooks/use-terminal-available.ts"
-    },
-    {
-      "type": "file",
-      "name": "packages/ui/src/hooks/useSubmoduleHealth.ts",
-      "file": "packages/ui/src/hooks/useSubmoduleHealth.ts"
     },
     {
       "type": "file",
@@ -638,6 +668,16 @@
     },
     {
       "type": "file",
+      "name": "packages/ui/src/hooks/use-terminal-available.ts",
+      "file": "packages/ui/src/hooks/use-terminal-available.ts"
+    },
+    {
+      "type": "file",
+      "name": "packages/ui/src/hooks/useSubmoduleHealth.ts",
+      "file": "packages/ui/src/hooks/useSubmoduleHealth.ts"
+    },
+    {
+      "type": "file",
       "name": "packages/ui/src/lib/server-supervisor.ts",
       "file": "packages/ui/src/lib/server-supervisor.ts"
     },
@@ -798,6 +838,11 @@
     },
     {
       "type": "file",
+      "name": "packages/ui/src/lib/jules/provider.tsx",
+      "file": "packages/ui/src/lib/jules/provider.tsx"
+    },
+    {
+      "type": "file",
       "name": "packages/ui/src/lib/hooks/use-autopilot.ts",
       "file": "packages/ui/src/lib/hooks/use-autopilot.ts"
     },
@@ -810,11 +855,6 @@
       "type": "file",
       "name": "packages/ui/src/lib/hooks/use-hardware.ts",
       "file": "packages/ui/src/lib/hooks/use-hardware.ts"
-    },
-    {
-      "type": "file",
-      "name": "packages/ui/src/lib/jules/provider.tsx",
-      "file": "packages/ui/src/lib/jules/provider.tsx"
     },
     {
       "type": "file",
@@ -1338,13 +1378,13 @@
     },
     {
       "type": "file",
-      "name": "apps/tormentnexus-extension/packages/tailwind-config/tailwind.config.ts",
-      "file": "apps/tormentnexus-extension/packages/tailwind-config/tailwind.config.ts"
+      "name": "apps/tormentnexus-extension/packages/storage/index.mts",
+      "file": "apps/tormentnexus-extension/packages/storage/index.mts"
     },
     {
       "type": "file",
-      "name": "apps/tormentnexus-extension/packages/storage/index.mts",
-      "file": "apps/tormentnexus-extension/packages/storage/index.mts"
+      "name": "apps/tormentnexus-extension/packages/tailwind-config/tailwind.config.ts",
+      "file": "apps/tormentnexus-extension/packages/tailwind-config/tailwind.config.ts"
     },
     {
       "type": "file",
@@ -1543,11 +1583,6 @@
     },
     {
       "type": "file",
-      "name": "apps/tormentnexus-extension/chrome-extension/src/mcpclient/plugins/ITransportPlugin.ts",
-      "file": "apps/tormentnexus-extension/chrome-extension/src/mcpclient/plugins/ITransportPlugin.ts"
-    },
-    {
-      "type": "file",
       "name": "apps/tormentnexus-extension/chrome-extension/src/mcpclient/types/config.ts",
       "file": "apps/tormentnexus-extension/chrome-extension/src/mcpclient/types/config.ts"
     },
@@ -1570,6 +1605,11 @@
       "type": "file",
       "name": "apps/tormentnexus-extension/chrome-extension/src/mcpclient/utils/schemaValidator.ts",
       "file": "apps/tormentnexus-extension/chrome-extension/src/mcpclient/utils/schemaValidator.ts"
+    },
+    {
+      "type": "file",
+      "name": "apps/tormentnexus-extension/chrome-extension/src/mcpclient/plugins/ITransportPlugin.ts",
+      "file": "apps/tormentnexus-extension/chrome-extension/src/mcpclient/plugins/ITransportPlugin.ts"
     },
     {
       "type": "file",
@@ -4231,30 +4271,6 @@
     },
     {
       "type": "export",
-      "name": "ServerErrorTracker",
-      "file": "packages/core/src/services/server-error-tracker.service.ts",
-      "line": 13
-    },
-    {
-      "type": "export",
-      "name": "ServerCrashInfo",
-      "file": "packages/core/src/services/server-error-tracker.service.ts",
-      "line": 6
-    },
-    {
-      "type": "export",
-      "name": "ServerHealthService",
-      "file": "packages/core/src/services/server-health.service.ts",
-      "line": 28
-    },
-    {
-      "type": "export",
-      "name": "detectSessionExecutionPolicy",
-      "file": "packages/core/src/services/session-execution-policy.ts",
-      "line": 198
-    },
-    {
-      "type": "export",
       "name": "LinksBacklogRepository",
       "file": "packages/core/src/db/repositories/links-backlog.repo.ts",
       "line": 73
@@ -4282,6 +4298,30 @@
       "name": "VisualWorkflowsRepository",
       "file": "packages/core/src/db/repositories/visual-workflows.repo.ts",
       "line": 6
+    },
+    {
+      "type": "export",
+      "name": "ServerErrorTracker",
+      "file": "packages/core/src/services/server-error-tracker.service.ts",
+      "line": 13
+    },
+    {
+      "type": "export",
+      "name": "ServerCrashInfo",
+      "file": "packages/core/src/services/server-error-tracker.service.ts",
+      "line": 6
+    },
+    {
+      "type": "export",
+      "name": "ServerHealthService",
+      "file": "packages/core/src/services/server-health.service.ts",
+      "line": 28
+    },
+    {
+      "type": "export",
+      "name": "detectSessionExecutionPolicy",
+      "file": "packages/core/src/services/session-execution-policy.ts",
+      "line": 198
     },
     {
       "type": "export",
@@ -6985,6 +7025,102 @@
     },
     {
       "type": "export",
+      "name": "WebMemory",
+      "file": "packages/core/src/db/repositories/browser-data.repo.ts",
+      "line": 11
+    },
+    {
+      "type": "export",
+      "name": "NewWebMemory",
+      "file": "packages/core/src/db/repositories/browser-data.repo.ts",
+      "line": 12
+    },
+    {
+      "type": "export",
+      "name": "BrowserHistoryEntry",
+      "file": "packages/core/src/db/repositories/browser-data.repo.ts",
+      "line": 16
+    },
+    {
+      "type": "export",
+      "name": "NewBrowserHistoryEntry",
+      "file": "packages/core/src/db/repositories/browser-data.repo.ts",
+      "line": 17
+    },
+    {
+      "type": "export",
+      "name": "ConsoleLogEntry",
+      "file": "packages/core/src/db/repositories/browser-data.repo.ts",
+      "line": 21
+    },
+    {
+      "type": "export",
+      "name": "NewConsoleLogEntry",
+      "file": "packages/core/src/db/repositories/browser-data.repo.ts",
+      "line": 22
+    },
+    {
+      "type": "export",
+      "name": "TormentNexusRuntimePipelineStatus",
+      "file": "packages/core/src/routers/memoryRouter.tormentnexus.ts",
+      "line": 8
+    },
+    {
+      "type": "export",
+      "name": "TormentNexusSectionStatus",
+      "file": "packages/core/src/routers/memoryRouter.tormentnexus.ts",
+      "line": 9
+    },
+    {
+      "type": "export",
+      "name": "TormentNexusStoreStatus",
+      "file": "packages/core/src/routers/memoryRouter.tormentnexus.ts",
+      "line": 10
+    },
+    {
+      "type": "export",
+      "name": "ToolChain",
+      "file": "packages/core/src/db/repositories/tool-chains.repo.ts",
+      "line": 10
+    },
+    {
+      "type": "export",
+      "name": "NewToolChain",
+      "file": "packages/core/src/db/repositories/tool-chains.repo.ts",
+      "line": 11
+    },
+    {
+      "type": "export",
+      "name": "ToolChainStep",
+      "file": "packages/core/src/db/repositories/tool-chains.repo.ts",
+      "line": 13
+    },
+    {
+      "type": "export",
+      "name": "NewToolChainStep",
+      "file": "packages/core/src/db/repositories/tool-chains.repo.ts",
+      "line": 14
+    },
+    {
+      "type": "export",
+      "name": "ToolAlias",
+      "file": "packages/core/src/db/repositories/tool-chains.repo.ts",
+      "line": 16
+    },
+    {
+      "type": "export",
+      "name": "NewToolAlias",
+      "file": "packages/core/src/db/repositories/tool-chains.repo.ts",
+      "line": 17
+    },
+    {
+      "type": "export",
+      "name": "PopulatedToolChain",
+      "file": "packages/core/src/db/repositories/tool-chains.repo.ts",
+      "line": 19
+    },
+    {
+      "type": "export",
       "name": "CachedCapabilities",
       "file": "packages/core/src/services/AgentCapabilityRegistry.ts",
       "line": 3
@@ -7093,132 +7229,6 @@
     },
     {
       "type": "export",
-      "name": "WebMemory",
-      "file": "packages/core/src/db/repositories/browser-data.repo.ts",
-      "line": 11
-    },
-    {
-      "type": "export",
-      "name": "NewWebMemory",
-      "file": "packages/core/src/db/repositories/browser-data.repo.ts",
-      "line": 12
-    },
-    {
-      "type": "export",
-      "name": "BrowserHistoryEntry",
-      "file": "packages/core/src/db/repositories/browser-data.repo.ts",
-      "line": 16
-    },
-    {
-      "type": "export",
-      "name": "NewBrowserHistoryEntry",
-      "file": "packages/core/src/db/repositories/browser-data.repo.ts",
-      "line": 17
-    },
-    {
-      "type": "export",
-      "name": "ConsoleLogEntry",
-      "file": "packages/core/src/db/repositories/browser-data.repo.ts",
-      "line": 21
-    },
-    {
-      "type": "export",
-      "name": "NewConsoleLogEntry",
-      "file": "packages/core/src/db/repositories/browser-data.repo.ts",
-      "line": 22
-    },
-    {
-      "type": "export",
-      "name": "TormentNexusRuntimePipelineStatus",
-      "file": "packages/core/src/routers/memoryRouter.tormentnexus.ts",
-      "line": 8
-    },
-    {
-      "type": "export",
-      "name": "TormentNexusSectionStatus",
-      "file": "packages/core/src/routers/memoryRouter.tormentnexus.ts",
-      "line": 9
-    },
-    {
-      "type": "export",
-      "name": "TormentNexusStoreStatus",
-      "file": "packages/core/src/routers/memoryRouter.tormentnexus.ts",
-      "line": 10
-    },
-    {
-      "type": "export",
-      "name": "ToolChain",
-      "file": "packages/core/src/db/repositories/tool-chains.repo.ts",
-      "line": 10
-    },
-    {
-      "type": "export",
-      "name": "NewToolChain",
-      "file": "packages/core/src/db/repositories/tool-chains.repo.ts",
-      "line": 11
-    },
-    {
-      "type": "export",
-      "name": "ToolChainStep",
-      "file": "packages/core/src/db/repositories/tool-chains.repo.ts",
-      "line": 13
-    },
-    {
-      "type": "export",
-      "name": "NewToolChainStep",
-      "file": "packages/core/src/db/repositories/tool-chains.repo.ts",
-      "line": 14
-    },
-    {
-      "type": "export",
-      "name": "ToolAlias",
-      "file": "packages/core/src/db/repositories/tool-chains.repo.ts",
-      "line": 16
-    },
-    {
-      "type": "export",
-      "name": "NewToolAlias",
-      "file": "packages/core/src/db/repositories/tool-chains.repo.ts",
-      "line": 17
-    },
-    {
-      "type": "export",
-      "name": "PopulatedToolChain",
-      "file": "packages/core/src/db/repositories/tool-chains.repo.ts",
-      "line": 19
-    },
-    {
-      "type": "export",
-      "name": "CanonicalMemoryFormat",
-      "file": "packages/core/src/services/memory/MemoryExportImportService.ts",
-      "line": 17
-    },
-    {
-      "type": "export",
-      "name": "ProviderMemoryFormat",
-      "file": "packages/core/src/services/memory/MemoryExportImportService.ts",
-      "line": 18
-    },
-    {
-      "type": "export",
-      "name": "MemoryInterchangeFormat",
-      "file": "packages/core/src/services/memory/MemoryExportImportService.ts",
-      "line": 19
-    },
-    {
-      "type": "export",
-      "name": "MemoryProviderMode",
-      "file": "packages/core/src/services/memory/MemoryManager.ts",
-      "line": 5
-    },
-    {
-      "type": "export",
-      "name": "RedundantMemoryProviderName",
-      "file": "packages/core/src/services/memory/RedundantMemoryManager.ts",
-      "line": 28
-    },
-    {
-      "type": "export",
       "name": "RotationRole",
       "file": "packages/core/src/orchestrator/council/services/rotation-room.ts",
       "line": 4
@@ -7312,6 +7322,36 @@
       "name": "RotationRoom",
       "file": "packages/core/src/orchestrator/council/services/rotation-room.ts",
       "line": 88
+    },
+    {
+      "type": "export",
+      "name": "CanonicalMemoryFormat",
+      "file": "packages/core/src/services/memory/MemoryExportImportService.ts",
+      "line": 17
+    },
+    {
+      "type": "export",
+      "name": "ProviderMemoryFormat",
+      "file": "packages/core/src/services/memory/MemoryExportImportService.ts",
+      "line": 18
+    },
+    {
+      "type": "export",
+      "name": "MemoryInterchangeFormat",
+      "file": "packages/core/src/services/memory/MemoryExportImportService.ts",
+      "line": 19
+    },
+    {
+      "type": "export",
+      "name": "MemoryProviderMode",
+      "file": "packages/core/src/services/memory/MemoryManager.ts",
+      "line": 5
+    },
+    {
+      "type": "export",
+      "name": "RedundantMemoryProviderName",
+      "file": "packages/core/src/services/memory/RedundantMemoryManager.ts",
+      "line": 28
     },
     {
       "type": "export",
@@ -8931,30 +8971,6 @@
     },
     {
       "type": "export",
-      "name": "ServerErrorTracker",
-      "file": "packages/core/src/services/server-error-tracker.service.ts",
-      "line": 13
-    },
-    {
-      "type": "export",
-      "name": "ServerCrashInfo",
-      "file": "packages/core/src/services/server-error-tracker.service.ts",
-      "line": 6
-    },
-    {
-      "type": "export",
-      "name": "ServerHealthService",
-      "file": "packages/core/src/services/server-health.service.ts",
-      "line": 28
-    },
-    {
-      "type": "export",
-      "name": "detectSessionExecutionPolicy",
-      "file": "packages/core/src/services/session-execution-policy.ts",
-      "line": 198
-    },
-    {
-      "type": "export",
       "name": "LinksBacklogRepository",
       "file": "packages/core/src/db/repositories/links-backlog.repo.ts",
       "line": 73
@@ -8982,6 +8998,30 @@
       "name": "VisualWorkflowsRepository",
       "file": "packages/core/src/db/repositories/visual-workflows.repo.ts",
       "line": 6
+    },
+    {
+      "type": "export",
+      "name": "ServerErrorTracker",
+      "file": "packages/core/src/services/server-error-tracker.service.ts",
+      "line": 13
+    },
+    {
+      "type": "export",
+      "name": "ServerCrashInfo",
+      "file": "packages/core/src/services/server-error-tracker.service.ts",
+      "line": 6
+    },
+    {
+      "type": "export",
+      "name": "ServerHealthService",
+      "file": "packages/core/src/services/server-health.service.ts",
+      "line": 28
+    },
+    {
+      "type": "export",
+      "name": "detectSessionExecutionPolicy",
+      "file": "packages/core/src/services/session-execution-policy.ts",
+      "line": 198
     },
     {
       "type": "export",
@@ -11685,6 +11725,102 @@
     },
     {
       "type": "export",
+      "name": "WebMemory",
+      "file": "packages/core/src/db/repositories/browser-data.repo.ts",
+      "line": 11
+    },
+    {
+      "type": "export",
+      "name": "NewWebMemory",
+      "file": "packages/core/src/db/repositories/browser-data.repo.ts",
+      "line": 12
+    },
+    {
+      "type": "export",
+      "name": "BrowserHistoryEntry",
+      "file": "packages/core/src/db/repositories/browser-data.repo.ts",
+      "line": 16
+    },
+    {
+      "type": "export",
+      "name": "NewBrowserHistoryEntry",
+      "file": "packages/core/src/db/repositories/browser-data.repo.ts",
+      "line": 17
+    },
+    {
+      "type": "export",
+      "name": "ConsoleLogEntry",
+      "file": "packages/core/src/db/repositories/browser-data.repo.ts",
+      "line": 21
+    },
+    {
+      "type": "export",
+      "name": "NewConsoleLogEntry",
+      "file": "packages/core/src/db/repositories/browser-data.repo.ts",
+      "line": 22
+    },
+    {
+      "type": "export",
+      "name": "TormentNexusRuntimePipelineStatus",
+      "file": "packages/core/src/routers/memoryRouter.tormentnexus.ts",
+      "line": 8
+    },
+    {
+      "type": "export",
+      "name": "TormentNexusSectionStatus",
+      "file": "packages/core/src/routers/memoryRouter.tormentnexus.ts",
+      "line": 9
+    },
+    {
+      "type": "export",
+      "name": "TormentNexusStoreStatus",
+      "file": "packages/core/src/routers/memoryRouter.tormentnexus.ts",
+      "line": 10
+    },
+    {
+      "type": "export",
+      "name": "ToolChain",
+      "file": "packages/core/src/db/repositories/tool-chains.repo.ts",
+      "line": 10
+    },
+    {
+      "type": "export",
+      "name": "NewToolChain",
+      "file": "packages/core/src/db/repositories/tool-chains.repo.ts",
+      "line": 11
+    },
+    {
+      "type": "export",
+      "name": "ToolChainStep",
+      "file": "packages/core/src/db/repositories/tool-chains.repo.ts",
+      "line": 13
+    },
+    {
+      "type": "export",
+      "name": "NewToolChainStep",
+      "file": "packages/core/src/db/repositories/tool-chains.repo.ts",
+      "line": 14
+    },
+    {
+      "type": "export",
+      "name": "ToolAlias",
+      "file": "packages/core/src/db/repositories/tool-chains.repo.ts",
+      "line": 16
+    },
+    {
+      "type": "export",
+      "name": "NewToolAlias",
+      "file": "packages/core/src/db/repositories/tool-chains.repo.ts",
+      "line": 17
+    },
+    {
+      "type": "export",
+      "name": "PopulatedToolChain",
+      "file": "packages/core/src/db/repositories/tool-chains.repo.ts",
+      "line": 19
+    },
+    {
+      "type": "export",
       "name": "CachedCapabilities",
       "file": "packages/core/src/services/AgentCapabilityRegistry.ts",
       "line": 3
@@ -11793,132 +11929,6 @@
     },
     {
       "type": "export",
-      "name": "WebMemory",
-      "file": "packages/core/src/db/repositories/browser-data.repo.ts",
-      "line": 11
-    },
-    {
-      "type": "export",
-      "name": "NewWebMemory",
-      "file": "packages/core/src/db/repositories/browser-data.repo.ts",
-      "line": 12
-    },
-    {
-      "type": "export",
-      "name": "BrowserHistoryEntry",
-      "file": "packages/core/src/db/repositories/browser-data.repo.ts",
-      "line": 16
-    },
-    {
-      "type": "export",
-      "name": "NewBrowserHistoryEntry",
-      "file": "packages/core/src/db/repositories/browser-data.repo.ts",
-      "line": 17
-    },
-    {
-      "type": "export",
-      "name": "ConsoleLogEntry",
-      "file": "packages/core/src/db/repositories/browser-data.repo.ts",
-      "line": 21
-    },
-    {
-      "type": "export",
-      "name": "NewConsoleLogEntry",
-      "file": "packages/core/src/db/repositories/browser-data.repo.ts",
-      "line": 22
-    },
-    {
-      "type": "export",
-      "name": "TormentNexusRuntimePipelineStatus",
-      "file": "packages/core/src/routers/memoryRouter.tormentnexus.ts",
-      "line": 8
-    },
-    {
-      "type": "export",
-      "name": "TormentNexusSectionStatus",
-      "file": "packages/core/src/routers/memoryRouter.tormentnexus.ts",
-      "line": 9
-    },
-    {
-      "type": "export",
-      "name": "TormentNexusStoreStatus",
-      "file": "packages/core/src/routers/memoryRouter.tormentnexus.ts",
-      "line": 10
-    },
-    {
-      "type": "export",
-      "name": "ToolChain",
-      "file": "packages/core/src/db/repositories/tool-chains.repo.ts",
-      "line": 10
-    },
-    {
-      "type": "export",
-      "name": "NewToolChain",
-      "file": "packages/core/src/db/repositories/tool-chains.repo.ts",
-      "line": 11
-    },
-    {
-      "type": "export",
-      "name": "ToolChainStep",
-      "file": "packages/core/src/db/repositories/tool-chains.repo.ts",
-      "line": 13
-    },
-    {
-      "type": "export",
-      "name": "NewToolChainStep",
-      "file": "packages/core/src/db/repositories/tool-chains.repo.ts",
-      "line": 14
-    },
-    {
-      "type": "export",
-      "name": "ToolAlias",
-      "file": "packages/core/src/db/repositories/tool-chains.repo.ts",
-      "line": 16
-    },
-    {
-      "type": "export",
-      "name": "NewToolAlias",
-      "file": "packages/core/src/db/repositories/tool-chains.repo.ts",
-      "line": 17
-    },
-    {
-      "type": "export",
-      "name": "PopulatedToolChain",
-      "file": "packages/core/src/db/repositories/tool-chains.repo.ts",
-      "line": 19
-    },
-    {
-      "type": "export",
-      "name": "CanonicalMemoryFormat",
-      "file": "packages/core/src/services/memory/MemoryExportImportService.ts",
-      "line": 17
-    },
-    {
-      "type": "export",
-      "name": "ProviderMemoryFormat",
-      "file": "packages/core/src/services/memory/MemoryExportImportService.ts",
-      "line": 18
-    },
-    {
-      "type": "export",
-      "name": "MemoryInterchangeFormat",
-      "file": "packages/core/src/services/memory/MemoryExportImportService.ts",
-      "line": 19
-    },
-    {
-      "type": "export",
-      "name": "MemoryProviderMode",
-      "file": "packages/core/src/services/memory/MemoryManager.ts",
-      "line": 5
-    },
-    {
-      "type": "export",
-      "name": "RedundantMemoryProviderName",
-      "file": "packages/core/src/services/memory/RedundantMemoryManager.ts",
-      "line": 28
-    },
-    {
-      "type": "export",
       "name": "RotationRole",
       "file": "packages/core/src/orchestrator/council/services/rotation-room.ts",
       "line": 4
@@ -12012,6 +12022,36 @@
       "name": "RotationRoom",
       "file": "packages/core/src/orchestrator/council/services/rotation-room.ts",
       "line": 88
+    },
+    {
+      "type": "export",
+      "name": "CanonicalMemoryFormat",
+      "file": "packages/core/src/services/memory/MemoryExportImportService.ts",
+      "line": 17
+    },
+    {
+      "type": "export",
+      "name": "ProviderMemoryFormat",
+      "file": "packages/core/src/services/memory/MemoryExportImportService.ts",
+      "line": 18
+    },
+    {
+      "type": "export",
+      "name": "MemoryInterchangeFormat",
+      "file": "packages/core/src/services/memory/MemoryExportImportService.ts",
+      "line": 19
+    },
+    {
+      "type": "export",
+      "name": "MemoryProviderMode",
+      "file": "packages/core/src/services/memory/MemoryManager.ts",
+      "line": 5
+    },
+    {
+      "type": "export",
+      "name": "RedundantMemoryProviderName",
+      "file": "packages/core/src/services/memory/RedundantMemoryManager.ts",
+      "line": 28
     },
     {
       "type": "export",
@@ -12486,8 +12526,33 @@
     },
     {
       "type": "file",
+      "name": "scratch/db_stats.mjs",
+      "file": "scratch/db_stats.mjs"
+    },
+    {
+      "type": "file",
+      "name": "scratch/ingest_all_sessions.mjs",
+      "file": "scratch/ingest_all_sessions.mjs"
+    },
+    {
+      "type": "file",
       "name": "scratch/mask_secrets.js",
       "file": "scratch/mask_secrets.js"
+    },
+    {
+      "type": "file",
+      "name": "scratch/merge_session_folders.mjs",
+      "file": "scratch/merge_session_folders.mjs"
+    },
+    {
+      "type": "file",
+      "name": "scratch/parallel_batch_validator.mjs",
+      "file": "scratch/parallel_batch_validator.mjs"
+    },
+    {
+      "type": "file",
+      "name": "scratch/reset_in_progress.mjs",
+      "file": "scratch/reset_in_progress.mjs"
     },
     {
       "type": "file",
@@ -12501,8 +12566,18 @@
     },
     {
       "type": "file",
+      "name": "scratch/split_all_robertpelloni_databases.mjs",
+      "file": "scratch/split_all_robertpelloni_databases.mjs"
+    },
+    {
+      "type": "file",
       "name": "scratch/split_database.js",
       "file": "scratch/split_database.js"
+    },
+    {
+      "type": "file",
+      "name": "scratch/split_session_databases.mjs",
+      "file": "scratch/split_session_databases.mjs"
     },
     {
       "type": "file",
@@ -12523,6 +12598,11 @@
       "type": "file",
       "name": "scripts/build_startup.mjs",
       "file": "scripts/build_startup.mjs"
+    },
+    {
+      "type": "file",
+      "name": "scripts/embedder-healthcheck.mjs",
+      "file": "scripts/embedder-healthcheck.mjs"
     },
     {
       "type": "file",
@@ -12556,8 +12636,8 @@
     },
     {
       "type": "file",
-      "name": "apps/borg-extension/eslint.config.js",
-      "file": "apps/borg-extension/eslint.config.js"
+      "name": "apps/tormentnexus-extension/eslint.config.js",
+      "file": "apps/tormentnexus-extension/eslint.config.js"
     },
     {
       "type": "file",
@@ -12801,11 +12881,6 @@
     },
     {
       "type": "file",
-      "name": "apps/web/src/components/memory/MemoryGraph.tsx",
-      "file": "apps/web/src/components/memory/MemoryGraph.tsx"
-    },
-    {
-      "type": "file",
       "name": "apps/web/src/components/mcp/EditEndpoint.tsx",
       "file": "apps/web/src/components/mcp/EditEndpoint.tsx"
     },
@@ -12823,6 +12898,11 @@
       "type": "file",
       "name": "apps/web/src/components/mcp/LogEntry.tsx",
       "file": "apps/web/src/components/mcp/LogEntry.tsx"
+    },
+    {
+      "type": "file",
+      "name": "apps/web/src/components/memory/MemoryGraph.tsx",
+      "file": "apps/web/src/components/memory/MemoryGraph.tsx"
     },
     {
       "type": "file",
@@ -12903,16 +12983,6 @@
       "type": "file",
       "name": "packages/cli/src/ui/components/Header.tsx",
       "file": "packages/cli/src/ui/components/Header.tsx"
-    },
-    {
-      "type": "file",
-      "name": "packages/ui/src/hooks/use-terminal-available.ts",
-      "file": "packages/ui/src/hooks/use-terminal-available.ts"
-    },
-    {
-      "type": "file",
-      "name": "packages/ui/src/hooks/useSubmoduleHealth.ts",
-      "file": "packages/ui/src/hooks/useSubmoduleHealth.ts"
     },
     {
       "type": "file",
@@ -13096,6 +13166,16 @@
     },
     {
       "type": "file",
+      "name": "packages/ui/src/hooks/use-terminal-available.ts",
+      "file": "packages/ui/src/hooks/use-terminal-available.ts"
+    },
+    {
+      "type": "file",
+      "name": "packages/ui/src/hooks/useSubmoduleHealth.ts",
+      "file": "packages/ui/src/hooks/useSubmoduleHealth.ts"
+    },
+    {
+      "type": "file",
       "name": "packages/ui/src/lib/server-supervisor.ts",
       "file": "packages/ui/src/lib/server-supervisor.ts"
     },
@@ -13256,6 +13336,11 @@
     },
     {
       "type": "file",
+      "name": "packages/ui/src/lib/jules/provider.tsx",
+      "file": "packages/ui/src/lib/jules/provider.tsx"
+    },
+    {
+      "type": "file",
       "name": "packages/ui/src/lib/hooks/use-autopilot.ts",
       "file": "packages/ui/src/lib/hooks/use-autopilot.ts"
     },
@@ -13268,11 +13353,6 @@
       "type": "file",
       "name": "packages/ui/src/lib/hooks/use-hardware.ts",
       "file": "packages/ui/src/lib/hooks/use-hardware.ts"
-    },
-    {
-      "type": "file",
-      "name": "packages/ui/src/lib/jules/provider.tsx",
-      "file": "packages/ui/src/lib/jules/provider.tsx"
     },
     {
       "type": "file",
@@ -13796,13 +13876,13 @@
     },
     {
       "type": "file",
-      "name": "apps/tormentnexus-extension/packages/tailwind-config/tailwind.config.ts",
-      "file": "apps/tormentnexus-extension/packages/tailwind-config/tailwind.config.ts"
+      "name": "apps/tormentnexus-extension/packages/storage/index.mts",
+      "file": "apps/tormentnexus-extension/packages/storage/index.mts"
     },
     {
       "type": "file",
-      "name": "apps/tormentnexus-extension/packages/storage/index.mts",
-      "file": "apps/tormentnexus-extension/packages/storage/index.mts"
+      "name": "apps/tormentnexus-extension/packages/tailwind-config/tailwind.config.ts",
+      "file": "apps/tormentnexus-extension/packages/tailwind-config/tailwind.config.ts"
     },
     {
       "type": "file",
@@ -14001,11 +14081,6 @@
     },
     {
       "type": "file",
-      "name": "apps/tormentnexus-extension/chrome-extension/src/mcpclient/plugins/ITransportPlugin.ts",
-      "file": "apps/tormentnexus-extension/chrome-extension/src/mcpclient/plugins/ITransportPlugin.ts"
-    },
-    {
-      "type": "file",
       "name": "apps/tormentnexus-extension/chrome-extension/src/mcpclient/types/config.ts",
       "file": "apps/tormentnexus-extension/chrome-extension/src/mcpclient/types/config.ts"
     },
@@ -14028,6 +14103,11 @@
       "type": "file",
       "name": "apps/tormentnexus-extension/chrome-extension/src/mcpclient/utils/schemaValidator.ts",
       "file": "apps/tormentnexus-extension/chrome-extension/src/mcpclient/utils/schemaValidator.ts"
+    },
+    {
+      "type": "file",
+      "name": "apps/tormentnexus-extension/chrome-extension/src/mcpclient/plugins/ITransportPlugin.ts",
+      "file": "apps/tormentnexus-extension/chrome-extension/src/mcpclient/plugins/ITransportPlugin.ts"
     },
     {
       "type": "file",
@@ -15522,5 +15602,5 @@
       "line": 4
     }
   ],
-  "summary": "Found 1351 issues"
+  "summary": "Found 1359 issues"
 }

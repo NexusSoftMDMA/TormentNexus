@@ -1,0 +1,6 @@
+{
+  "signature": "packages/core/src/MCPServer.ts::Unresolved from this turn — packages/core/src/MCPServer.ts:\n🔴 STOP — 17 issue(s) must be fixed:\n  L77: 'registerSystemWorkflows' is declared but its value is never read.\n    💡 Fix: Remove the unused declaration or rename with '_' prefix if intentionally unused.\n  L163: 'createCouncilTools' is declared but its value is never read.\n    💡 Fix: Remove the unused declaration or rename with '_' prefix if intentionally unused.\n  L195: 'ToolRequest' is declared but never used.\n    💡 Fix: Remove the unused declaration or rename with '_' prefix if intentionally unused.\n  L250: 'systemStatusTool' is declared but its value is never read.\n    💡 Fix: Remove the unused declaration or rename with '_' prefix if intentionally unused.\n  L1560: Empty catch block silently swallows errors\n  L3598: CORS wildcard origin (*) allows any website to make credentialed requests — restrict to known origins\n  L3628: CORS wildcard origin (*) allows any website to make credentialed requests — restrict to known ori\n... (truncated)",
+  "sessionId": "lens-mpudas4z-7dc52b6f",
+  "projectSeqStart": 8,
+  "projectSeqEnd": 9
+}

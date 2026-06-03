@@ -275,7 +275,67 @@
         }
       ],
       "trend": "stable"
+    },
+    "scripts\\embedder-healthcheck.mjs": {
+      "latest": {
+        "commit": "c188521bc",
+        "timestamp": "2026-06-02T22:04:50.486Z",
+        "mi": 35,
+        "cognitive": 31,
+        "nesting": 7,
+        "lines": 95,
+        "maxCyclomatic": 12,
+        "entropy": 5.02
+      },
+      "history": [
+        {
+          "commit": "6a1e80c44",
+          "timestamp": "2026-06-02T00:42:35.173Z",
+          "mi": 35.2,
+          "cognitive": 31,
+          "nesting": 7,
+          "lines": 93,
+          "maxCyclomatic": 12,
+          "entropy": 5.05
+        },
+        {
+          "commit": "c188521bc",
+          "timestamp": "2026-06-02T22:04:50.486Z",
+          "mi": 35,
+          "cognitive": 31,
+          "nesting": 7,
+          "lines": 95,
+          "maxCyclomatic": 12,
+          "entropy": 5.02
+        }
+      ],
+      "trend": "stable"
+    },
+    "comprehensive_mcp_test.mjs": {
+      "latest": {
+        "commit": "410e4bb73",
+        "timestamp": "2026-06-02T01:38:42.775Z",
+        "mi": 14.9,
+        "cognitive": 144,
+        "nesting": 7,
+        "lines": 504,
+        "maxCyclomatic": 159,
+        "entropy": 6.92
+      },
+      "history": [
+        {
+          "commit": "410e4bb73",
+          "timestamp": "2026-06-02T01:38:42.775Z",
+          "mi": 14.9,
+          "cognitive": 144,
+          "nesting": 7,
+          "lines": 504,
+          "maxCyclomatic": 159,
+          "entropy": 6.92
+        }
+      ],
+      "trend": "stable"
     }
   },
-  "capturedAt": "2026-06-01T20:38:12.231Z"
+  "capturedAt": "2026-06-02T22:04:55.638Z"
 }

@@ -1,6 +1,6 @@
 /**
- * Centralized logging system for HyperCode Extension
- * Centralized logging system for borg Extension
+ * Centralized logging system for TormentNexus Extension
+ * Centralized logging system for tormentnexus Extension
  *
  * Features:
  * - Granular log level control (DEBUG, INFO, WARN, ERROR, NONE)

@@ -1,8 +1,8 @@
 {
   "version": 1,
-  "projectRoot": "C:/Users/hyper/workspace/borg",
-  "generatedAt": "2026-06-01T18:15:49.378Z",
-  "seq": 14,
+  "projectRoot": "C:/Users/hyper/workspace/tormentnexus",
+  "generatedAt": "2026-06-02T22:10:27.047Z",
+  "seq": 18,
   "files": {},
   "symbols": {},
   "reverseDeps": {},
@@ -12,22 +12,22 @@
       {
         "source": "root",
         "name": "CLAUDE.md",
-        "filePath": "C:\\Users\\hyper\\workspace\\borg\\CLAUDE.md",
+        "filePath": "C:\\Users\\hyper\\workspace\\tormentnexus\\CLAUDE.md",
         "relativePath": "CLAUDE.md"
       },
       {
         "source": "root",
         "name": "AGENTS.md",
-        "filePath": "C:\\Users\\hyper\\workspace\\borg\\AGENTS.md",
+        "filePath": "C:\\Users\\hyper\\workspace\\tormentnexus\\AGENTS.md",
         "relativePath": "AGENTS.md"
       }
     ],
     "hasCustomRules": true
   },
   "startupScan": {
-    "cwd": "C:\\Users\\hyper\\workspace\\borg",
-    "scanRoot": "C:\\Users\\hyper\\workspace\\borg",
-    "projectRoot": "C:\\Users\\hyper\\workspace\\borg",
+    "cwd": "C:\\Users\\hyper\\workspace\\tormentnexus",
+    "scanRoot": "C:\\Users\\hyper\\workspace\\tormentnexus",
+    "projectRoot": "C:\\Users\\hyper\\workspace\\tormentnexus",
     "canWarmCaches": true,
     "sourceFileCount": 1791
   },
@@ -76,7 +76,7 @@
     },
     "counts": {
       "go": 363,
-      "jsts": 1442,
+      "jsts": 1443,
       "python": 10
     },
     "detectedKinds": [

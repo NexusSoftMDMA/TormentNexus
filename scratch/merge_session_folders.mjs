@@ -155,44 +155,44 @@ async function run() {
         }
         
         const projectPath = path.join(WORKSPACE_ROOT, entry.name);
-        const borgPath = path.join(projectPath, '.borg');
-        const hypercodePath = path.join(projectPath, '.hypercode');
+        const tormentnexusPath = path.join(projectPath, '.tormentnexus');
+        const TormentNexusPath = path.join(projectPath, '.TormentNexus');
         const tormentnexusPath = path.join(projectPath, '.tormentnexus');
         
-        const hasBorg = fs.existsSync(borgPath);
-        const hasHypercode = fs.existsSync(hypercodePath);
+        const hasTormentNexus = fs.existsSync(tormentnexusPath);
+        const hasHypercode = fs.existsSync(TormentNexusPath);
         
-        if (hasBorg || hasHypercode) {
+        if (hasTormentNexus || hasHypercode) {
             console.log(`📁 Processing project: ${entry.name}`);
             ensureDir(tormentnexusPath);
             
-            if (hasBorg) {
-                console.log(`  - Deep Merging .borg -> .tormentnexus`);
+            if (hasTormentNexus) {
+                console.log(`  - Deep Merging .tormentnexus -> .tormentnexus`);
                 try {
-                    copyRecursiveMergeSync(borgPath, tormentnexusPath);
-                    // Handle .borg-session.json
-                    const borgSessionFile = path.join(projectPath, '.borg-session.json');
-                    if (fs.existsSync(borgSessionFile)) {
+                    copyRecursiveMergeSync(tormentnexusPath, tormentnexusPath);
+                    // Handle .tormentnexus-session.json
+                    const tormentnexusSessionFile = path.join(projectPath, '.tormentnexus-session.json');
+                    if (fs.existsSync(tormentnexusSessionFile)) {
                         const destSession = path.join(projectPath, '.tormentnexus-session.json');
-                        mergeFiles(borgSessionFile, destSession);
+                        mergeFiles(tormentnexusSessionFile, destSession);
                     }
                 } catch (err) {
-                    console.error(`  ❌ Failed to deep merge .borg for ${entry.name}:`, err.message);
+                    console.error(`  ❌ Failed to deep merge .tormentnexus for ${entry.name}:`, err.message);
                 }
             }
             
             if (hasHypercode) {
-                console.log(`  - Deep Merging .hypercode -> .tormentnexus`);
+                console.log(`  - Deep Merging .TormentNexus -> .tormentnexus`);
                 try {
-                    copyRecursiveMergeSync(hypercodePath, tormentnexusPath);
-                    // Handle .hypercode-session.json
-                    const hypercodeSessionFile = path.join(projectPath, '.hypercode-session.json');
-                    if (fs.existsSync(hypercodeSessionFile)) {
+                    copyRecursiveMergeSync(TormentNexusPath, tormentnexusPath);
+                    // Handle .TormentNexus-session.json
+                    const TormentNexusSessionFile = path.join(projectPath, '.TormentNexus-session.json');
+                    if (fs.existsSync(TormentNexusSessionFile)) {
                         const destSession = path.join(projectPath, '.tormentnexus-session.json');
-                        mergeFiles(hypercodeSessionFile, destSession);
+                        mergeFiles(TormentNexusSessionFile, destSession);
                     }
                 } catch (err) {
-                    console.error(`  ❌ Failed to deep merge .hypercode for ${entry.name}:`, err.message);
+                    console.error(`  ❌ Failed to deep merge .TormentNexus for ${entry.name}:`, err.message);
                 }
             }
             
@@ -206,7 +206,7 @@ async function run() {
     
     // Now trigger the universal session ingestion pipeline to index all the newly merged files
     console.log('🚀 Triggering session ingestion to index newly merged files...');
-    const ingestScript = path.join(WORKSPACE_ROOT, 'borg', 'scratch', 'ingest_all_sessions.mjs');
+    const ingestScript = path.join(WORKSPACE_ROOT, 'tormentnexus', 'scratch', 'ingest_all_sessions.mjs');
     if (fs.existsSync(ingestScript)) {
         const result = spawnSync('node', [ingestScript], { stdio: 'inherit' });
         if (result.status === 0) {

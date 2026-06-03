@@ -5,7 +5,7 @@ import zlib from 'zlib';
 import Database from 'better-sqlite3';
 
 const HOME_DIR = 'C:\\Users\\hyper';
-const WORKSPACE_DIR = 'c:\\Users\\hyper\\workspace\\borg';
+const WORKSPACE_DIR = 'c:\\Users\\hyper\\workspace\\tormentnexus';
 const DB_PATH = path.join(WORKSPACE_DIR, 'tormentnexus.db');
 const ARCHIVE_ROOT = path.join(WORKSPACE_DIR, '.tormentnexus', 'imported_sessions', 'archive');
 const MAX_FILE_SIZE = 25 * 1024 * 1024; // 25MB safety cap
@@ -55,8 +55,8 @@ function detectProject(filePath, cleanedText) {
     const fileName = path.basename(filePath).toLowerCase();
     
     // Check path itself first
-    if (filePath.includes('workspace\\borg') || filePath.includes('.tormentnexus')) {
-        return 'borg';
+    if (filePath.includes('workspace\\tormentnexus') || filePath.includes('.tormentnexus')) {
+        return 'tormentnexus';
     }
     
     // Try to match paths in the transcript
@@ -187,10 +187,10 @@ async function run() {
                     sessionFormat: 'markdown'
                 });
             }
-            if (file === '.hypercode-session.json' || file === '.tormentnexus-session.json') {
+            if (file === '.TormentNexus-session.json' || file === '.tormentnexus-session.json') {
                 candidates.push({
                     filePath: path.join(WORKSPACE_DIR, file),
-                    sourceTool: file.includes('tormentnexus') ? 'tormentnexus' : 'hypercode',
+                    sourceTool: file.includes('tormentnexus') ? 'tormentnexus' : 'TormentNexus',
                     sessionFormat: 'json'
                 });
             }

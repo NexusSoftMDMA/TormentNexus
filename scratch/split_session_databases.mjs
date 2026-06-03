@@ -4,7 +4,7 @@ import { spawnSync } from 'child_process';
 import Database from 'better-sqlite3';
 
 const WORKSPACE_ROOT = 'c:\\Users\\hyper\\workspace';
-const GLOBAL_DB_PATH = path.join(WORKSPACE_ROOT, 'borg', 'tormentnexus.db');
+const GLOBAL_DB_PATH = path.join(WORKSPACE_ROOT, 'tormentnexus', 'tormentnexus.db');
 
 function ensureDir(dirPath) {
     if (!fs.existsSync(dirPath)) {

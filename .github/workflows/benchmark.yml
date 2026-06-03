@@ -42,7 +42,7 @@ jobs:
         uses: benchmark-action/github-action-benchmark@v1
         if: github.ref == 'refs/heads/main'
         with:
-          name: hypercode Performance Benchmarks
+          name: TormentNexus Performance Benchmarks
           tool: 'customSmallerIsBetter'
           output-file-path: benchmark-results.json
           github-token: ${{ secrets.GITHUB_TOKEN }}
