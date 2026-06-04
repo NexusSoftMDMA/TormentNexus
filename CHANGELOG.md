@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.0.0-alpha.103] - 2026-06-04
+### Added
+- **Verified Tool Expansion Batches 13 & 14**:
+  - Successfully verified, validated, and registered 17 new MCP servers and 295 new tools using `scratch/parallel_batch_validator.mjs`.
+  - Scaled the registered registry to **788 verified servers** and **11,066 tools** inside `tormentnexus.db`.
+  - Capturing exact stderr traceback details for failing servers in `catalog.db` to aid auto-healing processes.
+- **Monorepo Version Release Sync**:
+  - Synchronized and rebuilt all 34 package manifests in the monorepo to the new `1.0.0-alpha.103` release specification.
+
 ## [1.0.0-alpha.95] - 2026-06-02
 ### Added
 - **Verified Tool Expansion Batch 9**:
