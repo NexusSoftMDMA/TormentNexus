@@ -43,6 +43,8 @@ func (r *Registry) registerAll() {
 	r.handlers["ls"] = HandleLS
 	r.handlers["list_directory"] = HandleLS
 	r.handlers["web_fetch"] = HandleWebFetch
+	r.handlers["ingest_git"] = HandleGitIngest
+
 
 	// Claude Code Aliases
 	r.handlers["Read"] = HandleRead
