@@ -44,6 +44,9 @@ func (r *Registry) registerAll() {
 	r.handlers["list_directory"] = HandleLS
 	r.handlers["web_fetch"] = HandleWebFetch
 	r.handlers["ingest_git"] = HandleGitIngest
+	r.handlers["sqlite_get_catalog"] = HandleSqliteGetCatalog
+	r.handlers["sqlite_execute"] = HandleSqliteExecute
+
 
 
 	// Claude Code Aliases
