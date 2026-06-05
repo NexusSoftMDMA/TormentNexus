@@ -633,10 +633,23 @@ Respond ONLY with a JSON array of tool name strings, for example: ["tool_name_1"
 	 * direction of the conversation and predict relevant tools proactively.
 	 */
 	public appendConversationTurn(
-		role: 'user' | 'assistant' | 'tool',
+		role: "user" | "assistant" | "tool",
 		text: string,
 	): void {
 		this.conversationalToolInjector.appendTurn(role, text);
+
+		const SIDECAR_URL =
+			process.env.TORMENTNEXUS_SIDECAR_URL || "http://127.0.0.1:4300";
+		fetch(`${SIDECAR_URL}/api/mcp/conversation/append`, {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({ role, text }),
+		}).catch((err: any) => {
+			console.warn(
+				"[MCPServer] Failed to sync conversation turn to Go sidecar:",
+				err.message,
+			);
+		});
 	}
 
 	/**
@@ -644,7 +657,11 @@ Respond ONLY with a JSON array of tool name strings, for example: ["tool_name_1"
 	 * dashboard queries (conversation window, token count, etc.).
 	 */
 	public getConversationInjector(): {
-		getWindow: () => ReadonlyArray<{ role: string; text: string; timestamp: number }>;
+		getWindow: () => ReadonlyArray<{
+			role: string;
+			text: string;
+			timestamp: number;
+		}>;
 		getWindowTokenCount: () => number;
 	} {
 		return this.conversationalToolInjector;
@@ -2047,7 +2064,9 @@ Respond ONLY with a JSON array of tool name strings, for example: ["tool_name_1"
 				// Lazy load index if needed
 				try {
 					await this.searchService.loadIndex();
-				} catch (e) {}
+				} catch (e) {
+					void e;
+				}
 
 				result = await this.searchService.search(query, root);
 			}
@@ -3187,7 +3206,7 @@ ${env.tools
 					],
 				};
 			} else {
-			/*
+				/*
             // Phase 60: The Mesh
             else if (name === "swarm_broadcast") {
                 if (!this.meshService) {
@@ -4622,7 +4641,6 @@ ${env.tools
 		});
 	}
 
-
 	private setupDirectDiscoveryHandlers(serverInstance: Server): void {
 		const context = {
 			namespaceUuid: "tormentnexus-core-namespace",
@@ -4735,19 +4753,18 @@ ${env.tools
 					catalogSnapshot,
 				);
 			if (prediction.toolNames.length > 0) {
-				const injected =
-					this.nativeSessionMetaTools.injectConversationalTools(
-						prediction.toolNames,
-					);
+				const injected = this.nativeSessionMetaTools.injectConversationalTools(
+					prediction.toolNames,
+				);
 				if (injected.length > 0) {
 					console.error(
-						`[MCPServer] 🧠 Conversational injection loaded: ${injected.join(', ')} (${prediction.reason})`,
+						`[MCPServer] 🧠 Conversational injection loaded: ${injected.join(", ")} (${prediction.reason})`,
 					);
 				}
 			}
 		} catch (injectionErr: any) {
 			console.warn(
-				'[MCPServer] Conversational tool injection failed (non-fatal):',
+				"[MCPServer] Conversational tool injection failed (non-fatal):",
 				injectionErr?.message,
 			);
 		}
@@ -4889,6 +4906,12 @@ ${env.tools
 				} else {
 					this.mcpAggregator.warmAdvertisedServers();
 				}
+				// Always connect always-on servers regardless of lazy mode.
+				this.mcpAggregator
+					.connectAllAlwaysOnServers()
+					.catch((e) =>
+						console.error("[MCPServer] Always-on auto-connect failed:", e),
+					);
 			})
 			.catch((e) => console.error("[MCPServer] Aggregator Init Failed:", e));
 
@@ -5409,9 +5432,12 @@ ${env.tools
 						// Allows any client to push user/assistant messages into the
 						// ConversationalToolInjector sliding window for better prediction.
 						if (msg.type === "CONVERSATION_TURN") {
-							const role = msg.role === "user" || msg.role === "assistant" || msg.role === "tool"
-								? msg.role as 'user' | 'assistant' | 'tool'
-								: "user";
+							const role =
+								msg.role === "user" ||
+								msg.role === "assistant" ||
+								msg.role === "tool"
+									? (msg.role as "user" | "assistant" | "tool")
+									: "user";
 							const text = typeof msg.text === "string" ? msg.text : "";
 							if (text.trim()) {
 								this.appendConversationTurn(role, text.trim().slice(0, 1000));
@@ -5506,13 +5532,17 @@ ${env.tools
 
 							// Feed user-visible text from chat surface into conversation window
 							try {
-								const chatText = typeof (snapshot as any).userInput === "string"
-									? (snapshot as any).userInput
-									: typeof (snapshot as any).lastUserMessage === "string"
-										? (snapshot as any).lastUserMessage
-										: "";
+								const chatText =
+									typeof (snapshot as any).userInput === "string"
+										? (snapshot as any).userInput
+										: typeof (snapshot as any).lastUserMessage === "string"
+											? (snapshot as any).lastUserMessage
+											: "";
 								if (chatText.trim()) {
-									this.appendConversationTurn("user", chatText.trim().slice(0, 500));
+									this.appendConversationTurn(
+										"user",
+										chatText.trim().slice(0, 500),
+									);
 								}
 							} catch {
 								// non-fatal
@@ -5531,7 +5561,6 @@ ${env.tools
 								ws,
 							);
 						}
-
 
 						if (msg.type === "KNOWLEDGE_CAPTURE") {
 							const content = String(msg.content ?? "").trim();

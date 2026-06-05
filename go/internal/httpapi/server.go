@@ -146,6 +146,9 @@ type Server struct {
 	healerService     *healer.HealerService
 	cacheService      *cache.Cache
 	repoGraph         *repograph.RepoGraphService
+
+	// Phase 113 — conversational tool injection
+	conversationalPredictor *mcp.ConversationalPredictor
 }
 
 // eventBusAdapter wraps *eventbus.EventBus so it satisfies the string-based
@@ -507,6 +510,9 @@ func New(cfg config.Config, detector controlplane.ToolProvider) *Server {
 	server.mcpPredictor = mcp.NewToolPredictor(server.mcpAggregator)
 	server.supervisorManager.SetPredictor(server.mcpPredictor)
 
+	// Phase 113 — Go-native conversational tool predictor
+	server.conversationalPredictor = mcp.NewConversationalPredictor()
+
 	// --- Initialize MCP Decision System ---
 	decisionCfg := mcp.DefaultDecisionConfig()
 	decisionCfg.CatalogDBPath = filepath.Join(cfg.ConfigDir, "mcp-catalog.json")
@@ -720,6 +726,9 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("/api/mcp/tools", s.handleMCPTools)
 	s.mux.HandleFunc("/api/mcp/tools/search", s.handleMCPSearchTools)
 	s.mux.HandleFunc("/api/mcp/tools/predict", s.handleMCPPredictTools)
+	s.mux.HandleFunc("/api/mcp/tools/predict-conversational", s.handleMCPPredictConversational)
+	s.mux.HandleFunc("/api/mcp/conversation/append", s.handleMCPConversationAppend)
+	s.mux.HandleFunc("/api/mcp/conversation/window", s.handleMCPConversationWindow)
 	s.mux.HandleFunc("/api/mcp/tools/call", s.handleMCPCallTool)
 	s.mux.HandleFunc("/api/mcp/tools/auto-call", s.handleMCPAutoCallTool)
 	s.mux.HandleFunc("/api/mcp/tool-ads", s.handleMCPToolAdvertisements)
@@ -1386,6 +1395,9 @@ func (s *Server) handleAPIIndex(w http.ResponseWriter, _ *http.Request) {
 				{Path: "/api/mcp/servers/sync-client-config", Category: "mcp", Description: "Write an MCP client config through the TypeScript control plane."},
 				{Path: "/api/mcp/tools", Category: "mcp", Description: "Bridge to aggregated MCP tools from the TypeScript control plane."},
 				{Path: "/api/mcp/tools/search", Category: "mcp", Description: "Bridge to TypeScript MCP tool search with optional profile hinting."},
+				{Path: "/api/mcp/tools/predict-conversational", Category: "mcp", Description: "Predict relevant tools based on a conversational prompt context."},
+				{Path: "/api/mcp/conversation/append", Category: "mcp", Description: "Append a turn to the sliding conversation window for local tool prediction."},
+				{Path: "/api/mcp/conversation/window", Category: "mcp", Description: "Retrieve the current conversation window turns and token count."},
 				{Path: "/api/mcp/tools/call", Category: "mcp", Description: "Execute an MCP tool through the TypeScript control plane."},
 				{Path: "/api/mcp/tools/auto-call", Category: "mcp", Description: "Run one-shot semantic tool discovery and execution through the TypeScript auto_call_tool meta-tool."},
 				{Path: "/api/mcp/tool-ads", Category: "mcp", Description: "Bridge goal/objective-aware tool advertisements through the TypeScript list_all_tools helper."},

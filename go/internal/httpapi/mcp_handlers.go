@@ -422,3 +422,117 @@ func (s *Server) buildMCPServersList(ctx context.Context) (map[string]any, error
 		},
 	}, nil
 }
+
+// handleMCPPredictConversational is the primary sidecar endpoint called by the
+// TypeScript ConversationalToolInjector before falling back to cloud LLMs.
+//
+// Request:  POST /api/mcp/tools/predict-conversational
+//           { "prompt": "...", "systemPrompt": "..." }
+//
+// Response: { "success": true, "data": { "tools": ["tool_name_1", ...] } }
+func (s *Server) handleMCPPredictConversational(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeJSON(w, http.StatusMethodNotAllowed, map[string]any{"success": false, "error": "method not allowed"})
+		return
+	}
+
+	var payload struct {
+		Prompt       string `json:"prompt"`
+		SystemPrompt string `json:"systemPrompt"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"success": false, "error": "invalid JSON body"})
+		return
+	}
+
+	if strings.TrimSpace(payload.Prompt) == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"success": false, "error": "prompt is required"})
+		return
+	}
+
+	tools, err := s.conversationalPredictor.PredictFromPrompt(r.Context(), payload.SystemPrompt, payload.Prompt)
+	if err != nil {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]any{
+			"success": false,
+			"error":   err.Error(),
+			"bridge":  map[string]any{"source": "go-native-ollama", "reason": "prediction failed"},
+		})
+		return
+	}
+
+	if tools == nil {
+		tools = []string{}
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"success": true,
+		"data": map[string]any{
+			"tools": tools,
+		},
+		"bridge": map[string]any{
+			"source": "go-native-ollama",
+		},
+	})
+}
+
+// handleMCPConversationAppend receives an explicit conversation turn pushed by
+// the TypeScript tRPC bridge or dashboard. This allows the Go-native predictor
+// to build its own window independently for preemptive advertisement.
+//
+// Request:  POST /api/mcp/conversation/append
+//           { "role": "user"|"assistant"|"tool", "text": "..." }
+//
+// Response: { "success": true }
+func (s *Server) handleMCPConversationAppend(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeJSON(w, http.StatusMethodNotAllowed, map[string]any{"success": false, "error": "method not allowed"})
+		return
+	}
+
+	var payload struct {
+		Role string `json:"role"`
+		Text string `json:"text"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"success": false, "error": "invalid JSON body"})
+		return
+	}
+
+	role := strings.ToLower(strings.TrimSpace(payload.Role))
+	if role != "user" && role != "assistant" && role != "tool" {
+		role = "user"
+	}
+	text := strings.TrimSpace(payload.Text)
+	if text == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"success": false, "error": "text is required"})
+		return
+	}
+
+	s.conversationalPredictor.AppendTurn(role, text)
+	writeJSON(w, http.StatusOK, map[string]any{"success": true})
+}
+
+// handleMCPConversationWindow returns a debug snapshot of the current
+// conversational predictor sliding window.
+//
+// Request:  GET /api/mcp/conversation/window
+//
+// Response: { "success": true, "data": { "turns": [...], "tokenCount": N } }
+func (s *Server) handleMCPConversationWindow(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeJSON(w, http.StatusMethodNotAllowed, map[string]any{"success": false, "error": "method not allowed"})
+		return
+	}
+
+	turns := s.conversationalPredictor.WindowSnapshot()
+	tokenCount := s.conversationalPredictor.WindowTokenCount()
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"success": true,
+		"data": map[string]any{
+			"turns":      turns,
+			"tokenCount": tokenCount,
+		},
+	})
+}
+

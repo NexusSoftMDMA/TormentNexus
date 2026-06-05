@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.0.0-alpha.115] - 2026-06-05
+### Added
+- **Phase 113 — Predictive Conversational Tool Injection**:
+  - Implemented Go-native `ConversationalPredictor` and three REST API endpoints (`/api/mcp/tools/predict-conversational`, `/api/mcp/conversation/append`, `/api/mcp/conversation/window`) for low-latency local model-based tool predictions.
+  - Linked TypeScript `appendConversationTurn` to automatically sync conversation turns to the Go sidecar via background POST requests.
+  - Added new conversation endpoints to the static API routes index in `server.go` for dashboard discoverability.
+  - Resolved `CatalogEntry` naming collision in the Go `mcp` package by renaming duplicate struct to `PredictorCatalogEntry`.
+  - Rebuilt and verified Go sidecar compile and test suite.
+
 ## [1.0.0-alpha.114] - 2026-06-05
 ### Added
 - **P0 Clean Build Gate (Windows EBUSY Fix)**: Added folder renaming step in Next.js build cleanup script to prevent Windows directory lock conflicts.
