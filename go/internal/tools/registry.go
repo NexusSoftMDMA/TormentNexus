@@ -77,6 +77,16 @@ func (r *Registry) registerAll() {
 	r.handlers["say_tts"] = HandleSayTTS
 	r.handlers["openai_tts"] = HandleOpenAITTS
 
+	// Vercel MCP Tools (Cloud & DevOps)
+	r.handlers["vercel_list_projects"] = HandleVercelListProjects
+	r.handlers["vercel_get_project"] = HandleVercelGetProject
+	r.handlers["vercel_list_deployments"] = HandleVercelListDeployments
+	r.handlers["vercel_get_deployment"] = HandleVercelGetDeployment
+	r.handlers["vercel_cancel_deployment"] = HandleVercelCancelDeployment
+	r.handlers["vercel_list_env_vars"] = HandleVercelListEnvVars
+	r.handlers["vercel_create_env_var"] = HandleVercelCreateEnvVar
+	r.handlers["vercel_delete_env_var"] = HandleVercelDeleteEnvVar
+
 
 
 

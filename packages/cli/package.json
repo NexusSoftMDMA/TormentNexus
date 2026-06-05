@@ -1,6 +1,6 @@
 {
   "name": "@tormentnexus/cli",
-  "version": "1.0.0-alpha.111",
+  "version": "1.0.0-alpha.112",
   "type": "module",
   "bin": {
     "tormentnexus": "./dist/cli/src/index.js"

@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.0-alpha.112] - 2026-06-05
+### Added
+- **Category 8: Cloud & DevOps (Vercel MCP) Reimplementation**:
+  - Reimplemented TypeScript-based Vercel MCP tool handlers (`vercel_list_projects`, `vercel_get_project`, `vercel_list_deployments`, `vercel_get_deployment`, `vercel_cancel_deployment`, `vercel_list_env_vars`, `vercel_create_env_var`, `vercel_delete_env_var`) natively in Go (`vercel.go`).
+  - Added unit test coverage for mock Vercel API endpoints.
+  - Registered handlers in Go control plane registry and de-initialized the submodule.
+
 ## [1.0.0-alpha.111] - 2026-06-05
 ### Added
 - **Category 7: Media & Design (TTS MCP) Reimplementation**:
