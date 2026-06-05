@@ -103,14 +103,14 @@
     },
     "apps\\web\\next.config.js": {
       "latest": {
-        "commit": "9036bec64",
-        "timestamp": "2026-04-29T17:56:47.255Z",
-        "mi": 71.5,
+        "commit": "b9b3290bb",
+        "timestamp": "2026-06-04T23:48:55.523Z",
+        "mi": 68.1,
         "cognitive": 0,
         "nesting": 0,
-        "lines": 14,
+        "lines": 17,
         "maxCyclomatic": 1,
-        "entropy": 3.83
+        "entropy": 4.04
       },
       "history": [
         {
@@ -122,9 +122,19 @@
           "lines": 14,
           "maxCyclomatic": 1,
           "entropy": 3.83
+        },
+        {
+          "commit": "b9b3290bb",
+          "timestamp": "2026-06-04T23:48:55.523Z",
+          "mi": 68.1,
+          "cognitive": 0,
+          "nesting": 0,
+          "lines": 17,
+          "maxCyclomatic": 1,
+          "entropy": 4.04
         }
       ],
-      "trend": "stable"
+      "trend": "regressing"
     },
     "packages\\cli\\src\\commands\\start.ts": {
       "latest": {
@@ -532,5 +542,5 @@
       "trend": "stable"
     }
   },
-  "capturedAt": "2026-06-04T19:08:25.659Z"
+  "capturedAt": "2026-06-04T23:49:00.539Z"
 }

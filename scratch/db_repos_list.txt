@@ -1,0 +1,11 @@
+Name: Instant Domain Search | Repo: 
+Name: howtocook-mcp | Repo: 
+Name: mcp-server-mysql | Repo: None
+Name: Mcp Server Mysql | Repo: https://github.com/benborla/mcp-server-mysql
+Name: Mcp Mysql Server | Repo: https://github.com/f4ww4z/mcp-mysql-server
+Name: Mcp Database Server | Repo: https://github.com/fireproof-storage/mcp-database-server
+Name: Mcp Server Sqlite | Repo: https://github.com/ofershap/mcp-server-sqlite
+Name: Mcp Sqlite | Repo: https://github.com/panasenco/mcp-sqlite
+Name: Mysqldb Mcp Server | Repo: https://github.com/burakdirin/mysqldb-mcp-server
+Name: Postgres Mcp | Repo: https://github.com/danielrsnell/postgres-mcp
+Name: Mcp Postgres | Repo: https://github.com/SembojaTech/mcp-postgres

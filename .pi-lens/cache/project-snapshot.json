@@ -1,8 +1,8 @@
 {
   "version": 1,
   "projectRoot": "C:/Users/hyper/workspace/borg",
-  "generatedAt": "2026-06-04T17:23:58.148Z",
-  "seq": 26,
+  "generatedAt": "2026-06-04T23:46:54.284Z",
+  "seq": 31,
   "files": {},
   "symbols": {},
   "reverseDeps": {},
@@ -29,7 +29,7 @@
     "scanRoot": "C:\\Users\\hyper\\workspace\\borg",
     "projectRoot": "C:\\Users\\hyper\\workspace\\borg",
     "canWarmCaches": true,
-    "sourceFileCount": 1806
+    "sourceFileCount": 1810
   },
   "languageProfile": {
     "present": {
@@ -75,9 +75,9 @@
       "cxx": true
     },
     "counts": {
-      "go": 363,
+      "go": 365,
       "jsts": 1454,
-      "python": 22
+      "python": 24
     },
     "detectedKinds": [
       "jsts",
