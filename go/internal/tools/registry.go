@@ -57,6 +57,16 @@ func (r *Registry) registerAll() {
 	r.handlers["slack_get_users"] = HandleSlackGetUsers
 	r.handlers["slack_get_user_profile"] = HandleSlackGetUserProfile
 
+	// Filesystem MCP Tools
+	r.handlers["read_text_file"] = HandleReadTextFile
+	r.handlers["create_directory"] = HandleCreateDirectory
+	r.handlers["list_directory"] = HandleListDirectory
+	r.handlers["list_directory_with_sizes"] = HandleListDirectoryWithSizes
+	r.handlers["directory_tree"] = HandleDirectoryTree
+	r.handlers["move_file"] = HandleMoveFile
+	r.handlers["get_file_info"] = HandleGetFileInfo
+	r.handlers["search_files"] = HandleSearchFiles
+
 
 
 

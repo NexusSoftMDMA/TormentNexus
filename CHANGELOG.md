@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.0-alpha.109] - 2026-06-05
+### Added
+- **Category 5: System & OS Automation (Filesystem MCP) Reimplementation**:
+  - Reimplemented TypeScript-based Filesystem MCP tool handlers (`read_text_file`, `create_directory`, `list_directory`, `list_directory_with_sizes`, `directory_tree`, `move_file`, `get_file_info`, `search_files`) natively in Go (`filesystem.go`).
+  - Added unit test coverage for directory creation, walks, head/tail slicing, metadata, and searches.
+  - Registered handlers in Go control plane registry and de-initialized the submodule.
+
 ## [1.0.0-alpha.108] - 2026-06-05
 ### Added
 - **Category 4: Productivity & Communication (Slack MCP) Reimplementation**:
