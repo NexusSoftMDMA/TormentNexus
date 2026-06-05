@@ -139,7 +139,7 @@ docs/sessions/
 docs/sessions/*.json
 
 # === Archive (dead code, kept on disk only) ===
-archive/
+/archive/
 
 # === Reference material (not part of project) ===
 collection-claude-code-source-code-main/
