@@ -72,7 +72,6 @@ func HandleSkillList(ctx context.Context, args map[string]interface{}) (ToolResp
 	if err != nil {
 		return ToolResponse{}, fmt.Errorf("failed to get skill registry: %v", err)
 	}
-	defer registry.db.Close()
 
 	category, _ := getString(args, "category")
 
@@ -117,7 +116,6 @@ func HandleSkillGet(ctx context.Context, args map[string]interface{}) (ToolRespo
 	if err != nil {
 		return ToolResponse{}, fmt.Errorf("failed to get skill registry: %v", err)
 	}
-	defer registry.db.Close()
 
 	name, _ := getString(args, "name", "skill_name")
 	if name == "" {
@@ -143,7 +141,6 @@ func HandleSkillStore(ctx context.Context, args map[string]interface{}) (ToolRes
 	if err != nil {
 		return ToolResponse{}, fmt.Errorf("failed to get skill registry: %v", err)
 	}
-	defer registry.db.Close()
 
 	name, _ := getString(args, "name")
 	if name == "" {
@@ -189,7 +186,6 @@ func HandleSkillSearch(ctx context.Context, args map[string]interface{}) (ToolRe
 	if err != nil {
 		return ToolResponse{}, fmt.Errorf("failed to get skill registry: %v", err)
 	}
-	defer registry.db.Close()
 
 	query, _ := getString(args, "query")
 	if query == "" {
