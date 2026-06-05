@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.0-alpha.108] - 2026-06-05
+### Added
+- **Category 4: Productivity & Communication (Slack MCP) Reimplementation**:
+  - Reimplemented TypeScript-based Slack MCP tool handlers (`slack_list_channels`, `slack_post_message`, `slack_reply_to_thread`, `slack_add_reaction`, `slack_get_channel_history`, `slack_get_thread_replies`, `slack_get_users`, `slack_get_user_profile`) natively in Go (`slack.go`).
+  - Added unit test coverage for mock Slack API server.
+  - Registered handlers in Go control plane registry and de-initialized the submodule.
+
 ## [1.0.0-alpha.107] - 2026-06-05
 ### Added
 - **Category 3: Web Search & Scraping (DuckDuckGo MCP) Reimplementation**:

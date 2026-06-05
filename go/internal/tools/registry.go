@@ -48,6 +48,14 @@ func (r *Registry) registerAll() {
 	r.handlers["sqlite_execute"] = HandleSqliteExecute
 	r.handlers["search"] = HandleDDGSearch
 	r.handlers["fetch_content"] = HandleDDGFetchContent
+	r.handlers["slack_list_channels"] = HandleSlackListChannels
+	r.handlers["slack_post_message"] = HandleSlackPostMessage
+	r.handlers["slack_reply_to_thread"] = HandleSlackReplyToThread
+	r.handlers["slack_add_reaction"] = HandleSlackAddReaction
+	r.handlers["slack_get_channel_history"] = HandleSlackGetChannelHistory
+	r.handlers["slack_get_thread_replies"] = HandleSlackGetThreadReplies
+	r.handlers["slack_get_users"] = HandleSlackGetUsers
+	r.handlers["slack_get_user_profile"] = HandleSlackGetUserProfile
 
 
 
