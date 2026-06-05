@@ -1,0 +1,99 @@
+Name: Paper Search | Repo: 
+Name: MCP Server for Singapore Government Open Data | Repo: 
+Name: paper-search-mcp-openai-v2 | Repo: 
+Name: discava – Business Directory for AI | Repo: 
+Name: uk-legal | Repo: 
+Name: nordic-financial-mcp | Repo: 
+Name: Rett fra Bonden — Lokal Matfinner | Repo: 
+Name: SkillFlow - AI Skills Marketplace | Repo: 
+Name: travel-deals-mcp | Repo: 
+Name: Jobs Base | Repo: 
+Name: UCP Checker | Repo: 
+Name: gunsnation-mcp | Repo: 
+Name: govuk | Repo: 
+Name: sic-codes | Repo: 
+Name: MetaMask Embedded Wallets MCP | Repo: 
+Name: clinicaltrialsgov-mcp-server | Repo: 
+Name: Panko Alerts — Food Safety Data | Repo: 
+Name: pubmed-mcp-server | Repo: 
+Name: Statistics Canada | Repo: 
+Name: ucd-mcp | Repo: 
+Name: tulugar-real-estate | Repo: 
+Name: iAeternum | Repo: 
+Name: eventflare-mcp | Repo: 
+Name: aTars MCP by aarna | Repo: 
+Name: authorprofilemcp | Repo: 
+Name: 12306 Ticket Search Server | Repo: 
+Name: ai-agent-index | Repo: 
+Name: Philidor | Repo: 
+Name: EcomGraph | Repo: 
+Name: USDV Capital — Your Real Estate CFO | Repo: 
+Name: Qasper | Repo: 
+Name: Foul Domain | Repo: 
+Name: MCP Market Russia | Repo: 
+Name: housing-assist | Repo: 
+Name: NGSS Standards Explorer | Repo: 
+Name: Clinical Trials Data Server | Repo: 
+Name: American Default Research | Repo: 
+Name: Himalayas Remote Jobs | Repo: 
+Name: talnexis | Repo: 
+Name: Instant Domain Search | Repo: 
+Name: UK Private Number Plate Search | Repo: 
+Name: Public Transport | Repo: 
+Name: apteka-cis | Repo: 
+Name: Case Law Search | Repo: 
+Name: SteadyFetch | Repo: 
+Name: CupShup Marketing Knowledge Base | Repo: 
+Name: TrustRails - UK Electronics Product Finder | Repo: 
+Name: claude-wilder-mcp | Repo: 
+Name: timers studio | Repo: 
+Name: Kyrgyz News | Repo: 
+Name: ares-mcp | Repo: 
+Name: AskMia.app travel eSIM AI shop | Repo: 
+Name: anchorregistry | Repo: 
+Name: StratProof | Repo: 
+Name: Drug Landscape | Repo: 
+Name: skill-history | Repo: 
+Name: xkcdforthat | Repo: 
+Name: Symdex | Repo: 
+Name: SceneView 3D & AR | Repo: 
+Name: SIPFlow | Repo: 
+Name: humanmcp-marketplace | Repo: 
+Name: SIIL Ostomy Store | Repo: 
+Name: America's Law Graph | Repo: 
+Name: Compress.new | Repo: 
+Name: aidroid | Repo: 
+Name: md2card-mcp-server | Repo: 
+Name: OpenAI WebSearch MCP Server | Repo: 
+Name: openapi-mcp-server | Repo: None
+Name: advanced-websearch-mcp | Repo: 
+Name: fetcher-mcp | Repo: 
+Name: Npm Search Mcp Server | Repo: https://github.com/btwiuse/npm-search-mcp-server
+Name: mcp-omnisearch | Repo: 
+Name: mcp-server-lottiefiles | Repo: 
+Name: fast-context-mcp | Repo: 
+Name: google-flights-mcp-server | Repo: 
+Name: airbnb-mcp-server | Repo: 
+Name: A2Asearch Mcp | Repo: https://github.com/tadas-github/a2asearch-mcp
+Name: Mcp Server Scraper | Repo: https://github.com/ofershap/mcp-server-scraper
+Name: Web3 Research Mcp | Repo: https://github.com/aaronjmars/web3-research-mcp
+Name: Apple Search Ads Mcp | Repo: https://github.com/AppVisionOS/apple-search-ads-mcp
+Name: Openai Websearch Mcp | Repo: https://github.com/ConechoAI/openai-websearch-mcp
+Name: Domain Search Mcp | Repo: https://github.com/dorukardahan/domain-search-mcp
+Name: Exa Mcp Server | Repo: https://github.com/exa-labs/exa-mcp-server
+Name: Fetcher Mcp | Repo: https://github.com/jae-jae/fetcher-mcp
+Name: G Search Mcp | Repo: https://github.com/jae-jae/g-search-mcp
+Name: Duckduckgo Mcp Server | Repo: https://github.com/nickclyde/duckduckgo-mcp-server
+Name: Octagon Deep Research Mcp | Repo: https://github.com/OctagonAI/octagon-deep-research-mcp
+Name: Reddit Mcp Buddy | Repo: https://github.com/karanb192/reddit-mcp-buddy
+Name: Tavily Mcp | Repo: https://github.com/tavily-ai/tavily-mcp
+Name: Websearch Mcp | Repo: https://github.com/mnhlt/WebSearch-MCP
+Name: Mcp Reddit | Repo: https://github.com/adhikasp/mcp-reddit
+Name: Mcp Omnisearch | Repo: https://github.com/spences10/mcp-omnisearch
+Name: Perplexity Mcp | Repo: https://github.com/Family-IT-Guy/perplexity-mcp
+Name: Fetch Mcp | Repo: https://github.com/jae-jae/fetch-mcp
+Name: Mcp Playwright Scraper | Repo: https://github.com/dennisgl/mcp-playwright-scraper
+Name: fetch | Repo: None
+Name: tavily-mcp | Repo: None
+Name: fetcher | Repo: None
+Name: octagon-deep-research | Repo: None
