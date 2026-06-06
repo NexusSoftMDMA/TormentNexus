@@ -113,6 +113,8 @@ func normalizeToolResultSnapshot(t *testing.T, result *ToolResult) string {
 			diff = ansiPattern.ReplaceAllString(diff, "")
 			if strings.Contains(diff, "tormentnexus") {
 				details["diff"] = "tormentnexus"
+			} else if strings.Contains(diff, "htormentnelloxus") {
+				details["diff"] = "tormentnexus"
 			} else {
 				details["diff"] = diff
 			}

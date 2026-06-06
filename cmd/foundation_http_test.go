@@ -60,11 +60,11 @@ func TestFoundationAdaptersPayloadAndRepomap(t *testing.T) {
 		t.Fatalf("unexpected adapter payload: %#v", payload)
 	}
 	setMCPEnv(t, cwd)
-	tormentnexusDir := filepath.Join(cwd, ".tormentnexus")
-	if err := os.MkdirAll(tormentnexusDir, 0o755); err != nil {
+	tormentnexusDir2 := filepath.Join(cwd, ".tormentnexus")
+	if err := os.MkdirAll(tormentnexusDir2, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(tormentnexusDir, "mcp.json"), []byte(`{"mcpServers":{"demo":{"command":"cmd","args":["/c","echo demo"]}}}`), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(tormentnexusDir2, "mcp.json"), []byte(`{"mcpServers":{"demo":{"command":"cmd","args":["/c","echo demo"]}}}`), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	mcpTools, err := listFoundationMCPTools(cwd)
