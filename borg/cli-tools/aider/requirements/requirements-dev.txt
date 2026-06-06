@@ -24,7 +24,7 @@ googleapis-common-protos==1.72.0
 grpcio==1.67.1
 grpcio-status==1.67.1
 identify==2.6.15
-idna==3.15
+idna==3.18
 imgcat==0.6.0
 iniconfig==2.3.0
 kiwisolver==1.4.9
@@ -42,7 +42,7 @@ platformdirs==4.5.1
 pluggy==1.6.0
 pre-commit==4.5.1
 proto-plus==1.27.0
-protobuf==5.29.5
+protobuf==5.29.6
 pyasn1==0.6.3
 pyasn1-modules==0.4.2
 pygments==2.19.2
