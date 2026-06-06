@@ -37,9 +37,9 @@
     "@tormentnexus/search": "workspace:*",
     "@tormentnexus/tools": "workspace:*",
     "@tormentnexus/types": "workspace:*",
-    "@hono/node-server": "^1.19.11",
+    "@hono/node-server": "^1.19.13",
     "@hono/zod-validator": "^0.7.2",
-    "hono": "^4.6.14",
+    "hono": "^4.12.21",
     "@hyperswarm/secret-stream": "^6.9.1",
     "@lancedb/lancedb": "^0.23.0",
     "@modelcontextprotocol/sdk": "^1.27.1",
@@ -63,7 +63,7 @@
     "cors": "^2.8.5",
     "cross-spawn": "^7.0.6",
     "dotenv": "^16.3.1",
-    "drizzle-orm": "^0.45.1",
+    "drizzle-orm": "^0.45.2",
     "duck-duck-scrape": "^2.2.7",
     "express": "^4.18.2",
     "fast-glob": "^3.3.3",
@@ -97,6 +97,6 @@
     "@types/ws": "^8.18.1",
     "eslint": "^9.26.0",
     "typescript": "^5.3.3",
-    "vitest": "^1.0.0"
+    "vitest": "^4.1.0"
   }
 }
