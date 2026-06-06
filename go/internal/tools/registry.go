@@ -589,6 +589,14 @@ func (r *Registry) registerAll() {
 	r.handlers["srclight_search"] = HandleSrclightSearch
 	r.handlers["srclight_status"] = HandleSrclightStatus
 	r.handlers["srclight_list_languages"] = HandleSrclightListLanguages
+
+	// Coolify — deployment & infrastructure management
+	r.handlers["coolify_list_projects"] = HandleCoolifyListProjects
+	r.handlers["coolify_create_project"] = HandleCoolifyCreateProject
+	r.handlers["coolify_list_services"] = HandleCoolifyListServices
+	r.handlers["coolify_deploy_service"] = HandleCoolifyDeployService
+	r.handlers["coolify_get_logs"] = HandleCoolifyGetLogs
+	r.handlers["coolify_list_databases"] = HandleCoolifyListDatabases
 }
 
 func (r *Registry) Execute(ctx context.Context, name string, args map[string]interface{}) (ToolResponse, error) {
