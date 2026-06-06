@@ -599,6 +599,15 @@ func (r *Registry) registerAll() {
 	r.handlers["coolify_deploy_service"] = HandleCoolifyDeployService
 	r.handlers["coolify_get_logs"] = HandleCoolifyGetLogs
 	r.handlers["coolify_list_databases"] = HandleCoolifyListDatabases
+
+	// Harness Integrations
+	r.handlers["launch_tabby"] = HandleTabby
+	r.handlers["launch_warp"] = HandleWarp
+	r.handlers["hermes_agent"] = HandleHermesAgent
+	r.handlers["pi_mono"] = HandlePiMono
+
+	// Bobbybookmarks Integration
+	r.handlers["bobbybookmarks_sync"] = HandleBobbyBookmarksSync
 }
 
 func (r *Registry) Execute(ctx context.Context, name string, args map[string]interface{}) (ToolResponse, error) {
