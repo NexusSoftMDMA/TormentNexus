@@ -39,7 +39,7 @@
     "@tormentnexus/types": "workspace:*",
     "@hono/node-server": "^1.19.11",
     "@hono/zod-validator": "^0.7.2",
-    "hono": "^4.6.14",
+    "hono": "^4.12.18",
     "@hyperswarm/secret-stream": "^6.9.1",
     "@lancedb/lancedb": "^0.23.0",
     "@modelcontextprotocol/sdk": "^1.27.1",
