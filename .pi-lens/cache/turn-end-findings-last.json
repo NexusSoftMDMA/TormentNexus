@@ -1,6 +1,6 @@
 {
-  "signature": "scripts/tormentnexus-mcp-stdio.mjs::Unresolved from this turn — scripts/tormentnexus-mcp-stdio.mjs:\n🔴 STOP — 2 issue(s) must be fixed:\n  L37: 'params' is declared but its value is never read.\n    💡 Fix: Remove the unused declaration or rename with '_' prefix if intentionally unused.\n  L46: 'params' is declared but its value is never read.\n    💡 Fix: Remove the unused declaration or rename with '_' prefix if intentionally unused.",
-  "sessionId": "lens-mq2e2q8a-0b50ca11",
-  "projectSeqStart": 135,
-  "projectSeqEnd": 136
+  "signature": "go/internal/tools/grants_mcp.go::📐 Cascade errors in 2 neighbor file(s) — fix before finishing turn:\n<diagnostics file=\"internal/tools/webpeel.go\" reason=\"fallback\">\n  line 26, col 2 rule=cascade:UnusedImport: \"net/url\" imported and not used\n</diagnostics>\n<diagnostics file=\"internal/tools/context_server.go\" reason=\"fallback\">\n  line 30, col 2 rule=cascade:UnusedImport: \"time\" imported and not used\n</diagnostics>",
+  "sessionId": "lens-mq1mpb5i-5b3aa6c2",
+  "projectSeqStart": 112,
+  "projectSeqEnd": 113
 }

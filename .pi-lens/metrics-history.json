@@ -625,32 +625,7 @@
         }
       ],
       "trend": "stable"
-    },
-    "scripts\\tormentnexus-mcp-stdio.mjs": {
-      "latest": {
-        "commit": "477ee0483",
-        "timestamp": "2026-06-06T17:00:14.991Z",
-        "mi": 29.2,
-        "cognitive": 104,
-        "nesting": 6,
-        "lines": 243,
-        "maxCyclomatic": 19,
-        "entropy": 5.76
-      },
-      "history": [
-        {
-          "commit": "477ee0483",
-          "timestamp": "2026-06-06T17:00:14.991Z",
-          "mi": 29.2,
-          "cognitive": 104,
-          "nesting": 6,
-          "lines": 243,
-          "maxCyclomatic": 19,
-          "entropy": 5.76
-        }
-      ],
-      "trend": "stable"
     }
   },
-  "capturedAt": "2026-06-06T17:00:20.004Z"
+  "capturedAt": "2026-06-05T03:02:39.702Z"
 }

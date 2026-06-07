@@ -19,7 +19,7 @@ class CheckpointService {
   private timer: ReturnType<typeof setInterval> | null = null;
 
   constructor() {
-    this.checkpointDir = path.resolve(process.cwd(), '../../.autopilot/checkpoints');
+    this.checkpointDir = process.env.TORMENTNEXUS_CHECKPOINT_DIR || path.resolve(process.cwd(), '../../.autopilot/checkpoints');
     this.ensureDirectory();
   }
 

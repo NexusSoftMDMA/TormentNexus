@@ -2,10 +2,10 @@ import { spawn } from "child_process";
 
 const TIMEOUT_MS = 15000;
 const MCP_SERVER_PATH =
-	"C:/Users/hyper/workspace/tormentnexus/packages/core/dist/server-stdio.js";
+	"/app/packages/core/dist/stdioLoader.js";
 const ENV = {
 	...process.env,
-	TORMENTNEXUS_WORKSPACE_ROOT: "C:/Users/hyper/workspace/tormentnexus",
+	TORMENTNEXUS_WORKSPACE_ROOT: "/app",
 	TORMENTNEXUS_TRPC_PORT: "4100",
 	TORMENTNEXUS_SIDECAR_PORT: "4300",
 };
@@ -104,7 +104,7 @@ async function startMcpServer(label) {
 	const proc = spawn("node", [MCP_SERVER_PATH], {
 		env: ENV,
 		stdio: ["pipe", "pipe", "pipe"],
-		cwd: "C:/Users/hyper/workspace/tormentnexus",
+		cwd: "/app",
 	});
 	proc.stdout.on("data", handleStdout);
 	proc.stderr.on("data", (d) => {
@@ -229,7 +229,7 @@ async function runTests() {
 	await testTool("lsp_symbol_search", { query: "index" });
 	await testTool("search_codebase", { query: "memory manager" });
 	await testTool("index_codebase", {
-		path: "C:/Users/hyper/workspace/tormentnexus/packages/core/src",
+		path: "/app/packages/core/src",
 	});
 
 	// Agent/Squad/Skill
@@ -258,9 +258,9 @@ async function runTests() {
 
 	// File/Project
 	await testTool("read_file", {
-		path: "C:/Users/hyper/workspace/tormentnexus/package.json",
+		path: "/app/package.json",
 	});
-	await testTool("list_directory", { path: "C:/Users/hyper/workspace/tormentnexus" });
+	await testTool("list_directory", { path: "/app" });
 	await testTool("get_logs", { lines: 10 });
 	await testTool("config_get", { key: "version" });
 	await testTool("git_worktree_list");
@@ -416,7 +416,7 @@ async function runTests() {
 	await testTool("search_skills", { query: "test" });
 	await testTool("run_code", { code: "return 42" });
 	await testTool("read_file", {
-		path: "C:/Users/hyper/workspace/tormentnexus/package.json",
+		path: "/app/package.json",
 	});
 	mcpProcess.kill();
 	console.log("");
