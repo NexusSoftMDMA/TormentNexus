@@ -18,7 +18,7 @@
   },
   "dependencies": {
     "@tormentnexus/adk": "workspace:*",
-    "@modelcontextprotocol/sdk": "^1.27.1",
+    "@modelcontextprotocol/sdk": "^1.26.0",
     "active-win": "^8.2.0",
     "jsdom": "^27.4.0",
     "turndown": "^7.1.3",
