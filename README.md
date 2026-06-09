@@ -1,8 +1,8 @@
 # TormentNexus: The Cognitive Control Plane & Universal TORMENTNEXUS
 
-![Version](https://img.shields.io/badge/version-1.0.0--alpha.45-blue)
+![Version](https://img.shields.io/badge/version-1.0.0--alpha.127-blue)
 ![Build](https://img.shields.io/badge/build-passing-brightgreen)
-![Go](https://img.shields.io/badge/Go-1.26-00ADD8?logo=go)
+![Go](https://img.shields.io/badge/Go-1.23-00ADD8?logo=go)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6?logo=typescript)
 
 **TormentNexus** is the ultimate local-first control plane for multi-agent workflows, Model Context Protocol (MCP) tooling, provider routing, session continuity, and operator observability. 
