@@ -1,6 +1,6 @@
 # ROADMAP: TormentNexus Kernel & TormentNexus Dashboard
 
-_Last updated: 2026-06-07, version 1.0.0-alpha.127_
+_Last updated: 2026-06-13, version 1.0.0-alpha.128_
 
 ## Status Legend
 - **Stable** — Production-intended, tested, maintained
@@ -8,10 +8,10 @@ _Last updated: 2026-06-07, version 1.0.0-alpha.127_
 - **Experimental** — Active R&D, not dependable
 - **Vision** — Directional only
 
-## Completed (v1.0.0-alpha.127)
+## Completed (v1.0.0-alpha.128)
 ### 1. Hardened Autonomous Orchestration (STABLE)
 - **Feature Reconciliation**: Merged `assimilation-final` and `assimilation-pipeline` branches into `main`.
-- **System Versioning**: Bumped to `v1.0.0-alpha.127`.
+- **System Versioning**: Bumped to `v1.0.0-alpha.128`.
 - **Registry Recovery**: Restored all swarm tool stubs and fixed syntax regressions in native tool handlers.
 
 ### 2. Track A: MCP Assimilation (STABLE)

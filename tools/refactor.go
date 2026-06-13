@@ -10,7 +10,11 @@ import (
 type RefactorTool struct{}
 
 // ApplySearchReplace strictly enforces LLM blocks in the format:
+// <<<<<<< SEARCH
 // existing
+// =======
+// replacement
+// >>>>>>> REPLACE
 func (r *RefactorTool) ApplySearchReplace(filePath, searchBlock, replaceBlock string) error {
 	content, err := os.ReadFile(filePath)
 	if err != nil {

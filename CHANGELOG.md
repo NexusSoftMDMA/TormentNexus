@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.0.0-alpha.128] - 2026-06-13
+### Added
+- **Autonomous Repository Health**:
+  - Implemented `go/cmd/health_monitor/main.go` for Go kernel health checks and self-healing.
+  - Integrated `go/internal/orchestration/repository_healer.go` to manage git conflict resolution and build stability.
+- **CI/CD Automation**:
+  - Created `.github/workflows/autonomous-sync.yml` for hourly repository synchronization, submodule maintenance, and health reporting.
+- **Bug Fixes**:
+  - Resolved `BackgroundColour` undefined error in `apps/native-ui/main.go`.
+- **System Versioning**: Unified across all manifests to `v1.0.0-alpha.128`.
+
 ## [1.0.0-alpha.127] - 2026-06-07
 ### Added
 - **Feature Reconciliation**: Merged major feature branches `feature/assimilation-final` and `feat/assimilation-pipeline` into `main`, consolidating the latest autonomous orchestration and assimilation capabilities.
