@@ -37,7 +37,7 @@
     "@tormentnexus/search": "workspace:*",
     "@tormentnexus/tools": "workspace:*",
     "@tormentnexus/types": "workspace:*",
-    "@hono/node-server": "^1.19.11",
+    "@hono/node-server": "^1.19.13",
     "@hono/zod-validator": "^0.7.2",
     "hono": "^4.12.18",
     "@hyperswarm/secret-stream": "^6.9.1",
@@ -97,6 +97,6 @@
     "@types/ws": "^8.18.1",
     "eslint": "^9.26.0",
     "typescript": "^5.3.3",
-    "vitest": "^4.1.0"
+    "vitest": "^4.1.8"
   }
 }
