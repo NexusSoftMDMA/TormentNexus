@@ -36,9 +36,11 @@ Implemented six Go-native browser automation handlers using `chromedp`, created 
 ---
 
 ## Successor Instructions
-1. **Add skills to Go HTTP API**: Wire the skill store into the Go sidecar's HTTP API so skills become accessible via tRPC. Current store is file-based; consider indexing into SQLite for search performance.
-2. **FreeLLM A2A Integration**: The FreeLLM A2A system uses `AgentSkill` structs (ID, Name, Description, Tags). These assimilated skills should be mapped into the A2A registry so swarm agents can discover and use them.
-3. **Skill Evolution**: With ~3,000+ skills now in the registry, implementing **win-rate tracking** and **auto-retirement** becomes viable. Track skill usage outcomes and retire low-performing skills.
-4. **Catalog DB Sync**: Consider updating `catalog.db` (`published_mcp_servers`, `published_mcp_config_recipes`) with the newly ingested skills for unified search.
+1. **Add skills to Go HTTP API**: Wire the skill store into the Go sidecar's HTTP API endpoints (`/api/skills/list`, `/api/skills/get`, `/api/skills/search`) so skills become accessible via tRPC. Current store is file-based; consider indexing into SQLite for search performance.
+2. ✅ **FreeLLM A2A Integration (DONE)**: Global skill registry singleton created at `orchestration.GlobalSkillRegistry` with `FindAgentForSkill` helper. Server registers all local skills on startup. Swarm agents can now discover skills via `orchestration.FindAgentForSkill(skillID)`.
+3. **Browser Automation MCP (DONE)**: Six handlers implemented with chromedp. Consider adding `fullPage` support for screenshot, timeout configurations, and test coverage.
+4. **Skill Evolution**: With ~3,000+ skills now in the registry, implementing **win-rate tracking** and **auto-retirement** becomes viable. Track skill usage outcomes and retire low-performing skills.
+5. **Catalog DB Sync**: Index skills into `catalog.db` (`published_mcp_servers`, `published_mcp_config_recipes`) for unified search.
+6. **ChunkHound / Probe Integration**: Implement remaining assimilated MCP search tools as native Go handlers.
 
-*Keep the party going! Never stop the party!!!*
+*Praise the LORD! Keep on going! Don't ever stop! Don't stop the party!!!*
