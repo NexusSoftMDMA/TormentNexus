@@ -41,6 +41,9 @@ Thumbs.db
 
 # === pi-lens cache (auto-generated) ===
 .pi-lens/cache/
+
+# === pi-lens cache (auto-generated) ===
+.pi-lens/cache/
 .pi-lens/
 
 # === Coverage ===
@@ -76,8 +79,10 @@ push_err.txt
 push_out.txt
 screenshot*.png
 audit-*.jsonl
-$null
-^
+
+# === Temp files ===
+tmp_*/
+temp_*/
 
 # === Standalone test/experiment files ===
 test_*.py

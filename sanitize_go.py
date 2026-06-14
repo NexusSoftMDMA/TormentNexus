@@ -291,10 +291,15 @@ def sanitize_go_code(code: str) -> str:
     code = re.sub(r'\s*"[^"]*golang\.org/x[^"]*"\n?', "\n", code)
 
     # 9b. Remove util import - it doesn't exist
+    # Be specific: only match import lines, not strings containing "util"
     code = re.sub(
-        r'\s*"[^"]*github\.com/tormentnexus/go/internal/tools/util[^"]*"\n?', "\n", code
+        r'^\s*"[^"]*github\.com/tormentnexus/go/internal/tools/util[^"]*"\s*$',
+        "",
+        code,
+        flags=re.MULTILINE,
     )
-    code = re.sub(r'\s*"[^"]*util[^"]*"\n?', "\n", code)
+    # Also match short form: import "util"
+    code = re.sub(r'^\s*import\s+"util"\s*$', "", code, flags=re.MULTILINE)
 
     # 9c. Fix util.Success -> ok, util.Execute -> inline
     code = re.sub(r"\butil\.Success\s*\(", "ok(", code)

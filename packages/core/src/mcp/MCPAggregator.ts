@@ -73,7 +73,7 @@ export class MCPAggregator {
 					env: config.env ?? {},
 				}));
 		this.restartDelayMs = normalizedOptions.restartDelayMs ?? 5_000;
-		this.connectTimeoutMs = 30_000; // 30s per-server connection timeout for npx-based servers that need package download time
+		this.connectTimeoutMs = 60_000; // 60s per-server connection timeout for npx-based servers that need package download time
 		this.now = normalizedOptions.now ?? (() => Date.now());
 		this.trafficInspector = new MCPTrafficInspector(
 			normalizedOptions.maxTrafficEvents ?? 200,
@@ -284,11 +284,7 @@ export class MCPAggregator {
 					() =>
 						reject(
 							new Error(
-								"Connection to '" +
-									name +
-									"' timed out after " +
-									this.connectTimeoutMs +
-									"ms",
+								`Connection to '${name}' timed out after ${this.connectTimeoutMs}ms`,
 							),
 						),
 					this.connectTimeoutMs,

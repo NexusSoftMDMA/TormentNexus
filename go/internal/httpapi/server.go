@@ -599,6 +599,12 @@ func (s *Server) Handler() http.Handler {
 
 // PreWarmCaches triggers background cache population for frequently
 // accessed endpoints so that the first dashboard request is fast.
+// Bobbybookmarks auto-sync configuration
+const (
+	bobbyBookmarksSyncDelay    = 10 * time.Second // Initial delay after startup
+	bobbyBookmarksSyncInterval = 1 * time.Hour    // Periodic re-sync interval
+)
+
 func (s *Server) PreWarmCaches() {
 	go func() {
 		// Warm the startup status cache
@@ -622,6 +628,40 @@ func (s *Server) PreWarmCaches() {
 		defer cancel()
 		if servers, err := s.buildMCPServersList(ctx); err == nil {
 			s.cacheService.SetTTL("mcp:servers", servers, 60000)
+		}
+	}()
+	go func() {
+		// Bobbybookmarks auto-sync: initial sync after startup delay, then periodic re-syncs
+		time.Sleep(bobbyBookmarksSyncDelay)
+		dbPath := s.localTormentNexusDBPath()
+		baseURL := "https://bobbybookmarks.com"
+		
+		// Initial sync on startup
+		fmt.Printf("[BobbyBookmarks] Starting initial auto-sync from %s...\n", baseURL)
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+		defer cancel()
+		res, err := hsync.SyncBobbyBookmarks(ctx, dbPath, baseURL, 100, false, false)
+		if err != nil {
+			fmt.Printf("[BobbyBookmarks] Initial sync error: %v\n", err)
+		} else {
+			fmt.Printf("[BobbyBookmarks] Initial sync complete: fetched=%d, upserted=%d, pages=%d\n", 
+				res.Fetched, res.Upserted, res.Pages)
+		}
+		
+		// Periodic re-sync every hour
+		ticker := time.NewTicker(bobbyBookmarksSyncInterval)
+		defer ticker.Stop()
+		for range ticker.C {
+			fmt.Printf("[BobbyBookmarks] Starting periodic re-sync from %s...\n", baseURL)
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+			res, err := hsync.SyncBobbyBookmarks(ctx, dbPath, baseURL, 100, false, false)
+			if err != nil {
+				fmt.Printf("[BobbyBookmarks] Periodic sync error: %v\n", err)
+			} else {
+				fmt.Printf("[BobbyBookmarks] Periodic re-sync complete: fetched=%d, upserted=%d, pages=%d\n", 
+					res.Fetched, res.Upserted, res.Pages)
+			}
+			cancel()
 		}
 	}()
 }
