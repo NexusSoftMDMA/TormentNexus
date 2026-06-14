@@ -1,6 +1,6 @@
 # TODO
 
-_Last updated: 2026-06-13, version 1.0.0-alpha.128_
+_Last updated: 2026-06-14, version 1.0.0-alpha.129_
 
 ## P0 — Must do now (Stability, Testing & Validation)
 - [x] **Track A: MCP Discovery**: Execute discovery script to rank top 500 MCP servers and seed state DB.

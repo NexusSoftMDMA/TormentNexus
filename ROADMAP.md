@@ -1,12 +1,19 @@
 # ROADMAP: TormentNexus Kernel & TormentNexus Dashboard
 
-_Last updated: 2026-06-13, version 1.0.0-alpha.128_
+_Last updated: 2026-06-14, version 1.0.0-alpha.129_
 
 ## Status Legend
 - **Stable** — Production-intended, tested, maintained
 - **Beta** — Usable, still evolving
 - **Experimental** — Active R&D, not dependable
 - **Vision** — Directional only
+
+## Completed (v1.0.0-alpha.129)
+### 1. Autonomous Engineering & Orchestration (STABLE)
+- **CI/CD Pipeline**: Integrated multi-stage `deployment_manager` (lint, build, test, containerize).
+- **Repository Sync**: Automated dependency management and version alignment via `repo_sync`.
+- **Self-Healing**: Native Go `health_monitor` and `repository_healer` for autonomous kernel maintenance.
+- **Enterprise Security**: Initial SSO/RBAC middleware and structured JSONL auditing.
 
 ## Completed (v1.0.0-alpha.128)
 ### 1. Hardened Autonomous Orchestration (STABLE)

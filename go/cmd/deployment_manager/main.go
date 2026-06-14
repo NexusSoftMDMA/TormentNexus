@@ -19,15 +19,15 @@ func (d *DeploymentManager) Lint(ctx context.Context) error {
 
 	// TypeScript Linting
 	tsCmd := exec.CommandContext(ctx, "pnpm", "run", "lint")
-	if output, err := tsCmd.CombinedOutput(); err != nil {
+	if _, err := tsCmd.CombinedOutput(); err != nil {
 		fmt.Printf("[!] TS lint warning: %v\n", err)
 	} else {
-		_ = output
 		fmt.Println("[+] TS linting passed.")
 	}
 
 	// Go Linting (vet)
 	goCmd := exec.CommandContext(ctx, "go", "vet", "./...")
+	// If run from within 'go' directory, we don't need to change dir
 	if _, err := os.Stat("go.mod"); err != nil {
 		goCmd.Dir = "go"
 	}
@@ -45,10 +45,9 @@ func (d *DeploymentManager) Build(ctx context.Context) error {
 
 	// TypeScript Monorepo Build
 	tsCmd := exec.CommandContext(ctx, "pnpm", "run", "build")
-	if output, err := tsCmd.CombinedOutput(); err != nil {
+	if _, err := tsCmd.CombinedOutput(); err != nil {
 		fmt.Printf("[!] TS build warning: %v\n", err)
 	} else {
-		_ = output
 		fmt.Println("[+] TS monorepo build successful.")
 	}
 
@@ -70,10 +69,9 @@ func (d *DeploymentManager) Containerize(ctx context.Context) error {
 	fmt.Printf("[*] [%s] Building container images...\n", d.Environment)
 
 	dockerCmd := exec.CommandContext(ctx, "docker", "build", "-t", "tormentnexus:latest", ".")
-	if output, err := dockerCmd.CombinedOutput(); err != nil {
+	if _, err := dockerCmd.CombinedOutput(); err != nil {
 		fmt.Printf("[!] Docker build warning: %v\n", err)
 	} else {
-		_ = output
 		fmt.Println("[+] Container build successful.")
 	}
 
@@ -86,10 +84,9 @@ func (d *DeploymentManager) Test(ctx context.Context) error {
 
 	// TypeScript Tests
 	tsCmd := exec.CommandContext(ctx, "pnpm", "run", "test")
-	if output, err := tsCmd.CombinedOutput(); err != nil {
+	if _, err := tsCmd.CombinedOutput(); err != nil {
 		fmt.Printf("[!] TS tests failed (non-blocking for demo): %v\n", err)
 	} else {
-		_ = output
 		fmt.Println("[+] TS tests passed.")
 	}
 
@@ -106,8 +103,27 @@ func (d *DeploymentManager) Test(ctx context.Context) error {
 	return nil
 }
 
+// Sync performs the repository synchronization stage.
+func (d *DeploymentManager) Sync(ctx context.Context) error {
+	fmt.Printf("[*] [%s] Starting repository synchronization...\n", d.Environment)
+
+	cmd := exec.CommandContext(ctx, "go", "run", "cmd/repo_sync/main.go")
+	if _, err := os.Stat("go.mod"); err != nil {
+		cmd.Dir = "go"
+	}
+
+	if output, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("Repo sync failed: %v\nOutput: %s", err, string(output))
+	}
+	fmt.Println("[+] Repository synchronization successful.")
+	return nil
+}
+
 // Run executes the full pipeline.
 func (d *DeploymentManager) Run(ctx context.Context) error {
+	if err := d.Sync(ctx); err != nil {
+		return err
+	}
 	if err := d.Lint(ctx); err != nil {
 		return err
 	}

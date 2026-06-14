@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/tormentnexushq/tormentnexus-go/internal/codeexec"
+	"github.com/tormentnexushq/tormentnexus-go/internal/enterprise"
 )
 
 // handleCodeExec runs code in the process-based sandbox.
@@ -41,6 +42,22 @@ func (s *Server) handleCodeExec(w http.ResponseWriter, r *http.Request) {
 		Code:     req.Code,
 		Timeout:  timeout,
 	})
+
+	// Audit Code Execution (Enterprise Tier)
+	if s.auditor != nil {
+		status := "SUCCESS"
+		if err != nil {
+			status = "FAILURE: " + err.Error()
+		}
+		s.auditor.Log(enterprise.AuditEvent{
+			UserID:   "system",
+			Action:   "EXECUTE_CODE",
+			Resource: req.Language,
+			Result:   status,
+			Metadata: map[string]string{"code_snippet": truncateString(req.Code, 100)},
+		})
+	}
+
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]any{"success": false, "error": err.Error()})
 		return
@@ -96,6 +113,22 @@ func (s *Server) handleWASMExec(w http.ResponseWriter, r *http.Request) {
 	}
 
 	result, err := sandbox.Execute(r.Context(), req.Code)
+
+	// Audit WASM Execution (Enterprise Tier)
+	if s.auditor != nil {
+		status := "SUCCESS"
+		if err != nil {
+			status = "FAILURE: " + err.Error()
+		}
+		s.auditor.Log(enterprise.AuditEvent{
+			UserID:   "system",
+			Action:   "EXECUTE_WASM",
+			Resource: "go",
+			Result:   status,
+			Metadata: map[string]string{"code_snippet": truncateString(req.Code, 100)},
+		})
+	}
+
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]any{"success": false, "error": err.Error()})
 		return

@@ -31,9 +31,10 @@ jobs:
         git fetch --all --tags
         git submodule update --init --recursive --remote
 
-    - name: Health Check & Self-Healing
+    - name: Repository Synchronization & Self-Healing
       run: |
         cd go
+        go run cmd/repo_sync/main.go
         go run cmd/health_monitor/main.go
 
     - name: Commit & Push Changes

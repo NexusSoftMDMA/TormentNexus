@@ -13,6 +13,7 @@ import (
 	"github.com/tormentnexushq/tormentnexus-go/internal/codeexec"
 	"github.com/tormentnexushq/tormentnexus-go/internal/memorystore"
 	"github.com/tormentnexushq/tormentnexus-go/internal/ai"
+	"github.com/tormentnexushq/tormentnexus-go/internal/enterprise"
 	"io"
 	"io/fs"
 	"math"
@@ -161,6 +162,10 @@ type Server struct {
 
 	// Phase 113 — conversational tool injection
 	conversationalPredictor *mcp.ConversationalPredictor
+
+	// --- Enterprise Security (alpha.129+) ---
+	enterpriseWrapper *enterprise.EnterpriseWrapper
+	auditor           *enterprise.Auditor
 }
 
 // eventBusAdapter wraps *eventbus.EventBus so it satisfies the string-based
@@ -548,6 +553,10 @@ func New(cfg config.Config, detector controlplane.ToolProvider) *Server {
 	server.memoryReactor = memorystore.NewMemoryReactor(cfg.WorkspaceRoot, memoryVS)
 	server.memoryArchiver = memorystore.NewMemoryArchiver(cfg.WorkspaceRoot, memoryVS)
 	server.importCache = newImportScanCache()
+
+	// Initialize Enterprise Security Wrapper (with placeholder provider)
+	server.auditor = enterprise.NewAuditor(cfg.WorkspaceRoot)
+	server.enterpriseWrapper = enterprise.NewEnterpriseWrapper(nil)
 	server.consensusEngine = orchestration.NewConsensusEngine(server.debateHistory, memoryVS)
 	server.eventBus.OnGlobal(func(ev eventbus.SystemEvent) {
 		if data, err := json.Marshal(ev); err == nil {
@@ -627,9 +636,16 @@ func (s *Server) PreWarmCaches() {
 }
 
 func (s *Server) ListenAndServe(ctx context.Context) error {
+	var handler http.Handler = s.mux
+
+	// Wrap with Enterprise Security if enabled
+	if s.enterpriseWrapper != nil {
+		handler = s.enterpriseWrapper.Middleware(handler)
+	}
+
 	httpServer := &http.Server{
 		Addr:              s.cfg.Host + ":" + jsonNumber(s.cfg.Port),
-		Handler:           corsMiddleware(s.mux),
+		Handler:           corsMiddleware(handler),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
@@ -6460,6 +6476,16 @@ func (s *Server) handleAgentRunTool(w http.ResponseWriter, r *http.Request) {
 	// 1. Try native Go tool handlers first (Total Autonomy)
 	if s.toolsRegistry != nil && s.toolsRegistry.HasTool(payload.Name) {
 		result, err := s.toolsRegistry.Execute(r.Context(), payload.Name, payload.Arguments)
+
+		// Audit Tool Execution (Enterprise Tier)
+		if s.auditor != nil {
+			status := "SUCCESS"
+			if err != nil {
+				status = "FAILURE: " + err.Error()
+			}
+			s.auditor.LogToolExecution("system", payload.Name, payload.Arguments, status)
+		}
+
 		if err == nil {
 			writeJSON(w, http.StatusOK, map[string]any{
 				"success": true,
@@ -18301,4 +18327,11 @@ func (s *Server) PreWarmImportCache(results []sessionimport.ValidationResult) {
 	if s.importCache != nil {
 		s.importCache.set(nil, results)
 	}
+}
+
+func truncateString(s string, maxLen int) string {
+	if len(s) <= maxLen {
+		return s
+	}
+	return s[:maxLen] + "..."
 }

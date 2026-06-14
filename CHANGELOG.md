@@ -1,10 +1,25 @@
 # Changelog
 
+## [1.0.0-alpha.129] - 2026-06-14
+### Added
+- **Repository Synchronization Module**:
+  - Implemented 'go/internal/sync/repo_sync.go' for automated dependency management (submodules, pnpm, go mod).
+  - Integrated sync stage into the autonomous CI/CD pipeline.
+- **Enterprise Security & Auditing**:
+  - Added SSO/RBAC middleware in 'go/internal/enterprise/security.go' with safety checks.
+  - Implemented structured JSONL auditing in 'go/internal/enterprise/audit.go'.
+- **Autonomous CI/CD Pipeline**:
+  - Enhanced 'go/cmd/deployment_manager' with repository sync, linting, build, containerization, and testing stages.
+  - Integrated '.github/workflows/autonomous-deploy.yml' for continuous validation.
+- **Self-Healing & Health**:
+  - Added 'go/cmd/health_monitor' and 'go/cmd/repository_healer' for autonomous kernel and git health.
+- **System Versioning**: Unified across monorepo to `v1.0.0-alpha.129`.
+
 ## [1.0.0-alpha.128] - 2026-06-13
 ### Added
 - **Autonomous Repository Health**:
   - Implemented `go/cmd/health_monitor/main.go` for Go kernel health checks and self-healing.
-  - Integrated `go/internal/orchestration/repository_healer.go` to manage git conflict resolution and build stability.
+  - Integrated `go/cmd/repository_healer/main.go` to manage git conflict resolution and build stability.
 - **CI/CD Automation**:
   - Created `.github/workflows/autonomous-sync.yml` for hourly repository synchronization, submodule maintenance, and health reporting.
 - **Bug Fixes**:

@@ -1,6 +1,6 @@
 {
   "name": "@tormentnexus/web",
-  "version": "1.0.0-alpha.128",
+  "version": "1.0.0-alpha.129",
   "private": true,
   "scripts": {
     "dev": "node ./scripts/dev.mjs",
