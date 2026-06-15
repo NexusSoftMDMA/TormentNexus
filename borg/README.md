@@ -58,7 +58,7 @@ TormentNexus's dashboards reflect actual SQLite database rows and active Go goro
 **Installation:**
 ```bash
 # 1. Clone the repository
-git clone https://github.com/robertpelloni/tormentnexus.git
+git clone https://github.com/NexusSoftMDMA/TormentNexus.git
 cd tormentnexus
 
 # 2. Install dependencies & rebuild SQLite bindings

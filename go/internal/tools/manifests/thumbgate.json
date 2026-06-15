@@ -1,0 +1,36 @@
+{
+  "filename": "thumbgate.go",
+  "server_name": "thumbgate",
+  "handlers": [
+    {
+      "tool_name": "thumbgate_check",
+      "handler_func": "HandleThumbGateCheck",
+      "description": "Performs a pre-action check against ThumbGate rules including budget enforcement, self-protection, pattern blocking, and mistake prevention"
+    },
+    {
+      "tool_name": "thumbgate_record",
+      "handler_func": "HandleThumbGateRecord",
+      "description": "Records a thumbs-up or thumbs-down for an action and generates prevention rules for thumbs-down"
+    },
+    {
+      "tool_name": "thumbgate_budget",
+      "handler_func": "HandleThumbGateBudget",
+      "description": "Checks and enforces budget limits, blocking actions that exceed the budget"
+    },
+    {
+      "tool_name": "thumbgate_pattern",
+      "handler_func": "HandleThumbGatePattern",
+      "description": "Checks for repeat patterns in history and blocks actions if a pattern is detected"
+    },
+    {
+      "tool_name": "thumbgate_status",
+      "handler_func": "HandleThumbGateStatus",
+      "description": "Returns the current ThumbGate system status including version, active checks, and supported agents"
+    },
+    {
+      "tool_name": "thumbgate_rule",
+      "handler_func": "HandleThumbGateRule",
+      "description": "Manages prevention rules - add, remove, or list rules"
+    }
+  ]
+}

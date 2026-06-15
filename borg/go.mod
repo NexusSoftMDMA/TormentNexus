@@ -1,4 +1,4 @@
-module github.com/robertpelloni/tormentnexus
+module github.com/NexusSoftMDMA/TormentNexus
 
 go 1.25.0
 

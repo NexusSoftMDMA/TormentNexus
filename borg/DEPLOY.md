@@ -13,7 +13,7 @@ _This document contains the latest deployment instructions for the TormentNexus 
 
 1.  **Clone the Repository**:
     ```bash
-    git clone https://github.com/robertpelloni/tormentnexus.git
+    git clone https://github.com/NexusSoftMDMA/TormentNexus.git
     cd tormentnexus
     ```
 

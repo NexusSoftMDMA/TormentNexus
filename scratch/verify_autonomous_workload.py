@@ -4,16 +4,13 @@ import json
 
 BASE_URL = "http://localhost:4300"
 
-def call_tool(name, arguments):
-    url = f"{BASE_URL}/api/agent/tool"
-    payload = {
-        "name": name,
-        "arguments": arguments
-    }
-    data = json.dumps(payload).encode('utf-8')
-    req = urllib.request.Request(url, data=data, method='POST', headers={'Content-Type': 'application/json'})
+def call_endpoint(path, method='GET', payload=None):
+    url = f"{BASE_URL}{path}"
+    data = json.dumps(payload).encode('utf-8') if payload else None
+    headers = {'Content-Type': 'application/json'} if payload else {}
+    req = urllib.request.Request(url, data=data, method=method, headers=headers)
 
-    print(f"--- Executing Tool: {name} ---")
+    print(f"--- Executing: {method} {path} ---")
     start = time.perf_counter()
     try:
         with urllib.request.urlopen(req) as response:
@@ -22,32 +19,30 @@ def call_tool(name, arguments):
             duration = (end - start) * 1000
             result = json.loads(res_body)
             print(f"Status: Success | Latency: {duration:.2f}ms")
-            # print(f"Output: {res_body[:200]}...")
             return result
     except Exception as e:
         print(f"Status: Failed | Error: {e}")
         return None
 
 def run_workload():
-    print("🚀 Starting TormentNexus Autonomous Workload Verification\n")
+    print("🚀 Starting TormentNexus E2E Integration Verification\n")
 
-    # Step 1: List skills to find relevant capabilities
-    skills = call_tool("skill_list", {})
+    # Step 1: Health check
+    call_endpoint("/health")
 
-    # Step 2: Search for a specific prompt template
-    prompts = call_tool("prompt_search", {"query": "refactor"})
+    # Step 2: List skills
+    call_endpoint("/api/skills/list")
 
-    # Step 3: Use a shell tool to inspect the environment
-    ls_result = call_tool("ls", {"path": "."})
+    # Step 3: Search prompts
+    call_endpoint("/api/native/tools/search", "POST", {"query": "orchestrator"})
 
-    # Step 4: Simulate a session/harness execution (non-blocking status check)
-    harness_result = call_tool("pi_mono", {"task": "Verify environment health", "command": "status"})
+    # Step 4: System overview
+    call_endpoint("/api/system/overview")
 
-    # Step 5: Get a specific skill content
-    if skills and "data" in skills:
-        skill_get = call_tool("skill_get", {"name": "TestSkill"})
+    # Step 5: Runtime status
+    call_endpoint("/api/runtime/status")
 
-    print("\n✅ Autonomous Workload Verification Complete")
+    print("\n✅ E2E Integration Verification Complete")
 
 if __name__ == "__main__":
     run_workload()

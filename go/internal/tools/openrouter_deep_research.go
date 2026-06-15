@@ -1,3 +1,6 @@
+//go:build ignore
+// +build ignore
+
 package tools
 
 /**
@@ -44,7 +47,7 @@ func HandleDeepResearch(ctx context.Context, args map[string]interface{}) (ToolR
 	}
 	model, _ := getString(args, "model")
 	if model == "" {
-		model = "openai/gpt-4o-mini"
+		model = "/gpt-4o-mini"
 	}
 
 	payload := map[string]interface{}{

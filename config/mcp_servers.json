@@ -1,10 +1,9 @@
 {
   "filesystem": {
-    "command": "npx",
+    "command": "node",
     "args": [
-      "-y",
-      "@modelcontextprotocol/server-filesystem@latest",
-      "C:\\Users\\hyper\\workspace\\"
+      "C:\\Users\\hyper\\AppData\\Roaming\\npm\\node_modules\\@modelcontextprotocol\\server-filesystem\\dist\\index.js",
+      "C:\\Users\\hyper\\workspace"
     ],
     "env": {},
     "enabled": true,
@@ -56,13 +55,13 @@
     "enabled": true
   },
   "desktop-commander": {
-    "command": "npx",
+    "command": "node",
     "args": [
-      "-y",
-      "@wonderwhy-er/desktop-commander@latest"
+      "C:\\Users\\hyper\\AppData\\Roaming\\npm\\node_modules\\@wonderwhy-er\\desktop-commander\\dist\\index.js"
     ],
     "env": {},
-    "enabled": true
+    "enabled": true,
+    "alwaysOn": true
   },
   "filesystem-with-morph": {
     "command": "npx",
@@ -76,13 +75,13 @@
     "enabled": true
   },
   "ripgrep": {
-    "command": "npx",
+    "command": "node",
     "args": [
-      "-y",
-      "mcp-ripgrep@latest"
+      "C:\\Users\\hyper\\AppData\\Roaming\\npm\\node_modules\\mcp-ripgrep\\dist\\index.js"
     ],
     "env": {},
-    "enabled": true
+    "enabled": true,
+    "alwaysOn": true
   },
   "deepcontext": {
     "command": "npx",

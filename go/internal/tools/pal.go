@@ -1,3 +1,6 @@
+//go:build ignore
+// +build ignore
+
 package tools
 
 /**
@@ -32,11 +35,11 @@ func callLLM(ctx context.Context, systemPrompt, userPrompt string, temperature f
 		model = "anthropic/claude-3.5-sonnet:beta"
 	} else if key := os.Getenv("OPENAI_API_KEY"); key != "" {
 		apiKey = key
-		baseURL = "https://api.openai.com/v1"
+		baseURL = "https://api..com/v1"
 		model = "gpt-4o-mini"
 	} else if key := os.Getenv("GEMINI_API_KEY"); key != "" {
 		apiKey = key
-		baseURL = "https://generativelanguage.googleapis.com/v1beta/openai"
+		baseURL = "https://generativelanguage.googleapis.com/v1beta/"
 		model = "gemini-1.5-flash"
 	} else {
 		// No keys configured, return empty to trigger simulator

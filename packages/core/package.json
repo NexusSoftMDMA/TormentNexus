@@ -1,6 +1,6 @@
 {
   "name": "@tormentnexus/core",
-  "version": "1.0.0-alpha.119",
+  "version": "1.0.0-alpha.129",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

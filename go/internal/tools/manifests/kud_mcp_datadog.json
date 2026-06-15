@@ -1,0 +1,26 @@
+{
+  "filename": "kud_mcp_datadog.go",
+  "server_name": "@kud/mcp-datadog",
+  "handlers": [
+    {
+      "tool_name": "create_dashboard",
+      "handler_func": "HandleCreateDashboard",
+      "description": "Create a Datadog dashboard with given title, description and optional widgets."
+    },
+    {
+      "tool_name": "get_metric",
+      "handler_func": "HandleGetMetric",
+      "description": "Query a Datadog metric over a time range and return the points."
+    },
+    {
+      "tool_name": "send_log",
+      "handler_func": "HandleSendLog",
+      "description": "Send a single log line to Datadog logs intake."
+    },
+    {
+      "tool_name": "list_monitors",
+      "handler_func": "HandleListMonitors",
+      "description": "List Datadog monitors with pagination support."
+    }
+  ]
+}

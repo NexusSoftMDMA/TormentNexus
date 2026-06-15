@@ -39,6 +39,13 @@ Thumbs.db
 **/.pi/
 .pi-logs/
 
+# === pi-lens cache (auto-generated) ===
+.pi-lens/cache/
+
+# === pi-lens cache (auto-generated) ===
+.pi-lens/cache/
+.pi-lens/
+
 # === Coverage ===
 coverage/
 .nyc_output/
@@ -46,6 +53,23 @@ coverage/
 # === Temporary files ===
 tmp/
 temp/
+tmp_*/
+temp_*/
+.tmp-*/
+
+# === Shell/PS artifacts ===
+$null
+^
+"path here"
+
+# === Cloned/imported temp repos ===
+akb/
+akb_repo/
+appwrite_utils_temp/
+mcp-server-*/
+yorck-mcp-src/
+
+# === Verification ===
 verification/
 reader_output.json
 reader_error.txt
@@ -55,6 +79,24 @@ push_err.txt
 push_out.txt
 screenshot*.png
 audit-*.jsonl
+
+# === Temp files ===
+tmp_*/
+temp_*/
+
+# === Standalone test/experiment files ===
+test_*.py
+test*.txt
+fix_build*.py
+cleanup_tools.py
+batch_generate.py
+build_watchdog.py
+
+# === Cloned/imported repos ===
+yorck-mcp-src/
+akb/
+akb_repo/
+appwrite_utils_temp/
 
 # === Next.js / Turbopack ===
 .next/
@@ -74,8 +116,7 @@ audit-*.jsonl
 **/.cli_startup_marker
 .tormentnexus_boot_check
 **/.tormentnexus_boot_check
-.tormentnexus/skills/
-.tormentnexus/db/
+# .tormentnexus/skills/ and .tormentnexus/db/ are internal registry — tracked
 .tormentnexus/agent_memory/
 .tormentnexus/handoffs/
 .tormentnexus/memory/
@@ -95,14 +136,8 @@ apps/web/.tormentnexus-dev-port.json
 apps/web/.tormentnexus-dev-port.json
 
 # === Database runtime ===
-*.db
-*.db-journal
-*.db-shm
-*.db-wal
-!go/internal/httpapi/testdata/**
-resources.db
-**/resources.db
-**/context.db
+# .db files are the internal registry — always track
+# resources.db and context.db are internal registries — tracked
 
 # === LanceDB / Vector data ===
 data/
@@ -156,7 +191,7 @@ jules-autopilot/
 # === Misc generated ===
 **/dist-chromium/
 **/dist-firefox/
-tormentnexus.db
+# tormentnexus.db is the primary registry DB — tracked
 tmp_*.ts
 tmp_*.tsx
 tmp_*.js
@@ -186,3 +221,15 @@ nul
 # Pi project-local packages (if using pi install -l)
 .pi/npm/
 go/bin/
+go_backup/
+
+# === Large/cache DB files (too large for git, or temporary restore artifacts) ===
+provider_metrics.db
+tormentnexus_restored.db
+old_db_restored.db
+db_v1_*.db
+db_v2_*.db
+db_v3_*.db
+db_v4_*.db
+db_v5_*.db
+scratch/

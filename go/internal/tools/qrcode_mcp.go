@@ -1,0 +1,19 @@
+//go:build ignore
+// +build ignore
+
+package tools
+
+import (
+	"context"
+	"net/url"
+)
+
+func HandleGenerateQrCode(ctx context.Context, args map[string]interface{}) (ToolResponse, error) {
+	text, _ :=getString(args, "text")
+	if text == "" {
+		return err("text parameter is required")
+}
+
+	qrURL := "https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=" + url.QueryEscape(text)
+	return success("QR Code generated: " + qrURL)
+}

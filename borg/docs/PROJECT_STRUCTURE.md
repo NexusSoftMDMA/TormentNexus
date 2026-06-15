@@ -259,7 +259,7 @@ flowchart TD
 
 The `go/` workspace is a separate Go module:
 
-- module: `github.com/robertpelloni/tormentnexus-go`
+- module: `github.com/NexusSoftMDMA/TormentNexus-go`
 - module: `github.com/tormentnexushq/tormentnexus-go`
 - top-level layout:
   - `go/cmd/` — Go entrypoints

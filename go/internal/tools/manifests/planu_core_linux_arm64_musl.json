@@ -1,0 +1,31 @@
+{
+  "filename": "planu_core_linux_arm64_musl.go",
+  "server_name": "@planu/core-linux-arm64-musl",
+  "handlers": [
+    {
+      "tool_name": "planu_init",
+      "handler_func": "HandlePlanuInit",
+      "description": "Initialize a new Planu project with a spec file targeted for linux-arm64-musl."
+    },
+    {
+      "tool_name": "planu_build",
+      "handler_func": "HandlePlanuBuild",
+      "description": "Trigger a build process optimized for ARM64 Musl using native Rust acceleration."
+    },
+    {
+      "tool_name": "planu_validate",
+      "handler_func": "HandlePlanuValidate",
+      "description": "Validate the planu.spec.json file for correctness and completeness."
+    },
+    {
+      "tool_name": "planu_check_updates",
+      "handler_func": "HandlePlanuCheckUpdates",
+      "description": "Check for available updates for the Planu core module."
+    },
+    {
+      "tool_name": "planu_list_targets",
+      "handler_func": "HandlePlanuListTargets",
+      "description": "List all supported cross-compilation targets with optional filtering."
+    }
+  ]
+}

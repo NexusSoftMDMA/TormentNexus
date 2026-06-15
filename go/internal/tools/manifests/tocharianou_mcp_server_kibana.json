@@ -1,0 +1,26 @@
+{
+  "filename": "tocharianou_mcp_server_kibana.go",
+  "server_name": "@tocharianou/mcp-server-kibana",
+  "handlers": [
+    {
+      "tool_name": "kibana_search",
+      "handler_func": "HandleKibanaSearch",
+      "description": "Perform a search query against Kibana/Elasticsearch indices"
+    },
+    {
+      "tool_name": "kibana_get_indices",
+      "handler_func": "HandleKibanaGetIndices",
+      "description": "List available indices in Kibana/Elasticsearch"
+    },
+    {
+      "tool_name": "kibana_saved_objects",
+      "handler_func": "HandleKibanaSavedObjects",
+      "description": "Retrieve saved objects (dashboards, visualizations, etc.) from Kibana"
+    },
+    {
+      "tool_name": "kibana_cluster_health",
+      "handler_func": "HandleKibanaClusterHealth",
+      "description": "Check the health of the Elasticsearch cluster"
+    }
+  ]
+}

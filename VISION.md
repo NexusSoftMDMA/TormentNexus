@@ -9,7 +9,7 @@
 1. **Models as Compute**: Models are ephemeral resources. TormentNexus manages their allocation, fallback routing, and token budgets.
 2. **Tools as Drivers**: MCP servers are "device drivers" for the AI OS. TormentNexus provides a unified interface for tool discovery, ranking, and progressive disclosure.
 3. **Biological Memory**: Intelligence is only as good as its relevance. TormentNexus utilizes L1 (Active), L2 (Long-Term), and L3 (Cold Archive) tiers with "Heat-based" mechanics (relevance increases heat, time causes decay).
-4. **Autonomous Immune System**: The system should heal itself. Every failure is an opportunity for diagnosis, remediation, and verification, with results persisted for collective learning.
+4. **Autonomous Immune System**: The system should heal itself. Every failure is an opportunity for diagnosis, remediation, and verification. This includes the **Supervisor Nudge Protocol**, which autonomously maintains development momentum by re-engaging inactive agents through professional, context-aware directives.
 
 ## Architectural Layers
 - **TormentNexus Runtime (Go Kernel)**: The authoritative execution kernel (State, Memory, LLM routing, MCP sync). Standardized on Port 4300.

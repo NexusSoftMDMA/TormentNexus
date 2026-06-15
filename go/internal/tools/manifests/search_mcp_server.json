@@ -1,0 +1,36 @@
+{
+  "filename": "search_mcp_server.go",
+  "server_name": "search-mcp-server",
+  "handlers": [
+    {
+      "tool_name": "navigate",
+      "handler_func": "HandleNavigate",
+      "description": "Navigates the browser to a specific URL"
+    },
+    {
+      "tool_name": "search",
+      "handler_func": "HandleSearch",
+      "description": "Performs a web search and returns results summary"
+    },
+    {
+      "tool_name": "click",
+      "handler_func": "HandleClick",
+      "description": "Simulates clicking an element on the page by selector"
+    },
+    {
+      "tool_name": "extract",
+      "handler_func": "HandleExtract",
+      "description": "Extracts text content from the page or specific elements"
+    },
+    {
+      "tool_name": "get_title",
+      "handler_func": "HandleGetTitle",
+      "description": "Retrieves the title of the current page"
+    },
+    {
+      "tool_name": "wait",
+      "handler_func": "HandleWait",
+      "description": "Waits for a specified number of seconds"
+    }
+  ]
+}

@@ -1,13 +1,14 @@
 {
   "mcpServers": {
-    "hypercode-supervisor": {
+    "tormentnexus-supervisor": {
       "command": "node",
       "args": [
-        "C:\\Users\\jakeg\\workspace\\borg\\packages\\borg-supervisor\\dist\\index.js"
+        "C:\\Users\\hyper\\workspace\\tormentnexus\\packages\\tormentnexus-supervisor\\dist\\index.js"
       ],
-      "env": [
-        "NODE_ENV"
-      ]
+      "env": {
+        "NODE_ENV": "production"
+      },
+      "alwaysOn": true
     },
     "mcp-supermemory-ai": {
       "command": "npx",
@@ -34,12 +35,12 @@
       }
     },
     "desktop-commander": {
-      "command": "npx",
+      "command": "node",
       "args": [
-        "-y",
-        "@wonderwhy-er/desktop-commander@latest"
+        "C:\\Users\\hyper\\AppData\\Roaming\\npm\\node_modules\\@wonderwhy-er\\desktop-commander\\dist\\index.js"
       ],
-      "env": []
+      "env": {},
+      "alwaysOn": true
     },
     "filesystem-with-morph": {
       "command": "npx",
@@ -52,12 +53,12 @@
       ]
     },
     "ripgrep": {
-      "command": "npx",
+      "command": "node",
       "args": [
-        "-y",
-        "mcp-ripgrep@latest"
+        "C:\\Users\\hyper\\AppData\\Roaming\\npm\\node_modules\\mcp-ripgrep\\dist\\index.js"
       ],
-      "env": []
+      "env": {},
+      "alwaysOn": true
     },
     "deepcontext": {
       "command": "npx",
@@ -298,13 +299,13 @@
       ]
     },
     "filesystem": {
-      "command": "npx",
+      "command": "node",
       "args": [
-        "-y",
-        "@modelcontextprotocol/server-filesystem@latest",
-        "C:\\Users\\jakeg\\workspace\\"
+        "C:\\Users\\hyper\\AppData\\Roaming\\npm\\node_modules\\@modelcontextprotocol\\server-filesystem\\dist\\index.js",
+        "C:\\Users\\hyper\\workspace"
       ],
-      "env": []
+      "env": {},
+      "alwaysOn": true
     },
     "github": {
       "args": [],

@@ -1,0 +1,31 @@
+{
+  "filename": "genexus_mcp.go",
+  "server_name": "genexus-mcp",
+  "handlers": [
+    {
+      "tool_name": "genexus_kb_list",
+      "handler_func": "HandleGenexusKBList",
+      "description": "List knowledge base objects from a GeneXus 18 installation directory"
+    },
+    {
+      "tool_name": "genexus_kb_read",
+      "handler_func": "HandleGenexusKBRead",
+      "description": "Read the content of a specific GeneXus object file"
+    },
+    {
+      "tool_name": "genexus_kb_edit",
+      "handler_func": "HandleGenexusKBEdit",
+      "description": "Modify a GeneXus object file with new content"
+    },
+    {
+      "tool_name": "genexus_kb_analyze",
+      "handler_func": "HandleGenexusKBAnalyze",
+      "description": "Run GeneXus analyzer or perform basic static analysis on a knowledge base object"
+    },
+    {
+      "tool_name": "genexus_kb_deploy",
+      "handler_func": "HandleGenexusKBDeploy",
+      "description": "Deploy a GeneXus object to a target environment via HTTP"
+    }
+  ]
+}

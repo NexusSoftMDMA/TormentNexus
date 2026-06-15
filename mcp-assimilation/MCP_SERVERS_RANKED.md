@@ -4481,7 +4481,7 @@
    > A comprehensive resource covering the architecture and implementation of AI agents, workflows, and orchestration systems.
    > _Agent Orchestration & Workflow → Workflow & Pipeline Engines_ | **infra, multi-hub, agent**
 
-1052. **[105]** `sig:84`  [Robert Pelloni / veilid · GitLab](https://gitlab.com/robertpelloni/veilid)
+1052. **[105]** `sig:84`  [ / veilid · GitLab](https://gitlab.com/robertpelloni/veilid)
    > A comprehensive framework for building and orchestrating agents using the VeilID concept.
    > _Connectivity / MCP / A2A → A2A Protocol_ | **infra, multi-hub, agent**
 
@@ -27849,8 +27849,8 @@
    > Arcade MCP Tool Patterns
    > _Connectivity / MCP / A2A → MCP Clients_ | ****
 
-457. **[22]** `sig:72`  [Robert Pelloni / hellven · GitLab](https://gitlab.com/robertpelloni/hellven)
-   > Robert Pelloni / hellven · GitLab Project information Created on June 27, 2025 Loading
+457. **[22]** `sig:72`  [ / hellven · GitLab](https://gitlab.com/robertpelloni/hellven)
+   >  / hellven · GitLab Project information Created on June 27, 2025 Loading
    > _Agent Orchestration & Workflow → Multi-Agent Frameworks_ | ****
 
 458. **[22]** `sig:72`  [Risen vs TradingView - The Best TradingView Alternative](https://risen.so/vs/tradingview?rdt_cid=5845628043804403076&utm_source=reddit)

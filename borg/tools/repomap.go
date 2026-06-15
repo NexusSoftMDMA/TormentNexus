@@ -1,6 +1,6 @@
 package tools
 
-import foundationrepomap "github.com/robertpelloni/tormentnexus/foundation/repomap"
+import foundationrepomap "github.com/NexusSoftMDMA/TormentNexus/foundation/repomap"
 
 // RepoMapTool wraps the native foundation repomap package for legacy callers.
 type RepoMapTool struct {

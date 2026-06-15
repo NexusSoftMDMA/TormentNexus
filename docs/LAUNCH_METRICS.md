@@ -134,7 +134,7 @@ Set realistic targets before launch to avoid anchoring on arbitrary numbers mid-
 
 ## References
 
-- [GitHub Traffic Insights](https://github.com/robertpelloni/tormentnexus/graphs/traffic)
-- [GitHub Issues](https://github.com/robertpelloni/tormentnexus/issues)
+- [GitHub Traffic Insights](https://github.com/NexusSoftMDMA/TormentNexus/graphs/traffic)
+- [GitHub Issues](https://github.com/NexusSoftMDMA/TormentNexus/issues)
 - [LAUNCH_POSTS.md](LAUNCH_POSTS.md)
 - [LAUNCH_SECURITY_FAQ.md](LAUNCH_SECURITY_FAQ.md)

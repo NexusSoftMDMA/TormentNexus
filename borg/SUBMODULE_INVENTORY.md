@@ -29,12 +29,12 @@ https://github.com/yasasbanukaofficial/claude-code | unknown |
 | jules-extension | main | unknown | https://github.com/gemini-cli-extensions/jules | unknown |
 | kimi-cli | main | unknown | https://github.com/MoonshotAI/kimi-cli | unknown |
 | qwen-code-cli | main | unknown | https://github.com/dinoanderson/qwen_cli_coder | unknown |
-| external/TormentNexus | main | unknown | https://github.com/robertpelloni/TormentNexus | unknown |
+| external/TormentNexus | main | unknown | https://github.com/NexusSoftMDMA/TormentNexus | unknown |
 | archive/submodules/mcpproxy | main | unknown | https://github.com/Dumbris/mcpproxy | unknown |
 | archive/submodules/litellm | main | unknown | https://github.com/BerriAI/litellm | unknown |
-| archive/tormentnexus | main | unknown | https://github.com/robertpelloni/tormentnexus | unknown |
+| archive/tormentnexus | main | unknown | https://github.com/NexusSoftMDMA/TormentNexus | unknown |
 | archive/OmniRoute | main | unknown | https://github.com/diegosouzapw/OmniRoute | unknown |
-| packages/tormentnexus | main | unknown | https://github.com/robertpelloni/tormentnexus | unknown |
+| packages/tormentnexus | main | unknown | https://github.com/NexusSoftMDMA/TormentNexus | unknown |
 | apps/maestro | main | unknown | https://github.com/robertpelloni/Maestro | unknown |
 | submodules/tormentnexus-mcp | main | unknown | https://github.com/dcostenco/tormentnexus-mcp | unknown |
-| submodules/tormentnexus | main | unknown | https://github.com/robertpelloni/tormentnexus.git | unknown |
+| submodules/tormentnexus | main | unknown | https://github.com/NexusSoftMDMA/TormentNexus.git | unknown |

@@ -24,7 +24,7 @@ This document contains a comprehensive list of resources, tools, and repositorie
 - https://github.com/ykdojo/claude-code-tips
 
 ## Multi-Agent Orchestration
-- https://github.com/robertpelloni/tormentnexus
+- https://github.com/NexusSoftMDMA/TormentNexus
 - https://docs.roocode.com/roo-code-cloud/roomote-control
 - https://github.com/The-Pocket/PocketFlow-Tutorial-Cursor/blob/main/blog.md
 - https://github.com/OpenHands/OpenHands/blob/f7cb2d0f64666e1f090a5152d7c002aa6f28caf9/openhands/controller/agent_controller.py#L771

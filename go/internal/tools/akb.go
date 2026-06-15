@@ -1,0 +1,18 @@
+//go:build ignore
+// +build ignore
+
+package tools
+
+import (
+	"context"
+)
+
+func HandleEcho(ctx context.Context, args map[string]interface{}) (ToolResponse, error) {
+	msg, _ :=getString(args, "message")
+	return ok("Echo: " + msg)
+}
+
+func HandleStatus(ctx context.Context, args map[string]interface{}) (ToolResponse, error) {
+	reason, _ :=getString(args, "reason")
+	return success("Server is healthy. Reason: " + reason)
+}

@@ -3,7 +3,7 @@ package cmd
 import (
 	"log"
 
-	"github.com/robertpelloni/tormentnexus/tui"
+	"github.com/NexusSoftMDMA/TormentNexus/tui"
 	"github.com/spf13/cobra"
 )
 

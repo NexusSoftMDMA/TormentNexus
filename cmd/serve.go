@@ -8,9 +8,9 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/websocket/v2"
-	foundationrepomap "github.com/robertpelloni/tormentnexus/foundation/repomap"
-	"github.com/robertpelloni/tormentnexus/mcp"
-	"github.com/robertpelloni/tormentnexus/orchestrator"
+	foundationrepomap "github.com/NexusSoftMDMA/TormentNexus/foundation/repomap"
+	"github.com/NexusSoftMDMA/TormentNexus/mcp"
+	"github.com/NexusSoftMDMA/TormentNexus/orchestrator"
 	"github.com/spf13/cobra"
 )
 

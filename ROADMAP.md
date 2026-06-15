@@ -14,6 +14,16 @@ _Last updated: 2026-06-14, version 1.0.0-alpha.129_
 - **Repository Sync**: Automated dependency management and version alignment via `repo_sync`.
 - **Self-Healing**: Native Go `health_monitor` and `repository_healer` for autonomous kernel maintenance.
 - **Enterprise Security**: Initial SSO/RBAC middleware and structured JSONL auditing.
+## Completed (v1.0.0-alpha.127)
+- **Hardened Kernel Registry**: Restored approximately 60 "swarm" tool registrations and implemented stubs in `swarm.go` to ensure kernel build stability.
+- **Native Go Tool Assimilation**: Implemented high-performance native Go handlers for `ripgrep`, `anyquery`, and `codemod`.
+- **E2E Integration Testing**: Added formal integration test suite in `go/internal/tools/e2e_test.go` and verified the HTTP API surface.
+- **API Documentation**: Generated comprehensive `docs/API_ENDPOINTS.md` covering system, registry, and memory management routes.
+
+## Completed (v1.0.0-alpha.126)
+### 1. Rebranding & Database Conversion (STABLE)
+- **TormentNexus Universal Rebrand**: Complete case-insensitive, case-specific refactoring across source modules, config files, package dependencies, and directories.
+- **Unified Catalog SQLite Storage**: Ingested and deduplicated standard technical assets, creating a robust local dataset of **11,024 populated MCP servers** stored directly in `tormentnexus.db`.
 
 ## Completed (v1.0.0-alpha.128)
 ### 1. Hardened Autonomous Orchestration (STABLE)

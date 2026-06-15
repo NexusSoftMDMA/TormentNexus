@@ -1,0 +1,36 @@
+{
+  "filename": "memex_mvp.go",
+  "server_name": "memex-mvp",
+  "handlers": [
+    {
+      "tool_name": "memex_search",
+      "handler_func": "HandleMemexSearch",
+      "description": "Search the memex-mvp memory corpus for entries matching a query"
+    },
+    {
+      "tool_name": "memex_store",
+      "handler_func": "HandleMemexStore",
+      "description": "Store a new memory entry in the memex-mvp corpus"
+    },
+    {
+      "tool_name": "memex_recent",
+      "handler_func": "HandleMemexRecent",
+      "description": "Retrieve recent memories from the memex-mvp corpus"
+    },
+    {
+      "tool_name": "memex_stats",
+      "handler_func": "HandleMemexStats",
+      "description": "Retrieve statistics about the memex-mvp corpus"
+    },
+    {
+      "tool_name": "memex_delete",
+      "handler_func": "HandleMemexDelete",
+      "description": "Delete a memory entry from the memex-mvp corpus by ID"
+    },
+    {
+      "tool_name": "memex_export",
+      "handler_func": "HandleMemexExport",
+      "description": "Export memories from the memex-mvp corpus to a file"
+    }
+  ]
+}

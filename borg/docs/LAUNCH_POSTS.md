@@ -4,8 +4,8 @@ Use this file for posting and live comment operations during launch day.
 
 ## Canonical links
 
-- Repo: `https://github.com/robertpelloni/tormentnexus`
-- Quick Start: `https://github.com/robertpelloni/tormentnexus#-quick-start`
+- Repo: `https://github.com/NexusSoftMDMA/TormentNexus`
+- Quick Start: `https://github.com/NexusSoftMDMA/TormentNexus#-quick-start`
 - Security FAQ replies: `docs/LAUNCH_SECURITY_FAQ.md`
 
 ## Show HN draft
@@ -27,8 +27,8 @@ What it does:
 - Observability dashboard (health/logs/system views)
 - Local-first architecture for operator control
 
-Repo: `https://github.com/robertpelloni/tormentnexus`
-Quickstart: `https://github.com/robertpelloni/tormentnexus#-quick-start`
+Repo: `https://github.com/NexusSoftMDMA/TormentNexus`
+Quickstart: `https://github.com/NexusSoftMDMA/TormentNexus#-quick-start`
 
 I’d really value feedback on:
 1. Routing/policy model for larger MCP fleets
@@ -51,8 +51,8 @@ It includes:
 - Memory layer (vector + graph context)
 - Operator dashboard for logs/health/status
 
-Repo: `https://github.com/robertpelloni/tormentnexus`
-Quickstart: `https://github.com/robertpelloni/tormentnexus#-quick-start`
+Repo: `https://github.com/NexusSoftMDMA/TormentNexus`
+Quickstart: `https://github.com/NexusSoftMDMA/TormentNexus#-quick-start`
 
 I’m looking for concrete feedback from people running real MCP stacks:
 - Where routing breaks first
@@ -109,6 +109,6 @@ Quick update after launch:
 - What shipped: [list 2–3 concrete changes]
 - Next 72h priorities: [list 2–3]
 
-Repo: `https://github.com/robertpelloni/tormentnexus`
+Repo: `https://github.com/NexusSoftMDMA/TormentNexus`
 
 If you tried it, I’d love your next round of feedback on routing/policies, memory signal quality, and observability gaps.

@@ -1,0 +1,36 @@
+package tools
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
+)
+
+func HandleGremlinListAttacks(ctx context.Context, args map[string]interface{}) (ToolResponse, error) {
+	apiKey, _ :=getString(args, "api_key")
+	if apiKey == "" {
+		return err("api_key is required")
+}
+
+	req, e := http.NewRequestWithContext(ctx, "GET", "https://api.gremlin.com/v1/attacks", nil)
+	if e != nil {
+		return err(fmt.Sprintf("failed to create request: %v", e))
+}
+
+	req.Header.Set("Authorization", "Bearer " + apiKey)
+	resp, e := http.DefaultClient.Do(req)
+	if e != nil {
+		return err(fmt.Sprintf("request failed: %v", e))
+}
+
+	defer resp.Body.Close()
+	body, e := io.ReadAll(resp.Body)
+	if e != nil {
+		return err(fmt.Sprintf("failed to read response: %v", e))
+}
+
+	return ok(string(body))
+}

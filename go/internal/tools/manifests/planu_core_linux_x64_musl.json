@@ -1,0 +1,31 @@
+{
+  "filename": "planu_core_linux_x64_musl.go",
+  "server_name": "@planu/core-linux-x64-musl",
+  "handlers": [
+    {
+      "tool_name": "planu_init",
+      "handler_func": "HandlePlanuInit",
+      "description": "Initialize a Planu project in the specified directory"
+    },
+    {
+      "tool_name": "planu_validate",
+      "handler_func": "HandlePlanuValidate",
+      "description": "Validate a Planu specification file"
+    },
+    {
+      "tool_name": "planu_generate",
+      "handler_func": "HandlePlanuGenerate",
+      "description": "Generate code from Planu specifications"
+    },
+    {
+      "tool_name": "planu_check",
+      "handler_func": "HandlePlanuCheck",
+      "description": "Check Planu version and updates"
+    },
+    {
+      "tool_name": "planu_serve",
+      "handler_func": "HandlePlanuServe",
+      "description": "Start the Planu MCP server"
+    }
+  ]
+}

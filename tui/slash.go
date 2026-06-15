@@ -6,10 +6,10 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/robertpelloni/tormentnexus/agents"
-	"github.com/robertpelloni/tormentnexus/foundation/adapters"
-	foundationorchestration "github.com/robertpelloni/tormentnexus/foundation/orchestration"
-	foundationrepomap "github.com/robertpelloni/tormentnexus/foundation/repomap"
+	"github.com/NexusSoftMDMA/TormentNexus/agents"
+	"github.com/NexusSoftMDMA/TormentNexus/foundation/adapters"
+	foundationorchestration "github.com/NexusSoftMDMA/TormentNexus/foundation/orchestration"
+	foundationrepomap "github.com/NexusSoftMDMA/TormentNexus/foundation/repomap"
 )
 
 // ProcessSlashCommand mimics Claude Code's native terminal interception primitives.

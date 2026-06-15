@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/robertpelloni/tormentnexus/foundation/adapters"
+	"github.com/NexusSoftMDMA/TormentNexus/foundation/adapters"
 	"github.com/sashabaranov/go-openai"
 )
 

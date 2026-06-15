@@ -1,3 +1,6 @@
+//go:build ignore
+// +build ignore
+
 package tools
 import ("context"; "fmt")
 func HandlePuppeteer(ctx context.Context, args map[string]interface{}) (ToolResponse, error) {

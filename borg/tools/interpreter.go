@@ -1,7 +1,7 @@
 package tools
 
 import (
-	"github.com/robertpelloni/tormentnexus/repl"
+	"github.com/NexusSoftMDMA/TormentNexus/repl"
 )
 
 var sessions = make(map[string]*repl.Session)

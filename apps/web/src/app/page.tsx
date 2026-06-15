@@ -290,7 +290,7 @@ signature: "${signature.toUpperCase()}"`;
                     <div>© 2026 TormentNexus. Praise the LORD! Keep the party going!</div>
                     <div className="flex gap-6">
                         <Link href="/dashboard/mcp" className="hover:text-slate-300 transition">Dashboard</Link>
-                        <a href="https://github.com/robertpelloni/TormentNexus" target="_blank" rel="noreferrer" className="hover:text-slate-300 transition">GitHub</a>
+                        <a href="https://github.com/NexusSoftMDMA/TormentNexus" target="_blank" rel="noreferrer" className="hover:text-slate-300 transition">GitHub</a>
                     </div>
                 </div>
             </div>

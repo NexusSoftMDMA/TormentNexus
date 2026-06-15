@@ -1,0 +1,36 @@
+{
+  "filename": "superlocalmemory.go",
+  "server_name": "superlocalmemory",
+  "handlers": [
+    {
+      "tool_name": "StoreMemory",
+      "handler_func": "HandleStoreMemory",
+      "description": "Store a new memory with metadata"
+    },
+    {
+      "tool_name": "RetrieveMemory",
+      "handler_func": "HandleRetrieveMemory",
+      "description": "Retrieve memories based on a query"
+    },
+    {
+      "tool_name": "ComputeSimilarity",
+      "handler_func": "HandleComputeSimilarity",
+      "description": "Compute Fisher-Rao similarity between two memories"
+    },
+    {
+      "tool_name": "ListChannels",
+      "handler_func": "HandleListChannels",
+      "description": "List available memory channels"
+    },
+    {
+      "tool_name": "ConfigureMemory",
+      "handler_func": "HandleConfigureMemory",
+      "description": "Configure the memory system"
+    },
+    {
+      "tool_name": "ClearMemory",
+      "handler_func": "HandleClearMemory",
+      "description": "Clear memory channels"
+    }
+  ]
+}

@@ -6,11 +6,11 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/robertpelloni/tormentnexus/foundation/adapters"
-	"github.com/robertpelloni/tormentnexus/foundation/compat"
-	foundationorchestration "github.com/robertpelloni/tormentnexus/foundation/orchestration"
-	foundationpi "github.com/robertpelloni/tormentnexus/foundation/pi"
-	foundationrepomap "github.com/robertpelloni/tormentnexus/foundation/repomap"
+	"github.com/NexusSoftMDMA/TormentNexus/foundation/adapters"
+	"github.com/NexusSoftMDMA/TormentNexus/foundation/compat"
+	foundationorchestration "github.com/NexusSoftMDMA/TormentNexus/foundation/orchestration"
+	foundationpi "github.com/NexusSoftMDMA/TormentNexus/foundation/pi"
+	foundationrepomap "github.com/NexusSoftMDMA/TormentNexus/foundation/repomap"
 )
 
 type foundationExecRequest struct {

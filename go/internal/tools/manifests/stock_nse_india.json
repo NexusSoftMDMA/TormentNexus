@@ -1,0 +1,16 @@
+{
+  "filename": "stock_nse_india.go",
+  "server_name": "stock-nse-india",
+  "handlers": [
+    {
+      "tool_name": "get_stock_details",
+      "handler_func": "HandleGetStockDetails",
+      "description": "Retrieves current stock information for a given symbol"
+    },
+    {
+      "tool_name": "get_historical_data",
+      "handler_func": "HandleGetHistoricalData",
+      "description": "Retrieves historical price data for a stock within a date range"
+    }
+  ]
+}

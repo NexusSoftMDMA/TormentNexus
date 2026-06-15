@@ -36,6 +36,56 @@
 - **MCP Assimilation Verification**:
   - Verified and seeded the status of over 10 high-value native tool handlers in `data/assimilation_state.db`, including `taskmaster`, `semantic_scholar`, `playwright_browser`, and `ast_grep`.
 - **Enterprise readiness**: Refined `ROADMAP.md` and `TODO.md` to reflect the transition to Phase 7 (UI Polish & Skill Hardening).
+## [1.0.0-alpha.130] - 2026-06-14
+### Added
+- **Skill HTTP API**: Implemented three new endpoints (`/api/skills/list`, `/api/skills/get`, `/api/skills/search`) querying `orchestration.GlobalSkillRegistry`.
+  - Returns JSON with skill IDs and agent URLs.
+  - Search supports substring matching on skill IDs.
+  - Stubs added for `/api/skills/load`, `/api/skills/unload`, `/api/skills/list-loaded` (501 Not Implemented).
+- **Unit Tests**: Added 10 comprehensive tests for skill handlers covering success, error, and edge cases.
+- **Documentation**: Updated `docs/API_ENDPOINTS.md` with Skill API section.
+### Changed
+- `skill_handlers.go`: Created new file with handlers using GlobalSkillRegistry.
+- `skill_handlers_test.go`: Created new test file with 10 passing tests.
+- `server.go`: Skill routes already existed at lines 1098-1104 (from previous session).
+- Version bumped to `1.0.0-alpha.130` across all 35 package.json files and Go buildinfo.
+
+## [1.0.0-alpha.129] - 2026-06-14
+### Added
+- Browser automation MCP handlers (`browser_navigate`, `browser_screenshot`, `browser_get_html`, `browser_evaluate`, `browser_click`, `browser_fill_form`) implemented natively with `chromedp`.
+- Global A2A skill registry singleton (`orchestration.GlobalSkillRegistry`) with `FindAgentForSkill` helper.
+- Server startup now registers all local skills in the A2A registry on initialization.
+### Changed
+- `registry.go`: Enabled six browser tool registrations (replaced TODO stubs).
+- `server.go`: Populates A2A skill registry during startup.
+- `global_skill_registry.go`: Created new file exposing global A2A registry.
+- `browser_automation.go`: Created new file with six browser handlers.
+- `go.mod`: Added `github.com/chromedp/chromedp@v0.15.1` dependency.
+
+## [1.0.0-alpha.128] - 2026-06-14
+### Added
+- **Bulk Skill Assimilation**: Assimilated **3,229 unique skills** from home directory harness ecosystems into `~/.tormentnexus/skills/`.
+  - Scanned 7 source directories: `~/.a5c` (2,099), `~/.agent/skills` (723), `~/.ccs` (466), `~/.hermes/skills` (87), `~/.pi` (40), `~/.agents/skills` (2), `~/.config/opencode-temp/skills` (1)
+  - Found 3,418 total SKILL.md files, merged 2 duplicates via content-hash deduplication
+  - Each skill enriched with frontmatter: `name`, `source`, `category`, `date`, `tags`
+  - Script: `data/assimilate_skills.py`
+- **Skill Registry Verification**: All skill tests pass (`TestSkillSearch`, `TestSkillDecisionProgressiveLoading`, `TestSkillsFallBackToLocalSkillRegistry`)
+- **Version Sync**: Synced all 35 package.json files and Go buildinfo to v1.0.0-alpha.128
+
+### Changed
+- **Tracking Files Updated**: Updated `HANDOFF.md`, `MEMORY.md`, `TODO.md`, `VERSION.md` with assimilation stats and next steps
+
+### Next Steps
+- Wire skills into Go HTTP API for tRPC access
+- Map skills into FreeLLM A2A registry as `AgentSkill` structs
+- Implement skill win-rate tracking and auto-retirement
+
+## [1.0.0-alpha.127] - 2026-06-08
+### Added
+- **Hardened Kernel Registry**: Restored approximately 60 "swarm" tool registrations and implemented stubs in `swarm.go` to ensure kernel build stability.
+- **Native Go Tool Assimilation**: Implemented high-performance native Go handlers for `ripgrep`, `anyquery`, and `codemod`.
+- **E2E Integration Testing**: Added formal integration test suite in `go/internal/tools/e2e_test.go` and verified the HTTP API surface via Python integration scripts.
+- **API Documentation**: Generated comprehensive `docs/API_ENDPOINTS.md` covering over 600 system, registry, and memory management routes.
 
 ## [1.0.0-alpha.126] - 2026-06-07
 ### Added

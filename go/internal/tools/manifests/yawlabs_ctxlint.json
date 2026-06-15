@@ -1,0 +1,36 @@
+{
+  "filename": "yawlabs_ctxlint.go",
+  "server_name": "@yawlabs/ctxlint",
+  "handlers": [
+    {
+      "tool_name": "ctxlint_lint",
+      "handler_func": "HandleCtxLint",
+      "description": "Run ctxlint against the current codebase to lint AI agent context files"
+    },
+    {
+      "tool_name": "ctxlint_check",
+      "handler_func": "HandleCtxLintCheck",
+      "description": "Check if ctxlint is installed and available"
+    },
+    {
+      "tool_name": "ctxlint_config",
+      "handler_func": "HandleCtxLintConfig",
+      "description": "Generate a default ctxlint configuration file"
+    },
+    {
+      "tool_name": "ctxlint_validate",
+      "handler_func": "HandleCtxLintValidate",
+      "description": "Validate MCP server configs and session data"
+    },
+    {
+      "tool_name": "ctxlint_analyze",
+      "handler_func": "HandleCtxLintAnalyze",
+      "description": "Analyze context files against the codebase for inconsistencies"
+    },
+    {
+      "tool_name": "ctxlint_fix",
+      "handler_func": "HandleCtxLintFix",
+      "description": "Attempt to auto-fix context file issues"
+    }
+  ]
+}

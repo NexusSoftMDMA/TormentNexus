@@ -1,0 +1,26 @@
+{
+  "filename": "staticn0va_wigolo.go",
+  "server_name": "@staticn0va/wigolo",
+  "handlers": [
+    {
+      "tool_name": "wigolo_fetch",
+      "handler_func": "HandleWigoloFetch",
+      "description": "Fetches a URL and returns its content, simulating a local-first web intelligence fetch."
+    },
+    {
+      "tool_name": "wigolo_search",
+      "handler_func": "HandleWigoloSearch",
+      "description": "Performs a local grep-like search in a specified directory."
+    },
+    {
+      "tool_name": "wigolo_summarize",
+      "handler_func": "HandleWigoloSummarize",
+      "description": "Extracts and summarizes key metadata from a local file."
+    },
+    {
+      "tool_name": "wigolo_extract_links",
+      "handler_func": "HandleWigoloExtractLinks",
+      "description": "Extracts all URLs from a given text or webpage content."
+    }
+  ]
+}

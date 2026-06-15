@@ -1,0 +1,31 @@
+{
+  "filename": "intlayer_mcp.go",
+  "server_name": "@intlayer/mcp",
+  "handlers": [
+    {
+      "tool_name": "intlayer_build",
+      "handler_func": "HandleBuild",
+      "description": "Executes the intlayer build command to compile dictionaries for specified or all locales."
+    },
+    {
+      "tool_name": "intlayer_pull",
+      "handler_func": "HandlePull",
+      "description": "Fetches updated translations from the remote Intlayer repository."
+    },
+    {
+      "tool_name": "intlayer_push",
+      "handler_func": "HandlePush",
+      "description": "Pushes local dictionary changes and commits them to the remote Intlayer repository."
+    },
+    {
+      "tool_name": "intlayer_fill",
+      "handler_func": "HandleFill",
+      "description": "Generates missing keys in target locale dictionaries based on a source locale."
+    },
+    {
+      "tool_name": "intlayer_status",
+      "handler_func": "HandleStatus",
+      "description": "Checks the synchronization status of local dictionaries against the remote."
+    }
+  ]
+}

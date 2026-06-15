@@ -151,7 +151,7 @@ Examples:
           version: getVersion(),
           codename: 'TORMENTNEXUS',
           packages: ['@tormentnexus/core', '@tormentnexus/cli', '@tormentnexus/types', '@tormentnexus/ai', '@tormentnexus/agents', '@tormentnexus/tools', '@tormentnexus/search', '@tormentnexus/memory', '@tormentnexus/adk'],
-          repository: 'https://github.com/robertpelloni/tormentnexus',
+          repository: 'https://github.com/NexusSoftMDMA/TormentNexus',
         }, null, 2));
         return;
       }
@@ -177,7 +177,7 @@ Examples:
         console.log(chalk.cyan(`    ${name.padEnd(20)}`) + chalk.dim(desc));
       }
 
-      console.log(chalk.dim('\n  Repository: https://github.com/robertpelloni/tormentnexus'));
+      console.log(chalk.dim('\n  Repository: https://github.com/NexusSoftMDMA/TormentNexus'));
       console.log(chalk.dim('  License: MIT'));
 
       // Quick-start hints

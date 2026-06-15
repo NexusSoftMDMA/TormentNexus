@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/robertpelloni/tormentnexus/cmd"
+	"github.com/NexusSoftMDMA/TormentNexus/cmd"
 )
 
 func main() {

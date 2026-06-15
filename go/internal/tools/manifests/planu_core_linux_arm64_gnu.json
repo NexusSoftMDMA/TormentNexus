@@ -1,0 +1,31 @@
+{
+  "filename": "planu_core_linux_arm64_gnu.go",
+  "server_name": "@planu/core-linux-arm64-gnu",
+  "handlers": [
+    {
+      "tool_name": "planu_init",
+      "handler_func": "HandlePlanuInit",
+      "description": "Initialize a new Planu project with spec directory and config"
+    },
+    {
+      "tool_name": "planu_spec_create",
+      "handler_func": "HandlePlanuSpecCreate",
+      "description": "Create a new specification file"
+    },
+    {
+      "tool_name": "planu_spec_list",
+      "handler_func": "HandlePlanuSpecList",
+      "description": "List all specifications in the project"
+    },
+    {
+      "tool_name": "planu_spec_validate",
+      "handler_func": "HandlePlanuSpecValidate",
+      "description": "Validate a specification for completeness"
+    },
+    {
+      "tool_name": "planu_generate",
+      "handler_func": "HandlePlanuGenerate",
+      "description": "Generate code from a specification"
+    }
+  ]
+}

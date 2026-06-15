@@ -1,0 +1,36 @@
+{
+  "filename": "safari_mcp.go",
+  "server_name": "safari-mcp",
+  "handlers": [
+    {
+      "tool_name": "open_url",
+      "handler_func": "HandleOpenURL",
+      "description": "Open a URL in Safari"
+    },
+    {
+      "tool_name": "get_tabs",
+      "handler_func": "HandleGetTabs",
+      "description": "Get list of open tabs in Safari"
+    },
+    {
+      "tool_name": "get_current_url",
+      "handler_func": "HandleGetCurrentURL",
+      "description": "Get the URL of the active tab in Safari"
+    },
+    {
+      "tool_name": "execute_javascript",
+      "handler_func": "HandleExecuteJavaScript",
+      "description": "Execute JavaScript in the current Safari tab"
+    },
+    {
+      "tool_name": "close_tab",
+      "handler_func": "HandleCloseTab",
+      "description": "Close the current tab in Safari"
+    },
+    {
+      "tool_name": "new_tab",
+      "handler_func": "HandleNewTab",
+      "description": "Open a new tab in Safari"
+    }
+  ]
+}

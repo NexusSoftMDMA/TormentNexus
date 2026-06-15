@@ -518,6 +518,13 @@ func New(cfg config.Config, detector controlplane.ToolProvider) *Server {
 		}
 	}
 
+	// Register all local skills as provided by this sidecar in the A2A skill registry
+	if skillIDs, err := server.skillStore.ListSkills(); err == nil {
+		for _, id := range skillIDs {
+			orchestration.GlobalSkillRegistry.RegisterAgentSkill("http://localhost:4300", id)
+		}
+	}
+
 	server.coderAgent = orchestration.NewCoderAgent(server.a2aBroker, cfg.WorkspaceRoot)
 	server.coderAgent.Start(context.Background())
 	server.goDirector = orchestration.NewDirector(server.swarmController, server.coderAgent, server.a2aBroker)
@@ -615,6 +622,12 @@ func (s *Server) Handler() http.Handler {
 
 // PreWarmCaches triggers background cache population for frequently
 // accessed endpoints so that the first dashboard request is fast.
+// Bobbybookmarks auto-sync configuration
+const (
+	bobbyBookmarksSyncDelay    = 10 * time.Second // Initial delay after startup
+	bobbyBookmarksSyncInterval = 1 * time.Hour    // Periodic re-sync interval
+)
+
 func (s *Server) PreWarmCaches() {
 	go func() {
 		// Warm the startup status cache
@@ -638,6 +651,40 @@ func (s *Server) PreWarmCaches() {
 		defer cancel()
 		if servers, err := s.buildMCPServersList(ctx); err == nil {
 			s.cacheService.SetTTL("mcp:servers", servers, 60000)
+		}
+	}()
+	go func() {
+		// Bobbybookmarks auto-sync: initial sync after startup delay, then periodic re-syncs
+		time.Sleep(bobbyBookmarksSyncDelay)
+		dbPath := s.localTormentNexusDBPath()
+		baseURL := "https://bobbybookmarks.com"
+		
+		// Initial sync on startup
+		fmt.Printf("[BobbyBookmarks] Starting initial auto-sync from %s...\n", baseURL)
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+		defer cancel()
+		res, err := hsync.SyncBobbyBookmarks(ctx, dbPath, baseURL, 100, false, false)
+		if err != nil {
+			fmt.Printf("[BobbyBookmarks] Initial sync error: %v\n", err)
+		} else {
+			fmt.Printf("[BobbyBookmarks] Initial sync complete: fetched=%d, upserted=%d, pages=%d\n", 
+				res.Fetched, res.Upserted, res.Pages)
+		}
+		
+		// Periodic re-sync every hour
+		ticker := time.NewTicker(bobbyBookmarksSyncInterval)
+		defer ticker.Stop()
+		for range ticker.C {
+			fmt.Printf("[BobbyBookmarks] Starting periodic re-sync from %s...\n", baseURL)
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+			res, err := hsync.SyncBobbyBookmarks(ctx, dbPath, baseURL, 100, false, false)
+			if err != nil {
+				fmt.Printf("[BobbyBookmarks] Periodic sync error: %v\n", err)
+			} else {
+				fmt.Printf("[BobbyBookmarks] Periodic re-sync complete: fetched=%d, upserted=%d, pages=%d\n", 
+					res.Fetched, res.Upserted, res.Pages)
+			}
+			cancel()
 		}
 	}()
 }
@@ -687,6 +734,7 @@ func (s *Server) registerRoutes() {
 
 	s.mux.HandleFunc("/health", s.handleHealth)
 	s.mux.HandleFunc("/version", s.handleVersion)
+	s.mux.HandleFunc("/.well-known/agent-card", s.handleAgentCard)
 	s.mux.HandleFunc("/api/index", s.handleAPIIndex)
 	s.mux.HandleFunc("/api/health", s.handleHealth)
 	s.mux.HandleFunc("/api/health/server", s.handleHealth)
@@ -14534,7 +14582,7 @@ func definitionDescriptionName(id string, description string) string {
 func harnessHomepage(id string) string {
 	switch id {
 	case "tormentnexus":
-		return "https://github.com/robertpelloni/tormentnexus"
+		return "https://github.com/NexusSoftMDMA/TormentNexus"
 	case "aider":
 		return "https://aider.chat/"
 	case "antigravity":
@@ -14571,7 +14619,7 @@ func harnessHomepage(id string) string {
 func harnessDocsURL(id string) string {
 	switch id {
 	case "tormentnexus":
-		return "https://github.com/robertpelloni/tormentnexus"
+		return "https://github.com/NexusSoftMDMA/TormentNexus"
 	case "aider":
 		return "https://aider.chat/docs/"
 	case "antigravity":

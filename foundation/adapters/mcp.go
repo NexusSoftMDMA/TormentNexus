@@ -7,7 +7,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/robertpelloni/tormentnexus/tormentnexus"
+	"github.com/NexusSoftMDMA/TormentNexus/tormentnexus"
 )
 
 type MCPStatus struct {

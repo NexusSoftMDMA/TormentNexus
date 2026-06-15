@@ -1,0 +1,26 @@
+{
+  "filename": "infernoflow.go",
+  "server_name": "infernoflow",
+  "handlers": [
+    {
+      "tool_name": "infernoflow-init",
+      "handler_func": "HandleInfernoflowInit",
+      "description": "Initialize persistent memory context for the current project. Creates .infernoflow file or runs binary init."
+    },
+    {
+      "tool_name": "infernoflow-save",
+      "handler_func": "HandleInfernoflowSave",
+      "description": "Save a specific memory snippet to the project's persistent context. Requires 'memory' argument."
+    },
+    {
+      "tool_name": "infernoflow-load",
+      "handler_func": "HandleInfernoflowLoad",
+      "description": "Load all persistent memory context for the current project to provide context to the AI."
+    },
+    {
+      "tool_name": "infernoflow-status",
+      "handler_func": "HandleInfernoflowStatus",
+      "description": "Check the status of infernoflow installation and context file existence."
+    }
+  ]
+}

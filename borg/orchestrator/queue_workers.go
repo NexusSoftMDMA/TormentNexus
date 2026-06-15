@@ -7,7 +7,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/robertpelloni/tormentnexus/agents"
+	"github.com/NexusSoftMDMA/TormentNexus/agents"
 )
 
 // HandleIndexCodebase explicitly proxies out the TS handler triggering our new Vector Store recursively.

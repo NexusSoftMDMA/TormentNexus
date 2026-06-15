@@ -6,7 +6,7 @@
   "frontend:dev:watcher": "npm run dev",
   "frontend:dev:serverUrl": "http://localhost:3000",
   "author": {
-    "name": "Robert Pelloni",
+    "name": "",
     "email": "robert@pelloni.com"
   }
 }

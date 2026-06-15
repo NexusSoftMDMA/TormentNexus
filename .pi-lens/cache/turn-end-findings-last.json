@@ -1,6 +1,0 @@
-{
-  "signature": "swarm_v5.py::ℹ️ Advisory — no action required this turn:\nCode-quality warnings introduced/touched this turn: 29 across 1 file(s).\nTop rules: E701×16, E702×11, E722×1\nDetails written to .pi-lens/cache/code-quality-warnings.json\nNo action required unless you are already refactoring these areas.",
-  "sessionId": "lens-mq2zxd3b-1a023d79",
-  "projectSeqStart": 156,
-  "projectSeqEnd": 158
-}

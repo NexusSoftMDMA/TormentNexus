@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/robertpelloni/tormentnexus/agent"
+	"github.com/NexusSoftMDMA/TormentNexus/agent"
 	"github.com/spf13/cobra"
 )
 

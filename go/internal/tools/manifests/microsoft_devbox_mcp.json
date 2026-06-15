@@ -1,0 +1,31 @@
+{
+  "filename": "microsoft_devbox_mcp.go",
+  "server_name": "@microsoft/devbox-mcp",
+  "handlers": [
+    {
+      "tool_name": "list_devbox_projects",
+      "handler_func": "HandleListDevBoxProjects",
+      "description": "Lists all Dev Box projects in an organization"
+    },
+    {
+      "tool_name": "list_devbox_pools",
+      "handler_func": "HandleListDevBoxPools",
+      "description": "Lists Dev Box pools for a specific project"
+    },
+    {
+      "tool_name": "list_devboxes",
+      "handler_func": "HandleListDevBoxes",
+      "description": "Lists Dev Box instances for a user in a project"
+    },
+    {
+      "tool_name": "start_devbox",
+      "handler_func": "HandleStartDevBox",
+      "description": "Starts a Dev Box instance"
+    },
+    {
+      "tool_name": "stop_devbox",
+      "handler_func": "HandleStopDevBox",
+      "description": "Stops a Dev Box instance"
+    }
+  ]
+}

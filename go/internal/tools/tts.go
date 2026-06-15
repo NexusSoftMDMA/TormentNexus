@@ -1,3 +1,6 @@
+//go:build ignore
+// +build ignore
+
 package tools
 
 import (
@@ -136,7 +139,7 @@ func HandleOpenAITTS(ctx context.Context, args map[string]interface{}) (ToolResp
 
 	apiURL := os.Getenv("OPENAI_API_URL")
 	if apiURL == "" {
-		apiURL = "https://api.openai.com/v1/audio/speech"
+		apiURL = "https://api..com/v1/audio/speech"
 	}
 	req, errNew := http.NewRequestWithContext(ctx, "POST", apiURL, bytes.NewBuffer(jsonData))
 	if errNew != nil {
@@ -158,7 +161,7 @@ func HandleOpenAITTS(ctx context.Context, args map[string]interface{}) (ToolResp
 	}
 
 	// Save to temp file
-	tempFile, errTemp := os.CreateTemp("", "openai-tts-*.mp3")
+	tempFile, errTemp := os.CreateTemp("", "-tts-*.mp3")
 	if errTemp != nil {
 		return errResponseTTS(errTemp)
 	}

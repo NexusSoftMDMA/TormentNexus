@@ -1,0 +1,31 @@
+{
+  "filename": "psraghuveer_memento.go",
+  "server_name": "@psraghuveer/memento",
+  "handlers": [
+    {
+      "tool_name": "memento_run",
+      "handler_func": "HandleMementoRun",
+      "description": "Run Memento"
+    },
+    {
+      "tool_name": "memento_info",
+      "handler_func": "HandleMementoInfo",
+      "description": "Get Memento version"
+    },
+    {
+      "tool_name": "memento_help",
+      "handler_func": "HandleMementoHelp",
+      "description": "Get Memento help"
+    },
+    {
+      "tool_name": "memento_init",
+      "handler_func": "HandleMementoInit",
+      "description": "Initialize Memento"
+    },
+    {
+      "tool_name": "memento_status",
+      "handler_func": "HandleMementoStatus",
+      "description": "Get Memento status"
+    }
+  ]
+}

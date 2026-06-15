@@ -1,0 +1,31 @@
+{
+  "filename": "aictx_memory.go",
+  "server_name": "@aictx/memory",
+  "handlers": [
+    {
+      "tool_name": "store_memory",
+      "handler_func": "HandleStoreMemory",
+      "description": "Store a key-value pair in memory"
+    },
+    {
+      "tool_name": "retrieve_memory",
+      "handler_func": "HandleRetrieveMemory",
+      "description": "Retrieve a value by key from memory"
+    },
+    {
+      "tool_name": "list_memories",
+      "handler_func": "HandleListMemories",
+      "description": "List all stored memories"
+    },
+    {
+      "tool_name": "delete_memory",
+      "handler_func": "HandleDeleteMemory",
+      "description": "Delete a key-value pair from memory"
+    },
+    {
+      "tool_name": "search_memory",
+      "handler_func": "HandleSearchMemory",
+      "description": "Search for memories containing specific text"
+    }
+  ]
+}

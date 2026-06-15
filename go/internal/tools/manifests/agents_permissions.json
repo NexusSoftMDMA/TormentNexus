@@ -1,0 +1,21 @@
+{
+  "filename": "agents_permissions.go",
+  "server_name": "agents-permissions",
+  "handlers": [
+    {
+      "tool_name": "get_policy",
+      "handler_func": "HandleGetPolicy",
+      "description": "Retrieve permission policy for a specified agent"
+    },
+    {
+      "tool_name": "set_policy",
+      "handler_func": "HandleSetPolicy",
+      "description": "Set or update permission policy for a specified agent"
+    },
+    {
+      "tool_name": "list_agents",
+      "handler_func": "HandleListAgents",
+      "description": "List all known agents"
+    }
+  ]
+}

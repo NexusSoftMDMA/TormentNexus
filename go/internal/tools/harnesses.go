@@ -1,3 +1,6 @@
+//go:build ignore
+// +build ignore
+
 package tools
 import ("context"; "fmt"; "os/exec")
 func HandleTabby(ctx context.Context, args map[string]interface{}) (ToolResponse, error) {

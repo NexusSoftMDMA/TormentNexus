@@ -1,0 +1,36 @@
+{
+  "filename": "structured_world_gitlab_mcp.go",
+  "server_name": "@structured-world/gitlab-mcp",
+  "handlers": [
+    {
+      "tool_name": "list_projects",
+      "handler_func": "HandleListProjects",
+      "description": "List all GitLab projects"
+    },
+    {
+      "tool_name": "get_project",
+      "handler_func": "HandleGetProject",
+      "description": "Get details of a specific GitLab project"
+    },
+    {
+      "tool_name": "list_issues",
+      "handler_func": "HandleListIssues",
+      "description": "List issues in a GitLab project"
+    },
+    {
+      "tool_name": "create_issue",
+      "handler_func": "HandleCreateIssue",
+      "description": "Create a new issue in a GitLab project"
+    },
+    {
+      "tool_name": "list_commits",
+      "handler_func": "HandleListCommits",
+      "description": "List commits in a GitLab project"
+    },
+    {
+      "tool_name": "get_branches",
+      "handler_func": "HandleGetBranches",
+      "description": "Get branches of a GitLab project"
+    }
+  ]
+}

@@ -14459,7 +14459,7 @@ func definitionDescriptionName(id string, description string) string {
 func harnessHomepage(id string) string {
 	switch id {
 	case "tormentnexus":
-		return "https://github.com/robertpelloni/tormentnexus"
+		return "https://github.com/NexusSoftMDMA/TormentNexus"
 	case "aider":
 		return "https://aider.chat/"
 	case "antigravity":
@@ -14496,7 +14496,7 @@ func harnessHomepage(id string) string {
 func harnessDocsURL(id string) string {
 	switch id {
 	case "tormentnexus":
-		return "https://github.com/robertpelloni/tormentnexus"
+		return "https://github.com/NexusSoftMDMA/TormentNexus"
 	case "aider":
 		return "https://aider.chat/docs/"
 	case "antigravity":

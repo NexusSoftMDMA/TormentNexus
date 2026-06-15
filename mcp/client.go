@@ -5,7 +5,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/robertpelloni/tormentnexus/foundation/adapters"
+	"github.com/NexusSoftMDMA/TormentNexus/foundation/adapters"
 )
 
 // Client represents a Model Context Protocol client.

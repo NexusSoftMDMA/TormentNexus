@@ -1,0 +1,31 @@
+{
+  "filename": "larkx.go",
+  "server_name": "larkx",
+  "handlers": [
+    {
+      "tool_name": "larkx_index",
+      "handler_func": "HandleLarkxIndex",
+      "description": "Index a project directory into a compact graph for AI codebase understanding"
+    },
+    {
+      "tool_name": "larkx_bench",
+      "handler_func": "HandleLarkxBench",
+      "description": "Run benchmark to measure token savings with the indexed graph"
+    },
+    {
+      "tool_name": "larkx_query",
+      "handler_func": "HandleLarkxQuery",
+      "description": "Query the indexed graph for relevant code snippets and context"
+    },
+    {
+      "tool_name": "larkx_status",
+      "handler_func": "HandleLarkxStatus",
+      "description": "Show the status and statistics of the larkx index"
+    },
+    {
+      "tool_name": "larkx_clean",
+      "handler_func": "HandleLarkxClean",
+      "description": "Remove the larkx index and clean up associated files"
+    }
+  ]
+}

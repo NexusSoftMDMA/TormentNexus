@@ -30,7 +30,7 @@ This document is an aggregated index of all autonomous models, multi-agent frame
 
 ## Multi Agent Orchestration systems, SDKs, libraries, references, examples, resources:
 
-- [https://github.com/robertpelloni/TormentNexus](https://github.com/robertpelloni/TormentNexus)
+- [https://github.com/NexusSoftMDMA/TormentNexus](https://github.com/NexusSoftMDMA/TormentNexus)
 - [https://docs.roocode.com/roo-code-cloud/roomote-control](https://docs.roocode.com/roo-code-cloud/roomote-control)
 - [https://github.com/The-Pocket/PocketFlow-Tutorial-Cursor/blob/main/blog.md](https://github.com/The-Pocket/PocketFlow-Tutorial-Cursor/blob/main/blog.md)
 - [https://github.com/OpenHands/OpenHands/blob/f7cb2d0f64666e1f090a5152d7c002aa6f28caf9/openhands/controller/agent_controller.py#L771](https://github.com/OpenHands/OpenHands/blob/f7cb2d0f64666e1f090a5152d7c002aa6f28caf9/openhands/controller/agent_controller.py#L771)
@@ -1219,8 +1219,8 @@ This document is an aggregated index of all autonomous models, multi-agent frame
 - [https://github.com/robertpelloni/antigravity-auto-accept](https://github.com/robertpelloni/antigravity-auto-accept)
 - [https://github.com/robertpelloni/auto-accept-agent](https://github.com/robertpelloni/auto-accept-agent)
 - [https://github.com/robertpelloni/bobcoin/tree/c7d74f00dd51f4b14856187913322facc44738ee](https://github.com/robertpelloni/bobcoin/tree/c7d74f00dd51f4b14856187913322facc44738ee)
-- [https://github.com/robertpelloni/TormentNexus](https://github.com/robertpelloni/TormentNexus)
-- [https://github.com/robertpelloni/TormentNexus](https://github.com/robertpelloni/TormentNexus)
+- [https://github.com/NexusSoftMDMA/TormentNexus](https://github.com/NexusSoftMDMA/TormentNexus)
+- [https://github.com/NexusSoftMDMA/TormentNexus](https://github.com/NexusSoftMDMA/TormentNexus)
 - [https://github.com/robertpelloni/fwber/blob/main/README.md](https://github.com/robertpelloni/fwber/blob/main/README.md)
 - [https://github.com/robertpelloni/jules-autopilot](https://github.com/robertpelloni/jules-autopilot)
 - [https://github.com/robertpelloni/mcp-cli](https://github.com/robertpelloni/mcp-cli)

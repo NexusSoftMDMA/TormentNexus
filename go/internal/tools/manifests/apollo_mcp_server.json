@@ -1,0 +1,21 @@
+{
+  "filename": "apollo_mcp_server.go",
+  "server_name": "apollo-mcp-server",
+  "handlers": [
+    {
+      "tool_name": "search_people",
+      "handler_func": "HandleSearchPeople",
+      "description": "Search for people on Apollo.io using keywords, titles, or organization names."
+    },
+    {
+      "tool_name": "enrich_person",
+      "handler_func": "HandleEnrichPerson",
+      "description": "Enrich person data using email or LinkedIn URL."
+    },
+    {
+      "tool_name": "search_organizations",
+      "handler_func": "HandleSearchOrganizations",
+      "description": "Search for organizations by domain, name, or industry."
+    }
+  ]
+}

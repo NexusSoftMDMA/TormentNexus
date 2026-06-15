@@ -1,14 +1,14 @@
+//go:build ignore
+// +build ignore
+
 package tools
 
 /**
- * @file huggingface.go
- * @module go/internal/tools
+ * @file  * @module go/internal/tools
  *
  * WHAT: Native Go implementation of Hugging Face Hub API.
- * Replaces `huggingface` (SSE: https://huggingface.co/mcp) in mcp.json.
- *
- * Uses the Hugging Face Hub REST API (https://huggingface.co/api).
- * Improvements over original:
+ * Replaces ` *
+ * Uses the Hugging Face Hub REST API (https:// * Improvements over original:
  *  - No SSE connection overhead.
  *  - Supports: model search/details, dataset search/details, space search,
  *              inference (text generation, classification, embeddings),
@@ -29,9 +29,7 @@ import (
 )
 
 const (
-	hfAPIBase       = "https://huggingface.co/api"
-	hfInferenceBase = "https://api-inference.huggingface.co/models"
-)
+	hfAPIBase       = "https://	hfInferenceBase = "https://api-inference.)
 
 func hfToken() string {
 	if t := os.Getenv("HF_TOKEN"); t != "" {
