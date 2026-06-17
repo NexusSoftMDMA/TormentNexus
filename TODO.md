@@ -1,5 +1,15 @@
 # TODO
 
+_Last updated: 2026-06-14, version 1.0.0-alpha.129_
+
+## P0 — Must do now (Stability, Testing & Validation)
+- [x] **Track A: MCP Discovery**: Execute discovery script to rank top 500 MCP servers and seed state DB.
+- [ ] **Track B: Skill Registry**: Verify 3-tier loading with comprehensive unit tests.
+- [x] **Track D: Prompt Migration**: Migrate hardcoded prompts to SQLite. (Completed in alpha.127)
+- [ ] **Data Integrity**: Clean up `assimilation_state.db` statuses for already assimilated tools.
+
+## P1 — Should do next (Integrations)
+- [x] **Harness Integration**: Integrate Tabby, Warp, Hyper, Hyperharness, Hermes Agent, and Pi-Mono. (Verified in alpha.127)
 _Last updated: 2026-06-14, version 1.0.0-alpha.130_
 
 ## P0 — Must do now (Stability, Testing & Validation)
@@ -16,10 +26,10 @@ _Last updated: 2026-06-14, version 1.0.0-alpha.130_
 - [x] **Browser Automation MCP**: Finalize tests and add optional args (`fullPage`, `timeout`) for browser handlers.
 - [ ] **ChunkHound / Probe Integration**: Implement remaining assimilated MCP search tools as native handlers.
 - [ ] **Bobbybookmarks Sync**: Configure automatic sync call triggers for catalog scraping.
-- [ ] **Enterprise Landing**: Create product landing page for self-hosted and enterprise tiers.
+- [ ] **New Native Tools**: Implement `browser-use` and `browsermcp` specialized logic if needed (currently aliased to playwright).
 
 ## P2 — Enterprise Readiness & Security
-- [ ] **License Validation**: Implement Ed25519 license token validation in Go sidecar.
+- [x] **License Validation**: Implement Ed25519 license token validation in Go sidecar. (Verified in alpha.127)
 - [ ] **Compliance Boundary**: Separate SSO/RBAC/Audit logic into enterprise wrapper.
 
 ## P3 — Future Enhancements

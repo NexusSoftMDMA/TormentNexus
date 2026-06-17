@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os/exec"
 	"strings"
+
+	"github.com/tormentnexushq/tormentnexus-go/internal/tools"
 )
 
 // ShellStep creates a step that runs a shell command
@@ -63,5 +65,65 @@ func LintAndTestWorkflow(workspaceRoot string) *Workflow {
 		ShellStep("go-vet", "Go Vet", "go vet ./...", workspaceRoot+"/go"),
 		ShellStep("go-test", "Go Tests", "go test ./...", workspaceRoot+"/go"),
 		ShellStep("ts-typecheck", "TypeScript Typecheck", "pnpm run build:workspace", workspaceRoot),
+	})
+}
+
+// ManagedProjectCIWorkflow creates a generic CI workflow for any managed project
+func ManagedProjectCIWorkflow(id, name, projectPath, buildCmd, testCmd string) *Workflow {
+	steps := []*Step{}
+
+	if buildCmd != "" {
+		steps = append(steps, ShellStep("build", "Build Project", buildCmd, projectPath))
+	}
+
+	testDeps := []string{}
+	if buildCmd != "" {
+		testDeps = append(testDeps, "build")
+	}
+
+	if testCmd != "" {
+		steps = append(steps, ShellStep("test", "Test Project", testCmd, projectPath, testDeps...))
+	}
+
+	return NewWorkflow(id, name, "Automated CI for managed project: "+name, steps)
+}
+
+// ToolStep creates a workflow step that executes a registered native Go tool.
+func ToolStep(id, name, toolName string, reg *tools.Registry, deps ...string) *Step {
+	return &Step{
+		ID:          id,
+		Name:        name,
+		Description: fmt.Sprintf("Execute tool: %s", toolName),
+		DependsOn:   deps,
+		Execute: func(ctx context.Context, inputs map[string]any) (map[string]any, error) {
+			// Merge inputs into arguments
+			args := make(map[string]interface{})
+			for k, v := range inputs {
+				args[k] = v
+			}
+
+			resp, err := reg.Execute(ctx, toolName, args)
+			if err != nil {
+				return nil, err
+			}
+
+			result := map[string]any{
+				"tool":    toolName,
+				"isError": resp.IsError,
+			}
+			if len(resp.Content) > 0 {
+				result["text"] = resp.Content[0].Text
+			}
+			return result, nil
+		},
+	}
+}
+
+// LifecycleWorkflow creates an autonomous unit chaining sync, health, and deployment.
+func LifecycleWorkflow(workspaceRoot string, reg *tools.Registry) *Workflow {
+	return NewWorkflow("autonomous-lifecycle", "Autonomous Lifecycle", "Chains sync, health, and deployment", []*Step{
+		ToolStep("sync", "Sync Repository", "repo_sync", reg),
+		ShellStep("health", "Health Check", "go run cmd/health_monitor/main.go", workspaceRoot+"/go", "sync"),
+		ToolStep("deploy", "Production Deployment", "project_deploy", reg, "health"),
 	})
 }

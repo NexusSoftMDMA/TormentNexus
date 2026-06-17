@@ -13,7 +13,7 @@ type RefactorTool struct{}
 // <<<<<<< SEARCH
 // existing
 // =======
-// new
+// replacement
 // >>>>>>> REPLACE
 func (r *RefactorTool) ApplySearchReplace(filePath, searchBlock, replaceBlock string) error {
 	content, err := os.ReadFile(filePath)

@@ -217,6 +217,7 @@ export interface DashboardHomeViewProps {
     onStopSession?: (sessionId: string) => void;
     onRestartSession?: (sessionId: string) => void;
     pendingSessionActionId?: string | null;
+    children?: React.ReactNode;
 }
 
 export interface OverviewMetric {
@@ -1006,6 +1007,7 @@ export function DashboardHomeView({
     onStopSession,
     onRestartSession,
     pendingSessionActionId,
+    children,
 }: DashboardHomeViewProps) {
     const overviewMetrics = buildOverviewMetrics(mcpStatus, sessions, providers, isBootstrapping);
     const startupChecklist = buildStartupChecklist(startupStatus, isBootstrapping, installSurfaceArtifacts);
@@ -1595,61 +1597,62 @@ export function DashboardHomeView({
                             </div>
                         </div>
                     </section>
-    <section className="rounded-3xl border border-slate-800 bg-slate-900/70 p-6 shadow-lg shadow-slate-950/20">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-200">Immune System</p>
-          <h2 className="mt-2 text-xl font-semibold text-white">Autonomous healer status</h2>
-          <p className="mt-2 text-sm text-slate-400">Real-time pathogen detection, auto-neutralization efficacy, and L2 Vault memory from the Go HealerService.</p>
-        </div>
-        <Link href="/dashboard/healer" title="Open the full Immune System dashboard with live healing stream and persistent vault records" aria-label="Open detailed healer dashboard" className="text-sm font-medium text-cyan-200 transition hover:text-cyan-100">
-          Full Immune System view &rarr;
-        </Link>
-      </div>
-      <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-4">
-          <dt className="text-sm text-slate-400">Active pathogens</dt>
-          <dd className="mt-2 flex items-center gap-2">
-            <span className="text-2xl font-semibold text-white">{healerStatus ? healerStatus.activePathogens : '—'}</span>
-            {healerStatus && healerStatus.activePathogens > 0 && (
-              <span className="h-2.5 w-2.5 rounded-full bg-rose-500 animate-pulse" />
-            )}
-          </dd>
-          <p className="mt-2 text-sm text-slate-400">{healerStatus ? (healerStatus.activePathogens > 0 ? 'Unresolved errors detected' : 'System is clean') : 'Waiting for healer telemetry'}</p>
-        </div>
-        <div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-4">
-          <dt className="text-sm text-slate-400">Auto-neutralized</dt>
-          <dd className="mt-2 text-2xl font-semibold text-emerald-300">{healerStatus ? healerStatus.resolvedCount : '—'}</dd>
-          <p className="mt-2 text-sm text-slate-400">{healerStatus && healerStatus.resolvedCount > 0 ? 'Errors healed autonomously' : 'No healing events yet'}</p>
-        </div>
-        <div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-4">
-          <dt className="text-sm text-slate-400">Immune efficacy</dt>
-          <dd className="mt-2 text-2xl font-semibold text-amber-300">{healerStatus ? `${healerStatus.successRate}%` : '—'}</dd>
-          <p className="mt-2 text-sm text-slate-400">{healerStatus ? (healerStatus.successRate >= 90 ? 'Excellent coverage' : healerStatus.successRate >= 70 ? 'Acceptable coverage' : 'Needs attention') : 'Efficiency metric pending'}</p>
-        </div>
-        <div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-4">
-          <dt className="text-sm text-slate-400">Vault records</dt>
-          <dd className="mt-2 text-2xl font-semibold text-blue-300">{healerStatus ? healerStatus.vaultRecordCount : '—'}</dd>
-          <p className="mt-2 text-sm text-slate-400">{healerStatus && healerStatus.vaultRecordCount > 0 ? 'Persistent L2 memories stored' : 'Vault awaiting first commit'}</p>
-        </div>
-      </div>
-      <div className="mt-4 flex items-center gap-3 text-xs text-slate-500">
-        {healerStatus?.isLive ? (
-          <>
-            <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-            <span>Healer service connected &mdash; live telemetry active</span>
-            {healerStatus.lastHealTime && (
-              <span className="text-slate-600">&middot; Last heal {healerStatus.lastHealTime}</span>
-            )}
-          </>
-        ) : (
-          <>
-            <span className="h-2 w-2 rounded-full bg-slate-600" />
-            <span>Healer service not connected &mdash; data reflects last known state</span>
-          </>
-        )}
-      </div>
-    </section>
+                    <section className="rounded-3xl border border-slate-800 bg-slate-900/70 p-6 shadow-lg shadow-slate-950/20">
+                        <div className="flex items-start justify-between gap-4">
+                            <div>
+                                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-200">Immune System</p>
+                                <h2 className="mt-2 text-xl font-semibold text-white">Autonomous healer status</h2>
+                                <p className="mt-2 text-sm text-slate-400">Real-time pathogen detection, auto-neutralization efficacy, and L2 Vault memory from the Go HealerService.</p>
+                            </div>
+                            <Link href="/dashboard/healer" title="Open the full Immune System dashboard with live healing stream and persistent vault records" aria-label="Open detailed healer dashboard" className="text-sm font-medium text-cyan-200 transition hover:text-cyan-100">
+                                Full Immune System view &rarr;
+                            </Link>
+                        </div>
+                        <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                            <div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-4">
+                                <dt className="text-sm text-slate-400">Active pathogens</dt>
+                                <dd className="mt-2 flex items-center gap-2">
+                                    <span className="text-2xl font-semibold text-white">{healerStatus ? healerStatus.activePathogens : '—'}</span>
+                                    {healerStatus && healerStatus.activePathogens > 0 && (
+                                        <span className="h-2.5 w-2.5 rounded-full bg-rose-500 animate-pulse" />
+                                    )}
+                                </dd>
+                                <p className="mt-2 text-sm text-slate-400">{healerStatus ? (healerStatus.activePathogens > 0 ? 'Unresolved errors detected' : 'System is clean') : 'Waiting for healer telemetry'}</p>
+                            </div>
+                            <div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-4">
+                                <dt className="text-sm text-slate-400">Auto-neutralized</dt>
+                                <dd className="mt-2 text-2xl font-semibold text-emerald-300">{healerStatus ? healerStatus.resolvedCount : '—'}</dd>
+                                <p className="mt-2 text-sm text-slate-400">{healerStatus && healerStatus.resolvedCount > 0 ? 'Errors healed autonomously' : 'No healing events yet'}</p>
+                            </div>
+                            <div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-4">
+                                <dt className="text-sm text-slate-400">Immune efficacy</dt>
+                                <dd className="mt-2 text-2xl font-semibold text-amber-300">{healerStatus ? `${healerStatus.successRate}%` : '—'}</dd>
+                                <p className="mt-2 text-sm text-slate-400">{healerStatus ? (healerStatus.successRate >= 90 ? 'Excellent coverage' : healerStatus.successRate >= 70 ? 'Acceptable coverage' : 'Needs attention') : 'Efficiency metric pending'}</p>
+                            </div>
+                            <div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-4">
+                                <dt className="text-sm text-slate-400">Vault records</dt>
+                                <dd className="mt-2 text-2xl font-semibold text-blue-300">{healerStatus ? healerStatus.vaultRecordCount : '—'}</dd>
+                                <p className="mt-2 text-sm text-slate-400">{healerStatus && healerStatus.vaultRecordCount > 0 ? 'Persistent L2 memories stored' : 'Vault awaiting first commit'}</p>
+                            </div>
+                        </div>
+                        <div className="mt-4 flex items-center gap-3 text-xs text-slate-500">
+                            {healerStatus?.isLive ? (
+                                <>
+                                    <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                                    <span>Healer service connected &mdash; live telemetry active</span>
+                                    {healerStatus.lastHealTime && (
+                                        <span className="text-slate-600">&middot; Last heal {healerStatus.lastHealTime}</span>
+                                    )}
+                                </>
+                            ) : (
+                                <>
+                                    <span className="h-2 w-2 rounded-full bg-slate-600" />
+                                    <span>Healer service not connected &mdash; data reflects last known state</span>
+                                </>
+                            )}
+                        </div>
+                    </section>
+                    {children}
                 </div>
             </div>
         </div>

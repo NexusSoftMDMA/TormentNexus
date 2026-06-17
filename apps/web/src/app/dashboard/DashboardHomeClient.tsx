@@ -14,6 +14,8 @@ import {
   type DashboardTrafficSummary,
 } from './dashboard-home-view';
 import { useGoSidecarDashboard } from '../../hooks/useGoSidecarData';
+import { BrowserToolWidget } from '../../components/BrowserToolWidget';
+import { VibeCheckWidget } from '../../components/VibeCheckWidget';
 
 const SESSION_STATUS_PRIORITY: Record<DashboardSessionSummary['status'], number> = {
   error: 6,
@@ -293,6 +295,9 @@ export function DashboardHomeClient() {
         restartSessionMutation.mutate({ id: sessionId });
       }}
       pendingSessionActionId={pendingSessionActionId}
-    />
+    >
+      <BrowserToolWidget />
+      <VibeCheckWidget />
+    </DashboardHomeView>
   );
 }
