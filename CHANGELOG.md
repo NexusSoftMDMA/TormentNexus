@@ -378,3 +378,20 @@
 - Dual-tier cache invalidation for the L1/L2 memory boundaries.
 - Shifted authority of MCP configuration sync entirely to the Go sidecar.
 - Removed legacy TS synchronization scripts for VSCode and Cursor.
+
+## [1.0.0-alpha.131] — 2026-06-16
+### Added
+- Session re-ingestion pipeline via `/api/sessions/imported/scan`
+- Swarm v7 orchestration with 5 workers, 200 task limit, --forever mode
+### Changed
+- All workspace packages synced to 1.0.0-alpha.131
+- Go sidecar bridges to TypeScript control plane on port 4100
+### Fixed
+- Session export import with proper JSON body format `{"data":"{}","merge":true,"dryRun":false}`
+- Swarm --repair flag removed for stability (was causing early exits)
+### Notes
+- Swarm running with nohup: PID in swarm_forever.pid
+- Go sidecar running on port 4300
+- TypeScript control plane running on port 4100
+- Phase 5 (links-backlog) blocked: bobbybookmarks.com DNS failure
+- Phase 7 (session import) pending: 49 valid candidates discovered
