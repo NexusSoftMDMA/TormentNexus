@@ -28,7 +28,7 @@
     "typecheck": "set TURBO_DAEMON=false&& turbo run typecheck"
   },
   "devDependencies": {
-    "@modelcontextprotocol/sdk": "^1.29.0",
+    "@modelcontextprotocol/sdk": "^1.26.0",
     "@rollup/rollup-win32-x64-msvc": "4.55.1",
     "@types/node": "^20.10.0",
     "@typescript-eslint/eslint-plugin": "^8.53.0",
