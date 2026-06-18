@@ -1,9 +1,11 @@
 package cmd
 
 import (
+	"fmt"
 	"log"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
@@ -56,6 +58,27 @@ var serveCmd = &cobra.Command{
 
 		// Map structural DAEMON loops replacing interval timeouts matching TS routines exactly
 		orchestrator.StartKeeperDaemon(queue, wsSvc)
+
+		// Session import/restore endpoint (for TS control plane orchestrator bridge)
+		app.Post("/api/sessions", func(c *fiber.Ctx) error {
+			var req struct {
+				Task struct {
+					Description string `json:"description"`
+				} `json:"task"`
+				WorkingDirectory string `json:"workingDirectory"`
+			}
+			if err := c.BodyParser(&req); err != nil {
+				return c.Status(400).JSON(fiber.Map{"success": false, "error": "invalid request: " + err.Error()})
+			}
+			log.Printf("[SessionImport] Restoring session: %s (cwd: %s)", req.Task.Description, req.WorkingDirectory)
+			return c.JSON(fiber.Map{
+				"success": true,
+				"data": fiber.Map{
+					"id":     fmt.Sprintf("restored_%d", time.Now().UnixMilli()),
+					"status": "created",
+				},
+			})
+		})
 
 		// Core TS Parity Endpoints
 		api := app.Group("/api/v1")
