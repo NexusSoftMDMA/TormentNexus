@@ -1,11 +1,15 @@
 """
-Session Import Automation Script
+Session Import — Fix Data Format
 ==================================
-Reads candidate session files discovered by the Go sidecar scanner
-and imports them into the tormentnexus database via the tRPC bridge.
+Reads candidate session files and wraps them in the correct 
+TormentNexus ExportPackage format for the TS tRPC import endpoint.
+
+Expected format:
+  {"version":"1.0","sessions":[{"id","name","cliType","createdAt","workingDirectory","metadata","logs","memories"},...]}
 
 Usage:
-    python scripts/import_sessions.py [--dry-run]
+    python scripts/import_sessions.py
+    python scripts/import_sessions.py --dry-run
 """
 
 import json
@@ -15,29 +19,61 @@ import urllib.request
 import urllib.error
 
 GO_API = "http://localhost:4300"
-TS_TRPC = "http://localhost:4100/trpc"
+CANDIDATE_FILE = os.path.expanduser("~/.claude/history.jsonl")
 
+def build_export_package(raw_jsonl: str) -> dict:
+    """Convert a JSONL file into TormentNexus ExportPackage format."""
+    sessions = []
+    for i, line in enumerate(raw_jsonl.strip().split("\n")):
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            entry = json.loads(line)
+        except json.JSONDecodeError:
+            continue
 
-def get_candidates():
-    """Fetch candidate list from Go sidecar."""
-    url = f"{GO_API}/api/import/summary"
-    try:
-        with urllib.request.urlopen(url, timeout=10) as r:
-            return json.loads(r.read()).get("data", {})
-    except Exception as e:
-        print(f"ERROR: Cannot reach Go sidecar at {GO_API}: {e}")
-        sys.exit(1)
-
-
-def import_session(data_json: str, dry_run: bool = False):
-    """Import a session via TS control plane tRPC bridge."""
-    payload = json.dumps(
-        {
-            "data": data_json,
-            "merge": True,
-            "dryRun": dry_run,
+        session = {
+            "id": entry.get("uuid", entry.get("id", f"claude_{i}")),
+            "name": entry.get("title", entry.get("summary", f"Session {i}")),
+            "cliType": "claude-code",
+            "status": "stopped",
+            "createdAt": entry.get("created_at", entry.get("startTime", 0)),
+            "workingDirectory": os.getcwd(),
+            "metadata": {k: v for k, v in entry.items() if k not in ("messages", "transcript")},
+            "logs": [],
+            "memories": [],
         }
-    ).encode()
+
+        # Include transcript in metadata
+        transcript = entry.get("transcript", "") or ""
+        messages = entry.get("messages", [])
+        if isinstance(messages, list) and len(messages) > 0:
+            transcript = json.dumps(messages)
+        if transcript:
+            session["metadata"]["transcriptSnippet"] = transcript[:5000]
+            session["logs"] = [{"timestamp": 0, "level": "info", "message": transcript[:50000]}]
+
+        sessions.append(session)
+
+    return {
+        "version": "1.0",
+        "exportedAt": int(__import__("time").time() * 1000),
+        "tormentnexusVersion": "0.90.5",
+        "environment": "windows",
+        "sessionCount": len(sessions),
+        "sessions": sessions,
+        "globalMemories": [],
+    }
+
+
+def import_export(pkg: dict, dry_run: bool = False):
+    """Send properly formatted export package to the import endpoint."""
+    payload = json.dumps({
+        "data": json.dumps(pkg),
+        "merge": True,
+        "dryRun": dry_run,
+    }).encode()
 
     req = urllib.request.Request(
         f"{GO_API}/api/session-export/import",
@@ -48,108 +84,43 @@ def import_session(data_json: str, dry_run: bool = False):
         with urllib.request.urlopen(req, timeout=30) as r:
             return json.loads(r.read())
     except urllib.error.HTTPError as e:
-        return {"error": e.read().decode()[:200]}
+        return {"error": e.read().decode()[:300]}
     except Exception as e:
         return {"error": str(e)}
 
 
 def main():
     dry_run = "--dry-run" in sys.argv
+    print(f"Session Import — Dry Run: {dry_run}\n")
 
-    print("=== Session Import Automation ===\n")
-    print(f"Dry run: {dry_run}\n")
-
-    data = get_candidates()
-    count = data.get("count", 0)
-    valid = data.get("validCount", 0)
-    print(f"Candidates found: {count} total, {valid} valid\n")
-
-    if count == 0:
-        print("No candidates to import.")
+    if not os.path.exists(CANDIDATE_FILE):
+        print(f"Candidate file not found: {CANDIDATE_FILE}")
         return
 
-    print(f"By source tool: {data.get('bySourceTool', [])}")
-    print(f"By format: {data.get('byFormat', [])}")
-    print()
+    with open(CANDIDATE_FILE, "r", encoding="utf-8", errors="replace") as f:
+        raw = f.read()
 
-    # The Go sidecar doesn't expose file paths directly through the API.
-    # Candidate files are in ~/.claude, ~/.aider, etc.
-    # We scan known directories for session files matching the candidate count.
+    print(f"Reading: {CANDIDATE_FILE} ({len(raw):,} bytes)")
 
-    import glob
+    pkg = build_export_package(raw)
+    print(f"Built export package: {pkg['sessionCount']} sessions\n")
 
-    home = os.path.expanduser("~")
-    workspace = os.getcwd()
+    result = import_export(pkg, dry_run=dry_run)
 
-    scan_roots = [
-        os.path.join(home, ".claude"),
-        os.path.join(home, ".aider"),
-        os.path.join(workspace, ".claude"),
-        os.path.join(workspace, ".aider"),
-        os.path.join(home, "AppData", "Roaming", "Claude"),
-    ]
+    if "error" in result:
+        print(f"ERROR: {result['error'][:200]}")
+        return
 
-    session_files = []
-    for root in scan_roots:
-        if os.path.isdir(root):
-            for ext in ["*.jsonl", "*.json", "*.md"]:
-                session_files.extend(
-                    glob.glob(os.path.join(root, "**", ext), recursive=True)
-                )
-
-    # Filter to files that look like session exports
-    candidates = []
-    for f in session_files:
-        name = os.path.basename(f).lower()
-        if any(
-            hint in name
-            for hint in ["session", "chat", "conversation", "transcript", "history"]
-        ):
-            candidates.append(f)
-
-    candidates = sorted(set(candidates))
-    print(f"Found {len(candidates)} session files on disk\n")
-
-    imported = 0
-    errors = 0
-    for fpath in candidates:
-        fsize = os.path.getsize(fpath)
-        print(
-            f"  [{'+' if not dry_run else 'D'}] {os.path.relpath(fpath, home)} ({fsize:,} bytes)"
-        )
-
-        if dry_run:
-            continue
-
-        try:
-            with open(fpath, "r", encoding="utf-8", errors="replace") as f:
-                content = f.read()
-        except Exception as e:
-            print(f"    ERROR reading file: {e}")
-            errors += 1
-            continue
-
-        if not content.strip():
-            print("    SKIP: empty file")
-            continue
-
-        result = import_session(content, dry_run=False)
-        if result.get("success"):
-            imported += 1
-            i = result.get("data", {}).get("imported", 0)
-            m = result.get("data", {}).get("merged", 0)
-            print(f"    OK: imported={i}, merged={m}")
-        else:
-            errors += 1
-            err_msg = result.get("error", "unknown")
-            print(f"    FAIL: {err_msg[:100]}")
-
-    print("\n=== Summary ===")
-    print(f"  Total candidates: {len(candidates)}")
-    print(f"  Imported: {imported}")
-    print(f"  Errors: {errors}")
-    print(f"  Dry run: {dry_run}")
-
+    report = result.get("data", {})
+    print("Result:")
+    print(f"  Imported: {report.get('imported', 0)}")
+    print(f"  Merged:  {report.get('merged', 0)}")
+    print(f"  Skipped: {report.get('skipped', 0)}")
+    print(f"  Errors:  {len(report.get('errors', []))}")
+    for e in report.get("errors", [])[:5]:
+        print(f"    - {e[:150]}")
+    for d in report.get("details", [])[:3]:
+        print(f"    {d.get('action')}: {d.get('sessionId','')[:40]} {d.get('reason','')}")
 
 if __name__ == "__main__":
     main()
