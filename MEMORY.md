@@ -15,6 +15,17 @@
 - Table of Contents is essential for a 650+ line document
 - Using ASCII art for architecture diagrams is more reliable than Mermaid in plain markdown (though Mermaid works in GitHub)
 
+## Session 2026-06-18 (Staging & Cleanup Session)
+
+### Swarm Observations
+- **Swarm stopped by itself**: No active swarm process found. The `swarm_v8.out` log shows it was hitting provider errors (nvidia empty responses) before stopping. May need a fresh run.
+- **73 empty stub files committed**: Swarm creates zero-byte `.go` stub files that Go's build system silently ignores (no `package` declaration). These need to be filled before they become functional.
+- **LLM provider flakiness**: Nvidia models (deepseek-v4-pro, deepseek-v4-flash, qwen-coder) returning empty responses consistently — may need to rotate providers or add retry fallbacks.
+
+### Cleanup Observations
+- **`.out` files grow large**: `swarm_forever.out` was 304KB, `swarm_norepair.out` was 182KB. These should be `.gitignore`'d after review.
+- **`.pid` files are ephemeral**: Should never be tracked — they change every restart.
+
 ### Gotchas & Git Quirks
 - **`data/` is gitignored** but `.db` files inside it may be tracked if added before the ignore rule. Always use `git add -f` or `git add -u` for DB files, never `git add data/`
 - **`*.db-shm` and `*.db-wal`** are ignored — SQLite WAL files won't be committed. Good for avoiding large binary diffs.

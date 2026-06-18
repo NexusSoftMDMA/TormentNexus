@@ -1,3 +1,0 @@
-usage: swarm_v7.py [-h] [--workers WORKERS] [--limit LIMIT] [--forever]
-                   [--repair] [--no-research] [--proxy PROXY] [--log LOG]
-swarm_v7.py: error: unrecognized arguments: --proxy-port 4000 --proxy-host 127.0.0.1

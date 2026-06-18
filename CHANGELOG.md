@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.0.0-alpha.133] - 2026-06-18
+### Added
+- **77 new swarm-generated Go tool stubs**: Staged and committed across `go/internal/tools/` — includes actiongate, americaslawgraph, apollouniversalmcpserver, and 74 more.
+- **Swarm artifact cleanup**: Removed stale `.out` and `.pid` files (swarm_forever, swarm_v8, swarm_norepair, etc.)
+
+### Changed
+- `registry.go`: Updated with new tool registrations
+- `antenna_fyi.go`, `fre4x_docx.go`, `fre4x_jupyter.go`, `fre4x_yahoo_finance.go`: Modified by swarm code reviews
+- `multi_cloud_docs_search.go`, `queuesim.go`, `resume_to_jobdescription_matcher.go`: Updated implementations
+
+### Removed
+- `googletasks.go`: Deleted (removed by swarm as part of cleanup)
+- Swarm stale artifacts: `swarm_forever.out`, `swarm_v8.out`, `swarm_norepair.out`, `swarm_run*.out`, stale `.pid` files
+
 ## [1.0.0-alpha.132] - 2026-06-17
 ### Added
 - **Comprehensive README.md Rewrite**: Expanded from 82 lines to 657 lines (~34KB) covering full architecture, capabilities, monorepo structure, Go sidecar, dashboard, MCP ecosystem, memory model, swarm, and API surface.
