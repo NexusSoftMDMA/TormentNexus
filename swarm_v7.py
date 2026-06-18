@@ -90,29 +90,7 @@ PROXY_BASE = f"{PROXY_URL}/v1/chat/completions"
 
 DIRECT_PROVIDERS = []
 
-# Generator pool - NVIDIA NIM for high-quality code generation
-NVIDIA_KEY = os.environ.get("NVIDIA_API_KEY", "")
-NVIDIA_BASE = "https://integrate.api.nvidia.com/v1/chat/completions"
-
-if NVIDIA_KEY:
-    for _model, _cd in [
-        ("qwen/qwen3-coder-480b-a35b-instruct", 5),
-        ("qwen/qwen3.5-397b-a17b", 5),
-        ("deepseek-ai/deepseek-v4-pro", 10),
-        ("deepseek-ai/deepseek-v4-flash", 5),
-    ]:
-        DIRECT_PROVIDERS.append(
-            {
-                "name": f"nvidia-{_model.replace('/', '-').lower()}",
-                "url": NVIDIA_BASE,
-                "key": NVIDIA_KEY,
-                "model": _model,
-                "cooldown": _cd,
-                "timeout": 300,
-                "stream": False,
-            }
-        )
-
+# Generator pool - free-llm proxy (nvidia models removed - EOL since 2026-06-11)
 # Also add free-llm proxy as fallback
 for _model, _cd in [
     ("free-llm", 10),
