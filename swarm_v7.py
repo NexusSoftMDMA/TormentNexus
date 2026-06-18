@@ -135,19 +135,19 @@ GENERATOR_MODELS = [
     "free-llm-fallback",
 ]
 REVIEWER_MODELS = [
+    "free-llm",
+    "free-llm-fallback",
     "deepseek-ai/deepseek-v4-flash",
     "z-ai/glm-4.7-flash",
     "stepfun-ai/step-3.7-flash",
     "glm-4-flash",
-    "free-llm",
-    "free-llm-fallback",
 ]
 FIXER_MODELS = [
+    "free-llm",
+    "free-llm-fallback",
     "qwen/qwen3.5-397b-a17b",
     "deepseek-ai/deepseek-v4-pro",
     "z-ai/glm-4.7",
-    "free-llm",
-    "free-llm-fallback",
 ]
 
 STREAM_TIMEOUT = 300
