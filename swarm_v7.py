@@ -111,7 +111,7 @@ for _model, _cd in [
 # FALLBACK: LM Studio local models (localhost:1234)
 LMSTUDIO_BASE = "http://localhost:1234/v1/chat/completions"
 for _model, _cd in [
-    ("local-model", 60),
+    ("local-model", 120),
 ]:
     DIRECT_PROVIDERS.append(
         {
@@ -120,8 +120,8 @@ for _model, _cd in [
             "key": "",
             "model": _model,
             "cooldown": _cd,
-            "timeout": 120,
-            "stream": True,
+            "timeout": 3600,
+            "stream": False,
         }
     )
 
@@ -132,13 +132,13 @@ FIXER_MODELS = ["free-llm", "free-llm-fallback"]
 
 STREAM_TIMEOUT = 3600
 CURL_TIMEOUT = 3600
-CALL_COOLDOWN = 15  # Per-provider cooldown (in seconds)
-PIPELINE_COOLDOWN = 15  # Throttle: don't overload freellm
-MAX_RETRIES = 50
-RETRY_BASE_DELAY = 30
-CIRCUIT_BREAKER_FAILS = 100
-CIRCUIT_BREAKER_COOLDOWN = 30
-MIN_CONTENT_LENGTH = 30
+CALL_COOLDOWN = 60  # Per-provider cooldown — slow down retry rate
+PIPELINE_COOLDOWN = 30  # Throttle pipeline stages
+MAX_RETRIES = 20
+RETRY_BASE_DELAY = 60  # Start with 60s delay, exponential backoff
+CIRCUIT_BREAKER_FAILS = 50
+CIRCUIT_BREAKER_COOLDOWN = 60
+MIN_CONTENT_LENGTH = 200  # Ignore short garbage responses ("GEN NO-CODE")
 BUILD_VERIFY_EVERY = 3
 PROXY_RESTART_AFTER = 8
 
