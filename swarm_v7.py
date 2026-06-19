@@ -94,8 +94,8 @@ DIRECT_PROVIDERS = []
 # Generator pool - proxy-based models (nvidia DIRECT providers removed - EOL since 2026-06-11)
 # Models route through local proxy at localhost:4000
 for _model, _cd in [
-    ("free-llm", 8),
-    ("free-llm-fallback", 15),
+    ("free-llm", 5),
+    ("free-llm-fallback", 10),
     ("gpt-4o-mini", 10),
     ("claude-3-haiku", 10),
     ("gemini-3-flash", 10),
@@ -109,7 +109,7 @@ for _model, _cd in [
             "key": PROXY_KEY,
             "model": _model,
             "cooldown": _cd,
-            "timeout": 300,
+            "timeout": 3600,
             "stream": True,
         }
     )
@@ -134,16 +134,16 @@ FIXER_MODELS = [
     "z-ai/glm-4.7",
 ]
 
-STREAM_TIMEOUT = 300
-CURL_TIMEOUT = 330
+STREAM_TIMEOUT = 3600
+CURL_TIMEOUT = 3600
 CALL_COOLDOWN = (
     3  # Reduced! Was 90s - now only 3s (per-provider cooldown handles rate limits)
 )
 PIPELINE_COOLDOWN = 5  # Reduced! Was 30s
-MAX_RETRIES = 5
-RETRY_BASE_DELAY = 10
-CIRCUIT_BREAKER_FAILS = 10
-CIRCUIT_BREAKER_COOLDOWN = 120
+MAX_RETRIES = 50
+RETRY_BASE_DELAY = 30
+CIRCUIT_BREAKER_FAILS = 100
+CIRCUIT_BREAKER_COOLDOWN = 30
 MIN_CONTENT_LENGTH = 30
 BUILD_VERIFY_EVERY = 3
 PROXY_RESTART_AFTER = 8
@@ -373,7 +373,7 @@ class LLMClient:
         url = provider["url"]
         key = provider["key"]
         model = provider["model"]
-        timeout = provider.get("timeout", 300)
+        timeout = provider.get("timeout", 3600)
         self._wait_for_cooldown(provider)
         self.provider_last_call[name] = time.time()
         payload = json.dumps(
@@ -953,17 +953,19 @@ def make_gen_prompt(task, sources=None):
     d = task.get("description", "")
     cat = task.get("category", "")
     fn = name_to_filename(n)
-    
+
     # Include original source code in prompt if available
     source_section = ""
     if sources:
-        source_section = "\n\nORIGINAL MCP SERVER SOURCE CODE (reimplement this in Go):\n"
+        source_section = (
+            "\n\nORIGINAL MCP SERVER SOURCE CODE (reimplement this in Go):\n"
+        )
         for fname in sorted(sources.keys()):
             content = sources[fname][:8000]
             if content.strip():
                 source_section += f"\n--- {fname} ---\n{content}\n"
         source_section = source_section[:20000]
-    
+
     prompt = textwrap.dedent(f"""\
 Implement a Go-native MCP tool module for "{n}".
 GitHub: {u} | Category: {cat} | Description: {d}{source_section}
@@ -1015,13 +1017,26 @@ def fetch_source_code(github_url, temp_dir):
     try:
         subprocess.run(
             ["git", "clone", "--depth", "1", "--single-branch", repo_url, dest],
-            capture_output=True, text=True, timeout=60,
+            capture_output=True,
+            text=True,
+            timeout=60,
         )
     except Exception:
         # Fall back to raw file fetching
         raw_base = repo_url.replace("github.com", "raw.githubusercontent.com")
         for branch in ["main", "master"]:
-            for path in ["package.json", "mcp.json", "index.ts", "index.js", "server.ts", "server.py", "src/index.ts", "src/index.js", "src/server.ts", "src/server.py"]:
+            for path in [
+                "package.json",
+                "mcp.json",
+                "index.ts",
+                "index.js",
+                "server.ts",
+                "server.py",
+                "src/index.ts",
+                "src/index.js",
+                "src/server.ts",
+                "src/server.py",
+            ]:
                 try:
                     req = urllib.request.Request(
                         f"{raw_base}/{branch}/{path}",
@@ -1042,12 +1057,24 @@ def fetch_source_code(github_url, temp_dir):
         ext_patterns = (".ts", ".js", ".py", ".json", ".md")
         for root, dirs, files in os.walk(dest):
             # Skip node_modules, .git, dist
-            dirs[:] = [d for d in dirs if d not in ("node_modules", ".git", "dist", ".next", "build")]
+            dirs[:] = [
+                d
+                for d in dirs
+                if d not in ("node_modules", ".git", "dist", ".next", "build")
+            ]
             for fn in files:
-                if fn.endswith(ext_patterns) and os.path.getsize(os.path.join(root, fn)) < 50000:
+                if (
+                    fn.endswith(ext_patterns)
+                    and os.path.getsize(os.path.join(root, fn)) < 50000
+                ):
                     rel = os.path.relpath(os.path.join(root, fn), dest)
                     try:
-                        with open(os.path.join(root, fn), "r", encoding="utf-8", errors="replace") as f:
+                        with open(
+                            os.path.join(root, fn),
+                            "r",
+                            encoding="utf-8",
+                            errors="replace",
+                        ) as f:
                             sources[rel] = f.read()[:15000]
                     except Exception:
                         pass
@@ -1281,7 +1308,7 @@ def worker_loop(worker_id, shutdown, completed_lock, completed_count):
 
         # === PHASE 1: GENERATE ===
         log.phase(f"GEN: {name}", worker_id)
-        
+
         # Fetch original source code if GitHub URL is available
         sources = {}
         github_url = task.get("github_url", "")
@@ -1300,10 +1327,11 @@ def worker_loop(worker_id, shutdown, completed_lock, completed_count):
                 # Clean up temp dir
                 try:
                     import shutil
+
                     shutil.rmtree(temp_dir, ignore_errors=True)
                 except Exception:
                     pass
-        
+
         prompt, system = make_gen_prompt(task, sources=sources if sources else None)
         output = llm.call(prompt, system, phase="gen", wid=worker_id)
         if not output:
