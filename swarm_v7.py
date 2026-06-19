@@ -293,7 +293,7 @@ class LLMClient:
         self.provider_fails = {}
         self.provider_oks = {}
         # Global concurrency limiter for proxy calls
-        self._llm_semaphore = threading.Semaphore(2)  # max 2 concurrent LLM requests — don't overload freellm
+        self._llm_semaphore = threading.Semaphore(5)  # max 5 concurrent LLM requests
 
     def _next_provider(self):
         with self.lock:
@@ -1784,7 +1784,7 @@ def main():
     ap = argparse.ArgumentParser(
         description="TormentNexus Swarm v7 - The Verified Assimilator"
     )
-    ap.add_argument("--workers", type=int, default=2)
+    ap.add_argument("--workers", type=int, default=5)
     ap.add_argument("--limit", type=int, default=50)
     ap.add_argument("--forever", action="store_true")
     ap.add_argument("--repair", action="store_true")
