@@ -947,15 +947,27 @@ def name_to_filename(name):
     return n[:60]
 
 
-def make_gen_prompt(task):
+def make_gen_prompt(task, sources=None):
     n = task["name"]
     u = task.get("github_url", "")
     d = task.get("description", "")
     cat = task.get("category", "")
     fn = name_to_filename(n)
+    
+    # Include original source code in prompt if available
+    source_section = ""
+    if sources:
+        source_section = "\n\nORIGINAL MCP SERVER SOURCE CODE (reimplement this in Go):\n"
+        for fname in sorted(sources.keys()):
+            content = sources[fname][:8000]
+            if content.strip():
+                source_section += f"\n--- {fname} ---\n{content}\n"
+        source_section = source_section[:20000]
+    
     prompt = textwrap.dedent(f"""\
 Implement a Go-native MCP tool module for "{n}".
-GitHub: {u} | Category: {cat} | Description: {d}
+GitHub: {u} | Category: {cat} | Description: {d}{source_section}
+CRITICAL: Study the original MCP server source code above and faithfully reimplement EVERY tool/function in Go.
 RULES:
 1. Package: package tools
 2. Handler: func HandleXxx(ctx context.Context, args map[string]interface{{}}) (ToolResponse, error)
@@ -979,6 +991,64 @@ No pseudocode, no TODOs. Every function MUST compile.
 Do NOT redeclare types from parity.go. NO external packages.
 Output ===GO_FILE=== then code, then ===MANIFEST=== then JSON.""")
     return prompt, system
+
+
+def fetch_source_code(github_url, temp_dir):
+    """Download original MCP server source code to a temp directory.
+    Returns dict of {filename: content} for key source files."""
+    sources = {}
+    if not github_url or "github.com" not in github_url:
+        return sources
+
+    repo_url = github_url.rstrip("/")
+    if repo_url.endswith(".git"):
+        repo_url = repo_url[:-4]
+
+    repo_name = repo_url.split("/")[-1]
+    dest = os.path.join(temp_dir, repo_name)
+
+    # Try shallow clone first
+    try:
+        subprocess.run(
+            ["git", "clone", "--depth", "1", "--single-branch", repo_url, dest],
+            capture_output=True, text=True, timeout=60,
+        )
+    except Exception:
+        # Fall back to raw file fetching
+        raw_base = repo_url.replace("github.com", "raw.githubusercontent.com")
+        for branch in ["main", "master"]:
+            for path in ["package.json", "mcp.json", "index.ts", "index.js", "server.ts", "server.py", "src/index.ts", "src/index.js", "src/server.ts", "src/server.py"]:
+                try:
+                    req = urllib.request.Request(
+                        f"{raw_base}/{branch}/{path}",
+                        headers={"User-Agent": "Mozilla/5.0"},
+                    )
+                    with urllib.request.urlopen(req, timeout=15) as r:
+                        content = r.read().decode("utf-8", errors="replace")
+                        if content.strip():
+                            sources[path] = content[:15000]
+                except Exception:
+                    continue
+            if sources:
+                break
+        return sources
+
+    # Read key source files from cloned repo
+    if os.path.isdir(dest):
+        ext_patterns = (".ts", ".js", ".py", ".json", ".md")
+        for root, dirs, files in os.walk(dest):
+            # Skip node_modules, .git, dist
+            dirs[:] = [d for d in dirs if d not in ("node_modules", ".git", "dist", ".next", "build")]
+            for fn in files:
+                if fn.endswith(ext_patterns) and os.path.getsize(os.path.join(root, fn)) < 50000:
+                    rel = os.path.relpath(os.path.join(root, fn), dest)
+                    try:
+                        with open(os.path.join(root, fn), "r", encoding="utf-8", errors="replace") as f:
+                            sources[rel] = f.read()[:15000]
+                    except Exception:
+                        pass
+
+    return sources
 
 
 def make_review_prompt(go_code):
@@ -1207,7 +1277,30 @@ def worker_loop(worker_id, shutdown, completed_lock, completed_count):
 
         # === PHASE 1: GENERATE ===
         log.phase(f"GEN: {name}", worker_id)
-        prompt, system = make_gen_prompt(task)
+        
+        # Fetch original source code if GitHub URL is available
+        sources = {}
+        github_url = task.get("github_url", "")
+        if github_url and "github.com" in github_url:
+            log.info(f"Fetching source for {name}: {github_url}", worker_id)
+            temp_dir = tempfile.mkdtemp(prefix="mcp_src_")
+            try:
+                sources = fetch_source_code(github_url, temp_dir)
+                if sources:
+                    log.info(f"Got {len(sources)} source files for {name}", worker_id)
+                else:
+                    log.warn(f"No source files fetched for {name}", worker_id)
+            except Exception as e:
+                log.warn(f"Source fetch failed for {name}: {e}", worker_id)
+            finally:
+                # Clean up temp dir
+                try:
+                    import shutil
+                    shutil.rmtree(temp_dir, ignore_errors=True)
+                except Exception:
+                    pass
+        
+        prompt, system = make_gen_prompt(task, sources=sources if sources else None)
         output = llm.call(prompt, system, phase="gen", wid=worker_id)
         if not output:
             fail_task(name, "gen: LLM failed")
@@ -1425,7 +1518,9 @@ def worker_validate(worker_id, shutdown, completed_lock, completed_count):
         # Fetch original MCP server info from GitHub
         original_info = ""
         if github_url and "github.com" in github_url:
-            raw_base = github_url.rstrip("/").replace("github.com", "raw.githubusercontent.com")
+            raw_base = github_url.rstrip("/").replace(
+                "github.com", "raw.githubusercontent.com"
+            )
             for branch in ["main", "master"]:
                 for path in ["README.md", "package.json", "mcp.json"]:
                     try:
@@ -1441,7 +1536,9 @@ def worker_validate(worker_id, shutdown, completed_lock, completed_count):
                     break
 
         if not original_info:
-            record_validation(name, "NO_ORIGINAL", f"cannot fetch source from {github_url}")
+            record_validation(
+                name, "NO_ORIGINAL", f"cannot fetch source from {github_url}"
+            )
             with completed_lock:
                 completed_count[0] += 1
             continue
@@ -1496,7 +1593,9 @@ Reply with exactly one keyword on the first line, then a brief explanation on th
 
 # === ORCHESTRATOR ===
 class Swarm:
-    def __init__(self, max_workers, limit, forever, repair_only, no_research, validate=False):
+    def __init__(
+        self, max_workers, limit, forever, repair_only, no_research, validate=False
+    ):
         self.max_workers = max_workers
         self.limit = limit
         self.forever = forever
@@ -1657,7 +1756,11 @@ def main():
     ap.add_argument("--limit", type=int, default=50)
     ap.add_argument("--forever", action="store_true")
     ap.add_argument("--repair", action="store_true")
-    ap.add_argument("--validate", action="store_true", help="Validate Go ports against original MCP servers")
+    ap.add_argument(
+        "--validate",
+        action="store_true",
+        help="Validate Go ports against original MCP servers",
+    )
     ap.add_argument("--no-research", action="store_true", default=True)
     ap.add_argument("--proxy", type=str, default=None)
     ap.add_argument("--log", type=str, default=None)
