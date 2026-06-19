@@ -25,24 +25,44 @@ WORKERS = {
         "script": "swarm_v7.py",
         "args": ["--forever"],
         "log": "data/swarm_watchdog.log",
-        "pid_file": "swarm_forever.pid",
+        "type": "python",
         "critical": True,
     },
     "bobbybookmarks_sync": {
         "script": "scripts/bobbybookmarks_sync.py",
         "args": [],
         "log": "data/bobby_sync_watchdog.log",
-        "pid_file": None,
+        "type": "python",
         "critical": True,
     },
     "trends_analyzer": {
         "script": "scripts/trends_analyzer.py",
         "args": [],
         "log": "data/trends_watchdog.log",
-        "pid_file": None,
+        "type": "python",
         "critical": False,
     },
+    # Core TormentNexus services (checked by port)
+    "freellm_proxy": {
+        "binary": "freellm.exe",
+        "port": 4000,
+        "type": "port",
+        "critical": True,
+    },
+    "go_sidecar": {
+        "binary": "tormentnexus.exe",
+        "port": 8080,
+        "type": "port",
+        "critical": True,
+    },
+    "ts_control_plane": {
+        "binary": "node.exe",
+        "port": 4100,
+        "type": "port",
+        "critical": True,
+    },
 }
+
 
 def log(msg):
     ts = datetime.now().strftime("%H:%M:%S")
@@ -51,72 +71,105 @@ def log(msg):
         f.write(line + "\n")
     print(line)
 
-def find_process(script_name):
-    """Check if a Python process running the given script exists."""
-    try:
-        result = subprocess.run(
-            ['powershell', '-Command',
-             f'Get-Process python* | Where-Object {{ $_.CommandLine -match "{script_name}" }} | Select-Object -ExpandProperty Id'],
-            capture_output=True, text=True, timeout=10,
-        )
-        pids = result.stdout.strip().split()
-        return [int(p) for p in pids if p.isdigit()]
-    except Exception:
-        return []
+
+def find_process(name, config):
+    """Check if a process is running. Supports python scripts and port-checked services."""
+    if config.get("type") == "port":
+        # Check by port number (works for any service)
+        try:
+            result = subprocess.run(
+                ["netstat", "-ano"],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            for line in result.stdout.split("\n"):
+                if f":{config['port']} " in line and "LISTENING" in line:
+                    pid = line.strip().split()[-1]
+                    if pid.isdigit():
+                        return [int(pid)]
+            return []
+        except Exception:
+            return []
+    else:
+        # Python script check
+        script_name = config["script"]
+        try:
+            result = subprocess.run(
+                [
+                    "powershell",
+                    "-Command",
+                    f'Get-Process python* | Where-Object {{ $_.CommandLine -match "{script_name}" }} | Select-Object -ExpandProperty Id',
+                ],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            pids = result.stdout.strip().split()
+            return [int(p) for p in pids if p.isdigit()]
+        except Exception:
+            return []
+
 
 def start_worker(name, config):
     """Start a worker process. Returns the PID or None."""
     script_path = WORKSPACE / config["script"]
     log_path = str(WORKSPACE / config["log"])
-    
+
     if not script_path.exists():
         log(f"ERROR: {script_path} not found — cannot start {name}")
         return None
-    
+
     try:
         cmd = [sys.executable, "-u", str(script_path)] + config["args"]
         logfile = open(log_path, "a", buffering=1)
-        
+
         proc = subprocess.Popen(
             cmd,
             stdout=logfile,
             stderr=subprocess.STDOUT,
             cwd=str(WORKSPACE),
-            creationflags=subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.DETACHED_PROCESS,
+            creationflags=subprocess.CREATE_NEW_PROCESS_GROUP
+            | subprocess.DETACHED_PROCESS,
         )
-        
+
         log(f"Started {name} (PID {proc.pid})")
-        
+
         # Write PID file if configured
         if config["pid_file"]:
             pid_path = WORKSPACE / config["pid_file"]
             with open(pid_path, "w") as f:
                 f.write(str(proc.pid))
-        
+
         return proc.pid
     except Exception as e:
         log(f"Failed to start {name}: {e}")
         return None
 
+
 def check_and_repair():
     """Check all workers and restart any that died."""
     all_ok = True
-    
+
     for name, config in WORKERS.items():
-        pids = find_process(config["script"])
-        
+        pids = find_process(name, config)
+
         if pids:
             log(f"{name}: OK (PID{'/'.join(str(p) for p in pids)})")
         else:
             log(f"{name}: DOWN — restarting...")
             all_ok = False
-            pid = start_worker(name, config)
-            if pid:
-                log(f"{name}: restarted successfully (PID {pid})")
+            if config.get("type") == "port":
+                log(f"{name} is a port-based service — cannot auto-restart. Check manually.")
             else:
-                log(f"{name}: FAILED to restart")
+                pid = start_worker(name, config)
+                if pid:
+                    log(f"{name}: restarted successfully (PID {pid})")
+                else:
+                    log(f"{name}: FAILED to restart")
     
     return all_ok
+
 
 def main():
     log("=" * 60)
@@ -124,33 +177,41 @@ def main():
     log(f"Monitoring {len(WORKERS)} workers")
     log(f"Check interval: {CHECK_INTERVAL}s")
     log("=" * 60)
-    
+
     # Initial startup: start all workers
     for name, config in WORKERS.items():
-        pids = find_process(config["script"])
-        if not pids:
-            log(f"Starting {name} for first time...")
-            start_worker(name, config)
+        if config.get("type") == "port":
+            pids = find_process(name, config)
+            if pids:
+                log(f"{name}: OK (port {config['port']}, PID {pids[0]})")
+            else:
+                log(f"{name}: port {config['port']} not listening — check manually")
         else:
-            log(f"{name} already running (PID{'/'.join(str(p) for p in pids)})")
-    
+            pids = find_process(name, config)
+            if not pids:
+                log(f"Starting {name} for first time...")
+                start_worker(name, config)
+            else:
+                log(f"{name} already running (PID{'/'.join(str(p) for p in pids)})")
+
     cycles = 0
     while True:
         time.sleep(CHECK_INTERVAL)
         cycles += 1
-        
+
         log(f"--- Health check #{cycles} ---")
         all_ok = check_and_repair()
-        
+
         if all_ok:
             log("All workers healthy")
         else:
             log("Some workers were repaired")
-        
+
         # Rotate log every 1000 checks (~16.6 hours)
         if cycles % 1000 == 0:
             log(f"Watchdog running for {cycles * CHECK_INTERVAL / 3600:.1f} hours")
             log(f"Last check: {datetime.now().isoformat()}")
+
 
 if __name__ == "__main__":
     main()
