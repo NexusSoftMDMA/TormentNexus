@@ -92,23 +92,35 @@ def find_process(name, config):
         except Exception:
             return []
     else:
-        # Python script check
+        # Python script check — use wmic which works without admin rights
         script_name = config["script"]
         try:
             result = subprocess.run(
-                [
-                    "powershell",
-                    "-Command",
-                    f'Get-Process python* | Where-Object {{ $_.CommandLine -match "{script_name}" }} | Select-Object -ExpandProperty Id',
-                ],
+                ["wmic", "process", "where", 'name="python.exe"', "get", "ProcessId,CommandLine", "/format:csv"],
                 capture_output=True,
                 text=True,
                 timeout=10,
             )
-            pids = result.stdout.strip().split()
-            return [int(p) for p in pids if p.isdigit()]
+            pids = []
+            for line in result.stdout.split("\n"):
+                if script_name in line and "python" in line.lower():
+                    parts = line.strip().split(",")
+                    for part in parts:
+                        if part.strip().isdigit():
+                            pids.append(int(part.strip()))
+                            break
+            return pids
         except Exception:
-            return []
+            # Fallback: try tasklist
+            try:
+                result = subprocess.run(
+                    ["tasklist", "/FI", "IMAGENAME eq python.exe", "/FO", "CSV", "/NH"],
+                    capture_output=True, text=True, timeout=10,
+                )
+                lines = [l for l in result.stdout.split("\n") if l.strip()]
+                return [int(l.split(",")[1].strip().strip('"')) for l in lines if l.strip()]
+            except Exception:
+                return []
 
 
 def start_worker(name, config):
@@ -161,14 +173,16 @@ def check_and_repair():
             log(f"{name}: DOWN — restarting...")
             all_ok = False
             if config.get("type") == "port":
-                log(f"{name} is a port-based service — cannot auto-restart. Check manually.")
+                log(
+                    f"{name} is a port-based service — cannot auto-restart. Check manually."
+                )
             else:
                 pid = start_worker(name, config)
                 if pid:
                     log(f"{name}: restarted successfully (PID {pid})")
                 else:
                     log(f"{name}: FAILED to restart")
-    
+
     return all_ok
 
 
