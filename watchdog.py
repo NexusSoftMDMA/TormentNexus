@@ -51,15 +51,39 @@ WORKERS = {
     },
     "go_sidecar": {
         "binary": "tormentnexus.exe",
-        "port": 8080,
+        "port": 7778,
         "type": "port",
         "critical": True,
+    },
+    "go_sidecar_legacy": {
+        "binary": "tormentnexus.exe",
+        "port": 4300,
+        "type": "port",
+        "critical": False,
     },
     "ts_control_plane": {
         "binary": "node.exe",
         "port": 4100,
         "type": "port",
         "critical": True,
+    },
+    "dashboard": {
+        "binary": "node.exe",
+        "port": 3000,
+        "type": "port",
+        "critical": True,
+    },
+    "lm_studio": {
+        "binary": "lm-studio.exe",
+        "port": 1234,
+        "type": "port",
+        "critical": False,
+    },
+    "go_sidecar_old": {
+        "binary": "tormentnexus.exe",
+        "port": 8080,
+        "type": "port",
+        "critical": False,
     },
 }
 
