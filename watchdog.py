@@ -125,7 +125,7 @@ def find_process(name, config):
                     "wmic",
                     "process",
                     "where",
-                    'name="python.exe"',
+                    'name="pythonw.exe" or name="python.exe"',
                     "get",
                     "ProcessId,CommandLine",
                     "/format:csv",
@@ -133,6 +133,7 @@ def find_process(name, config):
                 capture_output=True,
                 text=True,
                 timeout=10,
+                creationflags=subprocess.CREATE_NO_WINDOW,
             )
             pids = []
             for line in result.stdout.split("\n"):
@@ -151,6 +152,7 @@ def find_process(name, config):
                     capture_output=True,
                     text=True,
                     timeout=10,
+                    creationflags=subprocess.CREATE_NO_WINDOW,
                 )
                 lines = [l for l in result.stdout.split("\n") if l.strip()]
                 return [
