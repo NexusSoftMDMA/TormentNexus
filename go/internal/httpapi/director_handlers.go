@@ -162,7 +162,13 @@ func (s *Server) handleDirectorConfigTest(w http.ResponseWriter, r *http.Request
 			"errors":   errors,
 			"warnings": warnings,
 			"path":     configPath,
-			"keys":     func() []string { keys := make([]string, 0, len(cfg)); for k := range cfg { keys = append(keys, k) }; return keys }(),
+			"keys": func() []string {
+				keys := make([]string, 0, len(cfg))
+				for k := range cfg {
+					keys = append(keys, k)
+				}
+				return keys
+			}(),
 		},
 		"bridge": map[string]any{"fallback": "go-local-director", "procedure": "directorConfig.test", "reason": "upstream unavailable; validated local config"},
 	})
