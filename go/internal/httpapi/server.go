@@ -121,9 +121,10 @@ type Server struct {
 	sessionState      *localSessionStateManager
 	workflowEngine    *workflow.Engine
 	toolsRegistry     *tools.Registry
-	mcpAggregator     *mcp.Aggregator
-	mcpPredictor      *mcp.ToolPredictor
-	mcpDecision       *mcp.DecisionSystem
+	mcpAggregator          *mcp.Aggregator
+	toolSelectionStore     *mcp.ToolSelectionStore
+	mcpPredictor           *mcp.ToolPredictor
+	mcpDecision            *mcp.DecisionSystem
 	nativeRouter      *mcp.NativeMCPRouter
 	a2aLogger         *orchestration.A2ALogger
 	a2aBroker         *orchestration.A2ABroker
@@ -492,6 +493,7 @@ func New(cfg config.Config, detector controlplane.ToolProvider) *Server {
 		workflowEngine:    workflow.NewEngine(),
 		toolsRegistry:     tools.NewRegistry(),
 		mcpAggregator:     mcp.NewAggregator(),
+		toolSelectionStore: mcp.NewToolSelectionStore(cfg.ConfigDir, 1000),
 		a2aLogger:         orchestration.NewA2ALogger(cfg.WorkspaceRoot),
 	}
 	server.a2aBroker = orchestration.NewA2ABroker(server.a2aLogger)
@@ -3160,14 +3162,18 @@ func (s *Server) handleMCPToolSelectionTelemetry(w http.ResponseWriter, r *http.
 		return
 	}
 
-	writeJSON(w, http.StatusServiceUnavailable, map[string]any{
-		"success": false,
-		"error":   "Tool-selection telemetry is unavailable: upstream MCP router is unavailable and no local telemetry history is persisted.",
-		"data":    []map[string]any{},
+	events := s.toolSelectionStore.GetAll()
+	stats := s.toolSelectionStore.GetStats()
+	writeJSON(w, http.StatusOK, map[string]any{
+		"success": true,
+		"data": map[string]any{
+			"events": events,
+			"stats":  stats,
+		},
 		"bridge": map[string]any{
 			"fallback":  "go-local-mcp",
 			"procedure": "mcp.getToolSelectionTelemetry",
-			"reason":    "upstream unavailable; using local empty tool-selection telemetry",
+			"reason":    "upstream unavailable; using local tool-selection telemetry store",
 		},
 	})
 }
@@ -3187,16 +3193,23 @@ func (s *Server) handleMCPClearToolSelectionTelemetry(w http.ResponseWriter, r *
 		return
 	}
 
-	writeJSON(w, http.StatusServiceUnavailable, map[string]any{
-		"success": false,
-		"error":   "Tool-selection telemetry clearing is unavailable: upstream MCP router is unavailable and no local telemetry history exists.",
+	if err := s.toolSelectionStore.Clear(); err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]any{
+			"success": false,
+			"error":   fmt.Sprintf("failed to clear local tool-selection telemetry: %v", err),
+		})
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"success": true,
 		"data": map[string]any{
 			"ok": true,
 		},
 		"bridge": map[string]any{
 			"fallback":  "go-local-mcp",
 			"procedure": "mcp.clearToolSelectionTelemetry",
-			"reason":    "upstream unavailable; clearing local empty tool-selection telemetry",
+			"reason":    "upstream unavailable; cleared local tool-selection telemetry",
 		},
 	})
 }

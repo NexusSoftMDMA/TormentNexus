@@ -149,13 +149,13 @@ export async function isPortFree(port: number): Promise<boolean> {
 
 async function isGoAvailable(): Promise<boolean> {
 	try {
-		const { existsSync } = await import('fs');
-		const { resolve } = await import('path');
-		const goBin = resolve(process.cwd(), 'tormentnexus.exe');
+		const { existsSync } = await import("fs");
+		const { resolve } = await import("path");
+		const goBin = resolve(process.cwd(), "tormentnexus.exe");
 		if (existsSync(goBin)) return true;
 		const altLocations = [
-			resolve(process.cwd(), 'go', 'tormentnexus.exe'),
-			resolve(process.cwd(), 'bin', 'tormentnexus.exe'),
+			resolve(process.cwd(), "go", "tormentnexus.exe"),
+			resolve(process.cwd(), "bin", "tormentnexus.exe"),
 		];
 		for (const alt of altLocations) {
 			if (existsSync(alt)) return true;
@@ -187,7 +187,10 @@ function readStartLock(lockPath: string): TormentNexusStartLockRecord | null {
 	}
 }
 
-function writeStartLock(lockPath: string, record: TormentNexusStartLockRecord): void {
+function writeStartLock(
+	lockPath: string,
+	record: TormentNexusStartLockRecord,
+): void {
 	const fd = openSync(lockPath, "wx");
 	try {
 		writeFileSync(fd, `${JSON.stringify(record, null, 2)}\n`, "utf8");
@@ -223,8 +226,8 @@ export async function acquireSingleInstanceLock(
 				port: selectedPort,
 				host: options.host,
 				createdAt: now().toISOString(),
-		version: process.env.TORMENTNEXUS_VERSION || "1.0.0-alpha.60",
-		startedAt: now().toISOString(),
+				version: process.env.TORMENTNEXUS_VERSION || "1.0.0-alpha.60",
+				startedAt: now().toISOString(),
 			});
 
 			const releaseSync = () => {
@@ -332,20 +335,24 @@ export function createLockLifecycleHandlers(
 			cleanup();
 			exit(143);
 		},
-  async handleUncaughtException(error: unknown) {
-    this.cleanup();
-    const chalk = (await import('chalk')).default;
-    const msg = error instanceof Error ? (error.stack ?? error.message) : String(error);
-    console.error(chalk.red(`\n  ✗ Uncaught Exception: ${msg}`));
-    process.exit(1);
-  },
-  async handleUnhandledRejection(reason: unknown) {
-    this.cleanup();
-    const chalk = (await import('chalk')).default;
-    const msg = reason instanceof Error ? (reason.stack ?? reason.message) : String(reason);
-    console.error(chalk.red(`\n  ✗ Unhandled Rejection: ${msg}`));
-    process.exit(1);
-  },
+		async handleUncaughtException(error: unknown) {
+			this.cleanup();
+			const chalk = (await import("chalk")).default;
+			const msg =
+				error instanceof Error ? (error.stack ?? error.message) : String(error);
+			console.error(chalk.red(`\n  ✗ Uncaught Exception: ${msg}`));
+			process.exit(1);
+		},
+		async handleUnhandledRejection(reason: unknown) {
+			this.cleanup();
+			const chalk = (await import("chalk")).default;
+			const msg =
+				reason instanceof Error
+					? (reason.stack ?? reason.message)
+					: String(reason);
+			console.error(chalk.red(`\n  ✗ Unhandled Rejection: ${msg}`));
+			process.exit(1);
+		},
 	};
 }
 
@@ -362,9 +369,17 @@ export function registerStartCommand(program: Command): void {
 		.option("--auto-drive", "Enable Director auto-drive after startup")
 		.option("--no-dashboard", "Disable serving the WebUI dashboard")
 		.option("-c, --config <path>", "Path to config file")
-		.option("-d, --data-dir <path>", "Data directory for TormentNexus state", "~/.tormentnexus")
+		.option(
+			"-d, --data-dir <path>",
+			"Data directory for TormentNexus state",
+			"~/.tormentnexus",
+		)
 		.option("--daemon", "Run as background daemon")
-		.option("--runtime <mode>", "Runtime mode: auto (prefer Go), go (Go-only), node (TS-primary)", "auto")
+		.option(
+			"--runtime <mode>",
+			"Runtime mode: auto (prefer Go), go (Go-only), node (TS-primary)",
+			"auto",
+		)
 		.addHelpText(
 			"after",
 			`
@@ -387,7 +402,11 @@ Examples:
 				process.argv.includes("--port") || process.argv.includes("-p");
 			let lockHandle: TormentNexusStartLockHandle | null = null;
 
-			console.log(chalk.bold.cyan(`\n  ⬡ TormentNexus TORMENTNEXUS v${await getVersion()}`));
+			console.log(
+				chalk.bold.cyan(
+					`\n  ⬡ TormentNexus TORMENTNEXUS v${await getVersion()}`,
+				),
+			);
 			console.log(chalk.dim("  The Neural Operating System\n"));
 
 			try {
@@ -437,20 +456,22 @@ Examples:
 
 				// Detect available providers from environment
 				const providerEnvMap: Record<string, string> = {
-					OPENAI_API_KEY: 'OpenAI',
-					ANTHROPIC_API_KEY: 'Anthropic',
-					GOOGLE_API_KEY: 'Google',
-					GEMINI_API_KEY: 'Gemini',
-					XAI_API_KEY: 'xAI',
-					DEEPSEEK_API_KEY: 'DeepSeek',
-					MISTRAL_API_KEY: 'Mistral',
-					OPENROUTER_API_KEY: 'OpenRouter',
+					OPENAI_API_KEY: "OpenAI",
+					ANTHROPIC_API_KEY: "Anthropic",
+					GOOGLE_API_KEY: "Google",
+					GEMINI_API_KEY: "Gemini",
+					XAI_API_KEY: "xAI",
+					DEEPSEEK_API_KEY: "DeepSeek",
+					MISTRAL_API_KEY: "Mistral",
+					OPENROUTER_API_KEY: "OpenRouter",
 				};
 				const detectedProviders = Object.entries(providerEnvMap)
 					.filter(([env]) => process.env[env])
 					.map(([, name]) => name);
 				if (detectedProviders.length > 0) {
-					console.log(chalk.dim(`  Providers: ${detectedProviders.join(', ')}`));
+					console.log(
+						chalk.dim(`  Providers: ${detectedProviders.join(", ")}`),
+					);
 				}
 
 				console.log(
@@ -480,50 +501,68 @@ Examples:
 				console.log(chalk.dim("\n  Press Ctrl+C to stop\n"));
 
 				// Runtime selection: Go-primary vs TS-primary
-				const runtimeMode = (opts.runtime || 'auto').toLowerCase();
-				const wantGo = runtimeMode === 'go' || (runtimeMode === 'auto' && await isGoAvailable());
+				const runtimeMode = (opts.runtime || "auto").toLowerCase();
+				const wantGo =
+					runtimeMode === "go" ||
+					(runtimeMode === "auto" && (await isGoAvailable()));
 
 				if (wantGo) {
 					// Launch Go primary control plane
 					try {
-						const { spawn } = await import('child_process');
-						const { resolve } = await import('path');
-						const goBin = resolve(process.cwd(), 'tormentnexus.exe');
+						const { spawn } = await import("child_process");
+						const { resolve } = await import("path");
+						const goBin = resolve(process.cwd(), "tormentnexus.exe");
 						const goPort = 7778;
-						const goProc = spawn(goBin, ['serve', '--port', String(goPort), '--host', host], {
-							stdio: 'ignore',
-							detached: true,
-							env: { ...process.env, TORMENTNEXUS_WORKSPACE: process.cwd() },
-						});
+						const goProc = spawn(
+							goBin,
+							["serve", "--port", String(goPort), "--host", host],
+							{
+								stdio: "ignore",
+								detached: true,
+								env: { ...process.env, TORMENTNEXUS_WORKSPACE: process.cwd() },
+							},
+						);
 						goProc.unref();
-						console.log(chalk.green(`  ✓ Go control plane launched on port ${goPort}`));
+						console.log(
+							chalk.green(`  ✓ Go control plane launched on port ${goPort}`),
+						);
 
 						// Start TS as compatibility supplement (optional, always starts for now)
-						if (runtimeMode !== 'go') {
-							console.log(chalk.dim('  TS compatibility layer: started alongside Go'));
+						if (runtimeMode !== "go") {
+							console.log(
+								chalk.dim("  TS compatibility layer: started alongside Go"),
+							);
 						}
 					} catch (e: any) {
-						console.log(chalk.yellow('  Go control plane: not available, falling back to TS-primary'));
+						console.log(
+							chalk.yellow(
+								"  Go control plane: not available, falling back to TS-primary",
+							),
+						);
 					}
 				} else {
 					// TS-primary mode (legacy): Go sidecar is optional
-					console.log(chalk.dim(`  Runtime: TS-primary${runtimeMode === 'auto' ? ' (Go binary not found)' : ''}`));
+					console.log(
+						chalk.dim(
+							`  Runtime: TS-primary${runtimeMode === "auto" ? " (Go binary not found)" : ""}`,
+						),
+					);
 					try {
-						const { existsSync } = await import('fs');
-						const { resolve } = await import('path');
-						const goBin = resolve(process.cwd(), 'tormentnexus.exe');
+						const { existsSync } = await import("fs");
+						const { resolve } = await import("path");
+						const goBin = resolve(process.cwd(), "tormentnexus.exe");
 						if (existsSync(goBin)) {
-							const { spawn } = await import('child_process');
-							const goProc = spawn(goBin, ['serve', '--port', '4300'], {
-								stdio: 'ignore',
+							const { spawn } = await import("child_process");
+							const goProc = spawn(goBin, ["serve", "--port", "4300"], {
+								stdio: "ignore",
 								detached: true,
 								env: { ...process.env, TORMENTNEXUS_WORKSPACE: process.cwd() },
 							});
 							goProc.unref();
-							console.log(chalk.green('  ✓ Go sidecar launched on port 4300'));
+							console.log(chalk.green("  ✓ Go sidecar launched on port 4300"));
 						}
 					} catch (e: any) {
-						console.log(chalk.dim('  Go sidecar: not available (optional)'));
+						console.log(chalk.dim("  Go sidecar: not available (optional)"));
 					}
 				}
 
