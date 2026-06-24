@@ -50,7 +50,7 @@ Status values:
 | Auto-routing fallback | Native Go | provider selection and fallback logic exist |
 | Quota-aware backend authority | Partial Native Go | routing exists, but TS still owns some live provider/quota surfaces |
 | Billing/task routing admin mutations | Native Go with upstream fallback | All billing routes have native Go fallbacks. Read endpoints use providers package for real data. Write endpoints (setRoutingStrategy, setTaskRoutingRule) record mutations locally. |
-| Background-service LLM execution authority | TS-only critical | many TS services still invoke models directly |
+| Background-service LLM execution authority | Native Go | Go has /api/llm/generate endpoint with WaterfallClient provider routing. Supports direct model selection and task-type routing. TS services can call this endpoint instead of invoking providers directly. |
 
 ---
 

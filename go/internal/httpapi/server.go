@@ -135,6 +135,7 @@ type Server struct {
 	highValueIngestor  *hsync.HighValueIngestor
 	memoryReactor      *memorystore.MemoryReactor
 	mcpConfig          *mcp.ConfigManager
+	waterfallClient    *ai.WaterfallClient
 	skillStore         *harnesses.SkillStore
 	skillRegistry      *skillregistry.SkillRegistry
 	skillDecision      *skillregistry.SkillDecisionSystem
@@ -531,6 +532,14 @@ func New(cfg config.Config, detector controlplane.ToolProvider) *Server {
 	server.coderAgent.Start(context.Background())
 	server.goDirector = orchestration.NewDirector(server.swarmController, server.coderAgent, server.a2aBroker)
 	server.mcpConfig = mcp.NewConfigManager(cfg.MainConfigDir)
+	server.waterfallClient = ai.NewWaterfallClient(nil,
+		&ai.OpenAIProvider{APIKey: os.Getenv("OPENAI_API_KEY")},
+		&ai.AnthropicProvider{APIKey: os.Getenv("ANTHROPIC_API_KEY")},
+		&ai.GeminiProvider{APIKey: os.Getenv("GOOGLE_API_KEY")},
+		&ai.DeepSeekProvider{APIKey: os.Getenv("DEEPSEEK_API_KEY")},
+		&ai.OpenRouterProvider{APIKey: os.Getenv("OPENROUTER_API_KEY")},
+		&ai.LMStudioProvider{BaseURL: "http://127.0.0.1:1234"},
+	)
 	server.highValueIngestor = hsync.NewHighValueIngestor(filepath.Join(cfg.MainConfigDir, "tormentnexus.db"), server.skillStore, server.mcpConfig)
 	server.swarmController = orchestration.NewSwarmController(server.a2aBroker)
 	server.mcpPredictor = mcp.NewToolPredictor(server.mcpAggregator)
@@ -1045,6 +1054,7 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("/api/autonomy/get-level", s.handleAutonomyGetLevel)
 	s.mux.HandleFunc("/api/autonomy/set-level", s.handleAutonomySetLevel)
 	s.mux.HandleFunc("/api/autonomy/activate-full", s.handleAutonomyActivateFull)
+	s.mux.HandleFunc("/api/llm/generate", s.handleLLMGenerate)
 	s.mux.HandleFunc("/api/director/memorize", s.handleDirectorMemorize)
 	s.mux.HandleFunc("/api/director/chat", s.handleDirectorChat)
 	s.mux.HandleFunc("/api/director/status", s.handleDirectorStatus)
