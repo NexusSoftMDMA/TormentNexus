@@ -35,7 +35,7 @@ func run(args []string) int {
 			return runDeepLink(args[0])
 		}
 		switch args[0] {
-		case "serve", "version":
+		case "serve", "version", "start", "stop", "status":
 			command = args[0]
 			args = args[1:]
 		}
@@ -47,6 +47,12 @@ func run(args []string) int {
 		return 0
 	case "serve":
 		return runServe(args)
+	case "start":
+		return cmdStart(args)
+	case "stop":
+		return cmdStop(args)
+	case "status":
+		return cmdStatus(args)
 	default:
 		log.Printf("unknown command %q", command)
 		return 1

@@ -78,8 +78,8 @@ for fn in sorted(os.listdir(tools_dir)):
     
     if best:
         db.execute(
-            "UPDATE mcp_servers SET status='implemented', go_file=?, notes='recovered', updated_at=CURRENT_TIMESTAMP WHERE name=?",
-            (fn, best)
+            "UPDATE mcp_servers SET status='implemented', notes='recovered' WHERE name=?",
+            (best,)
         )
         matched += 1
     else:
@@ -87,14 +87,13 @@ for fn in sorted(os.listdir(tools_dir)):
         if kind == "real":
             display = go_stem.replace("_", " ").title()
             db.execute(
-                "INSERT OR IGNORE INTO mcp_servers (name, github_url, score, status, go_file, notes) VALUES (?, '', 0, 'implemented', ?, 'orphan')",
-                (display, fn)
+                "INSERT OR IGNORE INTO mcp_servers (name, github_url, score, status, notes) VALUES (?, '', 0, 'implemented', 'orphan')",
+                (display,)
             )
 
 db.commit()
 
 total_impl = db.execute("SELECT COUNT(*) FROM mcp_servers WHERE status='implemented'").fetchone()[0]
-total_go = db.execute("SELECT COUNT(*) FROM mcp_servers WHERE go_file IS NOT NULL AND go_file != ''").fetchone()[0]
 total_pend = db.execute("SELECT COUNT(*) FROM mcp_servers WHERE status='pending'").fetchone()[0]
 total_fail = db.execute("SELECT COUNT(*) FROM mcp_servers WHERE status='failed'").fetchone()[0]
 
@@ -108,6 +107,5 @@ print("DB now:")
 print(f"  Implemented: {total_impl}")
 print(f"  Pending:     {total_pend}")
 print(f"  Failed:      {total_fail}")
-print(f"  With go_file: {total_go}")
 
 db.close()

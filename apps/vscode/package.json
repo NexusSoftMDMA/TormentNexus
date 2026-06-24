@@ -1,7 +1,7 @@
 {
   "name": "tormentnexus-vscode-extension",
   "displayName": "TormentNexus Plugin",
-  "version": "1.0.0-alpha.147",
+  "version": "1.0.0-alpha.148",
   "description": "Connect VS Code to TormentNexus Hub for AI agent orchestration, memory management, and tool invocation",
   "publisher": "tormentnexus",
   "engines": {

@@ -79,8 +79,8 @@ def main():
         try:
             c_assim.execute(
                 """
-                INSERT INTO mcp_servers (name, github_url, score, status, notes, created_at, updated_at)
-                VALUES (?, ?, ?, 'pending', ?, datetime('now'), datetime('now'))
+                INSERT INTO mcp_servers (name, github_url, score, status, notes, added_at)
+                VALUES (?, ?, ?, 'pending', ?, datetime('now'))
             """,
                 (
                     name,
