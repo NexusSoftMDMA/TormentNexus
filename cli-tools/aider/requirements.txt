@@ -4,7 +4,7 @@ aiohappyeyeballs==2.6.1
     # via
     #   -c requirements/common-constraints.txt
     #   aiohttp
-aiohttp==3.14.0
+aiohttp==3.14.1
     # via
     #   -c requirements/common-constraints.txt
     #   litellm

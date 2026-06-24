@@ -2,7 +2,7 @@
 #    uv pip compile --no-strip-extras --output-file=requirements/common-constraints.txt requirements/requirements.in requirements/requirements-browser.in requirements/requirements-dev.in requirements/requirements-help.in requirements/requirements-playwright.in
 aiohappyeyeballs==2.6.1
     # via aiohttp
-aiohttp==3.14.0
+aiohttp==3.14.1
     # via
     #   huggingface-hub
     #   litellm
@@ -372,7 +372,7 @@ psutil==7.1.3
     # via -r requirements/requirements.in
 ptyprocess==0.7.0
     # via pexpect
-pyarrow==23.0.1
+pyarrow==24.0.0
     # via streamlit
 pyasn1==0.6.3
     # via
@@ -533,9 +533,9 @@ tokenizers==0.22.1
     #   transformers
 toml==0.10.2
     # via streamlit
-torch==2.9.1
+torch==2.12.1
     # via sentence-transformers
-tornado==6.5.6
+tornado==6.5.7
     # via streamlit
 tqdm==4.67.1
     # via
