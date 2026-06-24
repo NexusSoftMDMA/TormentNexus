@@ -69,3 +69,9 @@
 - **JSON-RPC Parameters**: The MCP spec allows `params` to be optional or a JSON array (`[]`) for methods like `tools/list`. Using `json.RawMessage` for the request envelope's `params` field prevents unmarshal errors on standard client handshakes, dynamically decoding the struct parameters only inside handlers that strictly require them (like `tools/call`).
 - **Dashboard Layout**: Overview dashboards should avoid repeating structural readouts (like detailed metrics `dl` blocks) if they already exist in top-level cards, balancing screen estate and avoiding unnecessary page height.
 
+### Page Consolidation & Binary Pathing Heuristics
+- **Page De-duplication**: Pages with similar intent (like `/dashboard/config` form and `/dashboard/settings` raw JSON text area) should be consolidated into a single route with a tabbed interface. This reduces code footprint, streamlines navigation, and improves UX.
+- **Root Binary Pathing**: When the monorepo has two Go projects (e.g., a root Cobra CLI and a subfolder sidecar), they may compile binaries with the same name. If configurations or start scripts prioritize the root directory path (`tormentnexus.exe`), overwrite the root binary with the sidecar server so that subcommands like `mcp` can execute without Cobra CLI path conflicts.
+- **PowerShell Overwriting**: When using PowerShell in Windows, `Copy-Item` requires the `-Force` flag to overwrite an existing binary; otherwise, it silently leaves the target unchanged.
+
+
