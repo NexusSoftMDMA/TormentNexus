@@ -3,15 +3,42 @@ import "./debug_marker.js";
 
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import {
-	CallToolRequestSchema,
-	GetPromptRequestSchema,
-	ListPromptsRequestSchema,
-	ListResourcesRequestSchema,
-	ListResourceTemplatesRequestSchema,
-	ListToolsRequestSchema,
-	ReadResourceRequestSchema,
-} from "@modelcontextprotocol/sdk/types.js";
+import { z } from "zod";
+
+export const LooseListToolsRequestSchema = z.object({
+	method: z.literal("tools/list"),
+	params: z.any().optional(),
+});
+
+export const LooseCallToolRequestSchema = z.object({
+	method: z.literal("tools/call"),
+	params: z.any(),
+});
+
+export const LooseListPromptsRequestSchema = z.object({
+	method: z.literal("prompts/list"),
+	params: z.any().optional(),
+});
+
+export const LooseGetPromptRequestSchema = z.object({
+	method: z.literal("prompts/get"),
+	params: z.any(),
+});
+
+export const LooseListResourcesRequestSchema = z.object({
+	method: z.literal("resources/list"),
+	params: z.any().optional(),
+});
+
+export const LooseReadResourceRequestSchema = z.object({
+	method: z.literal("resources/read"),
+	params: z.any(),
+});
+
+export const LooseListResourceTemplatesRequestSchema = z.object({
+	method: z.literal("resources/templates/list"),
+	params: z.any().optional(),
+});
 mcpServerDebugLog("[MCPServer] ✓ @modelcontextprotocol/sdk");
 
 import { fileURLToPath } from "url";
@@ -4585,14 +4612,18 @@ ${env.tools
 	private async setupDirectHandlers(serverInstance: Server): Promise<void> {
 		this.setupDirectDiscoveryHandlers(serverInstance);
 
-		serverInstance.setRequestHandler(ListToolsRequestSchema, async () => {
+		serverInstance.setRequestHandler(LooseListToolsRequestSchema, async () => {
 			const visibleTools = await this.getDirectModeTools();
 			return {
-				tools: visibleTools,
+				tools: visibleTools.map((t) => ({
+					name: t.name,
+					description: t.description,
+					inputSchema: t.inputSchema,
+				})),
 			};
 		});
 
-		serverInstance.setRequestHandler(CallToolRequestSchema, async (request) => {
+		serverInstance.setRequestHandler(LooseCallToolRequestSchema, async (request) => {
 			const meta =
 				request.params._meta &&
 				typeof request.params._meta === "object" &&
@@ -4649,7 +4680,7 @@ ${env.tools
 		};
 
 		serverInstance.setRequestHandler(
-			ListPromptsRequestSchema,
+			LooseListPromptsRequestSchema,
 			async (request) => {
 				return await listDownstreamPrompts({
 					context,
@@ -4661,7 +4692,7 @@ ${env.tools
 		);
 
 		serverInstance.setRequestHandler(
-			GetPromptRequestSchema,
+			LooseGetPromptRequestSchema,
 			async (request) => {
 				return await getDownstreamPrompt({
 					name: request.params.name,
@@ -4673,7 +4704,7 @@ ${env.tools
 		);
 
 		serverInstance.setRequestHandler(
-			ListResourcesRequestSchema,
+			LooseListResourcesRequestSchema,
 			async (request) => {
 				return await listDownstreamResources({
 					context,
@@ -4685,7 +4716,7 @@ ${env.tools
 		);
 
 		serverInstance.setRequestHandler(
-			ReadResourceRequestSchema,
+			LooseReadResourceRequestSchema,
 			async (request) => {
 				return await readDownstreamResource({
 					uri: request.params.uri,
@@ -4696,7 +4727,7 @@ ${env.tools
 		);
 
 		serverInstance.setRequestHandler(
-			ListResourceTemplatesRequestSchema,
+			LooseListResourceTemplatesRequestSchema,
 			async (request) => {
 				return await listDownstreamResourceTemplates({
 					context,

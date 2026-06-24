@@ -27,7 +27,36 @@ async function main() {
 
         const { Server } = await import('@modelcontextprotocol/sdk/server/index.js');
         const { StdioServerTransport } = await import('@modelcontextprotocol/sdk/server/stdio.js');
-        const { ListToolsRequestSchema, CallToolRequestSchema, ListPromptsRequestSchema, GetPromptRequestSchema, ListResourcesRequestSchema, ReadResourceRequestSchema, ListResourceTemplatesRequestSchema } = await import('@modelcontextprotocol/sdk/types.js');
+        const { z } = await import('zod');
+
+        const LooseListToolsRequestSchema = z.object({
+            method: z.literal("tools/list"),
+            params: z.any().optional(),
+        });
+        const LooseCallToolRequestSchema = z.object({
+            method: z.literal("tools/call"),
+            params: z.any(),
+        });
+        const LooseListPromptsRequestSchema = z.object({
+            method: z.literal("prompts/list"),
+            params: z.any().optional(),
+        });
+        const LooseGetPromptRequestSchema = z.object({
+            method: z.literal("prompts/get"),
+            params: z.any(),
+        });
+        const LooseListResourcesRequestSchema = z.object({
+            method: z.literal("resources/list"),
+            params: z.any().optional(),
+        });
+        const LooseReadResourceRequestSchema = z.object({
+            method: z.literal("resources/read"),
+            params: z.any(),
+        });
+        const LooseListResourceTemplatesRequestSchema = z.object({
+            method: z.literal("resources/templates/list"),
+            params: z.any().optional(),
+        });
 
         let mcpServer: any = null;
         let serverReady = false;
@@ -40,7 +69,7 @@ async function main() {
         // Tools/list handler: waits for full server to be ready (up to 30s)
         // so the client receives the complete tool set on first discovery.
         // This prevents "No prompts or tools found" errors from MCP clients.
-        lightweightServer.setRequestHandler(ListToolsRequestSchema, async () => {
+        lightweightServer.setRequestHandler(LooseListToolsRequestSchema, async () => {
             // Wait for the full MCPServer to finish loading
             const maxWaitMs = 30_000;
             const pollIntervalMs = 200;
@@ -54,7 +83,12 @@ async function main() {
             }
             if (serverReady && mcpServer) {
                 try {
-                    const tools = await mcpServer.getDirectModeTools();
+                    const rawTools = await mcpServer.getDirectModeTools();
+                    const tools = rawTools.map((t: any) => ({
+                        name: t.name,
+                        description: t.description,
+                        inputSchema: t.inputSchema,
+                    }));
                     return { tools };
                 } catch (e: any) {
                     console.error('[TormentNexus Core] Error in delegated tools/list:', e.message);
@@ -72,7 +106,7 @@ async function main() {
 
         // Tools/call handler: delegates to the full MCPServer once ready,
         // or waits briefly for initialization to complete.
-        lightweightServer.setRequestHandler(CallToolRequestSchema, async (request: any) => {
+        lightweightServer.setRequestHandler(LooseCallToolRequestSchema, async (request: any) => {
             // Wait up to 30s for the server to be ready
             const maxWaitMs = 30_000;
             const pollIntervalMs = 200;
@@ -99,11 +133,11 @@ async function main() {
         });
 
         // Placeholder prompt/resource handlers
-        lightweightServer.setRequestHandler(ListPromptsRequestSchema, async () => ({ prompts: [] }));
-        lightweightServer.setRequestHandler(GetPromptRequestSchema, async () => ({ messages: [] }));
-        lightweightServer.setRequestHandler(ListResourcesRequestSchema, async () => ({ resources: [] }));
-        lightweightServer.setRequestHandler(ReadResourceRequestSchema, async () => ({ contents: [] }));
-        lightweightServer.setRequestHandler(ListResourceTemplatesRequestSchema, async () => ({ resourceTemplates: [] }));
+        lightweightServer.setRequestHandler(LooseListPromptsRequestSchema, async () => ({ prompts: [] }));
+        lightweightServer.setRequestHandler(LooseGetPromptRequestSchema, async () => ({ messages: [] }));
+        lightweightServer.setRequestHandler(LooseListResourcesRequestSchema, async () => ({ resources: [] }));
+        lightweightServer.setRequestHandler(LooseReadResourceRequestSchema, async () => ({ contents: [] }));
+        lightweightServer.setRequestHandler(LooseListResourceTemplatesRequestSchema, async () => ({ resourceTemplates: [] }));
 
         const stdioTransport = new StdioServerTransport();
         await lightweightServer.connect(stdioTransport);

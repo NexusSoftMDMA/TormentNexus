@@ -774,6 +774,9 @@ func cmdMCP(args []string) int {
 		}
 
 		resp := server.HandleRequest(req)
+		if req.ID == nil {
+			continue
+		}
 		respBytes, _ := json.Marshal(resp)
 		writer.Write(respBytes)
 		writer.Write([]byte{'\n'})

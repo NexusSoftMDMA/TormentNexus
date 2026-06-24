@@ -207,9 +207,10 @@ export class SessionSupervisor {
                 cwd: session.workingDirectory,
                 env,
             });
-        } catch (spawnErr: any) {
+        } catch (spawnErr) {
+            const err = spawnErr as any;
             session.status = 'error';
-            session.lastError = spawnErr?.message || String(spawnErr);
+            session.lastError = err?.message || String(spawnErr);
             this.appendLog(id, 'system', `Spawn failed: ${session.lastError}`);
             runtime.health.status = 'degraded';
             runtime.health.errorMessage = session.lastError;

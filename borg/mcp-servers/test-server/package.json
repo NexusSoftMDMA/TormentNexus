@@ -1,8 +1,0 @@
-{
-  "name": "test-server",
-  "version": "1.0.0",
-  "type": "module",
-  "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.27.1"
-  }
-}
