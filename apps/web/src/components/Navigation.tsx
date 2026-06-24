@@ -23,7 +23,7 @@ const NAV_ITEMS = [
     { href: '/dashboard/submodules', label: 'Submodules', color: 'hover:text-cyan-500', activeColor: 'text-cyan-500' },
     { href: '/dashboard/mcp', label: 'MCP', color: 'hover:text-teal-500', activeColor: 'text-teal-500' },
     { href: '/dashboard/workshop', label: 'Workshop', color: 'hover:text-pink-500', activeColor: 'text-pink-500' },
-    { href: '/dashboard/config', label: 'Settings', color: 'hover:text-slate-500', activeColor: 'text-slate-500' },
+    { href: '/dashboard/settings', label: 'Settings', color: 'hover:text-slate-500', activeColor: 'text-slate-500' },
 ];
 
 interface NavigationProps {

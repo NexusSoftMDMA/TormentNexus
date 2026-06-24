@@ -257,7 +257,6 @@ export const MAIN_DASHBOARD_NAV: NavItem[] = [
     { title: "Reader", href: "/dashboard/reader", icon: BookMarked, variant: "ghost" },
     { title: "Architecture", href: "/dashboard/architecture", icon: Building2, variant: "ghost" },
     { title: "Evolution", href: "/dashboard/evolution", icon: Sparkles, variant: "ghost" },
-    { title: "Config", href: "/dashboard/config", icon: Cog, variant: "ghost" },
     { title: "Chronicle", href: "/dashboard/chronicle", icon: ScrollText, variant: "ghost" },
     { title: "Submodules", href: "/dashboard/submodules", icon: FileCode, variant: "ghost" },
     { title: "Workshop", href: "/dashboard/workshop", icon: Wrench, variant: "ghost" },
