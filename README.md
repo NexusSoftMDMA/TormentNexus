@@ -1,5 +1,6 @@
 🛠️ ALPHA SOFTWARE UNDER CONSTRUCTION — Use at your own risk. Backwards compatibility not guaranteed.
 
+```text
 ╔══════════════════════════════════════════════════════════════════════════════╗
 ║                                                                              ║
 ║                     ██╗   ██╗███╗   ██╗██████╗ ███████╗██████╗              ║
@@ -30,6 +31,7 @@
 ║                    ╚══════════════════════════════════════╝                  ║
 ║                                                                              ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
+```
 
 # TormentNexus: The Cognitive Kernel — Universal AI Control Plane for Multi-Agent Workflows, MCP Tools & Context-Aware Memory
 

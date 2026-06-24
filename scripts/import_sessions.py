@@ -112,24 +112,47 @@ def main():
     pkg = build_export_package(raw)
     print(f"Built export package: {pkg['sessionCount']} sessions\n")
 
-    result = import_export(pkg, dry_run=dry_run)
+    total_imported = 0
+    total_merged = 0
+    total_skipped = 0
+    total_errors = []
+    
+    chunk_size = 10
+    sessions = pkg["sessions"]
+    num_chunks = (len(sessions) - 1) // chunk_size + 1
+    
+    for idx in range(0, len(sessions), chunk_size):
+        chunk = sessions[idx:idx + chunk_size]
+        sub_pkg = {
+            "version": pkg["version"],
+            "exportedAt": pkg["exportedAt"],
+            "tormentnexusVersion": pkg["tormentnexusVersion"],
+            "environment": pkg["environment"],
+            "sessionCount": len(chunk),
+            "sessions": chunk,
+            "globalMemories": pkg["globalMemories"],
+        }
+        print(f"Importing chunk {idx // chunk_size + 1}/{num_chunks} (sessions {idx} to {idx + len(chunk) - 1})...")
+        result = import_export(sub_pkg, dry_run=dry_run)
+        
+        if "error" in result:
+            print(f"  Chunk Error: {result['error'][:200]}")
+            total_errors.append(f"Chunk starting at {idx} failed: {result['error']}")
+            continue
+            
+        report = result.get("data", {})
+        total_imported += report.get('imported', 0)
+        total_merged += report.get('merged', 0)
+        total_skipped += report.get('skipped', 0)
+        total_errors.extend(report.get('errors', []))
 
-    if "error" in result:
-        print(f"ERROR: {result['error'][:200]}")
-        return
-
-    report = result.get("data", {})
-    print("Result:")
-    print(f"  Imported: {report.get('imported', 0)}")
-    print(f"  Merged:  {report.get('merged', 0)}")
-    print(f"  Skipped: {report.get('skipped', 0)}")
-    print(f"  Errors:  {len(report.get('errors', []))}")
-    for e in report.get("errors", [])[:5]:
+    print("\nFinal Result:")
+    print(f"  Imported: {total_imported}")
+    print(f"  Merged:  {total_merged}")
+    print(f"  Skipped: {total_skipped}")
+    print(f"  Errors:  {len(total_errors)}")
+    for e in total_errors[:10]:
         print(f"    - {e[:150]}")
-    for d in report.get("details", [])[:3]:
-        print(
-            f"    {d.get('action')}: {d.get('sessionId', '')[:40]} {d.get('reason', '')}"
-        )
 
 
 if __name__ == "__main__":

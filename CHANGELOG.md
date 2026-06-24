@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.0.0-alpha.149] - 2026-06-24
+
+### Added
+- **Self-Healing Go Compiler Loop**: Implemented `compiler_reset.py` to automatically execute `go build`, parse compilation errors, remove faulty generated Go files, reset their database status to `'pending'`, and loop until clean compilation is achieved.
+- **Deduplicated Skill Ingestion**: Developed `ingest_all_user_skills.py` to scrape 2,956 home directory skills into `.tormentnexus/skills.db` using Jaccard similarity at a 90% threshold, yielding 2,948 canonical and 8 duplicate entries.
+- **New Documentation Draft**: Added `docs/COMPILER_HEALING_AND_SKILLS.md` covering the self-healing compiler loop and the Jaccard-deduplicated skill registry.
+
+### Changed
+- **Workspace Simplification**: Created `archive_cleaner.py` and consolidated obsolete, temporary, and old version files from the root workspace into structured, git-ignored subdirectories within `/archive/`.
+- **LM Studio Integration**: Updated `~/.lmstudio/mcp.json` configuration to default to `tormentnexus` supervisor instead of `hypercode` as its MCP server.
+- **Version bump**: Synchronized all monorepo dependencies and workspaces to version `1.0.0-alpha.149`.
+
 ## [1.0.0-alpha.136] - 2026-06-23
 
 ### Fixed

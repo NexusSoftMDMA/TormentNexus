@@ -30,7 +30,7 @@ from datetime import datetime
 from pathlib import Path
 
 # === CONFIG ===
-PROXY_URL = os.environ.get("SWARM_PROXY", "http://localhost:4000")
+PROXY_URL = os.environ.get("SWARM_PROXY", "http://localhost:4000/api/proxy")
 PROXY_KEY = os.environ.get("SWARM_KEY", "sk-freellm")
 PROXY_BIN = os.environ.get(
     "SWARM_PROXY_BIN", "C:/Users/hyper/workspace/litellm_control_panel/freellm.exe"

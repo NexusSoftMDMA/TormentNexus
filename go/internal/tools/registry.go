@@ -24,7 +24,7 @@ func ok(text string) (ToolResponse, error) {
 }
 
 func err(msg string) (ToolResponse, error) {
-	return ToolResponse{}, fmt.Errorf(msg)
+	return ToolResponse{}, fmt.Errorf("%s", msg)
 }
 
 func getString(args map[string]interface{}, key string) string {

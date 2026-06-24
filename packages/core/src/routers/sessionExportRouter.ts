@@ -208,7 +208,7 @@ export async function restoreSessionViaOrchestrator(
     }
 
     try {
-        const res = await fetchImpl(`${orchestratorBase}/api/sessions`, {
+        const res = await fetchImpl(`${orchestratorBase}/api/sessions/start`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({

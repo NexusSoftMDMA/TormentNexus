@@ -22,7 +22,7 @@ export const supervisorRouter = t.router({
 
         if (orchestratorBase) {
             try {
-                const res = await fetch(`${orchestratorBase}/api/sessions`, {
+                const res = await fetch(`${orchestratorBase}/api/sessions/start`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -32,13 +32,11 @@ export const supervisorRouter = t.router({
                 });
                 if (res.ok) {
                     const sessionData = await res.json();
+                    const session = sessionData.data;
 
-                    await fetch(`${orchestratorBase}/api/sessions/${sessionData.id}/start`, {
-                        method: 'POST'
-                    });
                     return {
                         success: true,
-                        sessionId: sessionData.id,
+                        sessionId: session.id,
                         message: "Goal successfully delegated to TormentNexus Orchestrator."
                     };
                 }
