@@ -18,8 +18,8 @@ func (s *Server) handleLLMGenerate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var payload struct {
-		TaskType string      `json:"taskType"`
-		Model    string      `json:"model,omitempty"`
+		TaskType string       `json:"taskType"`
+		Model    string       `json:"model,omitempty"`
 		Messages []ai.Message `json:"messages"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
@@ -52,10 +52,10 @@ func (s *Server) handleLLMGenerate(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusOK, map[string]any{
 				"success": true,
 				"data": map[string]any{
-					"content":  resp.Content,
-					"provider": resp.Provider,
-					"model":    resp.Model,
-					"usage":    resp.Usage,
+					"content":   resp.Content,
+					"provider":  resp.Provider,
+					"model":     resp.Model,
+					"usage":     resp.Usage,
 					"latencyMs": time.Since(startedAt).Milliseconds(),
 				},
 				"bridge": map[string]any{"source": "go-llm-provider"},

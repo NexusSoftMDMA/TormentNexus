@@ -1,6 +1,6 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { type NextRequest, NextResponse } from 'next/server';
 
-const GO_SIDECAR_BASE = process.env.TORMENTNEXUS_GO_SIDECAR_URL || 'http://127.0.0.1:4300';
+const GO_SIDECAR_BASE = process.env.TORMENTNEXUS_GO_SIDECAR_URL || 'http://127.0.0.1:7778';
 
 /**
  * Go sidecar reverse proxy.

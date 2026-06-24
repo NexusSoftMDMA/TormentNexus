@@ -3,7 +3,7 @@ import { getCacheTTL, getCached, setCached } from '../cache';
 export const runtime = 'nodejs';
 
 const DEFAULT_UPSTREAM_TRPC_URL = 'http://127.0.0.1:7779/trpc';
-const DEFAULT_GO_API_BASE = 'http://127.0.0.1:4300';
+const DEFAULT_GO_API_BASE = 'http://127.0.0.1:7778';
 
 function resolveUpstreamBase(): string {
   return process.env.TORMENTNEXUS_TRPC_UPSTREAM?.trim() || DEFAULT_UPSTREAM_TRPC_URL;
@@ -46,14 +46,28 @@ function getCompatRoute(procedurePath: string, input: unknown): string | null {
   if (procedurePath === 'mcp.listServers') {
     return '/api/mcp/servers';
   }
+  if (procedurePath === 'mcp.getToolSelectionTelemetry') {
+    return '/api/mcp/tool-selection-telemetry';
+  }
+  if (procedurePath === 'mcp.clearToolSelectionTelemetry') {
+    return '/api/mcp/tool-selection-telemetry/clear';
+  }
+  if (procedurePath === 'mcp.runServerTest') {
+    return '/api/mcp/server-test';
+  }
   if (procedurePath === 'session.list') {
     return '/api/native/session/list';
   }
+  if (procedurePath === 'session.importedMaintenanceStats') {
+    return '/api/sessions/imported/maintenance-stats';
+  }
   // ── Billing (Go-native with local fallback) ──
+  if (procedurePath === 'billing.getStatus') {
+    return '/api/billing/status';
+  }
   if (procedurePath === 'billing.getProviderQuotas') {
     return '/api/billing/provider-quotas';
   }
-
   if (procedurePath === 'billing.getCostHistory') {
     const days = typeof input === 'object' && input !== null && 'days' in input
       ? Number((input as { days?: unknown }).days)
@@ -61,11 +75,9 @@ function getCompatRoute(procedurePath: string, input: unknown): string | null {
     const normalizedDays = Number.isFinite(days) && days > 0 ? Math.min(Math.round(days), 90) : 30;
     return `/api/billing/cost-history?days=${normalizedDays}`;
   }
-
   if (procedurePath === 'billing.getModelPricing') {
     return '/api/billing/model-pricing';
   }
-
   if (procedurePath === 'billing.getFallbackChain') {
     const taskType = typeof input === 'object' && input !== null && 'taskType' in input
       ? (input as { taskType?: unknown }).taskType
@@ -75,11 +87,31 @@ function getCompatRoute(procedurePath: string, input: unknown): string | null {
       : '';
     return `/api/billing/fallback-chain${search}`;
   }
-
   if (procedurePath === 'billing.getTaskRoutingRules') {
     return '/api/billing/task-routing-rules';
   }
-
+  if (procedurePath === 'billing.getDepletedModels') {
+    return '/api/billing/depleted-models';
+  }
+  if (procedurePath === 'billing.getFallbackHistory') {
+    const limit = typeof input === 'object' && input !== null && 'limit' in input
+      ? Number((input as { limit?: unknown }).limit)
+      : NaN;
+    const normalizedLimit = Number.isFinite(limit) && limit > 0 ? Math.min(Math.round(limit), 50) : 20;
+    return `/api/billing/fallback-history?limit=${normalizedLimit}`;
+  }
+  // ── Director (Go-native with local fallback) ──
+  if (procedurePath === 'director.status') {
+    return '/api/director/status';
+  }
+  if (procedurePath === 'directorConfig.get') {
+    return '/api/director-config';
+  }
+  // ── LLM (Go-native with WaterfallClient) ──
+  if (procedurePath === 'llm.generate') {
+    return '/api/llm/generate';
+  }
+  // ── Memory (Go-native with local fallback) ──
   if (procedurePath === 'memory.getRecentObservations') {
     const limit = typeof input === 'object' && input !== null && 'limit' in input
       ? Number((input as { limit?: unknown }).limit)
@@ -96,7 +128,6 @@ function getCompatRoute(procedurePath: string, input: unknown): string | null {
     if (typeof type === 'string' && type.length > 0) params.set('type', type);
     return `/api/memory/observations/recent?${params.toString()}`;
   }
-
   if (procedurePath === 'memory.getRecentUserPrompts') {
     const limit = typeof input === 'object' && input !== null && 'limit' in input
       ? Number((input as { limit?: unknown }).limit)
@@ -109,7 +140,6 @@ function getCompatRoute(procedurePath: string, input: unknown): string | null {
     if (typeof role === 'string' && role.length > 0) params.set('role', role);
     return `/api/memory/user-prompts/recent?${params.toString()}`;
   }
-
   if (procedurePath === 'memory.getRecentSessionSummaries') {
     const limit = typeof input === 'object' && input !== null && 'limit' in input
       ? Number((input as { limit?: unknown }).limit)
@@ -227,11 +257,19 @@ async function tryCompatFallback(req: Request, procedurePath: string): Promise<R
  * proxying through the TS Core tRPC server (~100-300ms).
  */
 const GO_NATIVE_PROCEDURES = new Set([
-  // Note: startupStatus omitted because tRPC returns much richer data
-  // (mcpAggregator details, executionEnvironment, etc.) that the Go
-  // sidecar doesn't provide. Go data is only suitable as fallback.
-  'mcp.getStatus',    // Go-native with caching (<5ms vs ~200ms)
-  'mcp.listServers',  // Go-native with local MCP config
+  'mcp.getStatus',
+  'mcp.listServers',
+  'mcp.getToolSelectionTelemetry',
+  'session.importedMaintenanceStats',
+  'billing.getProviderQuotas',
+  'billing.getModelPricing',
+  'billing.getStatus',
+  'billing.getDepletedModels',
+  'billing.getFallbackHistory',
+  'billing.getFallbackChain',
+  'billing.getTaskRoutingRules',
+  'director.status',
+  'directorConfig.get',
 ]);
 
 async function handler(req: Request): Promise<Response> {
