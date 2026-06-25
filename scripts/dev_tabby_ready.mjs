@@ -97,7 +97,7 @@ function extractTrpcData(payload) {
     return data;
   }
 
-  if (Object.prototype.hasOwnProperty.call(data, 'json')) {
+  if (Object.hasOwn(data, 'json')) {
     return data.json;
   }
 
@@ -407,7 +407,6 @@ function spawnTurboDev() {
     'dev',
     '--concurrency',
     '22',
-    '--filter=!mcp-superassistant',
     '--filter=!@extension/hmr',
     '--filter=!opencode-autopilot',
     '--filter=!@tormentnexus/cli',

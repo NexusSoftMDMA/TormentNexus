@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.0.0-alpha.160] - 2026-06-25
+
+### Changed
+- **Dashboard Consolidation**: Unified `/dashboard/brain` and `/dashboard/memory` pages into a single, comprehensive "Brain & Memory" dashboard at `/dashboard/brain`. Merged the Cognitive Graph, URL Ingestion, Expert Agents, Memory Vault, Observations Log, and Ingestion Hydration controls under tabs.
+- **Memory Redirection**: Replaced the redundant `/dashboard/memory` page with a seamless client-side redirect component to guide users to the new unified Brain & Memory hub.
+- **Sidebar & Nav cleanup**: Removed the duplicate "Memory Store" link from `nav-config.ts` and renamed "Cognitive Brain" to "Brain & Memory".
+- **Go Compiler Healing**: Ran compiler reset to fix syntax errors in auto-generated Go tools (`lemonade.go`, `semble.go`, `dagu.go`), restoring green compilation.
+
 ## [1.0.0-alpha.157] - 2026-06-25
 
 ### Changed

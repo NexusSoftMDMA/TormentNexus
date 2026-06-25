@@ -92,7 +92,10 @@
 - **Double-Value Helper Rules**: The swarm generator sometimes outputs invalid brackets or files. Running the compiler reset script (`compiler_reset.py`) clears these quickly and maintains compiler safety.
 - **L1 In-Memory Caching**: Mirroring BobbyBookmarks' tiered design using in-memory caches inside the `VectorStore` structure provides rapid key-value retrieval for hot memories during chat loops.
 
+## Session 2026-06-25 (Dashboard Consolidation Phase 4 & Dev Hardening)
 
-
-
+### Dashboard Consolidation
+- **Brain & Memory Consolidation**: Unified `/dashboard/brain` and `/dashboard/memory` (and its hydration pages) into a tabbed layout in `/dashboard/brain/page.tsx` called **TormentNexus Cognitive Hub**. This groups Symbols Graph, Memory Vault, URL Ingestion, Expert Agents, Observations logs, and Hydration sync under a single sidebar tab.
+- **Client Redirects**: Replacing redundant page paths (like `/dashboard/memory`) with a client-side Next.js `useRouter.push()` redirect ensures backward compatibility for older bookmarks.
+- **Turbo Filter validation**: When a package doesn't exist in the workspace, Turbo's `--filter` triggers an error. Custom dev tools (like `scripts/dev_tabby_ready.mjs`) must avoid hardcoded package exclusion filters that target deleted packages (like `mcp-superassistant` or `@extension/hmr`).
 

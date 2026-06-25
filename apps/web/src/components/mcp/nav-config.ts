@@ -111,8 +111,7 @@ export const INTEGRATIONS_NAV: NavItem[] = [
 export const MAIN_DASHBOARD_NAV: NavItem[] = [
     { title: "Dashboard Home", href: "/dashboard", icon: LayoutDashboard, variant: "ghost" },
     { title: "Swarm & Agents", href: "/dashboard/swarm", icon: Users, variant: "ghost" },
-    { title: "Cognitive Brain", href: "/dashboard/brain", icon: Brain, variant: "ghost" },
-    { title: "Memory Store", href: "/dashboard/memory", icon: Brain, variant: "ghost" },
+    { title: "Brain & Memory", href: "/dashboard/brain", icon: Brain, variant: "ghost" },
     { title: "Code Platform", href: "/dashboard/code", icon: FileCode2, variant: "ghost" },
     { title: "Command Console", href: "/dashboard/command", icon: Terminal, variant: "ghost" },
     { title: "Workflows", href: "/dashboard/workflows", icon: Workflow, variant: "ghost" },

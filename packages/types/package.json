@@ -1,6 +1,6 @@
 {
   "name": "@tormentnexus/types",
-  "version": "1.0.0-alpha.157",
+  "version": "1.0.0-alpha.160",
   "private": true,
   "main": "dist/index.js",
   "types": "src/index.ts",
