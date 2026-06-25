@@ -129,6 +129,61 @@ func TestVectorStoreAdvancedFeatures(t *testing.T) {
 	if mathAbs(newImportance-expectedImportance) > 0.0001 {
 		t.Errorf("expected importance %f, got %f", expectedImportance, newImportance)
 	}
+
+	// 5. Test GraphRAG relations
+	if err := vs.AddRelation(ctx, "test-1", "test-2", "related_to", 0.95); err != nil {
+		t.Fatalf("failed to add relation: %v", err)
+	}
+
+	rels, err := vs.GetRelations(ctx, "test-1")
+	if err != nil {
+		t.Fatalf("failed to get relations: %v", err)
+	}
+	if len(rels) != 1 {
+		t.Errorf("expected 1 relation, got %d", len(rels))
+	} else {
+		if rels[0].SourceID != "test-1" || rels[0].TargetID != "test-2" || rels[0].RelationType != "related_to" || rels[0].Weight != 0.95 {
+			t.Errorf("incorrect relation details: %+v", rels[0])
+		}
+	}
+
+	// 6. Test Forgetting Curve Decay
+	if err := vs.ForgettingCurveDecay(ctx); err != nil {
+		t.Fatalf("failed forgetting curve decay: %v", err)
+	}
+
+	// 7. Test Semantic Consolidation
+	// Insert duplicate memory that is semantically similar to test-2
+	record3 := controlplane.L2VaultRecord{
+		ID:             "test-3",
+		SessionID:      "session-abc",
+		Type:           controlplane.MemoryWorking,
+		Kind:           "fact",
+		Category:       "project-info",
+		Tags:           "tormentnexus",
+		Content:        "TormentNexus has 232 Go files", // Identical to test-2 content to guarantee Jaccard sim > 0.8
+		Importance:     0.4,
+		HeatScore:      20.0,
+		CreatedAt:      time.Now(),
+		LastAccessedAt: time.Now(),
+	}
+	if err := vs.Commit(ctx, record3); err != nil {
+		t.Fatalf("failed to commit record 3: %v", err)
+	}
+
+	if err := vs.ConsolidateMemories(ctx); err != nil {
+		t.Fatalf("failed consolidation: %v", err)
+	}
+
+	// test-3 should be merged into test-2 or vice versa, resulting in deletion of test-3
+	var count int
+	err = vs.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM l2_vault WHERE id = 'test-3'").Scan(&count)
+	if err != nil {
+		t.Fatalf("failed to query test-3 presence: %v", err)
+	}
+	if count != 0 {
+		t.Errorf("expected test-3 to be consolidated/deleted, but it still exists")
+	}
 }
 
 func mathAbs(x float64) float64 {

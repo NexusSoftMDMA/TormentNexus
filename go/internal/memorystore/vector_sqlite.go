@@ -474,3 +474,197 @@ func cosineSim(a, b []float32) float64 {
 	}
 	return dot / (math.Sqrt(nA) * math.Sqrt(nB))
 }
+
+// AddRelation creates or updates a relational edge between two L2 memories (GraphRAG relation mapping).
+func (s *VectorStore) AddRelation(ctx context.Context, sourceID, targetID, relType string, weight float64) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	_, err := s.db.ExecContext(ctx, `
+		INSERT INTO l2_relations (source_id, target_id, relation_type, weight)
+		VALUES (?, ?, ?, ?)
+		ON CONFLICT(source_id, target_id, relation_type) DO UPDATE SET weight = excluded.weight
+	`, sourceID, targetID, relType, weight)
+	return err
+}
+
+// GetRelations returns all incoming and outgoing relations for a specific memory ID.
+func (s *VectorStore) GetRelations(ctx context.Context, id string) ([]controlplane.L2Relation, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT source_id, target_id, relation_type, weight
+		FROM l2_relations
+		WHERE source_id = ? OR target_id = ?
+	`, id, id)
+	if err != nil {
+		return nil, fmt.Errorf("GetRelations: %w", err)
+	}
+	defer rows.Close()
+
+	var rels []controlplane.L2Relation
+	for rows.Next() {
+		var r controlplane.L2Relation
+		if err := rows.Scan(&r.SourceID, &r.TargetID, &r.RelationType, &r.Weight); err != nil {
+			return nil, err
+		}
+		rels = append(rels, r)
+	}
+	return rels, nil
+}
+
+// ForgettingCurveDecay applies Ebbinghaus biomimetic decay to the heat score of all non-archived memories
+// based on the hours elapsed since last_accessed_at: Heat = Heat * exp(-0.0288 * hours_since_access).
+func (s *VectorStore) ForgettingCurveDecay(ctx context.Context) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	_, err := s.db.ExecContext(ctx, `
+		UPDATE l2_vault
+		SET heat_score = heat_score * exp(-0.0288 * (julianday('now') - julianday(last_accessed_at)) * 24.0)
+		WHERE memory_type != 'archive'
+	`)
+	if err != nil {
+		return fmt.Errorf("ForgettingCurveDecay: %w", err)
+	}
+
+	// Archive demotion: long_term memories with a heat score < 20.0 move to archive
+	_, err = s.db.ExecContext(ctx, `
+		UPDATE l2_vault
+		SET memory_type = 'archive'
+		WHERE heat_score < 20.0 AND memory_type = 'long_term'
+	`)
+	if err != nil {
+		return fmt.Errorf("ForgettingCurveDecay archive promotion: %w", err)
+	}
+
+	return nil
+}
+
+// ConsolidateMemories performs semantic consolidation. It finds pairs of memories with similar content (using Jaccard similarity threshold > 0.8) and merges them.
+func (s *VectorStore) ConsolidateMemories(ctx context.Context) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT id, content, COALESCE(heat_score, 0.0), COALESCE(importance, 0.0), memory_kind, category
+		FROM l2_vault
+		WHERE memory_type != 'archive'
+	`)
+	if err != nil {
+		return fmt.Errorf("ConsolidateMemories fetch: %w", err)
+	}
+	defer rows.Close()
+
+	type rawRecord struct {
+		ID         string
+		Content    string
+		HeatScore  float64
+		Importance float64
+		Kind       string
+		Category   string
+	}
+
+	var recs []rawRecord
+	for rows.Next() {
+		var r rawRecord
+		if err := rows.Scan(&r.ID, &r.Content, &r.HeatScore, &r.Importance, &r.Kind, &r.Category); err != nil {
+			return err
+		}
+		recs = append(recs, r)
+	}
+
+	jaccardSim := func(s1, s2 string) float64 {
+		w1 := strings.Fields(strings.ToLower(s1))
+		w2 := strings.Fields(strings.ToLower(s2))
+		set1 := make(map[string]bool)
+		set2 := make(map[string]bool)
+		for _, w := range w1 {
+			set1[w] = true
+		}
+		for _, w := range w2 {
+			set2[w] = true
+		}
+		intersect := 0
+		for w := range set1 {
+			if set2[w] {
+				intersect++
+			}
+		}
+		union := len(set1) + len(set2) - intersect
+		if union == 0 {
+			return 0
+		}
+		return float64(intersect) / float64(union)
+	}
+
+	merged := make(map[string]bool)
+
+	for i := 0; i < len(recs); i++ {
+		if merged[recs[i].ID] {
+			continue
+		}
+		for j := i + 1; j < len(recs); j++ {
+			if merged[recs[j].ID] {
+				continue
+			}
+
+			sim := jaccardSim(recs[i].Content, recs[j].Content)
+			if sim > 0.8 {
+				// Merge j into i
+				// Combine content, boost heat/importance
+				newContent := recs[i].Content
+				if len(recs[j].Content) > len(recs[i].Content) {
+					newContent = recs[j].Content
+				}
+				newHeat := math.Min(100.0, recs[i].HeatScore+recs[j].HeatScore*0.5)
+				newImportance := math.Min(1.0, recs[i].Importance+0.1)
+
+				_, err = s.db.ExecContext(ctx, `
+					UPDATE l2_vault
+					SET content = ?, heat_score = ?, importance = ?, last_accessed_at = CURRENT_TIMESTAMP
+					WHERE id = ?
+				`, newContent, newHeat, newImportance, recs[i].ID)
+				if err != nil {
+					return fmt.Errorf("ConsolidateMemories update: %w", err)
+				}
+
+				// Copy relations of j to i, then delete j
+				_, err = s.db.ExecContext(ctx, `
+					UPDATE l2_relations
+					SET source_id = ?
+					WHERE source_id = ?
+				`, recs[i].ID, recs[j].ID)
+				if err != nil {
+					return err
+				}
+				_, err = s.db.ExecContext(ctx, `
+					UPDATE l2_relations
+					SET target_id = ?
+					WHERE target_id = ?
+				`, recs[i].ID, recs[j].ID)
+				if err != nil {
+					return err
+				}
+
+				_, err = s.db.ExecContext(ctx, "DELETE FROM l2_vault WHERE id = ?", recs[j].ID)
+				if err != nil {
+					return err
+				}
+				_, err = s.db.ExecContext(ctx, "DELETE FROM vec_l2_vault WHERE id = ?", recs[j].ID)
+				if err != nil {
+					return err
+				}
+
+				merged[recs[j].ID] = true
+				recs[i].Content = newContent
+				recs[i].HeatScore = newHeat
+				recs[i].Importance = newImportance
+			}
+		}
+	}
+
+	return nil
+}
+

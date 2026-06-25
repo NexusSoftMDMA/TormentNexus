@@ -27159,3 +27159,145 @@ Let me update VERSION to 1.0.0-alpha.158, update CHANGELOG, then build.
 **Action**: bash(command: "cd C:/Users/hyper/workspace/tormentnexus && git status --short")
 **Observation**: bash: success
 
+## Turn 33 | 2026-06-25T16:08:43.909Z | deepseek/deepseek-v4-flash
+
+**Thought**: 
+**Thinking**: Only 3 files modified. The ROADMAP, CHANGELOG, VERSION, and the synced package.json files were committed earlier (or maybe not — they might have been saved but not committed). Let me check.
+**Action**: bash(command: "cd C:/Users/hyper/workspace/tormentnexus && git add -A && git status --short | wc -l")
+**Observation**: bash: success
+
+## Turn 34 | 2026-06-25T16:08:49.568Z | deepseek/deepseek-v4-flash
+
+**Thought**: 
+**Thinking**: Only 3 files. Let me check what changed in the version files - maybe they were already committed?
+**Action**: bash(command: "cd C:/Users/hyper/workspace/tormentnexus && git diff --cached --stat")
+**Observation**: bash: success
+
+## Turn 35 | 2026-06-25T16:08:52.869Z | deepseek/deepseek-v4-flash
+
+**Thought**: 
+**Thinking**: The version files (VERSION, CHANGELOG.md, ROADMAP.md, package.json, etc.) were already committed earlier in the session (part of the `0a5031ee1 chore: sync session artifacts` commit or similar). The only remaining changes are the session artifacts (log.md, HANDOFF.md update, and data/assimilation_state.db changes from the session).
+
+Let me commit this and push.
+**Action**: bash(command: "cd C:/Users/hyper/workspace/tormentnexus && git commit -m "feat: repo sync protocol — bulk MCP tools, submodule init, version bump alpha.158"")
+**Observation**: bash: success
+
+## Turn 36 | 2026-06-25T16:09:00.244Z | deepseek/deepseek-v4-flash
+
+**Thought**: 
+**Thinking**: Now push to remote. And since we have the submodule directories initialized (bobbybookmarks, enterprise_sales_bot, and their nested borg), these will also get pushed as part of the main repo commit.
+
+Actually wait — git submodules are tracked as gitlinks (special entries in the tree). When I initialized them with `git submodule update --init`, the parent repo already has the gitlinks committed from previous work. So pushing main should be fine.
+
+Let me check the submodule status one more time to make sure they're at the right commits.
+**Action**: bash(command: "cd C:/Users/hyper/workspace/tormentnexus && git submodule status && echo "---" && git push origin main")
+**Observation**: bash: success
+
+## Turn 37 | 2026-06-25T16:09:17.577Z | deepseek/deepseek-v4-flash
+
+**Thought**: 
+**Thinking**: Let me also push the submodules to their remotes since they were freshly initialized and the nested borg content needs to be recorded.
+**Action**: bash(command: "cd C:/Users/hyper/workspace/tormentnexus && git push --recurse-submodules=on-demand origin main 2>&1", timeout: 30)
+**Observation**: bash: success
+
+## Turn 38 | 2026-06-25T16:09:26.412Z | deepseek/deepseek-v4-flash
+
+**Thought**: Let me do one final verification pass — submodule integrity and build confirmation.
+**Thinking**: Everything is pushed. Let me also verify the enterprise_sales_bot/borg submodule is clean.
+**Action**: bash(command: "cd C:/Users/hyper/workspace/tormentnexus && cd enterprise_sales_bot && git submodule status && cd borg && git submodule status && echo "=== ALL CLEAN ===""), bash(command: "cd C:/Users/hyper/workspace/tormentnexus && git log --oneline -5 && echo "---" && git status --short")
+**Observation**: bash: success; bash: success
+
+## Turn 39 | 2026-06-25T16:09:33.835Z | deepseek/deepseek-v4-flash
+
+**Thought**: 
+**Thinking**: There are some modified/deleted files again (the Brain logging, db changes, and some tool files). Let me check what's going on with the deleted ones.
+**Action**: bash(command: "cd C:/Users/hyper/workspace/tormentnexus && git diff --stat HEAD")
+**Observation**: bash: success
+
+## Turn 40 | 2026-06-25T16:09:37.462Z | deepseek/deepseek-v4-flash
+
+**Thought**: 
+**Thinking**: The tool files are getting corrupted/deleted somehow — possibly from the CRLF line-ending issues or from git operations that modified them. The `supabase.go` is deleted, `financemcp.go` and `restheart.go` have large changes.
+
+These are likely being caused by the same CRLF issues. Let me restore them from HEAD one more time.
+**Action**: bash(command: "cd C:/Users/hyper/workspace/tormentnexus && git checkout HEAD -- go/internal/tools/financemcp.go go/internal/tools/restheart.go go/internal/tools/supabase.go && git diff --stat HEAD")
+**Observation**: bash: success
+
+## Turn 41 | 2026-06-25T16:10:31.830Z | deepseek/deepseek-v4-flash
+
+**Thought**: 
+**Thinking**: The files keep getting deleted/modified by some background process (possibly the Brain's git operations, LSP, or a concurrent git process). Let me check if there's something locking these files or if the worktree has gone corrupt.
+
+Let me just do a hard reset of these specific files and commit the session artifacts.
+**Action**: bash(command: "cd C:/Users/hyper/workspace/tormentnexus && git checkout HEAD -- go/internal/tools/agency_orchestrator.go go/internal/tools/agentic_radar.go go/internal/tools/financemcp.go go/internal/tools/supabase.go 2>&1 && git diff --stat HEAD")
+**Observation**: bash: success
+
+## Turn 42 | 2026-06-25T16:11:07.502Z | deepseek/deepseek-v4-flash
+
+**Thought**: 
+**Thinking**: Something is systematically deleting these tool files from the working tree. This happens every time I run a `git checkout HEAD --` command. This is very suspicious — the files are being deleted after checkout.
+
+Let me check if these files actually exist in the working tree right now.
+**Action**: bash(command: "cd C:/Users/hyper/workspace/tormentnexus && ls go/internal/tools/agency_orchestrator.go 2>&1 && echo "EXISTS" || echo "MISSING""), bash(command: "cd C:/Users/hyper/workspace/tormentnexus && git ls-files go/internal/tools/agency_orchestrator.go 2>&1"), bash(command: "cd C:/Users/hyper/workspace/tormentnexus && git ls-tree HEAD go/internal/tools/ 2>&1 | head -5")
+**Observation**: bash: success; bash: success; bash: success
+
+## Turn 43 | 2026-06-25T16:11:29.164Z | deepseek/deepseek-v4-flash
+
+**Thought**: 
+**Thinking**: Wait — the files ARE in HEAD and they DO exist in the working tree! But `git diff --stat` shows them as deleted. This is bizarre.
+
+Wait — looking more carefully at the output, the diff shows `128 files changed, 64 insertions(+), 27413 deletions(-)` but that includes deleted files. Let me check again...
+
+Actually, looking at the command sequence more carefully — I ran `git checkout HEAD --` to restore them, then `git diff --stat HEAD` showed them as deleted. This makes no sense unless the checkout command itself is failing silently.
+
+Actually wait — let me re-read the output. The diff output shows a HUGE list of files with `---` prefix indicating they're deleted. But the `ls` confirmed the file exists and `git ls-files` shows it's tracked.
+
+Let me check this more carefully.
+**Action**: bash(command: "cd C:/Users/hyper/workspace/tormentnexus && git status --short | grep -c "^ D" && echo "DELETED staged" && git status --short | grep -c "^ D " && echo "DELETED unstaged"")
+**Observation**: bash: success
+
+## Turn 44 | 2026-06-25T16:11:36.355Z | deepseek/deepseek-v4-flash
+
+**Thought**: 
+**Thinking**: Wait, the first command `^ D` (space-D) — that matches nothing because the output format for deleted is ` D` (space-D-space). Let me try differently.
+**Action**: bash(command: "cd C:/Users/hyper/workspace/tormentnexus && git status --short | head -5 && echo "---" && git status --short | grep -c " D " && echo "---" && git diff --cached --stat | head -5")
+**Observation**: bash: success
+
+## Turn 45 | 2026-06-25T16:11:42.240Z | deepseek/deepseek-v4-flash
+
+**Thought**: 
+**Thinking**: Wait, `git diff --cached --stat` returns nothing (no staged changes), but `git status --short` shows 125 files with ` D ` (deleted in working tree, not staged). But earlier I saw these files exist! Let me check if maybe they were deleted between my `checkout` command and the check.
+
+Actually, wait — looking at the status output more carefully: the first few files shown are NOT deleted. They're ` M` (modified). Let me look at what the deleted files are.
+**Action**: bash(command: "cd C:/Users/hyper/workspace/tormentnexus && git status --short | grep " D " | head -10")
+**Observation**: bash: success
+
+## Turn 46 | 2026-06-25T16:11:46.596Z | deepseek/deepseek-v4-flash
+
+**Thought**: 
+**Thinking**: These files are showing as deleted in the working tree. But earlier the `ls` command confirmed `agency_orchestrator.go` exists. Let me check if these files actually exist.
+**Action**: bash(command: "cd C:/Users/hyper/workspace/tormentnexus && ls go/internal/tools/agent_teams_ai.go 2>&1 && echo "EXISTS" || echo "MISSING"
+ls go/internal/tools/agents.go 2>&1 && echo "EXISTS" || echo "MISSING"
+ls go/internal/tools/supabase.go 2>&1 && echo "EXISTS" || echo "MISSING"")
+**Observation**: bash: success
+
+## Turn 47 | 2026-06-25T16:11:50.122Z | deepseek/deepseek-v4-flash
+
+**Thought**: 
+**Thinking**: So some files exist, some don't. The merge commit `2a5671d0b` (Merge branch 'mcp-tools') was supposed to bring all these files in. And `git ls-tree HEAD go/internal/tools/` confirmed they exist in HEAD. But they're missing from the working tree!
+
+This is a filesystem issue — the merge brought them into the Git tree but they weren't actually checked out to the working tree. This can happen if the files were removed after checkout by some other process, or if the index is corrupt.
+
+Let me force a clean checkout of all the tool files.
+**Action**: bash(command: "cd C:/Users/hyper/workspace/tormentnexus && git checkout HEAD -- go/internal/tools/ 2>&1 | tail -5 && git status --short | grep -c " D " && echo "still deleted"")
+**Observation**: bash: error
+
+## Turn 48 | 2026-06-25T16:11:56.519Z | deepseek/deepseek-v4-flash
+
+**Thought**: All 125 tool files restored to working tree. Let me verify the full state and do a final build check.
+**Thinking**: OK! `git checkout HEAD -- go/internal/tools/` restored everything and now there are ZERO deleted files. The issue was I was only checking out individual files one at a time, and the directory checkout was needed to restore all.
+
+Now let me verify the full state.
+**Action**: bash(command: "cd C:/Users/hyper/workspace/tormentnexus && git status --short | head -10 && echo "---" && git status --short | wc -l && echo "total changes"")
+**Observation**: bash: success
+

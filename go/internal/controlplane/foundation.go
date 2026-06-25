@@ -44,6 +44,14 @@ const (
 	MemoryArchive   MemoryType = "archive"   // L3 Cold storage
 )
 
+// L2Relation represents GraphRAG semantic/structural edges between memories.
+type L2Relation struct {
+	SourceID     string  `json:"source_id"`
+	TargetID     string  `json:"target_id"`
+	RelationType string  `json:"relation_type"`
+	Weight       float64 `json:"weight"`
+}
+
 // L1Scratchpad is ephemeral, fast memory tied to an active goroutine/session
 type L1Scratchpad struct {
 	SessionID      string            `json:"session_id"`
@@ -116,6 +124,17 @@ CREATE TABLE IF NOT EXISTS l2_vault (
 CREATE TABLE IF NOT EXISTS vec_l2_vault (
     id TEXT PRIMARY KEY,
     embedding BLOB NOT NULL
+);
+
+-- Relational edges between L2 memories (GraphRAG support)
+CREATE TABLE IF NOT EXISTS l2_relations (
+    source_id TEXT NOT NULL,
+    target_id TEXT NOT NULL,
+    relation_type TEXT NOT NULL,
+    weight REAL DEFAULT 1.0,
+    PRIMARY KEY (source_id, target_id, relation_type),
+    FOREIGN KEY (source_id) REFERENCES l2_vault(id) ON DELETE CASCADE,
+    FOREIGN KEY (target_id) REFERENCES l2_vault(id) ON DELETE CASCADE
 );
 `
 
