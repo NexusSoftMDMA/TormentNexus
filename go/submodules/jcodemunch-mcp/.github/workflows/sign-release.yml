@@ -1,0 +1,103 @@
+name: Sign release artifacts
+
+# Signs the wheel + sdist attached to a GitHub release with sigstore-python,
+# then uploads the .sigstore bundles back to the same release as additional
+# assets. Triggered automatically on `release.published` so the maintainer's
+# existing `gh release create` flow gains forward-only signature coverage
+# without changing the upload pattern.
+#
+# Verification by a downstream consumer (Sigstore v3 bundle format):
+#
+#     curl -L -o jcodemunch_mcp-X.Y.Z-py3-none-any.whl \
+#         https://github.com/jgravelle/jcodemunch-mcp/releases/download/vX.Y.Z/jcodemunch_mcp-X.Y.Z-py3-none-any.whl
+#     curl -L -o jcodemunch_mcp-X.Y.Z-py3-none-any.whl.sigstore.json \
+#         https://github.com/jgravelle/jcodemunch-mcp/releases/download/vX.Y.Z/jcodemunch_mcp-X.Y.Z-py3-none-any.whl.sigstore.json
+#     python -m pip install sigstore
+#     python -m sigstore verify github \
+#         --bundle jcodemunch_mcp-X.Y.Z-py3-none-any.whl.sigstore.json \
+#         --repository jgravelle/jcodemunch-mcp \
+#         --workflow-name "Sign release artifacts" \
+#         jcodemunch_mcp-X.Y.Z-py3-none-any.whl
+#
+# The verification ties the artifact back to the GitHub Actions OIDC identity
+# of this workflow file in this repository — same trust shape PyPI's PEP 740
+# attestation pipeline uses.
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to sign (e.g. v1.108.22). Required when invoking manually."
+        required: true
+        type: string
+
+permissions:
+  id-token: write     # required for sigstore OIDC
+  contents: write     # required to upload signature bundles back to the release
+
+jobs:
+  sign:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download release artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
+        run: |
+          mkdir -p artifacts
+          cd artifacts
+          # Fetch every asset on this release. The `gh release download`
+          # default pattern matches all assets; we filter to wheel + sdist
+          # so we don't try to sign anything already signed (.sigstore files
+          # uploaded by a prior run get re-uploaded otherwise).
+          gh release download "$RELEASE_TAG" \
+              --repo "${{ github.repository }}" \
+              --pattern '*.whl' \
+              --pattern '*.tar.gz' \
+              --skip-existing
+          ls -la
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Sign artifacts
+        # The Sigstore action publishes specific semver tags only (v3.3.0,
+        # v3.2.0, etc.) — there is no floating @v3 ref. Pinning to the commit
+        # SHA of v3.3.0 makes the version immutable; bump in lockstep with
+        # upstream releases when a CVE / improvement warrants.
+        uses: sigstore/gh-action-sigstore-python@04cffa1d795717b140764e8b640de88853c92acc  # v3.3.0
+        with:
+          inputs: |
+            ./artifacts/*.whl
+            ./artifacts/*.tar.gz
+          upload-signing-artifacts: false  # we upload to the GitHub release ourselves
+
+      - name: Upload signature bundles to release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
+        run: |
+          cd artifacts
+          # The sigstore-python v3 action emits .sigstore.json bundles
+          # (the modern Sigstore bundle format) alongside each signed input.
+          # Earlier versions emitted .sigstore files; we support both.
+          shopt -s nullglob
+          bundles=(*.sigstore.json *.sigstore)
+          if [ ${#bundles[@]} -eq 0 ]; then
+            echo "No .sigstore.json or .sigstore files produced — nothing to upload."
+            ls -la
+            exit 1
+          fi
+          gh release upload "$RELEASE_TAG" "${bundles[@]}" \
+              --repo "${{ github.repository }}" \
+              --clobber
+          echo "Uploaded ${#bundles[@]} signature bundle(s) to release $RELEASE_TAG: ${bundles[*]}"

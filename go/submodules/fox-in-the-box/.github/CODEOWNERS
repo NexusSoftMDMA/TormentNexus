@@ -1,0 +1,8 @@
+# Default — all PRs require review from a maintainer
+* @roadhero
+
+# CI/CD and security-sensitive files
+.github/ @roadhero
+SECURITY.md @roadhero
+packages/integration/Dockerfile @roadhero
+packages/fox-overlay/ @roadhero

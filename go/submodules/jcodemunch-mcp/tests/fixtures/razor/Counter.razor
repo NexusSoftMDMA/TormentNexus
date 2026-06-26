@@ -1,0 +1,36 @@
+@page "/counter"
+@page "/counter/{StartingCount:int}"
+@inject ILogger<Counter> Logger
+@inject NavigationManager Navigation
+
+<h1 id="page-title">Counter</h1>
+
+<p id="current-count">Current count: @currentCount</p>
+
+<button id="increment-btn" @onclick="IncrementCount">Click me</button>
+
+<style>
+    h1 {
+        color: navy;
+    }
+</style>
+
+@code {
+    [Parameter]
+    public int StartingCount { get; set; } = 0;
+
+    private int currentCount = 0;
+
+    protected override void OnInitialized()
+    {
+        currentCount = StartingCount;
+        Logger.LogInformation("Counter initialized with {Count}", currentCount);
+    }
+
+    private void IncrementCount()
+    {
+        currentCount++;
+        Logger.LogInformation("Count incremented to {Count}", currentCount);
+        Navigation.NavigateTo("/counter");
+    }
+}

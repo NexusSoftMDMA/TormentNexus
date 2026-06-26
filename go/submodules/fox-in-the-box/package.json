@@ -1,0 +1,35 @@
+{
+  "name": "fox-in-the-box",
+  "version": "0.1.1",
+  "private": true,
+  "description": "Fox in the Box — self-hosted AI assistant monorepo",
+  "engines": {
+    "node": ">=22.12.0",
+    "pnpm": ">=9"
+  },
+  "packageManager": "pnpm@9.0.0",
+  "scripts": {
+    "postinstall": "node scripts/link-electron-desktop-deps.mjs",
+    "install:all": "pnpm install --recursive",
+    "build": "pnpm --recursive run build",
+    "build:docker": "docker build -f packages/integration/Dockerfile -t fox-in-the-box:$(cat VERSION) .",
+    "build:docker:dev": "docker build -f packages/integration/Dockerfile -t fox-in-the-box:dev --build-arg FITB_DEV=1 --build-arg FITB_VERSION=$(cat VERSION) .",
+    "test": "pnpm --recursive run test",
+    "lint": "pnpm --recursive run lint",
+    "dev": "pnpm --recursive run dev",
+    "dev:container": "docker run -it --rm --cap-add=NET_ADMIN --device /dev/net/tun -p 127.0.0.1:8787:8787 -v $(pwd)/forks/hermes-agent:/root/.hermes/hermes-agent -v $(pwd)/forks/hermes-webui:/root/.hermes/hermes-webui fox-in-the-box:dev",
+    "clean": "pnpm --recursive run clean"
+  },
+  "devDependencies": {},
+  "pnpm": {
+    "overrides": {
+      "tar": "^7.5.16",
+      "protobufjs": "^7.6.3",
+      "@grpc/grpc-js": "^1.14.4",
+      "form-data": "^4.0.6",
+      "js-yaml": "^4.2.0",
+      "tmp": "^0.2.6",
+      "@babel/core": "^7.29.6"
+    }
+  }
+}

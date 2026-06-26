@@ -1,0 +1,23 @@
+{
+  "$schema": "https://unpkg.com/knip@5/schema.json",
+  "entry": [
+    "src/cli/index.ts",
+    "src/cli/connect.ts",
+    "src/app/**/{page,layout,loading,error,not-found,route,template,default,global-error}.{ts,tsx}",
+    "tests/**/*.test.ts"
+  ],
+  "project": [
+    "src/**/*.{ts,tsx}",
+    "tests/**/*.{ts,tsx}",
+    "bin/**/*.mjs",
+    "scripts/**/*.mjs"
+  ],
+  "ignore": [
+    "src/components/ui/**"
+  ],
+  "ignoreDependencies": [
+    "postcss",
+    "tailwindcss",
+    "tw-animate-css"
+  ]
+}

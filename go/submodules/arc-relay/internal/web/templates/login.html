@@ -1,0 +1,22 @@
+{{define "title"}}Login{{end}}
+{{define "content"}}
+<div style="max-width: 400px; margin: 2rem auto; padding: 0 1rem;">
+  <div class="card">
+    <h2>Log in to Arc Relay</h2>
+    {{if .Error}}
+    <div class="alert alert-danger">{{.Error}}</div>
+    {{end}}
+    <form method="POST" action="/login">
+      <div class="form-group">
+        <label for="username">Username</label>
+        <input type="text" id="username" name="username" required autofocus>
+      </div>
+      <div class="form-group">
+        <label for="password">Password</label>
+        <input type="password" id="password" name="password" required>
+      </div>
+      <button type="submit" class="btn btn-primary" style="width:100%">Log In</button>
+    </form>
+  </div>
+</div>
+{{end}}

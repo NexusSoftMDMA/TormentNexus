@@ -1,0 +1,40 @@
+--- decision.go
++++ decision.go
+@@ -44,4 +45,35 @@
+	// Stub implementation for BM25-style ranking
+-	return []interface{}{
+-		map[string]interface{}{"name": "mock_tool_1", "score": 0.9},
++	ds.mu.RLock()
++	defer ds.mu.RUnlock()
++
++	queryLower := strings.ToLower(query)
++	var results []interface{}
++
++	allTools := ds.getAllKnownToolsLocked()
++
++	for _, t := range allTools {
++		score := 0.0
++		reason := ""
++
++		nameLower := strings.ToLower(t.AdvertisedName)
++		descLower := strings.ToLower(t.Description)
++
++		if strings.Contains(nameLower, queryLower) {
++			score += 1.0
++			reason = "Name match"
++		} else if strings.Contains(descLower, queryLower) {
++			score += 0.5
++			reason = "Description match"
++		}
++
++		if score > 0 {
++			results = append(results, map[string]interface{}{
++				"name":        t.AdvertisedName,
++				"description": ds.truncateDescription(t.Description, 100),
++				"score":       score,
++				"reason":      reason,
++				"latency":     ds.estimateLatency(t.Server),
++				"example":     ds.generateExample(RankedTool{OriginalName: t.OriginalName, AdvertisedName: t.AdvertisedName}),
++			})
++		}
+	}

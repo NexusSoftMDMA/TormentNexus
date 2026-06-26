@@ -1,0 +1,141 @@
+# Example: MCPRegistry with ConfigMap source using the decoupled configYAML path
+#
+# This example demonstrates how to serve registry data from a ConfigMap
+# using the new configYAML field. Unlike the legacy typed path where the
+# operator auto-generates volumes from configMapRef, the decoupled path
+# requires explicit volumes and volumeMounts to wire the ConfigMap data
+# into the registry server container.
+#
+# Key differences from the legacy path:
+# - The configYAML source uses "file:" with a path, not "configMapRef:"
+# - The volume and volumeMount are defined explicitly in the MCPRegistry spec
+# - The file path in configYAML must match the volumeMount mountPath
+#
+# This example also shows sync policy and tag filtering inside configYAML.
+
+---
+# ConfigMap containing the registry data
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prod-registry
+  namespace: toolhive-system
+data:
+  registry.json: |
+    {
+      "$schema": "https://raw.githubusercontent.com/stacklok/toolhive-core/main/registry/types/data/upstream-registry.schema.json",
+      "version": "1.0.0",
+      "meta": {
+        "last_updated": "2025-09-08T12:00:00Z"
+      },
+      "data": {
+        "servers": [
+          {
+            "name": "io.github.example/filesystem",
+            "description": "Allows you to do filesystem operations",
+            "version": "1.0.0",
+            "packages": [
+              {
+                "registryType": "oci",
+                "identifier": "docker.io/mcp/filesystem:latest",
+                "transport": { "type": "stdio" }
+              }
+            ],
+            "_meta": {
+              "io.modelcontextprotocol.registry/publisher-provided": {
+                "io.github.example": {
+                  "docker.io/mcp/filesystem:latest": {
+                    "tags": ["filesystem", "production"]
+                  }
+                }
+              }
+            }
+          },
+          {
+            "name": "io.github.example/github",
+            "description": "Provides integration with GitHub APIs",
+            "version": "1.0.0",
+            "packages": [
+              {
+                "registryType": "oci",
+                "identifier": "ghcr.io/github/github-mcp-server:latest",
+                "transport": { "type": "stdio" }
+              }
+            ],
+            "_meta": {
+              "io.modelcontextprotocol.registry/publisher-provided": {
+                "io.github.example": {
+                  "ghcr.io/github/github-mcp-server:latest": {
+                    "tags": ["github", "production"]
+                  }
+                }
+              }
+            }
+          },
+          {
+            "name": "io.github.example/experimental-ai",
+            "description": "Experimental AI tools - not production ready",
+            "version": "0.1.0",
+            "packages": [
+              {
+                "registryType": "oci",
+                "identifier": "docker.io/mcp/experimental-ai:latest",
+                "transport": { "type": "stdio" }
+              }
+            ],
+            "_meta": {
+              "io.modelcontextprotocol.registry/publisher-provided": {
+                "io.github.example": {
+                  "docker.io/mcp/experimental-ai:latest": {
+                    "tags": ["ai", "experimental"]
+                  }
+                }
+              }
+            }
+          }
+        ]
+      }
+    }
+---
+apiVersion: toolhive.stacklok.dev/v1beta1
+kind: MCPRegistry
+metadata:
+  name: configmap-configyaml
+  namespace: toolhive-system
+spec:
+  displayName: "ConfigMap Registry (configYAML)"
+  configYAML: |
+    sources:
+      - name: production
+        file:
+          # This path must match the volumeMount mountPath below
+          path: /config/registry/production/registry.json
+        syncPolicy:
+          interval: 1h
+        filter:
+          tags:
+            include: ["production"]
+            exclude: ["experimental"]
+    registries:
+      - name: default
+        sources: ["production"]
+    database:
+      host: postgres
+      port: 5432
+      user: db_app
+      database: registry
+    auth:
+      mode: anonymous
+  # Volume to project the ConfigMap data into the container filesystem
+  volumes:
+    - name: registry-data-production
+      configMap:
+        name: prod-registry
+        items:
+          - key: registry.json
+            path: registry.json
+  # Mount the volume at the path referenced in configYAML
+  volumeMounts:
+    - name: registry-data-production
+      mountPath: /config/registry/production
+      readOnly: true

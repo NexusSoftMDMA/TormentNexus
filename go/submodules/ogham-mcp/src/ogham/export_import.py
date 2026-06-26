@@ -1,0 +1,336 @@
+"""Export and import memory data."""
+
+import json
+from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+from typing import Any
+
+from ogham.database import (
+    batch_check_duplicates,
+    get_all_memories_full,
+    get_profile_ttl,
+    store_memories_batch,
+)
+from ogham.embeddings import generate_embeddings_batch
+
+
+def _list_all_memories(profile: str) -> list[dict[str, Any]]:
+    """Fetch all memories for a profile. Extracted so tests can patch it."""
+    return get_all_memories_full(profile)
+
+
+def _get_producer_version() -> str:
+    """Return the producer string for OKF bundle manifests."""
+    try:
+        import importlib.metadata
+
+        version = importlib.metadata.version("ogham-mcp")
+        return f"ogham-mcp/{version}"
+    except Exception:
+        # TODO: add __version__ to ogham/__init__.py in a future cleanup
+        return "ogham-mcp/dev"
+
+
+def export_memories(profile: str, format: str = "json", *, include_viewer: bool = True) -> str:
+    """Export all memories in a profile to a string or bundle path.
+
+    For format='okf', writes an OKF v0.1 bundle directory to cwd and returns
+    the directory path as a string. The bundle gets a self-contained viewer.html
+    by default; pass include_viewer=False to skip it.
+    For 'json'/'markdown', returns the data inline as a string and ignores
+    include_viewer.
+    """
+    memories = _list_all_memories(profile)
+
+    if format == "okf":
+        from ogham.okf import export_okf_bundle
+
+        stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        bundle_dir = Path.cwd() / f"ogham-okf-{profile}-{stamp}"
+        manifest = {
+            "producer": _get_producer_version(),
+            "exported_at": datetime.now(timezone.utc).isoformat(),
+            "profile": profile,
+        }
+        export_okf_bundle(memories, bundle_dir, manifest, include_viewer=include_viewer)
+        return str(bundle_dir)
+
+    if format == "markdown":
+        return _export_markdown(profile, memories)
+    return _export_json(profile, memories)
+
+
+def _export_json(profile: str, memories: list[dict[str, Any]]) -> str:
+    return json.dumps(
+        {
+            "profile": profile,
+            "exported_at": datetime.now(timezone.utc).isoformat(),
+            "count": len(memories),
+            "memories": memories,
+        },
+        indent=2,
+        default=str,
+    )
+
+
+def _export_markdown(profile: str, memories: list[dict[str, Any]]) -> str:
+    lines = [
+        "# Ogham Memory Export",
+        "",
+        f"**Profile:** {profile}",
+        f"**Count:** {len(memories)}",
+        f"**Exported:** {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}",
+        "",
+        "---",
+        "",
+    ]
+    for mem in memories:
+        lines.append(f"## {mem.get('created_at', 'unknown')[:10]}")
+        tags = mem.get("tags", [])
+        if tags:
+            lines.append(f"**Tags:** {', '.join(tags)}")
+        source = mem.get("source")
+        if source:
+            lines.append(f"**Source:** {source}")
+        lines.append("")
+        lines.append(mem["content"])
+        lines.append("")
+        lines.append("---")
+        lines.append("")
+    return "\n".join(lines)
+
+
+def _build_row(
+    mem: dict[str, Any],
+    embedding: list[float],
+    profile: str,
+    expires_at: str | None,
+) -> dict[str, Any]:
+    """Build a row dict ready for database insertion.
+
+    NOTE: deliberately does NOT carry ``mem["created_at"]`` into the row.
+    The ``memories`` table has ``DEFAULT now()`` on ``created_at``, which
+    means every imported memory is timestamped at INGEST time, not at the
+    historical date the source records (e.g. Claude.ai conversation date).
+    Compaction logic in ``ogham.compression.get_compression_target`` keys
+    on ``created_at``; passing through the original date here would cause
+    backdated imports to compact immediately on insert (cdeust/Cortex hit
+    this bug 2026-05; their fix was a ``created_at -> ingested_at`` rename
+    that recovered MRR_with_consolidation 0.222 -> 0.8264). Importers
+    should put historical dates in ``metadata`` instead (see
+    ``claude_ai_import.py`` -> ``metadata.claude_created_at``).
+    """
+    row = {
+        "content": mem["content"],
+        "embedding": str(embedding),
+        "profile": profile,
+        "metadata": mem.get("metadata") or {},
+        "source": mem.get("source"),
+        "tags": mem.get("tags") or [],
+    }
+    if expires_at is not None:
+        row["expires_at"] = expires_at
+    return row
+
+
+def _upsert_memory(memory: dict[str, Any]) -> None:
+    """Insert or update a memory by id. Used by OKF imports for round-trip.
+
+    Calls backend.upsert_memory which performs ON CONFLICT (id) DO UPDATE on
+    Postgres/Supabase, or a GET-then-PUT on the gateway backend.
+    NOTE: the caller is responsible for generating and embedding the content
+    BEFORE calling this; the memory dict must contain an ``embedding`` key.
+    """
+    from ogham.database import upsert_memory as _db_upsert
+
+    _db_upsert(memory)
+
+
+def _looks_like_okf_bundle_dir(data: str) -> bool:
+    # Path.is_dir() raises OSError(36, "File name too long") on Linux when any
+    # path component exceeds NAME_MAX (255 bytes) -- which happens whenever
+    # `data` is a JSON payload mistakenly passed where a path is expected.
+    # macOS silently returns False, so this bug only surfaces on Linux CI / prod.
+    try:
+        return Path(data).is_dir()
+    except OSError:
+        return False
+
+
+def import_memories(
+    data: str,
+    profile: str,
+    dedup_threshold: float = 0.0,
+    on_progress: Callable[[int, int, int], None] | None = None,
+    on_embed_progress: Callable[[int, int], None] | None = None,
+) -> dict[str, Any]:
+    """Import memories from a JSON string or an OKF bundle directory path.
+
+    Shape detection: if ``data`` is a string path to an existing directory,
+    it is treated as an OKF v0.1 bundle. Memories with an ``id`` in frontmatter
+    are upserted (ON CONFLICT (id) DO UPDATE). Memories without an ``id`` are
+    inserted as new (mint a new UUID via the standard insert path).
+
+    The existing JSON path (``data`` is a JSON string) keeps working exactly
+    as v0.9.1 ships -- issue #20 fix stays valid for all existing users.
+
+    Args:
+        on_progress: Optional callback(imported, skipped, total) called after each memory.
+        on_embed_progress: Optional callback(embedded, total) called after each batch.
+    """
+    # ── OKF bundle path ────────────────────────────────────────────────
+    if isinstance(data, str) and _looks_like_okf_bundle_dir(data):
+        # Pre-flight: confirm this is actually an OKF bundle (has index.md declaring
+        # okf_version), not just any directory the user pointed at by accident.
+        bundle_dir = Path(data)
+        index_path = bundle_dir / "index.md"
+        if not index_path.exists():
+            raise ValueError(
+                f"{data} is a directory but doesn't look like an OKF bundle "
+                f"(missing index.md with okf_version declaration)"
+            )
+        # Quick frontmatter check -- read just enough to confirm okf_version is declared.
+        from ogham.okf.serialization import read_concept as _read_concept
+
+        try:
+            fm, _ = _read_concept(index_path)
+        except ValueError as e:
+            raise ValueError(f"{data}/index.md is not a valid OKF bundle root: {e}") from e
+        if "okf_version" not in fm:
+            raise ValueError(
+                f"{data}/index.md exists but does not declare okf_version -- "
+                f"not a recognizable OKF bundle"
+            )
+
+        from ogham.okf import import_okf_bundle
+
+        okf_memories, stats = import_okf_bundle(bundle_dir)
+
+        # Split: memories with id → upsert; memories without id → regular insert.
+        with_id: list[dict[str, Any]] = []
+        without_id: list[dict[str, Any]] = []
+        for mem in okf_memories:
+            (with_id if mem.get("id") is not None else without_id).append(mem)
+
+        # Upsert memories that carry their UUID.
+        upserted = 0
+        if with_id:
+            all_texts_upsert = [m["content"] for m in with_id]
+            embeddings_upsert = generate_embeddings_batch(
+                all_texts_upsert, on_progress=on_embed_progress
+            )
+            for mem, embedding in zip(with_id, embeddings_upsert):
+                mem_with_embedding = {**mem, "embedding": embedding, "profile": profile}
+                _upsert_memory(mem_with_embedding)
+                upserted += 1
+
+        # Insert memories that have no id (treat as new).
+        inserted = 0
+        if without_id:
+            import uuid
+
+            ttl_days = get_profile_ttl(profile)
+            expires_at = None
+            if ttl_days is not None:
+                expires_at = (datetime.now(timezone.utc) + timedelta(days=ttl_days)).isoformat()
+            all_texts_insert = [m["content"] for m in without_id]
+            embeddings_insert = generate_embeddings_batch(all_texts_insert)
+            rows_to_insert = [
+                _build_row(
+                    {**m, "id": str(uuid.uuid4())},
+                    emb,
+                    profile,
+                    expires_at,
+                )
+                for m, emb in zip(without_id, embeddings_insert)
+            ]
+            store_memories_batch(rows_to_insert)
+            inserted = len(rows_to_insert)
+
+        return {
+            "status": "complete",
+            "profile": profile,
+            "imported": upserted + inserted,
+            "skipped": 0,
+            "total": stats["total"],
+            "missing_id_count": stats["missing_id_count"],
+            "skipped_count": stats["skipped_count"],
+        }
+
+    # ── JSON string path (v0.9.1 behaviour, unchanged) ─────────────────
+    parsed = json.loads(data)
+    memories = parsed.get("memories", [])
+    total = len(memories)
+
+    ttl_days = get_profile_ttl(profile)
+    expires_at = None
+    if ttl_days is not None:
+        expires_at = (datetime.now(timezone.utc) + timedelta(days=ttl_days)).isoformat()
+
+    # Phase 1: Batch embed all memories upfront
+    all_texts = [mem["content"] for mem in memories]
+    embeddings = generate_embeddings_batch(all_texts, on_progress=on_embed_progress)
+
+    # Phase 2: Parallel batch dedup (concurrent RPC batches to use multiple DB cores)
+    skipped = 0
+    to_insert: list[dict[str, Any]] = []
+
+    if dedup_threshold > 0:
+        dedup_batch_size = 50
+        is_dup = [False] * total
+
+        # Build batch ranges
+        batch_ranges = [
+            (start, min(start + dedup_batch_size, total))
+            for start in range(0, total, dedup_batch_size)
+        ]
+
+        def _check_batch(batch_range: tuple[int, int]) -> tuple[int, int, list[bool]]:
+            start, end = batch_range
+            batch_embeddings = embeddings[start:end]
+            results = batch_check_duplicates(
+                query_embeddings=batch_embeddings,
+                profile=profile,
+                threshold=dedup_threshold,
+            )
+            return start, end, results
+
+        with ThreadPoolExecutor(max_workers=10) as pool:
+            futures = [pool.submit(_check_batch, br) for br in batch_ranges]
+            completed = 0
+            for future in futures:
+                start, end, batch_results = future.result()
+                for i, dup in enumerate(batch_results):
+                    is_dup[start + i] = dup
+                    if dup:
+                        skipped += 1
+                completed += end - start
+                if on_progress:
+                    on_progress(completed - skipped, skipped, total)
+
+        for i, (mem, embedding) in enumerate(zip(memories, embeddings)):
+            if not is_dup[i]:
+                to_insert.append(_build_row(mem, embedding, profile, expires_at))
+    else:
+        for mem, embedding in zip(memories, embeddings):
+            to_insert.append(_build_row(mem, embedding, profile, expires_at))
+        if on_progress:
+            on_progress(len(to_insert), 0, total)
+
+    # Phase 3: Batch insert non-duplicates
+    batch_size = 100
+    for start in range(0, len(to_insert), batch_size):
+        batch = to_insert[start : start + batch_size]
+        store_memories_batch(batch)
+
+    imported = len(to_insert)
+
+    return {
+        "status": "complete",
+        "profile": profile,
+        "imported": imported,
+        "skipped": skipped,
+        "total": total,
+    }

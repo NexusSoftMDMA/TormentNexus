@@ -1,0 +1,177 @@
+// SPDX-FileCopyrightText: Copyright 2025 Stacklok, Inc.
+// SPDX-License-Identifier: Apache-2.0
+
+// Package groups provides functionality for managing logical groupings of MCP servers.
+// This file contains the CRD-based implementation for Kubernetes environments.
+package groups
+
+import (
+	"context"
+	"fmt"
+	"log/slog"
+	"sort"
+	"strings"
+
+	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	groupval "github.com/stacklok/toolhive-core/validation/group"
+	mcpv1beta1 "github.com/stacklok/toolhive/cmd/thv-operator/api/v1beta1"
+)
+
+// crdManager implements the Manager interface using Kubernetes CRDs
+type crdManager struct {
+	k8sClient client.Client
+	namespace string
+}
+
+// NewCRDManager creates a new CRD-based group manager
+func NewCRDManager(k8sClient client.Client, namespace string) Manager {
+	return &crdManager{
+		k8sClient: k8sClient,
+		namespace: namespace,
+	}
+}
+
+// Create creates a new group with the specified name.
+func (m *crdManager) Create(ctx context.Context, name string) error {
+	// Validate group name
+	if err := groupval.ValidateName(name); err != nil {
+		return fmt.Errorf("%w: %w", ErrInvalidGroupName, err)
+	}
+
+	// Check if group already exists
+	exists, err := m.Exists(ctx, name)
+	if err != nil {
+		return fmt.Errorf("failed to check if group exists: %w", err)
+	}
+	if exists {
+		return fmt.Errorf("%w: %s", ErrGroupAlreadyExists, name)
+	}
+
+	// Create the MCPGroup CRD
+	mcpGroup := &mcpv1beta1.MCPGroup{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: m.namespace,
+		},
+		Spec: mcpv1beta1.MCPGroupSpec{},
+	}
+
+	if err := m.k8sClient.Create(ctx, mcpGroup); err != nil {
+		return fmt.Errorf("failed to create MCPGroup: %w", err)
+	}
+
+	slog.Info("created mcpgroup", "name", name, "namespace", m.namespace)
+	return nil
+}
+
+// Get retrieves a group by name.
+func (m *crdManager) Get(ctx context.Context, name string) (*Group, error) {
+	mcpGroup := &mcpv1beta1.MCPGroup{}
+	err := m.k8sClient.Get(ctx, types.NamespacedName{
+		Name:      name,
+		Namespace: m.namespace,
+	}, mcpGroup)
+
+	if err != nil {
+		if errors.IsNotFound(err) {
+			return nil, fmt.Errorf("%w: %s - %w", ErrGroupNotFound, name, err)
+		}
+		return nil, fmt.Errorf("failed to get MCPGroup: %w", err)
+	}
+
+	return mcpGroupToGroup(mcpGroup), nil
+}
+
+// List returns all groups.
+func (m *crdManager) List(ctx context.Context) ([]*Group, error) {
+	mcpGroupList := &mcpv1beta1.MCPGroupList{}
+	err := m.k8sClient.List(ctx, mcpGroupList, client.InNamespace(m.namespace))
+	if err != nil {
+		return nil, fmt.Errorf("failed to list MCPGroups: %w", err)
+	}
+
+	groups := mcpGroupListToGroups(mcpGroupList)
+
+	// Sort groups alphanumerically by name
+	sort.Slice(groups, func(i, j int) bool {
+		return strings.Compare(groups[i].Name, groups[j].Name) < 0
+	})
+
+	return groups, nil
+}
+
+// Delete removes a group by name.
+func (m *crdManager) Delete(ctx context.Context, name string) error {
+	mcpGroup := &mcpv1beta1.MCPGroup{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: m.namespace,
+		},
+	}
+
+	err := m.k8sClient.Delete(ctx, mcpGroup)
+	if err != nil {
+		if errors.IsNotFound(err) {
+			return fmt.Errorf("%w: %s - %w", ErrGroupNotFound, name, err)
+		}
+		return fmt.Errorf("failed to delete MCPGroup: %w", err)
+	}
+
+	slog.Info("deleted mcpgroup", "name", name, "namespace", m.namespace)
+	return nil
+}
+
+// Exists checks if a group with the specified name exists.
+func (m *crdManager) Exists(ctx context.Context, name string) (bool, error) {
+	mcpGroup := &mcpv1beta1.MCPGroup{}
+	err := m.k8sClient.Get(ctx, types.NamespacedName{
+		Name:      name,
+		Namespace: m.namespace,
+	}, mcpGroup)
+
+	if err != nil {
+		if errors.IsNotFound(err) {
+			return false, nil
+		}
+		return false, fmt.Errorf("failed to check if MCPGroup exists: %w", err)
+	}
+
+	return true, nil
+}
+
+func (*crdManager) RegisterClients(context.Context, []string, []string) error {
+	// In Kubernetes, client configuration management is not applicable, so this is a no-op.
+	return nil
+}
+
+func (*crdManager) UnregisterClients(context.Context, []string, []string) error {
+	// In Kubernetes, client configuration management is not applicable, so this is a no-op.
+	return nil
+}
+
+func (*crdManager) Update(context.Context, *Group) error {
+	// In Kubernetes, group state is managed via CRDs; filesystem-level updates are not applicable.
+	return nil
+}
+
+// mcpGroupListToGroups converts an MCPGroupList to a slice of Groups
+func mcpGroupListToGroups(mcpGroupList *mcpv1beta1.MCPGroupList) []*Group {
+	groups := make([]*Group, 0, len(mcpGroupList.Items))
+	for i := range mcpGroupList.Items {
+		groups = append(groups, mcpGroupToGroup(&mcpGroupList.Items[i]))
+	}
+	return groups
+}
+
+// mcpGroupToGroup converts an MCPGroup CRD to a Group
+func mcpGroupToGroup(mcpGroup *mcpv1beta1.MCPGroup) *Group {
+	// In Kubernetes, RegisteredClients is not applicable - always return empty slice
+	return &Group{
+		Name:              mcpGroup.Name,
+		RegisteredClients: []string{},
+	}
+}

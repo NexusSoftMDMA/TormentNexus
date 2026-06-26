@@ -1,0 +1,47 @@
+name: macOS CI
+
+on:
+  pull_request:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: macos-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-verify:
+    runs-on: macos-15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Run tests
+        run: ./scripts/run-tests.sh
+
+      - name: Build app bundle
+        run: ./scripts/build-macos-app.sh
+
+      - name: Package release artifact
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: ./scripts/package-github-release.sh
+
+      - name: Verify packaged release
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: ./scripts/verify-release.sh
+
+      - name: Upload release artifacts
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: actions/upload-artifact@v4
+        with:
+          name: hermes-desktop-release-${{ github.sha }}
+          path: |
+            dist/HermesDesktop.app.zip
+            dist/HermesDesktop.app.zip.sha256
+            dist/HermesDesktop.app.zip.manifest.json
+          if-no-files-found: error

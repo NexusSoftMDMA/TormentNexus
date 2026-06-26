@@ -1,0 +1,10 @@
+operator:
+  image: ko.local/thv-operator:ci-test
+  toolhiveRunnerImage: ko.local/thv-proxyrunner:ci-test
+  vmcpImage: ko.local/vmcp:ci-test
+  autoscaling:
+    enabled: true
+    minReplicas: 5
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 80
+    targetMemoryUtilizationPercentage: 80

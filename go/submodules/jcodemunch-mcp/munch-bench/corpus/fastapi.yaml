@@ -1,0 +1,81 @@
+repo: fastapi/fastapi
+questions:
+  - id: fastapi-001
+    question: "How does FastAPI resolve dependency injection for route handlers?"
+    ground_truth_answer: "FastAPI uses the Depends() marker to declare dependencies. The dependency injection system builds a dependency tree, resolves it bottom-up, caches results within a request scope, and injects resolved values as function arguments via the dependant.solve() mechanism."
+    ground_truth_symbols: ["Depends", "get_dependant", "solve_dependencies"]
+    difficulty: medium
+    category: architecture
+    tags: [dependency-injection, routing]
+
+  - id: fastapi-002
+    question: "How does FastAPI generate OpenAPI schema from route definitions?"
+    ground_truth_answer: "FastAPI inspects route function signatures, type annotations, and Pydantic models to build the OpenAPI schema. get_openapi() iterates all routes, extracts parameters, request bodies, and responses, generating a complete OpenAPI 3.1.0 spec dict."
+    ground_truth_symbols: ["get_openapi", "get_openapi_path"]
+    difficulty: medium
+    category: architecture
+    tags: [openapi, schema]
+
+  - id: fastapi-003
+    question: "How does FastAPI handle request body validation with Pydantic models?"
+    ground_truth_answer: "When a route parameter is typed as a Pydantic BaseModel, FastAPI reads the request body as JSON and passes it to the model's constructor for validation. Validation errors are caught and returned as 422 responses with detailed error locations."
+    ground_truth_symbols: ["request_body_to_args", "BaseModel"]
+    difficulty: easy
+    category: api
+    tags: [validation, pydantic]
+
+  - id: fastapi-004
+    question: "How does FastAPI implement WebSocket support?"
+    ground_truth_answer: "FastAPI provides a @app.websocket() decorator that registers WebSocket routes. The WebSocket class wraps Starlette's WebSocket, providing accept(), send_json(), receive_text(), and close() methods. WebSocket dependencies use the same injection system as HTTP routes."
+    ground_truth_symbols: ["websocket", "WebSocket", "APIWebSocketRoute"]
+    difficulty: medium
+    category: api
+    tags: [websocket, realtime]
+
+  - id: fastapi-005
+    question: "How does FastAPI implement middleware and its execution order?"
+    ground_truth_answer: "FastAPI inherits Starlette's middleware stack. Middleware is added via app.add_middleware() and wraps the ASGI app in layers. Requests pass through middleware top-to-bottom, responses bottom-to-top. CORSMiddleware, TrustedHostMiddleware, and GZipMiddleware are commonly used built-in options."
+    ground_truth_symbols: ["add_middleware", "CORSMiddleware"]
+    difficulty: medium
+    category: architecture
+    tags: [middleware, asgi]
+
+  - id: fastapi-006
+    question: "How does FastAPI handle path parameter validation and type coercion?"
+    ground_truth_answer: "Path parameters are extracted from the URL by Starlette's routing. FastAPI validates and coerces them based on Python type annotations. The Path() function allows adding extra validation (ge, le, regex, etc.) which maps to OpenAPI parameter schemas."
+    ground_truth_symbols: ["Path", "get_typed_signature"]
+    difficulty: easy
+    category: api
+    tags: [validation, path-params]
+
+  - id: fastapi-007
+    question: "How does FastAPI implement background tasks?"
+    ground_truth_answer: "FastAPI uses Starlette's BackgroundTasks class. Route handlers can declare a BackgroundTasks parameter, then call add_task() to queue callables. Tasks run after the response is sent, in order. Both sync and async callables are supported."
+    ground_truth_symbols: ["BackgroundTasks", "add_task"]
+    difficulty: easy
+    category: api
+    tags: [background-tasks, async]
+
+  - id: fastapi-008
+    question: "How does FastAPI implement security schemes (OAuth2, API keys)?"
+    ground_truth_answer: "FastAPI provides security utility classes like OAuth2PasswordBearer, APIKeyHeader, HTTPBearer that act as dependencies. They extract credentials from requests and are reflected in the OpenAPI security schemes. OAuth2PasswordBearer returns the token string; actual validation is left to the developer."
+    ground_truth_symbols: ["OAuth2PasswordBearer", "APIKeyHeader", "HTTPBearer", "SecurityScopes"]
+    difficulty: hard
+    category: architecture
+    tags: [security, oauth2]
+
+  - id: fastapi-009
+    question: "How does FastAPI handle response model serialization and filtering?"
+    ground_truth_answer: "The response_model parameter on routes defines the output schema. FastAPI serializes the return value through the Pydantic model, filtering out fields not in the model. response_model_exclude, response_model_include, and response_model_by_alias provide fine-grained control."
+    ground_truth_symbols: ["serialize_response", "response_model"]
+    difficulty: medium
+    category: api
+    tags: [response, serialization]
+
+  - id: fastapi-010
+    question: "How does FastAPI's APIRouter enable modular application structure?"
+    ground_truth_answer: "APIRouter collects routes with the same interface as FastAPI app. Routes are added via decorators (@router.get, etc.). When included via app.include_router(), routes are merged with optional prefix, tags, and dependencies applied to all routes in the router."
+    ground_truth_symbols: ["APIRouter", "include_router"]
+    difficulty: easy
+    category: architecture
+    tags: [modularity, routing]

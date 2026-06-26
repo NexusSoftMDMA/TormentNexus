@@ -1,0 +1,922 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hermes Desktop — A native Mac app for your Hermes Agent host</title>
+  <meta name="description" content="Hermes Desktop is a native macOS app for Hermes Agent on this Mac or over SSH. Browse sessions, edit files, and run a real terminal with no gateway or second copy of your data.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Geist+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #f3efe7;
+      --paper: #ece5d9;
+      --ink: #111111;
+      --muted: #5f5a54;
+      --line: #111111;
+      --accent: #ef4023;
+      --accent-ink: #fff8f1;
+      --font-sans: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --font-mono: "Geist Mono", "SF Mono", "Cascadia Code", monospace;
+    }
+
+    * { box-sizing: border-box; }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      margin: 0;
+      background:
+        linear-gradient(180deg, rgba(239, 64, 35, 0.06), transparent 16rem),
+        var(--bg);
+      color: var(--ink);
+      font-family: var(--font-sans);
+      line-height: 1.62;
+      font-variant-numeric: tabular-nums;
+    }
+
+    img { display: block; max-width: 100%; }
+
+    a {
+      color: inherit;
+      text-decoration-thickness: 2px;
+      text-underline-offset: 0.18em;
+    }
+
+    .shell {
+      width: min(1200px, calc(100vw - 2rem));
+      margin: 0 auto;
+    }
+
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      backdrop-filter: blur(8px);
+      background: rgba(243, 239, 231, 0.86);
+      border-bottom: 3px solid var(--line);
+    }
+
+    .topbar-inner {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      justify-content: space-between;
+      padding: 0.9rem 0;
+    }
+
+    .brand {
+      font-family: var(--font-mono);
+      font-size: 0.95rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      text-decoration: none;
+    }
+
+    .brand span { color: var(--accent); }
+
+    .topnav {
+      display: flex;
+      gap: 1rem;
+      align-items: center;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .topnav a {
+      font-family: var(--font-mono);
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      text-decoration: none;
+    }
+
+    .cta {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.6rem;
+      padding: 0.95rem 1.3rem;
+      border: 3px solid var(--line);
+      background: var(--accent);
+      color: var(--accent-ink);
+      font-family: var(--font-mono);
+      font-size: 0.82rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      text-decoration: none;
+      box-shadow: 8px 8px 0 var(--line);
+      transition: transform 120ms ease, box-shadow 120ms ease;
+    }
+
+    .cta:hover,
+    .cta:focus-visible {
+      transform: translate(3px, 3px);
+      box-shadow: 5px 5px 0 var(--line);
+    }
+
+    .cta.secondary {
+      background: var(--paper);
+      color: var(--ink);
+    }
+
+    .hero {
+      padding: 3rem 0 1.5rem;
+      display: grid;
+      grid-template-columns: 1.15fr 0.85fr;
+      gap: 1.2rem;
+    }
+
+    .hero-panel,
+    .card,
+    .footer-box {
+      border: 3px solid var(--line);
+      background: var(--paper);
+      box-shadow: 10px 10px 0 var(--line);
+    }
+
+    .hero-copy {
+      padding: 1.6rem;
+      background: linear-gradient(180deg, #141414 0%, #1c1c1c 100%);
+      color: #fff8f1;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .kicker,
+    .micro {
+      font-family: var(--font-mono);
+      font-size: 0.76rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .kicker { color: #ff9d8d; }
+
+    h1,
+    h2,
+    h3 {
+      margin: 0;
+      font-family: Impact, Haettenschweiler, "Arial Narrow Bold", sans-serif;
+      font-weight: 900;
+      text-transform: uppercase;
+      line-height: 0.9;
+      letter-spacing: 0.02em;
+    }
+
+    h1 {
+      font-size: clamp(3.4rem, 9vw, 6.6rem);
+      margin-top: 0.9rem;
+    }
+
+    h2 {
+      font-size: clamp(1.9rem, 4vw, 2.6rem);
+    }
+
+    .hero-copy p {
+      margin: 1.2rem 0 0;
+      max-width: 38rem;
+      font-size: 1.02rem;
+      color: #efe4d7;
+    }
+
+    .hero-accent { color: var(--accent); }
+
+    .hero-actions {
+      margin-top: 1.6rem;
+      display: flex;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+
+    .hero-side {
+      display: grid;
+      gap: 1.2rem;
+    }
+
+    .hero-terminal {
+      overflow: hidden;
+      background: #141414;
+      color: #fff8f1;
+      min-height: 18rem;
+    }
+
+    .terminal-chrome {
+      display: flex;
+      align-items: center;
+      gap: 0.42rem;
+      padding: 0.75rem 0.9rem;
+      border-bottom: 3px solid var(--line);
+      background: #252525;
+    }
+
+    .terminal-dot {
+      width: 0.72rem;
+      height: 0.72rem;
+      border: 2px solid var(--line);
+      background: var(--paper);
+    }
+
+    .terminal-dot:nth-child(1) { background: var(--accent); }
+    .terminal-dot:nth-child(2) { background: #f2b84b; }
+    .terminal-dot:nth-child(3) { background: #7a9f6e; }
+
+    .terminal-screen {
+      padding: 1.1rem 1.2rem 1.2rem;
+      font-family: var(--font-mono);
+      font-size: clamp(0.82rem, 1.4vw, 0.96rem);
+      line-height: 1.75;
+    }
+
+    .terminal-line {
+      display: block;
+      min-height: 1.75em;
+      white-space: pre-wrap;
+    }
+
+    .terminal-command { color: #ff9d8d; }
+    .terminal-ready { color: #f2b84b; }
+    .terminal-reloading { color: #9f988f; }
+
+    .terminal-gap {
+      display: block;
+      height: 0.65rem;
+    }
+
+    .terminal-cursor {
+      display: inline-block;
+      width: 0.62em;
+      height: 1.1em;
+      margin-left: 0.15rem;
+      transform: translateY(0.18em);
+      background: var(--accent);
+      animation: cursor-blink 1s steps(2, start) infinite;
+    }
+
+    @keyframes cursor-blink {
+      0%, 42% { opacity: 1; }
+      43%, 100% { opacity: 0; }
+    }
+
+    section { padding: 1.5rem 0; }
+
+    .section-title {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 1.2rem;
+      margin-bottom: 1.2rem;
+      flex-wrap: wrap;
+    }
+
+    .section-title p {
+      margin: 0;
+      max-width: 36rem;
+      color: var(--muted);
+      font-size: 0.98rem;
+    }
+
+    .feature-group {
+      margin-bottom: 1.6rem;
+    }
+
+    .feature-group:last-child {
+      margin-bottom: 0;
+    }
+
+    .feature-group-head {
+      display: flex;
+      align-items: baseline;
+      gap: 0.8rem 1.1rem;
+      flex-wrap: wrap;
+      margin-bottom: 0.9rem;
+      padding-bottom: 0.55rem;
+      border-bottom: 2px solid var(--line);
+    }
+
+    .feature-group-head .micro {
+      color: var(--accent);
+      font-size: 0.82rem;
+      font-weight: 700;
+    }
+
+    .feature-group-head p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+
+    .feature-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 1.2rem;
+    }
+
+    .feature-grid .card:last-child:nth-child(odd) {
+      grid-column: 1 / -1;
+    }
+
+    .card {
+      padding: 1.3rem;
+    }
+
+    .card h3 {
+      font-size: 1.9rem;
+      margin-top: 0.8rem;
+    }
+
+    .card p {
+      margin: 0.9rem 0 0;
+      font-size: 0.97rem;
+      color: var(--muted);
+    }
+
+    .install-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1.2rem;
+    }
+
+    .prereqs {
+      margin-top: 1.2rem;
+      padding: 1.2rem 1.3rem;
+      border: 3px solid var(--line);
+      background: var(--ink);
+      color: #fff8f1;
+    }
+
+    .prereqs .micro { color: #ff9d8d; }
+
+    .prereqs ul {
+      margin: 0.9rem 0 0;
+      padding-left: 1.15rem;
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 0.4rem 1.2rem;
+    }
+
+    .prereqs li {
+      color: #ddd0c0;
+      font-size: 0.95rem;
+    }
+
+    code {
+      font-family: var(--font-mono);
+      font-size: 0.92em;
+      background: rgba(17, 17, 17, 0.08);
+      padding: 0.12rem 0.35rem;
+    }
+
+    .command-block {
+      display: block;
+      margin: 0.7rem 0;
+      overflow-x: auto;
+      padding: 0.7rem 0.8rem;
+      white-space: nowrap;
+    }
+
+    .prereqs code {
+      background: rgba(255, 248, 241, 0.12);
+    }
+
+    .faq {
+      display: grid;
+      gap: 0.8rem;
+    }
+
+    .faq details {
+      border: 3px solid var(--line);
+      background: var(--paper);
+      box-shadow: 6px 6px 0 var(--line);
+      padding: 0;
+    }
+
+    .faq summary {
+      list-style: none;
+      cursor: pointer;
+      padding: 1rem 1.2rem;
+      font-weight: 600;
+      font-size: 1.02rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+    }
+
+    .faq summary::-webkit-details-marker { display: none; }
+
+    .faq summary::after {
+      content: "+";
+      font-family: var(--font-mono);
+      font-size: 1.4rem;
+      line-height: 1;
+      color: var(--accent);
+      transition: transform 120ms ease;
+    }
+
+    .faq details[open] summary::after {
+      content: "−";
+    }
+
+    .faq .faq-body {
+      padding: 0 1.2rem 1.1rem;
+      color: var(--muted);
+      font-size: 0.97rem;
+      max-width: 56rem;
+    }
+
+    .faq .faq-body p { margin: 0 0 0.7rem; }
+    .faq .faq-body p:last-child { margin-bottom: 0; }
+
+    .star-card {
+      display: grid;
+      grid-template-columns: 0.38fr 0.62fr;
+      overflow: hidden;
+      padding: 0;
+    }
+
+    .star-card-wrapper {
+      border: 3px solid var(--line);
+      background: var(--paper);
+      box-shadow: 10px 10px 0 var(--line);
+    }
+
+    .star-copy {
+      padding: 1.3rem;
+      background: var(--ink);
+      color: #fff8f1;
+    }
+
+    .star-copy p {
+      margin: 0.9rem 0 0;
+      color: #ddd0c0;
+    }
+
+    .star-chart-link {
+      display: block;
+      padding: 1rem;
+      background: #fff8f1;
+      text-decoration: none;
+    }
+
+    .star-chart-link img {
+      width: 100%;
+      min-height: 18rem;
+      object-fit: contain;
+    }
+
+    .footer-box {
+      margin: 2rem 0 3rem;
+      padding: 1.4rem;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 1rem;
+      flex-wrap: wrap;
+      text-align: center;
+    }
+
+    .footer-box p {
+      margin: 0.5rem 0 0;
+      color: var(--muted);
+    }
+
+    .footer-actions {
+      justify-content: center;
+      margin-top: 0.4rem;
+    }
+
+    @media (max-width: 980px) {
+      .hero,
+      .feature-grid,
+      .install-grid,
+      .prereqs ul {
+        grid-template-columns: 1fr;
+      }
+
+      .feature-grid .card:last-child:nth-child(odd) {
+        grid-column: auto;
+      }
+
+      .star-card {
+        grid-template-columns: 1fr;
+      }
+
+      .topbar-inner {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
+      .topnav {
+        justify-content: flex-start;
+      }
+
+      .cta {
+        width: 100%;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .terminal-line {
+        animation: none;
+      }
+
+      .terminal-cursor {
+        animation: none;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="shell topbar-inner">
+      <a class="brand" href="#top">Hermes<span> Desktop</span></a>
+      <nav class="topnav" aria-label="Primary">
+        <a href="#features">Features</a>
+        <a href="#install">Install</a>
+        <a href="#help">Help</a>
+        <a href="https://github.com/dodo-reach/hermes-desktop">GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="top" class="shell">
+    <section class="hero">
+      <div class="hero-panel hero-copy">
+        <div class="kicker">Native macOS · Hermes Agent client</div>
+        <h1>Hermes<br><span class="hero-accent">Desktop</span></h1>
+        <p>
+          A native Mac app for
+          <a href="https://hermes-agent.nousresearch.com/">Hermes Agent</a>.
+          Connect directly on this Mac or over SSH. Browse sessions, edit files,
+          and run a real terminal with no gateway and no second copy of your
+          data.
+        </p>
+        <div class="hero-actions">
+          <a class="cta" href="https://github.com/dodo-reach/hermes-desktop/releases/latest">Download for Mac</a>
+          <a class="cta secondary" href="https://github.com/dodo-reach/hermes-desktop">View source on GitHub</a>
+        </div>
+      </div>
+
+      <div class="hero-side">
+        <div class="hero-panel hero-terminal" aria-label="Terminal preview: ssh host, connection secure, Hermes ready, hermes-desktop ready, Work, reloading">
+          <div class="terminal-chrome" aria-hidden="true">
+            <span class="terminal-dot"></span>
+            <span class="terminal-dot"></span>
+            <span class="terminal-dot"></span>
+          </div>
+          <div class="terminal-screen" aria-hidden="true" data-terminal-typewriter>
+            <span class="terminal-line terminal-command" data-terminal-line="$ ssh host"></span>
+            <span class="terminal-line" data-terminal-line="connection secure"></span>
+            <span class="terminal-gap"></span>
+            <span class="terminal-line" data-terminal-line="Hermes: ready"></span>
+            <span class="terminal-line" data-terminal-line="hermes-desktop: ready"></span>
+            <span class="terminal-gap"></span>
+            <span class="terminal-line" data-terminal-line="Work"></span>
+            <span class="terminal-line terminal-reloading" data-terminal-line="reloading"></span>
+            <span class="terminal-cursor" data-terminal-cursor></span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="features">
+      <div class="section-title">
+        <h2>What you can do</h2>
+        <p>Every part of Hermes, in one window. Work against the real Hermes store — never a synchronized mirror.</p>
+      </div>
+
+      <div class="feature-group">
+        <div class="feature-group-head">
+          <div class="micro">Talk to Hermes</div>
+          <p>The surfaces where you actually have a conversation with the agent.</p>
+        </div>
+        <div class="feature-grid">
+          <div class="card">
+            <div class="micro">Chat and transcripts</div>
+            <h3>Sessions</h3>
+            <p>Search transcripts, pin work, start a new chat, or resume in the terminal. Chat runs the real Hermes TUI through the active local or SSH connection.</p>
+          </div>
+          <div class="card">
+            <div class="micro">Real local or SSH shell</div>
+            <h3>Terminal</h3>
+            <p>Inside the app, with tabs and themes for multi-profile, multi-agent work.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="feature-group">
+        <div class="feature-group-head">
+          <div class="micro">Plan, schedule, reuse</div>
+          <p>Where Hermes's work gets coordinated, scheduled, and saved for next time.</p>
+        </div>
+        <div class="feature-grid">
+          <div class="card">
+            <div class="micro">Task board in Hermes</div>
+            <h3>Kanban</h3>
+            <p>Create, assign, comment, block, and complete tasks. Multi-agent coordination lives here.</p>
+          </div>
+          <div class="card">
+            <div class="micro">Recurring work</div>
+            <h3>Cron Jobs</h3>
+            <p>The real jobs Hermes runs. Create, edit, pause, resume, run now, or delete.</p>
+          </div>
+          <div class="card">
+            <div class="micro">Saved prompt presets</div>
+            <h3>Workflows</h3>
+            <p>On your Mac, scoped to each connection and profile. Run one and it opens a fresh terminal tab with the first turn ready.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="feature-group">
+        <div class="feature-group-head">
+          <div class="micro">Edit the workspace</div>
+          <p>The files that define how Hermes works, and the ones it works on.</p>
+        </div>
+        <div class="feature-grid">
+          <div class="card">
+            <div class="micro">Workspace files</div>
+            <h3>Files</h3>
+            <p>Canonical Hermes files and <code>SKILL.md</code> on the active machine. Conflict checks run before save.</p>
+          </div>
+          <div class="card">
+            <div class="micro"><code>SKILL.md</code> files</div>
+            <h3>Skills</h3>
+            <p>Discover, read metadata, create new skills, edit existing ones — anchored to the active Hermes skills store.</p>
+          </div>
+          <div class="card">
+            <div class="micro">How the agent thinks and behaves</div>
+            <h3>Memory</h3>
+            <p>Edit the files that store what Hermes knows about you, what it remembers, and how it acts. Plain text in the active Hermes store, with conflict checks before save.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="feature-group">
+        <div class="feature-group-head">
+          <div class="micro">Inspect and manage</div>
+          <p>See what Hermes is doing, and keep the parts you want.</p>
+        </div>
+        <div class="feature-grid">
+          <div class="card">
+            <div class="micro">Tokens, sessions, trends</div>
+            <h3>Usage</h3>
+            <p>Token totals, top sessions, top models, and recent activity for the active profile.</p>
+          </div>
+          <div class="card">
+            <div class="micro">Connections and profiles</div>
+            <h3>Settings</h3>
+            <p>Active connection, active profile, discovered profiles, diagnostics, and the paths Hermes is using.</p>
+          </div>
+          <div class="card">
+            <div class="micro">Manage Hermes profiles</div>
+            <h3>Profiles</h3>
+            <p>The Hermes profiles available through the active connection. Keep the ones you use, retire the ones you don't.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="install">
+      <div class="section-title">
+        <h2>Install</h2>
+        <p>Use Hermes directly on this Mac, or connect to another machine over SSH.</p>
+      </div>
+      <div class="install-grid">
+        <div class="card">
+          <div class="micro">01 · Download</div>
+          <h3>Download the app</h3>
+          <p>Get <code>HermesDesktop.app.zip</code> from the latest GitHub release.</p>
+        </div>
+        <div class="card">
+          <div class="micro">02 · Install</div>
+          <h3>Move it to Applications</h3>
+          <p>Unzip, then drag <code>HermesDesktop.app</code> into Applications and replace the old copy if asked.</p>
+        </div>
+        <div class="card">
+          <div class="micro">03 · First launch</div>
+          <h3>Right-click → Open</h3>
+          <p>On most supported macOS versions, right-click the app, choose Open, then confirm. macOS 26.5.1 has an additional checksum-first workaround below.</p>
+        </div>
+      </div>
+      <div class="prereqs">
+        <div class="micro">Before you install</div>
+        <ul>
+          <li>macOS 14 or newer</li>
+          <li><code>python3</code> available where Hermes runs</li>
+          <li><code>hermes</code> available through the prepared shell <code>PATH</code></li>
+          <li>For SSH mode only: non-interactive SSH already works from this Mac</li>
+        </ul>
+      </div>
+    </section>
+
+    <section id="help">
+      <div class="section-title">
+        <h2>Help</h2>
+        <p>The same questions people ask after they install. If yours isn't here, open an issue on GitHub.</p>
+      </div>
+      <div class="faq">
+        <details>
+          <summary>Where is my data stored?</summary>
+          <div class="faq-body">
+            <p>On the machine where Hermes runs, in the standard location: <code>~/.hermes</code>. A named profile uses <code>~/.hermes/profiles/&lt;name&gt;</code>. Direct-local mode uses this Mac's real files; SSH mode leaves them on the remote host. The app does not create a synchronized mirror.</p>
+            <p>The only things the app stores locally are your saved connection profiles and preferences, in <code>~/Library/Application Support/HermesDesktop/</code>.</p>
+          </div>
+        </details>
+        <details>
+          <summary>Why does macOS say the app can't be verified or is damaged?</summary>
+          <div class="faq-body">
+            <p>Hermes Desktop is currently ad-hoc signed and not notarized by Apple. The Gatekeeper warning is expected for this distribution model and does not by itself mean that macOS found malware.</p>
+            <p>On most supported macOS versions, click <strong>Done</strong> (not "Move to Bin"), then right-click <code>HermesDesktop.app</code> in Applications and choose <strong>Open</strong>. If available, you can also use <strong>Open Anyway</strong> in Privacy &amp; Security.</p>
+            <p>On some Macs running <strong>macOS 26.5.1 (build 25F80)</strong>, Gatekeeper may instead say that the app is damaged and offer no override. Only for that version and exact alert, first compare the downloaded zip with <code>HermesDesktop.app.zip.sha256</code> from the same GitHub Release. Do not continue if the values differ.</p>
+            <p>After moving the verified app to Applications, run:</p>
+            <code class="command-block">xattr -dr com.apple.quarantine "/Applications/HermesDesktop.app"</code>
+            <code class="command-block">open "/Applications/HermesDesktop.app"</code>
+            <p>This removes browser quarantine from Hermes Desktop only; it does not disable Gatekeeper globally and does not require <code>sudo</code>. The free alternative is to inspect the source and run <code>./scripts/build-macos-app.sh</code>; a local build does not inherit browser download quarantine.</p>
+          </div>
+        </details>
+        <details>
+          <summary>Why is "Test" failing on my connection?</summary>
+          <div class="faq-body">
+            <p>Test is a preflight. In direct-local mode it checks that commands can run with your current macOS account and that <code>python3</code> is available. In SSH mode it also checks reachability and non-interactive authentication.</p>
+            <p>For SSH hosts, the most common cause is a password prompt or host-key confirmation. Run <code>ssh your-host</code> in Terminal once first to complete that setup.</p>
+          </div>
+        </details>
+        <details>
+          <summary>What does the "Hermes profile" setting do?</summary>
+          <div class="faq-body">
+            <p>It scopes the app to <code>~/.hermes/profiles/&lt;name&gt;</code> instead of the default profile. It's not just a label — every section in the app follows the active connection and profile.</p>
+            <p>Leave it empty to use the default <code>~/.hermes</code>. The app still discovers other profiles available through the active connection.</p>
+          </div>
+        </details>
+        <details>
+          <summary>How do I update?</summary>
+          <div class="faq-body">
+            <p>Download the latest <code>HermesDesktop.app.zip</code> from the releases page and replace the app in Applications. Your saved connections and preferences are kept — they live in <code>~/Library/Application Support/HermesDesktop/</code>, outside the app bundle.</p>
+          </div>
+        </details>
+        <details>
+          <summary>Where are the logs?</summary>
+          <div class="faq-body">
+            <p>Workflow launch diagnostics are written to <code>~/Library/Application Support/HermesDesktop/Diagnostics/workflow-launch-latest.log</code>.</p>
+            <p>For everything else, open <strong>Console.app</strong> on the Mac and filter by the subsystem <code>HermesDesktop</code>.</p>
+          </div>
+        </details>
+        <details>
+          <summary>Where do I report a bug or ask for a feature?</summary>
+          <div class="faq-body">
+            <p>Open an issue on GitHub: <a href="https://github.com/dodo-reach/hermes-desktop/issues">dodo-reach/hermes-desktop/issues</a>.</p>
+            <p>Useful to include: macOS version, app version (from the in-app About), what you expected vs what happened, and the diagnostics log if the problem is in a workflow launch.</p>
+          </div>
+        </details>
+      </div>
+    </section>
+
+    <section aria-labelledby="star-history-title">
+      <div class="section-title">
+        <h2 id="star-history-title">GitHub stars</h2>
+        <p>Thanks to everyone who starred the project. The chart tracks growth over time.</p>
+      </div>
+      <div class="star-card-wrapper">
+        <div class="star-card">
+          <div class="star-copy">
+            <div class="micro">Star history</div>
+            <h2>Help it grow.</h2>
+            <p>If Hermes Desktop is useful to you, starring the repo helps other people find it.</p>
+            <p style="margin-top: 0.8rem;"><a class="cta secondary" style="padding: 0.6rem 0.9rem; font-size: 0.74rem; box-shadow: 4px 4px 0 var(--line);" href="https://github.com/dodo-reach/hermes-desktop">★ Star on GitHub</a></p>
+          </div>
+          <a
+            class="star-chart-link"
+            href="https://www.star-history.com/?repos=dodo-reach%2Fhermes-desktop&amp;type=date&amp;legend=top-left"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Open Hermes Desktop star history on Star History"
+          >
+            <picture>
+              <source
+                media="(prefers-color-scheme: dark)"
+                srcset="https://api.star-history.com/chart?repos=dodo-reach/hermes-desktop&amp;type=date&amp;theme=dark&amp;legend=top-left"
+              >
+              <source
+                media="(prefers-color-scheme: light)"
+                srcset="https://api.star-history.com/chart?repos=dodo-reach/hermes-desktop&amp;type=date&amp;legend=top-left"
+              >
+              <img
+                src="https://api.star-history.com/chart?repos=dodo-reach/hermes-desktop&amp;type=date&amp;legend=top-left"
+                alt="Star History chart for dodo-reach/hermes-desktop"
+                loading="lazy"
+              >
+            </picture>
+          </a>
+        </div>
+      </div>
+    </section>
+
+    <div class="footer-box">
+      <div>
+        <div class="micro">Hermes Desktop</div>
+        <h3>Open source. Native. Direct.</h3>
+        <p>Work against the real Hermes store, not a copy of it.</p>
+      </div>
+      <div class="hero-actions footer-actions">
+        <a class="cta" href="https://github.com/dodo-reach/hermes-desktop">GitHub</a>
+        <a class="cta secondary" href="https://github.com/dodo-reach/hermes-desktop/releases">Releases</a>
+      </div>
+    </div>
+  </main>
+  <script>
+    (() => {
+      const terminal = document.querySelector("[data-terminal-typewriter]");
+      const lines = terminal ? Array.from(terminal.querySelectorAll("[data-terminal-line]")) : [];
+      const cursor = terminal ? terminal.querySelector("[data-terminal-cursor]") : null;
+      const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+      if (!terminal || !cursor || lines.length === 0) {
+        return;
+      }
+
+      let timers = [];
+
+      const showStaticTerminal = () => {
+        lines.forEach((line) => {
+          line.textContent = line.dataset.terminalLine || "";
+        });
+        lines[lines.length - 1].appendChild(cursor);
+      };
+
+      if (reduceMotion) {
+        showStaticTerminal();
+        return;
+      }
+
+      const clearTimers = () => {
+        timers.forEach((timer) => window.clearTimeout(timer));
+        timers = [];
+      };
+
+      const later = (delay, callback) => {
+        timers.push(window.setTimeout(callback, delay));
+      };
+
+      const clearTerminal = () => {
+        lines.forEach((line) => {
+          line.textContent = "";
+        });
+      };
+
+      const typeLine = (line, done) => {
+        const text = line.dataset.terminalLine || "";
+        let index = 0;
+        line.textContent = "";
+        line.appendChild(cursor);
+
+        const typeNextCharacter = () => {
+          line.textContent = text.slice(0, index);
+          line.appendChild(cursor);
+
+          if (index >= text.length) {
+            later(260, done);
+            return;
+          }
+
+          index += 1;
+          later(34 + Math.random() * 28, typeNextCharacter);
+        };
+
+        typeNextCharacter();
+      };
+
+      const showLine = (line, done) => {
+        line.textContent = line.dataset.terminalLine || "";
+        line.appendChild(cursor);
+        later(360, done);
+      };
+
+      const typeLines = (index = 0) => {
+        if (index >= lines.length) {
+          later(1400, startCycle);
+          return;
+        }
+
+        const renderLine = index === 1 ? showLine : typeLine;
+        renderLine(lines[index], () => {
+          later(index === 1 || index === 4 ? 420 : 160, () => typeLines(index + 1));
+        });
+      };
+
+      const startCycle = () => {
+        clearTimers();
+        clearTerminal();
+        typeLines();
+      };
+
+      startCycle();
+    })();
+  </script>
+</body>
+</html>

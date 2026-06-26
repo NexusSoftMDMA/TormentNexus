@@ -1,0 +1,481 @@
+// SPDX-FileCopyrightText: Copyright 2025 Stacklok, Inc.
+// SPDX-License-Identifier: Apache-2.0
+
+package docker
+
+import (
+	"context"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+
+	"github.com/moby/moby/api/types/container"
+	"github.com/moby/moby/api/types/mount"
+	"github.com/moby/moby/api/types/network"
+	mobyclient "github.com/moby/moby/client"
+	v1 "github.com/opencontainers/image-spec/specs-go/v1"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/stacklok/toolhive-core/permissions"
+	"github.com/stacklok/toolhive/pkg/container/runtime"
+)
+
+func TestCreateSquidContainer_Basics(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+
+	var gotHost *container.HostConfig
+
+	var createCalled bool
+	var startCalled bool
+
+	api := &fakeDockerAPI{
+		createFunc: func(_ context.Context, _ *container.Config, host *container.HostConfig, _ *network.NetworkingConfig, _ *v1.Platform, _ string) (container.CreateResponse, error) {
+			createCalled = true
+			gotHost = host
+			return container.CreateResponse{ID: "cid-new"}, nil
+		},
+		startFunc: func(_ context.Context, id string, _ mobyclient.ContainerStartOptions) error {
+			startCalled = true
+			assert.Equal(t, "cid-new", id)
+			return nil
+		},
+	}
+
+	c := &Client{
+		api:          api,
+		imageManager: &fakeImageManager{},
+	}
+
+	_, err := createSquidContainer(
+		ctx,
+		c,
+		"squid-test",
+		true,
+		map[string]struct{}{},
+		map[string]*network.EndpointSettings{},
+		map[string][]runtime.PortBinding{},
+		"/tmp/squid.conf",
+	)
+
+	require.NoError(t, err)
+
+	require.True(t, createCalled)
+	require.True(t, startCalled)
+
+	// Validate HostConfig
+	require.NotNil(t, gotHost)
+	assert.Equal(t, gotHost.NetworkMode, container.NetworkMode("bridge"))
+	assert.ElementsMatch(t, gotHost.Mounts, []mount.Mount{
+		{
+			Type:     mount.TypeBind,
+			Source:   "/tmp/squid.conf",
+			Target:   "/etc/squid/squid.conf",
+			ReadOnly: true,
+		},
+	})
+	assert.ElementsMatch(t, gotHost.CapAdd, []string{"CAP_SETUID", "CAP_SETGID"})
+	assert.Nil(t, gotHost.CapDrop)
+	assert.Contains(t, gotHost.SecurityOpt, "label:disable")
+	assert.Equal(t, gotHost.RestartPolicy, container.RestartPolicy{
+		Name: "unless-stopped",
+	})
+	// TODO: Validate exposed ports & port bindings
+}
+
+func TestCreateTempEgressSquidConf_AllowAllWhenNil(t *testing.T) {
+	t.Parallel()
+
+	fp, err := createTempEgressSquidConf(nil, "server", false, dockerDefaultBridgeGatewayIP)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = os.Remove(fp) })
+
+	b, err := os.ReadFile(fp)
+	require.NoError(t, err)
+	s := string(b)
+
+	assert.Contains(t, s, "visible_hostname server-egress")
+	assert.Contains(t, s, "http_port 3128")
+	assert.Contains(t, s, "http_access allow all")
+	assert.True(t, strings.HasSuffix(strings.TrimSpace(s), "http_access deny all"))
+
+	// Docker gateway must be blocked even with nil permissions.
+	assert.Contains(t, s, "http_access deny docker_gateway_hosts")
+	assert.Contains(t, s, "http_access deny docker_gateway_ip")
+	// Deny must precede allow — Squid is first-match-wins.
+	assert.Less(t,
+		strings.Index(s, "http_access deny docker_gateway_hosts"),
+		strings.Index(s, "http_access allow all"),
+	)
+
+	info, err := os.Stat(fp)
+	require.NoError(t, err)
+	assert.Equal(t, os.FileMode(0o644), info.Mode().Perm())
+}
+
+func TestCreateTempEgressSquidConf_AllowAllWhenInsecure(t *testing.T) {
+	t.Parallel()
+
+	cfg := &permissions.NetworkPermissions{
+		Outbound: &permissions.OutboundNetworkPermissions{
+			InsecureAllowAll: true,
+		},
+	}
+	fp, err := createTempEgressSquidConf(cfg, "server", false, dockerDefaultBridgeGatewayIP)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = os.Remove(fp) })
+
+	b, err := os.ReadFile(fp)
+	require.NoError(t, err)
+	s := string(b)
+
+	assert.Contains(t, s, "visible_hostname server-egress")
+	assert.Contains(t, s, "http_port 3128")
+	assert.Contains(t, s, "http_access allow all")
+	assert.True(t, strings.HasSuffix(strings.TrimSpace(s), "http_access deny all"))
+
+	// InsecureAllowAll must NOT suppress the Docker gateway block.
+	assert.Contains(t, s, "http_access deny docker_gateway_hosts")
+	assert.Contains(t, s, "http_access deny docker_gateway_ip")
+	// Deny must precede allow — Squid is first-match-wins.
+	assert.Less(t,
+		strings.Index(s, "http_access deny docker_gateway_hosts"),
+		strings.Index(s, "http_access allow all"),
+	)
+
+	info, err := os.Stat(fp)
+	require.NoError(t, err)
+	assert.Equal(t, os.FileMode(0o644), info.Mode().Perm())
+}
+
+func TestCreateTempEgressSquidConf_WithACLs(t *testing.T) {
+	t.Parallel()
+
+	cfg := &permissions.NetworkPermissions{
+		Outbound: &permissions.OutboundNetworkPermissions{
+			InsecureAllowAll: false,
+			AllowPort:        []int{80, 443},
+			AllowHost:        []string{"example.com", "api.github.com"},
+		},
+	}
+	fp, err := createTempEgressSquidConf(cfg, "edge", false, dockerDefaultBridgeGatewayIP)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = os.Remove(fp) })
+
+	b, err := os.ReadFile(fp)
+	require.NoError(t, err)
+	s := string(b)
+
+	assert.Contains(t, s, "visible_hostname edge-egress")
+	assert.Contains(t, s, "# Define allowed ports\nacl allowed_ports port 80 443")
+	assert.Contains(t, s, "# Define allowed destinations\nacl allowed_dsts dstdomain example.com api.github.com")
+	assert.Contains(t, s, "\n# Define http_access rules\n")
+	assert.Contains(t, s, "http_access allow allowed_ports allowed_dsts")
+	assert.True(t, strings.HasSuffix(strings.TrimSpace(s), "http_access deny all"))
+
+	// Docker gateway must be blocked even with an explicit ACL allowlist.
+	assert.Contains(t, s, "http_access deny docker_gateway_hosts")
+	assert.Contains(t, s, "http_access deny docker_gateway_ip")
+	// Deny must precede the allow rule — Squid is first-match-wins.
+	assert.Less(t,
+		strings.Index(s, "http_access deny docker_gateway_hosts"),
+		strings.Index(s, "http_access allow allowed_ports allowed_dsts"),
+	)
+
+	info, err := os.Stat(fp)
+	require.NoError(t, err)
+	assert.Equal(t, os.FileMode(0o644), info.Mode().Perm())
+}
+
+func TestCreateTempIngressSquidConf_Basics(t *testing.T) {
+	t.Parallel()
+
+	fp, err := createTempIngressSquidConf("svc-example", 8080, 18080, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = os.Remove(fp) })
+
+	b, err := os.ReadFile(fp)
+	require.NoError(t, err)
+	s := string(b)
+
+	assert.Contains(t, s, "visible_hostname svc-example-ingress")
+	assert.Contains(t, s, "\n# Reverse proxy setup for port 8080\n")
+	assert.Contains(t, s, "http_port 0.0.0.0:18080 accel defaultsite=svc-example")
+	assert.Contains(t, s, "cache_peer svc-example parent 8080 0 no-query originserver name=origin_8080")
+	assert.Contains(t, s, "acl site_8080 dstdomain svc-example")
+	assert.Contains(t, s, "http_access allow site_8080")
+	assert.True(t, strings.HasSuffix(strings.TrimSpace(s), "http_access deny all"))
+
+	info, err := os.Stat(fp)
+	require.NoError(t, err)
+	assert.Equal(t, os.FileMode(0o644), info.Mode().Perm())
+}
+
+func TestCreateTempIngressSquidConf_WithOverrideHosts(t *testing.T) {
+	t.Parallel()
+
+	networkPermissions := &permissions.NetworkPermissions{
+		Inbound: &permissions.InboundNetworkPermissions{
+			AllowHost: []string{"host.docker.internal", "*.internal", "api.example.com"},
+		},
+	}
+
+	fp, err := createTempIngressSquidConf("svc-example", 8080, 18080, networkPermissions)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = os.Remove(fp) })
+
+	b, err := os.ReadFile(fp)
+	require.NoError(t, err)
+	s := string(b)
+
+	assert.Contains(t, s, "visible_hostname svc-example-ingress")
+	assert.Contains(t, s, "\n# Reverse proxy setup for port 8080\n")
+	assert.Contains(t, s, "http_port 0.0.0.0:18080 accel defaultsite=svc-example")
+	assert.Contains(t, s, "cache_peer svc-example parent 8080 0 no-query originserver name=origin_8080")
+
+	// Test that override mode is used - no default ACLs
+	assert.NotContains(t, s, "acl site_8080 dstdomain svc-example")
+	assert.NotContains(t, s, "acl local_dst dst 127.0.0.1")
+	assert.NotContains(t, s, "acl local_domain dstdomain localhost")
+
+	// Test override hosts ACL
+	assert.Contains(t, s, "acl allowed_hosts dstdomain host.docker.internal *.internal api.example.com")
+
+	// Test that only the override http_access rule is present
+	assert.Contains(t, s, "http_access allow allowed_hosts")
+	assert.NotContains(t, s, "http_access allow site_8080")
+	assert.NotContains(t, s, "http_access allow local_dst")
+	assert.NotContains(t, s, "http_access allow local_domain")
+
+	assert.True(t, strings.HasSuffix(strings.TrimSpace(s), "http_access deny all"))
+
+	info, err := os.Stat(fp)
+	require.NoError(t, err)
+	assert.Equal(t, os.FileMode(0o644), info.Mode().Perm())
+}
+
+func TestCreateTempIngressSquidConf_EmptyInboundHosts(t *testing.T) {
+	t.Parallel()
+
+	networkPermissions := &permissions.NetworkPermissions{
+		Inbound: &permissions.InboundNetworkPermissions{
+			AllowHost: []string{}, // Empty list
+		},
+	}
+
+	fp, err := createTempIngressSquidConf("svc-example", 8080, 18080, networkPermissions)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = os.Remove(fp) })
+
+	b, err := os.ReadFile(fp)
+	require.NoError(t, err)
+	s := string(b)
+
+	// Should not contain override ACL when list is empty
+	assert.NotContains(t, s, "# Inbound network permissions override default behavior")
+	assert.NotContains(t, s, "acl allowed_hosts")
+	assert.NotContains(t, s, "http_access allow allowed_hosts")
+
+	// Should contain default ACLs and http_access rules
+	assert.Contains(t, s, "acl site_8080 dstdomain svc-example")
+	assert.Contains(t, s, "acl local_dst dst 127.0.0.1")
+	assert.Contains(t, s, "acl local_domain dstdomain localhost")
+	assert.Contains(t, s, "http_access allow site_8080")
+	assert.Contains(t, s, "http_access allow local_dst")
+	assert.Contains(t, s, "http_access allow local_domain")
+	assert.True(t, strings.HasSuffix(strings.TrimSpace(s), "http_access deny all"))
+
+	info, err := os.Stat(fp)
+	require.NoError(t, err)
+	assert.Equal(t, os.FileMode(0o644), info.Mode().Perm())
+}
+
+func TestCreateTempEgressSquidConf_DockerGatewayBlocking(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name               string
+		permissions        *permissions.NetworkPermissions
+		allowDockerGateway bool
+		expectDenyRule     bool
+		expectAllowAll     bool
+		expectContains     []string // additional substrings that must appear
+	}{
+		{
+			name:           "nil permissions blocks docker gateway",
+			permissions:    nil,
+			expectDenyRule: true,
+			expectAllowAll: true,
+		},
+		{
+			name: "InsecureAllowAll still blocks docker gateway",
+			permissions: &permissions.NetworkPermissions{
+				Outbound: &permissions.OutboundNetworkPermissions{
+					InsecureAllowAll: true,
+				},
+			},
+			expectDenyRule: true,
+			expectAllowAll: true,
+		},
+		{
+			name: "allow-docker-gateway opt-in removes deny rules",
+			permissions: &permissions.NetworkPermissions{
+				Outbound: &permissions.OutboundNetworkPermissions{
+					InsecureAllowAll: true,
+				},
+			},
+			allowDockerGateway: true,
+			expectDenyRule:     false,
+			expectAllowAll:     true,
+		},
+		{
+			name: "ACL-based outbound without opt-in blocks docker gateway",
+			permissions: &permissions.NetworkPermissions{
+				Outbound: &permissions.OutboundNetworkPermissions{
+					AllowHost: []string{"example.com"},
+				},
+			},
+			expectDenyRule: true,
+			expectAllowAll: false,
+		},
+		{
+			name: "ACL-based outbound with allow-docker-gateway omits deny rules but keeps ACL allow",
+			permissions: &permissions.NetworkPermissions{
+				Outbound: &permissions.OutboundNetworkPermissions{
+					AllowHost: []string{"example.com"},
+					AllowPort: []int{443},
+				},
+			},
+			allowDockerGateway: true,
+			expectDenyRule:     false,
+			expectAllowAll:     false,
+			expectContains: []string{
+				"acl allowed_ports port 443",
+				"acl allowed_dsts dstdomain example.com",
+				"http_access allow allowed_ports allowed_dsts",
+			},
+		},
+		{
+			// Listing host.docker.internal in allow_host is NOT sufficient on its
+			// own: without the opt-in the gateway deny is still written, and
+			// because Squid is first-match-wins the deny (asserted to precede the
+			// allow below) blocks the request before the allowed_dsts allow is
+			// reached. Reaching the gateway requires BOTH the flag and the host.
+			name: "host.docker.internal in allow_host without opt-in is still blocked",
+			permissions: &permissions.NetworkPermissions{
+				Outbound: &permissions.OutboundNetworkPermissions{
+					AllowHost: []string{"host.docker.internal"},
+					AllowPort: []int{8080},
+				},
+			},
+			allowDockerGateway: false,
+			expectDenyRule:     true,
+			expectAllowAll:     false,
+			expectContains: []string{
+				"acl allowed_dsts dstdomain host.docker.internal",
+				"http_access allow allowed_ports allowed_dsts",
+			},
+		},
+		{
+			// With the opt-in the deny is dropped and the ACL allow for
+			// host.docker.internal takes effect.
+			name: "host.docker.internal in allow_host with opt-in is allowed via ACL",
+			permissions: &permissions.NetworkPermissions{
+				Outbound: &permissions.OutboundNetworkPermissions{
+					AllowHost: []string{"host.docker.internal"},
+					AllowPort: []int{8080},
+				},
+			},
+			allowDockerGateway: true,
+			expectDenyRule:     false,
+			expectAllowAll:     false,
+			expectContains: []string{
+				"acl allowed_dsts dstdomain host.docker.internal",
+				"http_access allow allowed_ports allowed_dsts",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			fp, err := createTempEgressSquidConf(tt.permissions, "server", tt.allowDockerGateway, dockerDefaultBridgeGatewayIP)
+			require.NoError(t, err)
+			t.Cleanup(func() { _ = os.Remove(fp) })
+
+			b, err := os.ReadFile(fp)
+			require.NoError(t, err)
+			s := string(b)
+
+			if tt.expectDenyRule {
+				assert.Contains(t, s, "acl docker_gateway_hosts dstdomain host.docker.internal gateway.docker.internal")
+				assert.Contains(t, s, "acl docker_gateway_ip dst 172.17.0.1")
+				assert.Contains(t, s, "http_access deny docker_gateway_hosts")
+				assert.Contains(t, s, "http_access deny docker_gateway_ip")
+
+				// Deny must precede every allow rule — Squid is first-match-wins.
+				denyIdx := strings.Index(s, "http_access deny docker_gateway_hosts")
+				firstAllowIdx := strings.Index(s, "http_access allow ")
+				if firstAllowIdx != -1 {
+					assert.Less(t, denyIdx, firstAllowIdx,
+						"docker gateway deny must appear before any http_access allow")
+				}
+			} else {
+				assert.NotContains(t, s, "docker_gateway_hosts")
+				assert.NotContains(t, s, "docker_gateway_ip")
+			}
+
+			if tt.expectAllowAll {
+				assert.Contains(t, s, "http_access allow all")
+			}
+
+			for _, sub := range tt.expectContains {
+				assert.Contains(t, s, sub)
+			}
+
+			assert.True(t, strings.HasSuffix(strings.TrimSpace(s), "http_access deny all"))
+		})
+	}
+}
+
+func TestGetSquidImage(t *testing.T) {
+	t.Parallel()
+
+	// Save and restore env
+	orig, had := os.LookupEnv("TOOLHIVE_EGRESS_IMAGE")
+	if had {
+		t.Cleanup(func() { _ = os.Setenv("TOOLHIVE_EGRESS_IMAGE", orig) })
+	} else {
+		t.Cleanup(func() { _ = os.Unsetenv("TOOLHIVE_EGRESS_IMAGE") })
+	}
+
+	// Default
+	_ = os.Unsetenv("TOOLHIVE_EGRESS_IMAGE")
+	assert.Equal(t, "ghcr.io/stacklok/toolhive/egress-proxy:latest", getSquidImage())
+
+	// Override
+	override := "ghcr.io/example/custom-squid:1.2.3"
+	_ = os.Setenv("TOOLHIVE_EGRESS_IMAGE", override)
+	assert.Equal(t, override, getSquidImage())
+}
+
+// Safety: ensure generated files are written under system temp directory for cleanup logic assumptions
+func TestTempFilesWrittenToSystemTempDir(t *testing.T) {
+	t.Parallel()
+
+	fp1, err := createTempEgressSquidConf(nil, "s1", false, dockerDefaultBridgeGatewayIP)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = os.Remove(fp1) })
+
+	fp2, err := createTempIngressSquidConf("s2", 8081, 18081, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = os.Remove(fp2) })
+
+	tempDir := os.TempDir()
+	assert.True(t, strings.HasPrefix(filepath.Clean(fp1), filepath.Clean(tempDir)))
+	assert.True(t, strings.HasPrefix(filepath.Clean(fp2), filepath.Clean(tempDir)))
+}

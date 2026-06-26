@@ -1,0 +1,351 @@
+@import "tailwindcss";
+
+@theme {
+  /* Background layers — macOS-dark graphite (warm charcoal, neutral, no indigo) */
+  --color-shell-bg: #1d1d1f;
+  --color-shell-bg-deep: #171717;
+  --color-shell-surface: rgba(255, 255, 255, 0.04);
+  --color-shell-surface-hover: rgba(255, 255, 255, 0.06);
+  --color-shell-surface-active: rgba(255, 255, 255, 0.08);
+  --color-shell-border: rgba(255, 255, 255, 0.06);
+  --color-shell-border-strong: rgba(255, 255, 255, 0.1);
+  /* Semi-transparent shell bg for frosted-glass bars (mobile top bar, etc.).
+     A theme can override this; base is neutral graphite, never indigo. */
+  --color-shell-bg-glass: rgba(22, 22, 24, 0.72);
+
+  /* Text */
+  --color-shell-text: rgba(255, 255, 255, 0.85);
+  --color-shell-text-secondary: rgba(255, 255, 255, 0.5);
+  --color-shell-text-tertiary: rgba(255, 255, 255, 0.3);
+
+  /* Traffic lights */
+  --color-traffic-close: #ff5f57;
+  --color-traffic-minimize: #febc2e;
+  --color-traffic-maximize: #28c840;
+
+  /* Accent — cool neutral grey, no purple/indigo */
+  --color-accent: #8b92a3;
+  --color-accent-glow: rgba(139, 146, 163, 0.3);
+  /* Slate accent fills — tinted surfaces + hairlines for accented UI
+     (Messages thread bubbles, the read-only Coordination Bus rail).
+     Restrained slate, never purple. The unread badge is a slate-blue. */
+  --color-accent-soft: rgba(139, 146, 163, 0.16);
+  --color-accent-line: rgba(139, 146, 163, 0.38);
+  --color-accent-strong: #c3c8d4;
+  --color-unread: #5b8def;
+  --color-bubble-self: rgba(139, 146, 163, 0.14);
+
+  /* Dock + top bar — neutral graphite frosted chrome */
+  --color-dock-bg: rgba(29, 29, 31, 0.92);
+  --color-dock-border: rgba(255, 255, 255, 0.08);
+  --color-topbar-bg: rgba(29, 29, 31, 0.92);
+
+  /* Snap zones */
+  --color-snap-preview: rgba(139, 146, 163, 0.15);
+  --color-snap-border: rgba(139, 146, 163, 0.4);
+
+  /* Spacing */
+  --spacing-topbar-h: 32px;
+  --spacing-dock-h: 64px;
+  --spacing-dock-padding: 8px;
+  --spacing-window-radius: 10px;
+  --spacing-dock-radius: 16px;
+
+  /* Shadows */
+  --shadow-window: 0 8px 32px rgba(0, 0, 0, 0.4);
+  --shadow-window-unfocused: 0 4px 16px rgba(0, 0, 0, 0.2);
+  --shadow-dock: 0 4px 24px rgba(0, 0, 0, 0.3);
+  --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.2), 0 0 1px rgba(255, 255, 255, 0.05);
+  --shadow-card-hover: 0 8px 24px rgba(0, 0, 0, 0.3), 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
+/* ==================================================================
+   Light-scheme compatibility layer
+   ==================================================================
+   The shell tokens above (window chrome, dock, top bar, text) already
+   flip per theme. But ~800 surfaces across the apps still use hardcoded
+   white-overlay utilities (bg-white/5, border-white/10) and ~140 use
+   hardcoded white text (text-white) — additive white that vanishes on a
+   light background. Rather than migrate every call site, this layer
+   inverts those utilities to dark-on-light, but ONLY when a light theme
+   is active (data-scheme="light", set from the theme's bg luminance in
+   theme-store.ts). The dark theme is never matched, so it is untouched.
+
+   Specificity note: `:root[data-scheme="light"] [class~="x"]` is (0,3,0),
+   which beats Tailwind's single-class utilities (0,1,0) and hover
+   variants (0,2,0) without !important. Hover overlays get their own
+   :hover rules below so the affordance survives the inversion.
+   ================================================================== */
+:root[data-scheme="light"] [class~="bg-white/3"]  { background-color: rgba(0, 0, 0, 0.03); }
+:root[data-scheme="light"] [class~="bg-white/5"]  { background-color: rgba(0, 0, 0, 0.04); }
+:root[data-scheme="light"] [class~="bg-white/10"] { background-color: rgba(0, 0, 0, 0.06); }
+:root[data-scheme="light"] [class~="bg-white/15"] { background-color: rgba(0, 0, 0, 0.08); }
+:root[data-scheme="light"] [class~="bg-white/20"] { background-color: rgba(0, 0, 0, 0.10); }
+
+:root[data-scheme="light"] [class~="border-white/5"]  { border-color: rgba(0, 0, 0, 0.08); }
+:root[data-scheme="light"] [class~="border-white/8"]  { border-color: rgba(0, 0, 0, 0.10); }
+:root[data-scheme="light"] [class~="border-white/10"] { border-color: rgba(0, 0, 0, 0.12); }
+:root[data-scheme="light"] [class~="border-white/15"] { border-color: rgba(0, 0, 0, 0.14); }
+:root[data-scheme="light"] [class~="border-white/20"] { border-color: rgba(0, 0, 0, 0.16); }
+
+:root[data-scheme="light"] [class~="text-white"]    { color: rgba(0, 0, 0, 0.88); }
+:root[data-scheme="light"] [class~="text-white/90"] { color: rgba(0, 0, 0, 0.84); }
+:root[data-scheme="light"] [class~="text-white/80"] { color: rgba(0, 0, 0, 0.78); }
+:root[data-scheme="light"] [class~="text-white/70"] { color: rgba(0, 0, 0, 0.68); }
+:root[data-scheme="light"] [class~="text-white/60"] { color: rgba(0, 0, 0, 0.58); }
+:root[data-scheme="light"] [class~="text-white/50"] { color: rgba(0, 0, 0, 0.50); }
+:root[data-scheme="light"] [class~="text-white/45"] { color: rgba(0, 0, 0, 0.48); }
+:root[data-scheme="light"] [class~="text-white/40"] { color: rgba(0, 0, 0, 0.45); }
+:root[data-scheme="light"] [class~="text-white/35"] { color: rgba(0, 0, 0, 0.44); }
+:root[data-scheme="light"] [class~="text-white/30"] { color: rgba(0, 0, 0, 0.42); }
+:root[data-scheme="light"] [class~="text-white/25"] { color: rgba(0, 0, 0, 0.40); }
+:root[data-scheme="light"] [class~="text-white/20"] { color: rgba(0, 0, 0, 0.40); }
+:root[data-scheme="light"] [class~="text-white/15"] { color: rgba(0, 0, 0, 0.38); }
+
+/* Slate accent fills — light-scheme values (mirror the approved Messages
+   mockup): a touch cooler/darker so tinted surfaces and the unread badge
+   read correctly on the light graphite background. */
+:root[data-scheme="light"] {
+  --color-accent: #6b7280;
+  --color-accent-soft: rgba(107, 114, 128, 0.13);
+  --color-accent-line: rgba(107, 114, 128, 0.34);
+  --color-accent-strong: #4b5160;
+  --color-unread: #3b6fd4;
+  --color-bubble-self: rgba(107, 114, 128, 0.12);
+}
+
+/* Hover overlays: re-assert the inverted fill on :hover so the affordance
+   does not flatten under the base-state override. */
+:root[data-scheme="light"] [class~="hover:bg-white/5"]:hover  { background-color: rgba(0, 0, 0, 0.05); }
+:root[data-scheme="light"] [class~="hover:bg-white/10"]:hover { background-color: rgba(0, 0, 0, 0.07); }
+:root[data-scheme="light"] [class~="hover:bg-white/[0.06]"]:hover { background-color: rgba(0, 0, 0, 0.05); }
+
+/* Safari backdrop-filter repaint guard
+   ====================================
+   WebKit keeps backdrop-filter elements on cached GPU layers and does not
+   re-rasterize them when the theme custom properties on :root change at
+   runtime, so a dark<->light switch can leave the dock, top bar, modals and
+   widgets rendering black on the live screen (screenshots force a full raster
+   and look fine, which masks the bug). theme-store.ts sets
+   [data-theme-switching] for one frame on every theme apply/revert; dropping
+   the filter for that frame forces WebKit to rebuild each layer against the
+   new tokens. Imperceptible (~1 frame) and a no-op in Chrome/Firefox. */
+:root[data-theme-switching] * {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+
+/* Reduce-effects / performance mode (#58)
+   =======================================
+   Toggled in Settings (and, later, auto-enabled on low-end GPUs). On weak
+   hardware the GPU-heavy compositing -- pervasive backdrop blur (~90 frosted
+   surfaces), large soft shadows, and continuous animations -- tanks the
+   framerate. data-perf="reduced" on :root strips those while leaving layout,
+   colour and contrast intact, so the desktop stays legible but cheap to paint. */
+:root[data-perf="reduced"] * {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+:root[data-perf="reduced"] {
+  /* Surfaces that leaned on the blur to be legible get an opaque glass bg. */
+  --color-shell-bg-glass: rgb(22, 22, 24);
+  /* Flatten the big, blur-radius-heavy shadows to cheap 1px ones. */
+  --shadow-window: 0 1px 2px rgba(0, 0, 0, 0.5);
+  --shadow-window-unfocused: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-dock: 0 1px 3px rgba(0, 0, 0, 0.4);
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-card-hover: 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+:root[data-scheme="light"][data-perf="reduced"] {
+  --color-shell-bg-glass: rgb(245, 245, 247);
+}
+/* Stop the continuously-running animations (the per-frame GPU drain). */
+:root[data-perf="reduced"] .taos-status-pulse,
+:root[data-perf="reduced"] .taos-shimmer,
+:root[data-perf="reduced"] .taos-card-enter {
+  animation: none !important;
+}
+
+/* Wallpaper sizing
+   ----------------
+   Desktop fills the viewport (cover crops edges if aspect mismatches).
+   Mobile/portrait scales the full image in (contain) so pieces like the
+   'taOS' letters near the edges of a wide wallpaper aren't clipped.
+*/
+.taos-wallpaper {
+  background-image: var(--wallpaper-desktop);
+  background-position: center center;
+  background-repeat: no-repeat;
+  background-size: cover;
+}
+@media (max-width: 767px), (orientation: portrait) {
+  /* On phones we switch to a portrait-cropped image if the wallpaper
+     provides one, and stretch it to fill both axes. */
+  .taos-wallpaper {
+    background-image: var(--wallpaper-mobile, var(--wallpaper-desktop));
+    background-size: 100% 100%;
+  }
+}
+
+/* React-grid-layout dark theme overrides for widget system */
+.react-grid-item.react-grid-placeholder {
+  background: rgba(139, 146, 163, 0.2) !important;
+  border: 1px dashed rgba(139, 146, 163, 0.4) !important;
+  border-radius: 12px !important;
+}
+.react-resizable-handle {
+  opacity: 0.3;
+}
+.react-resizable-handle:hover {
+  opacity: 0.8;
+}
+.react-grid-item > .react-resizable-handle::after {
+  border-right-color: rgba(255, 255, 255, 0.4);
+  border-bottom-color: rgba(255, 255, 255, 0.4);
+}
+
+.data-highlight {
+  outline: 2px solid rgb(250 204 21 / 0.8);
+  outline-offset: 2px;
+  transition: outline 0.2s ease-out;
+}
+
+/* Agents app — gentle breathing pulse for the running status dot.
+   Scales/fades a halo behind the dot so it reads as "live" without the
+   jarring full-opacity blink of animate-pulse. Disabled under
+   prefers-reduced-motion. */
+@keyframes taos-status-pulse {
+  0%, 100% { transform: scale(1); opacity: 0.55; }
+  50% { transform: scale(1.9); opacity: 0; }
+}
+.taos-status-pulse {
+  animation: taos-status-pulse 2.4s ease-in-out infinite;
+}
+
+/* Agents app — skeleton shimmer for loading cards. */
+@keyframes taos-shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.taos-shimmer {
+  background-image: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.06) 50%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: taos-shimmer 1.6s ease-in-out infinite;
+}
+
+/* Agents app — subtle card entrance (mount fade + lift). */
+@keyframes taos-card-enter {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.taos-card-enter {
+  animation: taos-card-enter 0.24s ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .taos-status-pulse,
+  .taos-shimmer,
+  .taos-card-enter {
+    animation: none;
+  }
+}
+
+/* Projects board — Apple-grade chrome (Pass B Kanban) */
+:root {
+  --board-accent-cyan: #22d3ee;
+  --board-accent-cyan-soft: rgba(34, 211, 238, 0.14);
+  --board-hair: rgba(255, 255, 255, 0.07);
+  --board-hair-strong: rgba(255, 255, 255, 0.12);
+  --board-card-bg: linear-gradient(180deg, #26262b, #1f1f22);
+  --board-bg: linear-gradient(180deg, #1a1a1c, #131316);
+  --board-p0: #ff453a;
+  --board-p1: #ffb340;
+  --board-p2: #8e8e93;
+  --board-status-ready: #64d2ff;
+  --board-status-claimed: #ffb340;
+  --board-status-closed: #30d158;
+}
+
+/* ==================================================================
+   Browser (non-PWA) mobile layout
+   ==================================================================
+   When taOS runs in Safari/Chrome (not installed as a PWA), the
+   browser chrome — URL bar, tab bar, share sheet — consumes part of
+   the viewport. The PWA layout assumes the full viewport (with
+   safe-area-inset for the notch/home indicator). In browser mode we
+   drop the safe-area padding (the browser handles it) and constrain
+   the viewport so the dock sits above the tab bar instead of behind it.
+   The PWA layout is UNCHANGED — this only activates with .taos-browser.
+   ================================================================== */
+/* Every mobile/tablet shell uses the dynamic viewport height so the bottom of
+   the column (the dock, and the app content/action bar that ends just above
+   it) is never pushed below the visible viewport. Tailwind's h-screen resolves
+   to 100vh, which on iOS includes the area behind the collapsing URL bar /
+   home indicator; 100dvh tracks the actual visible viewport. The 100vh line is
+   the fallback for browsers without dvh. Per-component safe-area insets still
+   handle the home-indicator clearance. */
+.taos-mobile-root {
+  height: 100vh !important;
+  height: 100dvh !important;
+}
+
+.taos-browser {
+  /* Note: safe-area insets are applied inline on individual components
+     (ChatStandalone, BottomSheet, OnboardingScreen, ModelPickerModal, …),
+     not on this element, and env(safe-area-inset-*) is already 0 in browser
+     (non-standalone) mode, so a padding reset here would be a no-op. The
+     viewport-height fix lives on .taos-mobile-root (shared with PWA mode). */
+  height: 100vh !important;
+  height: 100dvh !important;
+}
+
+.taos-browser .taos-wallpaper {
+  /* In browser mode, stretch the wallpaper to fill the dynamic viewport */
+  background-size: 100% 100%;
+}
+
+/* MobileDock bottom padding in browser mode is handled via the isBrowserMobile
+   prop passed from App.tsx — the component uses inline styles so a CSS
+   selector cannot override them reliably. See MobileDock.tsx. */
+
+/* BrowserApp — collapsible sidebar (#66)
+   =======================================
+   Width transition for the collapse/expand animation. The transition runs on
+   the `width` property so content inside reflows naturally. Respects
+   prefers-reduced-motion: when reduced-motion is active (or data-perf=reduced)
+   the transition duration drops to 0ms so the collapse is instant. */
+.browser-sidebar {
+  transition: width 220ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+@media (prefers-reduced-motion: reduce) {
+  .browser-sidebar {
+    transition: none;
+  }
+}
+:root[data-perf="reduced"] .browser-sidebar {
+  transition: none;
+}
+
+/* BrowserApp — connecting / empty-state placeholder shimmer */
+@keyframes browser-stream-pulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0.7; }
+}
+.browser-stream-pulse {
+  animation: browser-stream-pulse 2s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .browser-stream-pulse {
+    animation: none;
+    opacity: 0.5;
+  }
+}
+:root[data-perf="reduced"] .browser-stream-pulse {
+  animation: none;
+  opacity: 0.5;
+}

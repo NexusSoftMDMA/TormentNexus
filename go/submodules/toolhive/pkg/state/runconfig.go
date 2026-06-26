@@ -1,0 +1,129 @@
+// SPDX-FileCopyrightText: Copyright 2025 Stacklok, Inc.
+// SPDX-License-Identifier: Apache-2.0
+
+package state
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"io"
+	"log/slog"
+
+	"github.com/stacklok/toolhive/pkg/workloads/types/errors"
+)
+
+// LoadRunConfigJSON loads a run configuration from the state store and returns the raw reader
+func LoadRunConfigJSON(ctx context.Context, name string) (io.ReadCloser, error) {
+	// Create a state store
+	store, err := NewRunConfigStore(DefaultAppName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create state store: %w", err)
+	}
+
+	// Check if the configuration exists
+	exists, err := store.Exists(ctx, name)
+	if err != nil {
+		return nil, fmt.Errorf("failed to check if run configuration exists: %w", err)
+	}
+	if !exists {
+		return nil, fmt.Errorf("%w: %s", errors.ErrRunConfigNotFound, name)
+	}
+
+	// Get a reader for the state
+	reader, err := store.GetReader(ctx, name)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get reader for state: %w", err)
+	}
+
+	return reader, nil
+}
+
+// DeleteSavedRunConfig deletes a saved run configuration
+func DeleteSavedRunConfig(ctx context.Context, name string) error {
+	// Create a state store
+	store, err := NewRunConfigStore(DefaultAppName)
+	if err != nil {
+		return fmt.Errorf("failed to create state store: %w", err)
+	}
+
+	// Check if the configuration exists
+	exists, err := store.Exists(ctx, name)
+	if err != nil {
+		return fmt.Errorf("failed to check if run configuration exists: %w", err)
+	}
+	if !exists {
+		return fmt.Errorf("run configuration for %s not found", name)
+	}
+
+	// Delete the configuration
+	if err := store.Delete(ctx, name); err != nil {
+		return fmt.Errorf("failed to delete run configuration: %w", err)
+	}
+
+	slog.Debug("Deleted run configuration", "name", name)
+	return nil
+}
+
+// RunConfigPersister defines an interface for objects that can be persisted and loaded as JSON
+type RunConfigPersister interface {
+	// WriteJSON serializes the object to JSON and writes it to the provided writer
+	WriteJSON(w io.Writer) error
+	// GetBaseName returns the base name used for persistence
+	GetBaseName() string
+}
+
+// ReadJSONFunc defines a function type for reading JSON into an object
+type ReadJSONFunc[T any] func(r io.Reader) (T, error)
+
+// SaveRunConfig saves a run configuration to the state store
+func SaveRunConfig[T RunConfigPersister](ctx context.Context, config T) error {
+	// Create a state store
+	store, err := NewRunConfigStore(DefaultAppName)
+	if err != nil {
+		return fmt.Errorf("failed to create state store: %w", err)
+	}
+
+	// Get a writer for the state
+	writer, err := store.GetWriter(ctx, config.GetBaseName())
+	if err != nil {
+		return fmt.Errorf("failed to get writer for state: %w", err)
+	}
+	defer func() {
+		if err := writer.Close(); err != nil {
+			slog.Warn("Failed to close writer", "error", err)
+		}
+	}()
+
+	// Serialize the configuration to JSON and write it directly to the state store
+	if err := config.WriteJSON(writer); err != nil {
+		return fmt.Errorf("failed to write run configuration: %w", err)
+	}
+
+	slog.Debug("Saved run configuration", "name", config.GetBaseName())
+	return nil
+}
+
+// LoadRunConfig loads a run configuration from the state store using the provided reader function
+func LoadRunConfig[T any](ctx context.Context, name string, readJSONFunc ReadJSONFunc[T]) (T, error) {
+	var zero T
+	reader, err := LoadRunConfigJSON(ctx, name)
+	if err != nil {
+		return zero, err
+	}
+	defer func() {
+		if err := reader.Close(); err != nil {
+			slog.Warn("Failed to close reader", "error", err)
+		}
+	}()
+
+	// Deserialize the configuration using the provided function
+	return readJSONFunc(reader)
+}
+
+// ReadJSON deserializes JSON from the provided reader into a generic interface
+// This function is moved from the runner package to avoid circular dependencies
+func ReadJSON(r io.Reader, target interface{}) error {
+	decoder := json.NewDecoder(r)
+	return decoder.Decode(target)
+}

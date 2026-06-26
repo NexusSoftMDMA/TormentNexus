@@ -1,0 +1,102 @@
+name: Python Tests
+
+on:
+  push:
+    branches: [ main ]
+    tags:
+      - 'server/v*.*.*'
+      - 'client/v*.*.*'
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.12'
+        cache: 'pip'
+
+    - name: Install pre-commit
+      run: |
+        python -m pip install --upgrade pip
+        pip install uv
+        make sync-dev
+
+    - name: Run pre-commit
+      run: |
+        make pre-commit
+
+  service-tests:
+    name: Service Tests
+    needs: lint
+    if: github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]')
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set Redis image name
+      run: |
+          echo "REDIS_IMAGE=redis:8.6" >> $GITHUB_ENV
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.12'
+        cache: 'pip'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install uv
+        make sync
+
+    - name: Install agent-memory-client
+      run: |
+        uv pip install -e ./agent-memory-client
+
+    - name: Run service tests
+      run: |
+        make test-api
+      env:
+        OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+
+  test:
+    needs: lint
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: [3.12]
+        redis-version: ['redis/redis-stack:6.2.6-v9', 'redis:8.6', 'redis:latest']
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set Redis image name
+      run: |
+          echo "REDIS_IMAGE=${{ matrix.redis-version }}" >> $GITHUB_ENV
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+        cache: 'pip'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install uv
+        make sync
+
+    - name: Install agent-memory-client
+      run: |
+        uv pip install -e ./agent-memory-client
+
+    - name: Run tests
+      run: |
+        make test

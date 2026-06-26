@@ -1,0 +1,15 @@
+{
+  "name": "tt-telemetry-proxy",
+  "version": "1.0.0",
+  "private": true,
+  "description": "TokenTelemetry telemetry sink — writes anonymous usage events to Cloudflare Workers Analytics Engine via an account-bound binding (no analytics key required).",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "dry-run": "wrangler deploy --dry-run",
+    "tail": "wrangler tail"
+  },
+  "devDependencies": {
+    "wrangler": "^4.100.0"
+  }
+}

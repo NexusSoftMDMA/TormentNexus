@@ -1,0 +1,62 @@
+name: Production Release
+
+on:
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+
+jobs:
+  build-and-release:
+    runs-on: windows-latest
+    permissions:
+      contents: write # Required to create a release
+    
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x' # Covers net472 via MSBuild usually, but windows-latest has .NET Framework SDK preinstalled.
+
+      - name: Run Build Matrix
+        shell: powershell
+        working-directory: controller_mcp
+        run: .\build_matrix.ps1
+
+      - name: Build Installers
+        shell: powershell
+        working-directory: controller_mcp
+        run: .\build_installers.ps1
+
+      - name: Read Version
+        id: get_version
+        shell: powershell
+        working-directory: controller_mcp
+        run: |
+          $version = (Get-Content "version.txt" -Raw).Trim()
+          Write-Output "VERSION=$version" >> $env:GITHUB_ENV
+          Write-Output "Extracted Version: $version"
+
+      - name: Verify Tag Does Not Exist
+        shell: powershell
+        working-directory: controller_mcp
+        run: |
+          git fetch --tags
+          if (git tag -l "v$($env:VERSION)") {
+              Write-Error "Tag v$($env:VERSION) already exists. Please bump the version in version.txt"
+              exit 1
+          }
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ env.VERSION }}
+          name: YADMS Release v${{ env.VERSION }}
+          draft: false
+          prerelease: false
+          files: |
+            controller_mcp/installers/*.exe
+          generate_release_notes: true

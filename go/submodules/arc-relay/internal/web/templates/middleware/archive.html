@@ -1,0 +1,367 @@
+{{/*
+  middleware_archive: Compliance Archive card content.
+  Receives a MiddlewareCard struct with Descriptor, Enabled, Config, CustomData.
+  CustomData keys: GlobalArchiveConfig (JSON string), ArchiveQueueStatus.
+*/}}
+{{define "middleware_archive"}}
+{{$card := .}}
+{{$serverID := .ServerID}}
+<div class="mw-card" id="mw-archive" data-config="{{if .CustomData.GlobalArchiveConfig}}{{.CustomData.GlobalArchiveConfig}}{{else}}{}{{end}}">
+  <div style="display:flex;justify-content:space-between;align-items:center">
+    <div>
+      <strong>{{$card.Descriptor.DisplayName}}</strong>
+      <span style="font-size:0.8rem;color:var(--text-muted);margin-left:0.5rem">{{$card.Descriptor.Description}}</span>
+    </div>
+    <label class="toggle">
+      <input type="checkbox" id="mw-archive-toggle" onchange="toggleMiddleware('archive', this.checked)"
+        {{if $card.Enabled}}checked{{end}}>
+      <span class="toggle-slider"></span>
+    </label>
+  </div>
+  <div class="mw-detail" style="margin-top:0.5rem;font-size:0.85rem;color:var(--text-muted)">
+    Archives MCP tool calls to an external compliance endpoint for audit, security review, and policy enforcement.
+    <span style="display:block;margin-top:0.35rem">
+      Don't have an endpoint yet?
+      <a href="#" onclick="openArchiveSetup(event)"
+         style="color:var(--primary, #0066cc);text-decoration:none;font-weight:500">
+        Set up the Comma Compliance Archive &rarr;
+      </a>
+    </span>
+  </div>
+  {{if .CustomData.ArchiveQueueStatus}}
+  <div style="margin-top:0.75rem;padding:0.5rem 0.75rem;border-radius:4px;background:var(--bg-muted, #f8f9fa);font-size:0.85rem">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem">
+      <div style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap">
+        {{if eq .CustomData.ArchiveQueueStatus.CircuitState "closed"}}
+          {{if and (eq .CustomData.ArchiveQueueStatus.QueueStatus.PendingCount 0) (eq .CustomData.ArchiveQueueStatus.QueueStatus.HoldCount 0)}}
+            <span class="badge" style="background:#198754;color:#fff">Healthy</span>
+          {{else}}
+            <span class="badge" style="background:#ffc107;color:#000">Delivering</span>
+          {{end}}
+        {{else if eq .CustomData.ArchiveQueueStatus.CircuitState "half-open"}}
+          <span class="badge" style="background:#ffc107;color:#000">Recovering</span>
+        {{else}}
+          <span class="badge" style="background:#dc3545;color:#fff">Paused</span>
+        {{end}}
+        {{if gt .CustomData.ArchiveQueueStatus.QueueStatus.PendingCount 0}}
+          <span>{{.CustomData.ArchiveQueueStatus.QueueStatus.PendingCount}} queued</span>
+        {{end}}
+        {{if gt .CustomData.ArchiveQueueStatus.QueueStatus.HoldCount 0}}
+          <span class="badge" style="background:#dc3545;color:#fff">{{.CustomData.ArchiveQueueStatus.QueueStatus.HoldCount}} held</span>
+        {{end}}
+      </div>
+      <div style="display:flex;gap:0.5rem">
+        {{if gt .CustomData.ArchiveQueueStatus.QueueStatus.HoldCount 0}}
+          <button onclick="archiveAction('retry')" class="btn btn-sm" style="background:#ffc107;color:#000;border:none;padding:0.25rem 0.75rem;border-radius:4px;cursor:pointer" title="Rewrite held rows to the current archive URL and retry delivery">Retry Now</button>
+          <button onclick="archiveAction('clear')" class="btn btn-sm" style="background:#dc3545;color:#fff;border:none;padding:0.25rem 0.75rem;border-radius:4px;cursor:pointer" title="Permanently discard all held messages">Clear Backlog</button>
+        {{end}}
+        <button onclick="archiveAction('test')" class="btn btn-sm" style="background:var(--border, #dee2e6);color:var(--text, #212529);border:none;padding:0.25rem 0.75rem;border-radius:4px;cursor:pointer" id="archive-test-btn">Send Test</button>
+      </div>
+    </div>
+    {{if and .CustomData.ArchiveQueueStatus.QueueStatus.LastError (or (ne .CustomData.ArchiveQueueStatus.CircuitState "closed") (gt .CustomData.ArchiveQueueStatus.QueueStatus.HoldCount 0))}}
+      <div style="margin-top:0.25rem;color:var(--danger, #dc3545);font-size:0.8rem">
+        Last error: {{.CustomData.ArchiveQueueStatus.QueueStatus.LastError}}
+      </div>
+    {{end}}
+    <div id="archive-test-result" style="margin-top:0.25rem;font-size:0.8rem;display:none"></div>
+  </div>
+  {{end}}
+  <div id="mw-archive-config" style="margin-top:0.75rem;display:flex;flex-direction:column;gap:0.5rem">
+    <div>
+      <label style="font-size:0.8rem;font-weight:600">Archive URL</label>
+      <input type="text" id="archive-url" placeholder="https://app.commacompliance.com/webhooks/incoming/arc_webhooks" style="width:100%;padding:0.35rem 0.5rem;font-size:0.85rem;border:1px solid var(--border);border-radius:4px">
+    </div>
+    <div style="display:flex;gap:0.75rem">
+      <div style="flex:1">
+        <label style="font-size:0.8rem;font-weight:600">Auth Type</label>
+        <select id="archive-auth-type" onchange="document.getElementById('archive-auth-value').type = this.value === 'none' ? 'hidden' : 'password'" style="width:100%;padding:0.35rem 0.5rem;font-size:0.85rem;border:1px solid var(--border);border-radius:4px">
+          <option value="none">None</option>
+          <option value="bearer">Bearer Token</option>
+          <option value="api_key">API Key</option>
+        </select>
+      </div>
+      <div style="flex:1">
+        <label style="font-size:0.8rem;font-weight:600">Auth Value</label>
+        <input type="password" id="archive-auth-value" placeholder="Token or key" style="width:100%;padding:0.35rem 0.5rem;font-size:0.85rem;border:1px solid var(--border);border-radius:4px">
+      </div>
+    </div>
+    <div>
+      <label style="font-size:0.8rem;font-weight:600">Include</label>
+      <select id="archive-include" style="width:100%;padding:0.35rem 0.5rem;font-size:0.85rem;border:1px solid var(--border);border-radius:4px">
+        <option value="both">Both (request + response)</option>
+        <option value="request">Request only</option>
+        <option value="response">Response only</option>
+      </select>
+    </div>
+    <input type="hidden" id="archive-nacl-key" value="">
+    <div id="archive-envelope-row" style="display:flex;align-items:center;justify-content:space-between;gap:0.5rem;padding:0.5rem 0.75rem;border:1px solid var(--border, #dee2e6);border-radius:4px;background:var(--bg-muted, #f8f9fa);font-size:0.85rem">
+      <div style="display:flex;align-items:center;gap:0.5rem">
+        <span id="archive-envelope-icon" aria-hidden="true" style="font-size:1rem">&#x1F513;</span>
+        <span id="archive-envelope-text">Envelope: not encrypted (TLS only)</span>
+      </div>
+      <button type="button" id="archive-envelope-clear" onclick="removeArchiveEnvelopeKey()"
+              style="display:none;background:none;border:1px solid var(--border, #dee2e6);color:var(--text-muted);padding:0.15rem 0.5rem;border-radius:4px;font-size:0.75rem;cursor:pointer">
+        Remove encryption
+      </button>
+    </div>
+    <div style="display:flex;gap:0.5rem;margin-top:0.25rem">
+      <button onclick="saveArchiveConfig()" class="btn btn-sm btn-primary" type="button">Save Config</button>
+    </div>
+  </div>
+</div>
+
+<script>
+function saveArchiveConfig() {
+  var cfg = buildArchiveConfig();
+  return fetch('/api/middleware/archive/config?target=global', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', 'X-CSRF-Token': _csrfToken},
+    body: JSON.stringify({config: cfg})
+  }).then(function(r) {
+    if (r.ok) {
+      var btn = document.querySelector('#mw-archive-config .btn-primary');
+      if (btn) {
+        var orig = btn.textContent;
+        btn.textContent = 'Saved!';
+        setTimeout(function(){ btn.textContent = orig; }, 1500);
+      }
+      return true;
+    } else {
+      alert('Failed to save archive config');
+      return false;
+    }
+  });
+}
+
+function buildArchiveConfig() {
+  return {
+    url: document.getElementById('archive-url').value,
+    auth_type: document.getElementById('archive-auth-type').value,
+    auth_value: document.getElementById('archive-auth-value').value,
+    include: document.getElementById('archive-include').value,
+    nacl_recipient_key: document.getElementById('archive-nacl-key').value || ''
+  };
+}
+
+function renderArchiveEnvelopeIndicator(keyID) {
+  var keyInput = document.getElementById('archive-nacl-key');
+  var iconEl = document.getElementById('archive-envelope-icon');
+  var textEl = document.getElementById('archive-envelope-text');
+  var clearBtn = document.getElementById('archive-envelope-clear');
+  var present = keyInput && keyInput.value;
+  if (present) {
+    if (iconEl) { iconEl.textContent = '\u{1F512}'; iconEl.style.color = '#198754'; }
+    if (textEl) {
+      var label = 'Envelope encrypted (NaCl Box)';
+      if (keyID) label += ' - fingerprint: ' + keyID;
+      textEl.textContent = label;
+    }
+    if (clearBtn) clearBtn.style.display = 'inline-block';
+  } else {
+    if (iconEl) { iconEl.textContent = '\u{1F513}'; iconEl.style.color = ''; }
+    if (textEl) textEl.textContent = 'Envelope: not encrypted (TLS only)';
+    if (clearBtn) clearBtn.style.display = 'none';
+  }
+}
+
+function removeArchiveEnvelopeKey() {
+  if (!confirm('Remove envelope encryption and deliver archive payloads as plaintext over TLS? The compliance receiver must accept plaintext for this to work.')) return;
+  document.getElementById('archive-nacl-key').value = '';
+  renderArchiveEnvelopeIndicator('');
+  saveArchiveConfig();
+}
+
+function archiveAction(action) {
+  if (action === 'clear' && !confirm('Permanently delete all held messages from the archive queue? This cannot be undone.')) return;
+  var btn = (action === 'test') ? document.getElementById('archive-test-btn') : null;
+  var result = document.getElementById('archive-test-result');
+  if (btn) { btn.disabled = true; btn.textContent = 'Testing...'; }
+  if (result) result.style.display = 'none';
+
+  fetch('/api/middleware/archive/action/' + action, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', 'X-CSRF-Token': _csrfToken},
+  }).then(function(r) { return r.json(); }).then(function(data) {
+    if (action === 'test') {
+      if (btn) { btn.disabled = false; btn.textContent = 'Send Test'; }
+      if (result) {
+        result.style.display = 'block';
+        if (data.success) {
+          result.style.color = '#198754';
+          result.textContent = 'Connection successful (HTTP ' + data.status_code + ')';
+        } else {
+          result.style.color = '#dc3545';
+          result.textContent = 'Connection failed: ' + (data.error || 'unknown error');
+        }
+        setTimeout(function(){ result.style.display = 'none'; }, 8000);
+      }
+    } else {
+      if (data.status === 'ok') location.reload();
+      else alert(action + ' failed: ' + (data.error || 'unknown'));
+    }
+  }).catch(function(err) {
+    if (btn) { btn.disabled = false; btn.textContent = 'Send Test'; }
+    if (result) {
+      result.style.display = 'block';
+      result.style.color = '#dc3545';
+      result.textContent = 'Request failed: ' + err.message;
+    }
+  });
+}
+
+function openArchiveSetup(evt) {
+  if (evt) evt.preventDefault();
+  fetch('/api/middleware/archive/action/handoff_begin', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', 'X-CSRF-Token': _csrfToken}
+  }).then(function(r) {
+    if (!r.ok) throw new Error('failed to start handoff');
+    return r.json();
+  }).then(function(data) {
+    var returnTo = window.location.origin + window.location.pathname;
+    var base = 'https://commacompliance.ai/compliance-archive';
+    var url = base
+      + '?return_to=' + encodeURIComponent(returnTo)
+      + '&state=' + encodeURIComponent(data.state);
+    window.open(url, '_blank', 'noopener');
+  }).catch(function(err) {
+    alert('Could not start archive setup: ' + err.message);
+  });
+}
+
+// Load existing archive config into form; render envelope indicator.
+(function() {
+  var loadedKeyID = '';
+  try {
+    var raw = document.getElementById('mw-archive').dataset.config;
+    if (raw && raw !== '{}') {
+      var cfg = JSON.parse(raw);
+      if (cfg.url) document.getElementById('archive-url').value = cfg.url;
+      if (cfg.auth_type) {
+        document.getElementById('archive-auth-type').value = cfg.auth_type;
+        if (cfg.auth_type === 'none') document.getElementById('archive-auth-value').type = 'hidden';
+      }
+      if (cfg.auth_value) document.getElementById('archive-auth-value').value = cfg.auth_value;
+      if (cfg.include) document.getElementById('archive-include').value = cfg.include;
+      if (cfg.nacl_recipient_key) {
+        document.getElementById('archive-nacl-key').value = cfg.nacl_recipient_key;
+      }
+      if (cfg.nacl_key_id) {
+        loadedKeyID = cfg.nacl_key_id;
+      }
+    }
+  } catch(e) {}
+  renderArchiveEnvelopeIndicator(loadedKeyID);
+
+  // Auto-populate from URL hash params after returning from archive signup.
+  try {
+    var hash = window.location.hash || '';
+    var q = hash.indexOf('?');
+    if (q >= 0) {
+      var params = new URLSearchParams(hash.substring(q + 1));
+      var state = params.get('state');
+      var u = params.get('archive_url');
+      var t = params.get('archive_token');
+      var kRaw = params.get('nacl_recipient_key');
+      var kID = params.get('nacl_key_id') || '';
+      if (state && (u || t)) {
+        history.replaceState(null, '', window.location.pathname + '#mw-archive');
+
+        var card = document.getElementById('mw-archive');
+        if (card) card.scrollIntoView({behavior: 'smooth', block: 'center'});
+
+        var result = document.getElementById('archive-test-result');
+        if (result) {
+          result.style.display = 'block';
+          result.style.color = '#0066cc';
+          result.textContent = 'Validating handoff and saving archive config...';
+        }
+
+        fetch('/api/middleware/archive/action/handoff_complete', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json', 'X-CSRF-Token': _csrfToken},
+          body: JSON.stringify({
+            state: state,
+            archive_url: u || '',
+            archive_token: t || '',
+            nacl_recipient_key: kRaw || '',
+            nacl_key_id: kID
+          })
+        }).then(function(r) {
+          return r.json().then(function(data) { return {ok: r.ok, data: data}; });
+        }).then(function(res) {
+          if (!res.ok) {
+            if (result) {
+              result.style.color = '#dc3545';
+              result.textContent = 'Handoff failed: ' + (res.data.error || 'unknown') + '.';
+            }
+            return null;
+          }
+          var saved = res.data.config || {};
+          if (saved.url) document.getElementById('archive-url').value = saved.url;
+          if (saved.auth_type) {
+            document.getElementById('archive-auth-type').value = saved.auth_type;
+            if (saved.auth_type !== 'none') {
+              document.getElementById('archive-auth-value').type = 'password';
+            }
+          }
+          if (typeof saved.auth_value === 'string') {
+            document.getElementById('archive-auth-value').value = saved.auth_value;
+          }
+          if (saved.include) document.getElementById('archive-include').value = saved.include;
+          document.getElementById('archive-nacl-key').value = saved.nacl_recipient_key || '';
+          renderArchiveEnvelopeIndicator(res.data.nacl_key_id || '');
+
+          return fetch('/api/middleware/archive/action/test', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json', 'X-CSRF-Token': _csrfToken}
+          }).then(function(r) { return r.json(); });
+        }).then(function(data) {
+          if (!data) return;
+          if (result) {
+            result.style.display = 'block';
+            if (data.success) {
+              result.style.color = '#198754';
+              var encryptedNote = document.getElementById('archive-nacl-key').value
+                ? ' Envelope encryption is active.'
+                : '';
+              result.textContent = 'Compliance Archive configured. Test delivery succeeded (HTTP '
+                + data.status_code + ').' + encryptedNote + ' Middleware enabled.';
+              var toggle = document.getElementById('mw-archive-toggle');
+              if (toggle && !toggle.checked) {
+                toggle.checked = true;
+                toggleMiddleware('archive', true);
+              }
+              setTimeout(function() {
+                window.location.href = window.location.pathname + '?archive_saved=1#mw-archive';
+              }, 6000);
+            } else {
+              result.style.color = '#dc3545';
+              result.textContent = 'Test delivery failed: ' + (data.error || 'unknown') + '. Check the values above and click Send Test to retry.';
+            }
+          }
+        });
+      }
+    }
+  } catch(e) {}
+
+  // Show persistent success banner after archive auto-configure reload.
+  try {
+    var qp = new URLSearchParams(window.location.search);
+    if (qp.get('archive_saved') === '1') {
+      var r = document.getElementById('archive-test-result');
+      if (r) {
+        r.style.display = 'block';
+        r.style.color = '#198754';
+        r.style.fontWeight = '600';
+        var encSuffix = document.getElementById('archive-nacl-key').value
+          ? ' with NaCl envelope encryption'
+          : '';
+        r.textContent = 'Compliance Archive configured' + encSuffix + '. Test delivery succeeded; middleware enabled.';
+      }
+      history.replaceState(null, '', window.location.pathname + '#mw-archive');
+    }
+  } catch(e) {}
+})();
+</script>
+{{end}}

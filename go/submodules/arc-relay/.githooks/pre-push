@@ -1,0 +1,12 @@
+#!/bin/bash
+# Pre-push hook: runs lint + tests before allowing push.
+# Mirrors CI checks so failures are caught locally.
+# Skip with: git push --no-verify
+#
+# To enable: git config core.hooksPath .githooks
+
+set -e
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+echo "Running pre-push lint checks..."
+"$REPO_ROOT/scripts/lint.sh"

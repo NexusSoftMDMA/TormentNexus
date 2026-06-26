@@ -1,0 +1,44 @@
+{
+  "name": "@drakonkat/neural-memory",
+  "version": "2.0.2",
+  "description": "MCP Server for Neural Memory - Unified memory with Session Management and Skills Framework",
+  "main": "src/index.js",
+  "bin": {
+    "neural-memory": "./src/index.js"
+  },
+  "type": "module",
+  "scripts": {
+    "test": "node test/test-migration.js",
+    "test:manual": "node test/test-manual-v2.js",
+    "start": "node src/index.js",
+    "inspect": "cross-env DANGEROUSLY_OMIT_AUTH=true CLIENT_PORT=5689 SERVER_PORT=8512 npx @modelcontextprotocol/inspector node src/index.js",
+    "inspect-publish": "cross-env DANGEROUSLY_OMIT_AUTH=true CLIENT_PORT=5689 SERVER_PORT=8512  npx @modelcontextprotocol/inspector npx -y @drakonkat/neural-memory@latest"
+  },
+  "keywords": [
+    "mcp",
+    "neural-memory",
+    "ai",
+    "context",
+    "skills",
+    "session-management"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "cross-env": "^10.1.0",
+    "sequelize": "^6.35.0",
+    "sqlite3": "^5.1.6",
+    "uuid": "^9.0.0",
+    "zod": "^3.25.76"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "exports": {
+    ".": "./src/index.js",
+    "./models": "./src/database/models/index.js",
+    "./services": "./src/services/memory.js",
+    "./tools": "./src/tools/index.js"
+  }
+}

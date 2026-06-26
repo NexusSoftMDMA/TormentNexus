@@ -1,0 +1,69 @@
+# OpenTelemetry Collector exporter snippet for jcodemunch-mcp Phase 6 live ingest.
+#
+# Drop the relevant blocks from this file into your existing collector config.
+# Three exporters are shown — uncomment whichever sources your collector
+# pipelines actually emit. You almost certainly do NOT need all three.
+#
+# Tested with: opentelemetry-collector-contrib v0.106+
+#
+# Server-side prerequisites (running jcodemunch-mcp instance):
+#   1. JCODEMUNCH_HTTP_TOKEN=<long-random-string>           — bearer auth
+#   2. JCODEMUNCH_RUNTIME_INGEST_ENABLED=1                  — explicit opt-in
+#   3. jcodemunch-mcp serve --transport sse --host 0.0.0.0 --port 7331
+#
+# Repo identifier: pass either via the X-JCM-Repo header (recommended; one
+# header per exporter pipeline) or via ?repo=owner/name in the URL. Bare
+# names are treated as `local/<name>`.
+
+exporters:
+  # ─── OTel traces / spans ────────────────────────────────────────────
+  otlphttp/jcm-otel:
+    endpoint: http://jcm.internal:7331/runtime/otel
+    headers:
+      Authorization: "Bearer ${env:JCM_TOKEN}"
+      X-JCM-Repo: "myorg/myrepo"
+    # Compress on the wire — the server honours Content-Encoding: gzip
+    # under the same body-size cap (default 5 MB after decompression).
+    compression: gzip
+    # Fail fast — the server is a write endpoint, not a queue. If it's
+    # down, let the collector's retry/queue logic absorb the loss.
+    timeout: 10s
+    retry_on_failure:
+      enabled: true
+      initial_interval: 5s
+      max_interval: 30s
+      max_elapsed_time: 300s
+
+  # ─── SQL query logs (pg_stat_statements / generic JSON-Lines) ───────
+  # Use this when your db-proxy / app shim ships its own SQL log feed
+  # rather than instrumenting via OTel. Endpoint accepts JSON-Lines
+  # `{"sql": "...", "calls": N, "duration_ms": ...}` records.
+  otlphttp/jcm-sql:
+    endpoint: http://jcm.internal:7331/runtime/sql?fmt=jsonl
+    headers:
+      Authorization: "Bearer ${env:JCM_TOKEN}"
+      X-JCM-Repo: "myorg/myrepo"
+      Content-Type: "application/x-ndjson"
+    compression: gzip
+
+  # ─── Stack-frame logs (Python / JVM / Node.js tracebacks) ───────────
+  # Use this when your application logger ships error traces. Endpoint
+  # accepts plain-text app log OR JSON-Lines records with a "stack_trace"
+  # field. Severity is inferred from log-level keywords near the trace.
+  otlphttp/jcm-stack:
+    endpoint: http://jcm.internal:7331/runtime/stack
+    headers:
+      Authorization: "Bearer ${env:JCM_TOKEN}"
+      X-JCM-Repo: "myorg/myrepo"
+    compression: gzip
+
+# Hook the exporter(s) into the relevant pipelines:
+#
+# service:
+#   pipelines:
+#     traces:
+#       receivers: [otlp]
+#       exporters: [otlphttp/jcm-otel]
+#     logs:
+#       receivers: [filelog]
+#       exporters: [otlphttp/jcm-stack]

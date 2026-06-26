@@ -1,0 +1,35 @@
+# Example: MCPRegistry with API source using the decoupled configYAML path
+#
+# This example demonstrates how to sync registry data from a remote API
+# endpoint using the new configYAML field. API sources fetch data over
+# HTTP from another registry server, so no volumes or volume mounts are
+# needed -- the registry server handles the network call internally.
+#
+# This is functionally equivalent to mcpregistry-api-basic.yaml but uses
+# the decoupled configYAML path instead of the legacy typed fields.
+
+apiVersion: toolhive.stacklok.dev/v1beta1
+kind: MCPRegistry
+metadata:
+  name: api-configyaml
+  namespace: toolhive-system
+spec:
+  displayName: "API Registry (configYAML)"
+  configYAML: |
+    sources:
+      - name: upstream
+        api:
+          # Base API URL for the upstream registry server
+          endpoint: http://upstream-registry.default.svc.cluster.local:8080
+        syncPolicy:
+          interval: 30m
+    registries:
+      - name: default
+        sources: ["upstream"]
+    database:
+      host: postgres
+      port: 5432
+      user: db_app
+      database: registry
+    auth:
+      mode: anonymous

@@ -1,0 +1,168 @@
+name: CI
+
+on:
+  push:
+    branches: [master, dev]
+  pull_request:
+    branches: [master, dev]
+  schedule:
+    # 06:00 UTC daily run keeps the 3.11 leg honest without making every
+    # PR wait 14 extra minutes on it. 3.11 is consistently ~2x slower
+    # than 3.12/3.13 due to per-test asyncio overhead — investigated
+    # with per-test timing and the gap is distributed (not a single
+    # slow test), so a kernel-level interpreter perf issue rather than
+    # something we can fix in our suite.
+    - cron: "0 6 * * *"
+  release:
+    # Publishing a version release attaches its own prebuilt desktop bundle, so
+    # each release is a self-contained packaged download (see spa-build below).
+    types: [published]
+
+# Cancel superseded runs of the same ref so a rapid series of pushes to a PR
+# branch does not stack up and starve the small self-hosted runner pool (this
+# bit us once: three superseded runs queued behind each other on two runners).
+# A PR push event carries ref refs/pull/<n>/merge, so successive pushes to the
+# same PR share a group and the older run is cancelled. master/dev are excluded
+# from cancellation: every promotion's CI (and its bundle publish) must finish.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/master' && github.ref != 'refs/heads/dev' }}
+
+jobs:
+  # The test matrix runs on GitHub-hosted runners. taOS is a public repo, so
+  # hosted Actions are free with high concurrency (~20 parallel jobs); many PRs
+  # run at once instead of queueing behind the 2 self-hosted boxes. The VPS +
+  # Fedora runners stay free for the kilo lane and GPU/bench work.
+
+  test:
+    runs-on: ubuntu-latest
+    # 45 min cap accommodates the cron run that includes 3.11 (~30 min);
+    # 3.12/3.13 PR runs finish in ~16 min, so this only kicks in if 3.11
+    # ever drifts further.
+    timeout-minutes: 45
+    strategy:
+      matrix:
+        # PR + push runs cover the latest two; the daily cron run
+        # below adds 3.11 so the minimum-supported version stays tested.
+        python-version: ${{ github.event_name == 'schedule' && fromJSON('["3.11", "3.12", "3.13"]') || fromJSON('["3.12", "3.13"]') }}
+
+    steps:
+      - uses: actions/checkout@v7
+
+      # No actions/setup-python: it only ships prebuilt CPython for GitHub's
+      # ubuntu image, so on the self-hosted Fedora runner it fails with
+      # "version X not found for Fedora". uv provisions Python itself from
+      # distro-agnostic standalone builds, which works on Fedora, the Ubuntu
+      # VPS, and GitHub-hosted runners alike.
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      - name: Provision Python via uv
+        run: uv python install ${{ matrix.python-version }}
+
+      # Install the exact versions recorded in uv.lock (--frozen errors out
+      # if the lock is stale rather than silently re-resolving). This is the
+      # reproducibility guarantee: dependency versions come from the lock,
+      # not from a fresh unpinned resolve that can pull in a regressed
+      # release (see the fastapi 0.137 incident, #903).
+      - name: Install dependencies
+        run: uv sync --frozen --extra dev --python ${{ matrix.python-version }}
+
+      # SPA bundle is stubbed by tests/conftest.py — see pytest_configure.
+      # The real build is exercised in the spa-build job below.
+
+      - name: Run tests
+        # Run across all runner cores. The serial suite (4845 tests) took
+        # ~22 min; -n auto cuts it to a few minutes so "merge on green" is
+        # practical. Dropped -v so xdist worker output stays readable.
+        run: uv run --no-sync pytest tests/ --tb=short --ignore=tests/e2e -n auto
+
+      - name: Verify app starts
+        run: uv run --no-sync python -c "from tinyagentos.app import create_app; print('OK')"
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --frozen --extra dev --python 3.12
+
+      - name: Check for syntax errors
+        run: uv run --no-sync python -m compileall tinyagentos/ -q
+
+  spa-build:
+    runs-on: ubuntu-latest
+    # Needs write access to manage the rolling 'bundle-latest' release below.
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: desktop/package-lock.json
+
+      - name: Install + build SPA
+        run: |
+          cd desktop
+          npm ci --silent
+          npm run build
+
+      # Gate the desktop vitest suite (~1,900 tests, ~25s). A small set of
+      # suites that drift against in-progress redesigns (#59, #66) or are
+      # order-dependent are quarantined in vite.config.ts (test.exclude, tagged
+      # #114); un-exclude each as its owning work lands.
+      - name: Run desktop tests (vitest)
+        run: |
+          cd desktop
+          npx vitest run
+
+      # On master, publish the freshly-built SPA as a prebuilt bundle so the
+      # installer can download it instead of running the memory-heavy vite build
+      # locally (which OOMs on small machines like an 8GB WSL and used to leave
+      # installs silently stuck on the old UI). The bundle is keyed by the git
+      # tree SHA of desktop/, so it stays valid across every commit that doesn't
+      # touch the frontend. Rolling 'bundle-latest' prerelease, assets clobbered.
+      - name: Publish prebuilt desktop bundle
+        if: (github.event_name == 'push' && github.ref == 'refs/heads/master') || github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tree=$(git rev-parse HEAD:desktop)
+          tar -C static -czf desktop-bundle.tar.gz desktop
+          printf '%s\n' "$tree" > desktop-tree.txt
+          # Integrity digest the installer verifies before extracting.
+          sha256sum desktop-bundle.tar.gz | awk '{print $1}' > desktop-bundle.sha256
+          notes="Auto-built SPA bundle, matching desktop/ tree ${tree}. The installer downloads this when the tree matches, verifies desktop-bundle.sha256, then skips the local vite build."
+          # Always keep the rolling 'bundle-latest' current (this is what the
+          # installer fetches by default).
+          if gh release view bundle-latest >/dev/null 2>&1; then
+            gh release upload bundle-latest desktop-bundle.tar.gz desktop-tree.txt desktop-bundle.sha256 --clobber
+            gh release edit bundle-latest --notes "$notes"
+          else
+            gh release create bundle-latest --prerelease \
+              --title "Prebuilt desktop bundle (rolling)" --notes "$notes" \
+              desktop-bundle.tar.gz desktop-tree.txt desktop-bundle.sha256
+          fi
+          # On a version release, also attach the bundle to that release tag so
+          # each published version is a self-contained packaged download.
+          if [ "${{ github.event_name }}" = "release" ]; then
+            gh release upload "${{ github.event.release.tag_name }}" \
+              desktop-bundle.tar.gz desktop-tree.txt desktop-bundle.sha256 --clobber
+          fi

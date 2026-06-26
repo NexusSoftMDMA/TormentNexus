@@ -1,0 +1,268 @@
+# === Dependencies ===
+node_modules/
+.pnpm-store/
+
+# === Build outputs ===
+dist/
+build/
+*.tsbuildinfo
+bin/*.exe
+bin/*.exe~
+go/tormentnexus
+go/tormentnexus.exe
+!bin/.gitkeep
+
+# === Environment and secrets ===
+.env
+.env.local
+.secrets.json
+
+# === Logs ===
+*.log
+swarm_*.out
+*.pid
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# === OS specific ===
+.DS_Store
+Thumbs.db
+
+# === IDEs ===
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# === Taskplane working files ===
+.pi/
+**/.pi/
+.pi-logs/
+
+# === pi-lens cache (auto-generated) ===
+.pi-lens/cache/
+
+# === pi-lens cache (auto-generated) ===
+.pi-lens/cache/
+.pi-lens/
+
+# === Coverage ===
+coverage/
+.nyc_output/
+
+# === Temporary files ===
+tmp/
+temp/
+tmp_*/
+temp_*/
+.tmp-*/
+
+# === Shell/PS artifacts ===
+$null
+^
+"path here"
+
+# === Cloned/imported temp repos ===
+akb/
+akb_repo/
+appwrite_utils_temp/
+mcp-server-*/
+yorck-mcp-src/
+
+# === Verification ===
+verification/
+reader_output.json
+reader_error.txt
+chat.json
+chat2.json
+push_err.txt
+push_out.txt
+screenshot*.png
+audit-*.jsonl
+
+# === Temp files ===
+tmp_*/
+temp_*/
+
+# === Standalone test/experiment files ===
+test_*.py
+test*.txt
+fix_build*.py
+cleanup_tools.py
+batch_generate.py
+build_watchdog.py
+
+# === Cloned/imported repos ===
+yorck-mcp-src/
+akb/
+akb_repo/
+appwrite_utils_temp/
+
+# === Next.js / Turbopack ===
+.next/
+.next-build/
+.next-dev*/
+**/.next-dev*/
+.turbo/
+**/.turbo/
+
+# === TormentNexus runtime state ===
+.tormentnexus/
+**/.tormentnexus/
+.tormentnexus-session.json
+.tormentnexus_startup_marker
+**/.tormentnexus_startup_marker
+.cli_startup_marker
+**/.cli_startup_marker
+.tormentnexus_boot_check
+**/.tormentnexus_boot_check
+# .tormentnexus/skills/ and .tormentnexus/db/ are internal registry — tracked
+.tormentnexus/agent_memory/
+.tormentnexus/handoffs/
+.tormentnexus/memory/
+.tormentnexus/worktrees/
+.tormentnexus/workflows_test_*/
+.tormentnexus/shell_history.json
+.tormentnexus/policy.json
+.tormentnexus/imported_sessions/
+
+# === TormentNexus legacy (deprecated) ===
+.tormentnexus/
+**/.tormentnexus/
+.antigravity/
+.tormentnexus-session.json
+.tmp-tormentnexus-dist-probe.mjs
+apps/web/.tormentnexus-dev-port.json
+apps/web/.tormentnexus-dev-port.json
+
+# === Database runtime ===
+# .db files are the internal registry — always track
+# resources.db and context.db are internal registries — tracked
+
+# === LanceDB / Vector data ===
+data/
+!data/*.db
+!data/init_state.py
+data/lancedb/
+data/memory/
+data/vectordb/
+
+# === Session state ===
+.pi/
+.tormentnexus/
+.git-rewrite/
+**/.git-rewrite/
+
+# === Type check / Lint ===
+packages/core/core.log
+packages/ui/ui.log
+packages/core/.tsc-output.txt
+apps/web/.tsc-current.txt
+.chunkhound/
+**/.chunkhound/
+.chunkhound.json
+
+# === Browser extension ===
+**/dist-chromium/
+**/dist-firefox/
+
+# === Test artifacts ===
+**/__pycache__/
+**/playwright-report/
+**/test-results/
+test_logs/
+logs/
+docs/sessions/
+docs/sessions/*.json
+
+# === Archive (dead code, kept on disk only) ===
+/archive/
+
+# === Reference material (not part of project) ===
+collection-claude-code-source-code-main/
+tormentnexus-mcp-server/
+
+# === Stale submodule dirs ===
+tormentnexus/research/
+hyperingest/
+hypermcp/
+hypermem/
+hyperharness/
+jules-autopilot/
+
+# === Misc generated ===
+**/dist-chromium/
+**/dist-firefox/
+# tormentnexus.db is the primary registry DB — tracked
+tmp_*.ts
+tmp_*.tsx
+tmp_*.js
+
+# Jules AI session logs (auto-generated, not needed in repo)
+.jules/sessions/
+
+# Auto-generated MCP server context (added automatically)
+.mcp-server-context.md
+nul
+.wwebjs_auth/
+
+
+# Taskplane runtime artifacts (machine-specific, do not commit)
+.pi/batch-state.json
+.pi/batch-history.json
+.pi/lane-state-*
+.pi/merge-result-*
+.pi/merge-request-*
+.pi/worker-conversation-*
+.pi/orch-logs/
+.pi/orch-abort-signal
+.pi/settings.json
+.worktrees/
+.taskplane-tasks/
+
+# Pi project-local packages (if using pi install -l)
+.pi/npm/
+go_backup/
+
+# === Large/cache DB files (too large for git, or temporary restore artifacts) ===
+provider_metrics.db
+tormentnexus_restored.db
+old_db_restored.db
+db_v1_*.db
+db_v2_*.db
+db_v3_*.db
+db_v4_*.db
+db_v5_*.db
+scratch/
+
+# === Temp working files (not DBs) ===
+data/*.txt
+data/*.json
+data/fast_clean_tools.py
+data/surgical_clean_tools*.py
+data/bulk_clean_tools.py
+data/clean_broken_go.py
+data/find_broken_files.py
+data/assimilate_skills.py
+
+# === Temporary/Cache artifacts ===
+*.tmp
+akb*
+_llm_*
+*.pid
+*.tar.gz
+watchdog.bat
+run.bat
+go/*.exe~
+finalize_swarm.pid
+backup_*.tar.gz
+
+# === Generated/backup files ===
+americandefaultresearch.go
+binance.go
+bravesearch.go
+ccoreguidelines.go
+*.exe~
+watchdog.py

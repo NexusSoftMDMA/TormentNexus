@@ -1,0 +1,564 @@
+// SPDX-FileCopyrightText: Copyright 2026 Stacklok, Inc.
+// SPDX-License-Identifier: Apache-2.0
+
+package app
+
+import (
+	"bufio"
+	"context"
+	"fmt"
+	"io"
+	"os"
+	"strings"
+	"syscall"
+
+	"github.com/spf13/cobra"
+	"golang.org/x/term"
+
+	authsecrets "github.com/stacklok/toolhive/pkg/auth/secrets"
+	"github.com/stacklok/toolhive/pkg/config"
+	"github.com/stacklok/toolhive/pkg/secrets"
+	"github.com/stacklok/toolhive/pkg/workloads"
+)
+
+func newSecretCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "secret",
+		Short: "Manage secrets",
+		Long: `Manage secrets using the configured secrets provider.
+
+The secret command provides subcommands to configure, store, retrieve, and manage secrets securely.
+
+Run "thv secret setup" first to configure a secrets provider before using any secret operations.`,
+	}
+
+	cmd.AddCommand(
+		newSecretSetupCommand(),
+		newSecretSetCommand(),
+		newSecretGetCommand(),
+		newSecretDeleteCommand(),
+		newSecretListCommand(),
+		newSecretResetKeyringCommand(),
+		newSecretProviderCommand(),
+	)
+
+	return cmd
+}
+
+func newSecretProviderCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:   "provider <name>",
+		Short: "Set the secrets provider directly",
+		Long: `Configure the secrets provider directly.
+
+Note: The "thv secret setup" command is recommended for interactive configuration.
+
+Use this command to set the secrets provider directly without interactive prompts,
+making it suitable for scripted deployments and automation.
+
+		Valid secrets providers:
+		  - encrypted: Full read-write secrets provider using AES-256-GCM encryption
+		  - 1password: Read-only secrets provider (requires OP_SERVICE_ACCOUNT_TOKEN)
+		  - environment: Read-only secrets provider from TOOLHIVE_SECRET_* env vars`,
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			provider := args[0]
+			return SetSecretsProvider(cmd.Context(), secrets.ProviderType(provider))
+		},
+	}
+}
+
+func newSecretSetupCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:   "setup",
+		Short: "Set up secrets provider",
+		Long: fmt.Sprintf(`Interactive setup for configuring a secrets provider.
+
+This command guides you through selecting and configuring a secrets provider
+for storing and retrieving secrets. The setup process validates your
+configuration and ensures the selected provider initializes properly.
+
+			Available providers:
+			  - %s: Stores secrets in an encrypted file using AES-256-GCM using the OS keyring
+			  - %s: Read-only access to 1Password secrets (requires OP_SERVICE_ACCOUNT_TOKEN environment variable)
+			  - %s: Read-only access to secrets from TOOLHIVE_SECRET_* env vars
+
+Run this command before using any other secrets functionality.`,
+			string(secrets.EncryptedType), string(secrets.OnePasswordType), string(secrets.EnvironmentType)), //nolint:gofmt,gci
+		Args: cobra.NoArgs,
+		RunE: runSecretsSetup,
+	}
+}
+
+func newSecretSetCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:   "set <name>",
+		Short: "Set a secret",
+		Long: `Create or update a secret with the specified name.
+
+This command supports two input methods for maximum flexibility:
+
+Piped input:
+
+When you pipe data to the command, it reads the secret value from stdin.
+Examples:
+
+	$ echo "my-secret-value" | thv secret set my-secret
+	$ cat secret-file.txt | thv secret set my-secret
+
+Interactive input:
+
+When you don't pipe data, the command prompts you to enter the secret value securely.
+The input remains hidden for security.
+Example:
+
+	$ thv secret set my-secret
+	Enter secret value (input will be hidden): _
+
+The command stores the secret securely using your configured secrets provider.
+Note that some providers (like 1Password) are read-only and do not support setting secrets.`,
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			name := args[0]
+			ctx := cmd.Context()
+
+			// Validate input
+			if name == "" {
+				return fmt.Errorf("validation error: secret name cannot be empty")
+			}
+
+			var value string
+			var err error
+
+			// Check if data is being piped to stdin
+			stat, _ := os.Stdin.Stat()
+			isPiped := (stat.Mode() & os.ModeCharDevice) == 0
+
+			if isPiped {
+				// Read from stdin (piped input)
+				var valueBytes []byte
+				valueBytes, err = io.ReadAll(os.Stdin)
+				if err != nil {
+					return fmt.Errorf("error reading secret from stdin: %w", err)
+				}
+				value = string(valueBytes)
+				// Trim trailing newline if present
+				value = strings.TrimSuffix(value, "\n")
+			} else {
+				// Interactive mode - prompt for the secret value
+				fmt.Print("Enter secret value (input will be hidden): ")
+				var valueBytes []byte
+				valueBytes, err = term.ReadPassword(int(syscall.Stdin))
+				fmt.Println("") // Add a newline after the hidden input
+
+				if err != nil {
+					return fmt.Errorf("error reading secret from terminal: %w", err)
+				}
+				value = string(valueBytes)
+			}
+
+			if value == "" {
+				return fmt.Errorf("validation error: secret value cannot be empty")
+			}
+
+			manager, err := getSecretsManager()
+			if err != nil {
+				return fmt.Errorf("failed to create secrets manager: %w", err)
+			}
+
+			// Check if the provider supports writing secrets
+			if !manager.Capabilities().CanWrite {
+				configProvider := config.NewDefaultProvider()
+				cfg := configProvider.GetConfig()
+				providerType, _ := cfg.Secrets.GetProviderType()
+				return fmt.Errorf("the %s secrets provider does not support setting secrets (read-only)", providerType)
+			}
+
+			err = manager.SetSecret(ctx, name, value)
+			if err != nil {
+				return fmt.Errorf("failed to set secret %s: %w", name, err)
+			}
+
+			// Warn if any workloads use this secret
+			warnWorkloadsUsingSecret(ctx, name)
+
+			return nil
+		},
+	}
+}
+
+func newSecretGetCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:   "get <name>",
+		Short: "Get a secret",
+		Long: `Retrieve and display the value of a secret by name.
+
+This command fetches the specified secret from your configured secrets provider
+and displays its value. The secret value prints to stdout, making it
+suitable for use in scripts or command substitution.
+
+The secret must exist in your configured secrets provider, otherwise the command returns an error.`,
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			ctx := cmd.Context()
+			name := args[0]
+
+			// Validate input
+			if name == "" {
+				return fmt.Errorf("validation error: secret name cannot be empty")
+			}
+
+			manager, err := getSecretsManager()
+			if err != nil {
+				return fmt.Errorf("failed to create secrets manager: %w", err)
+			}
+
+			value, err := manager.GetSecret(ctx, name)
+			if err != nil {
+				return fmt.Errorf("failed to get secret %s: %w", name, err)
+			}
+			fmt.Printf("%s\n", value)
+
+			return nil
+		},
+	}
+}
+
+func newSecretDeleteCommand() *cobra.Command {
+	var systemFlag bool
+
+	cmd := &cobra.Command{
+		Use:   "delete <name>",
+		Short: "Delete a secret",
+		Long: `Remove a secret from the configured secrets provider.
+
+This command permanently deletes the specified secret from your secrets provider.
+Once you delete a secret, you cannot recover it unless you have a backup.
+
+Note that some secrets providers may not support deletion operations.
+If your provider is read-only or doesn't support deletion, this command returns an error.`,
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			ctx := cmd.Context()
+			name := args[0]
+
+			// Validate input
+			if name == "" {
+				return fmt.Errorf("validation error: secret name cannot be empty")
+			}
+
+			if systemFlag {
+				// Validate the key name before touching the provider so a
+				// typo surfaces the right error even when secrets are not set up.
+				if err := validateSystemKeyName(name); err != nil {
+					return err
+				}
+				provider, err := authsecrets.GetSystemSecretsProvider()
+				if err != nil {
+					return fmt.Errorf("failed to create secrets provider: %w", err)
+				}
+				if !provider.Capabilities().CanDelete {
+					configProvider := config.NewDefaultProvider()
+					cfg := configProvider.GetConfig()
+					providerType, _ := cfg.Secrets.GetProviderType()
+					return fmt.Errorf("the %s secrets provider does not support deleting secrets", providerType)
+				}
+				// Workload configs reference the bare (unscoped) name, so strip
+				// the __thv_<scope>_ prefix before searching for affected workloads.
+				_, bareName, _ := secrets.ParseSystemKey(name)
+				warnWorkloadsUsingSecret(ctx, bareName)
+				return runSystemSecretDelete(ctx, provider, name)
+			}
+
+			manager, err := getSecretsManager()
+			if err != nil {
+				return fmt.Errorf("failed to create secrets manager: %w", err)
+			}
+
+			// Check if the provider supports deleting secrets
+			if !manager.Capabilities().CanDelete {
+				configProvider := config.NewDefaultProvider()
+				cfg := configProvider.GetConfig()
+				providerType, _ := cfg.Secrets.GetProviderType()
+				return fmt.Errorf("the %s secrets provider does not support deleting secrets", providerType)
+			}
+
+			// Warn about affected workloads before deleting
+			warnWorkloadsUsingSecret(ctx, name)
+
+			err = manager.DeleteSecret(ctx, name)
+			if err != nil {
+				return fmt.Errorf("failed to delete secret %s: %w", name, err)
+			}
+
+			return nil
+		},
+	}
+
+	cmd.Flags().BoolVar(&systemFlag, "system", false, "Allow deleting a system-managed secret (emergency use only)")
+
+	return cmd
+}
+
+func newSecretListCommand() *cobra.Command {
+	var systemFlag bool
+
+	cmd := &cobra.Command{
+		Use:   "list",
+		Short: "List all available secrets",
+		Long: `Display all secrets available in the configured secrets provider.
+
+This command shows the names of all secrets stored in your secrets provider.
+If descriptions exist for the secrets, the command displays them alongside the names.`,
+		Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			ctx := cmd.Context()
+
+			if systemFlag {
+				provider, err := authsecrets.GetSystemSecretsProvider()
+				if err != nil {
+					return fmt.Errorf("failed to create secrets provider: %w", err)
+				}
+				if !provider.Capabilities().CanList {
+					configProvider := config.NewDefaultProvider()
+					cfg := configProvider.GetConfig()
+					providerType, _ := cfg.Secrets.GetProviderType()
+					return fmt.Errorf("the %s secrets provider does not support listing secrets", providerType)
+				}
+				return runSystemSecretList(ctx, provider, os.Stdout)
+			}
+
+			manager, err := getSecretsManager()
+			if err != nil {
+				return fmt.Errorf("failed to create secrets manager: %w", err)
+			}
+
+			// Check if the provider supports listing secrets
+			if !manager.Capabilities().CanList {
+				configProvider := config.NewDefaultProvider()
+				cfg := configProvider.GetConfig()
+				providerType, _ := cfg.Secrets.GetProviderType()
+				return fmt.Errorf("the %s secrets provider does not support listing secrets", providerType)
+			}
+
+			listedSecrets, err := manager.ListSecrets(ctx)
+			if err != nil {
+				return fmt.Errorf("failed to list secrets: %w", err)
+			}
+
+			if len(listedSecrets) == 0 {
+				fmt.Println("No secrets found")
+				return nil
+			}
+
+			fmt.Println("Available secrets:")
+			for _, description := range listedSecrets {
+				fmt.Printf("  - %s", description.Key)
+				// Add description if available.
+				if description.Description != "" {
+					fmt.Printf(" (%s)", description.Description)
+				}
+				fmt.Println()
+			}
+
+			return nil
+		},
+	}
+
+	cmd.Flags().BoolVar(&systemFlag, "system", false, "List system-managed secrets (registry auth, workload tokens)")
+
+	return cmd
+}
+
+func newSecretResetKeyringCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:   "reset-keyring",
+		Short: "Reset the keyring password",
+		Long: `Reset the keyring password used to encrypt secrets.
+
+This command resets the master password stored in your OS keyring that
+encrypts and decrypts secrets when using the 'encrypted' secrets provider.
+
+Use this command if:
+  - You've forgotten your keyring password
+  - You want to change your encryption password
+  - Your keyring has become corrupted
+
+Warning: Resetting the keyring password makes any existing encrypted secrets
+inaccessible unless you remember the previous password. You will need to set up
+your secrets again after resetting.
+
+This command only works with the 'encrypted' secrets provider.`,
+		Args: cobra.NoArgs,
+		RunE: func(_ *cobra.Command, _ []string) error {
+			if err := secrets.ResetKeyringSecret(); err != nil {
+				return fmt.Errorf("failed to reset keyring secret: %w", err)
+			}
+
+			return nil
+		},
+	}
+}
+
+func getSecretsManager() (secrets.Provider, error) {
+	return authsecrets.GetUserSecretsProvider()
+}
+
+func runSecretsSetup(cmd *cobra.Command, _ []string) error {
+	reader := bufio.NewReader(os.Stdin)
+
+	fmt.Printf(`
+ToolHive Secrets Setup
+=====================
+
+Please select a secrets provider:
+  %s - Store secrets in an encrypted file (full read/write)
+  %s - Use 1Password for secrets (read-only, requires service account)
+  %s - Read secrets from environment variables
+`, string(secrets.EncryptedType), string(secrets.OnePasswordType), string(secrets.EnvironmentType))
+
+	var providerType secrets.ProviderType
+	for {
+		fmt.Printf("\nEnter provider (%s/%s/%s): ",
+			string(secrets.EncryptedType), string(secrets.OnePasswordType), string(secrets.EnvironmentType))
+		input, err := reader.ReadString('\n')
+		if err != nil {
+			return fmt.Errorf("failed to read input: %w", err)
+		}
+
+		input = strings.TrimSpace(input)
+		switch input {
+		case string(secrets.EncryptedType):
+			providerType = secrets.EncryptedType
+		case string(secrets.OnePasswordType):
+			providerType = secrets.OnePasswordType
+		case string(secrets.EnvironmentType):
+			providerType = secrets.EnvironmentType
+		default:
+			fmt.Printf("Invalid provider. Please enter '%s', '%s', or '%s'.\n",
+				string(secrets.EncryptedType), string(secrets.OnePasswordType), string(secrets.EnvironmentType))
+			continue
+		}
+		break
+	}
+
+	fmt.Printf("\nYou selected: %s\n", providerType)
+
+	// Show provider-specific setup instructions
+	switch providerType {
+	case secrets.EncryptedType:
+		fmt.Println(`Setting up encrypted secrets provider...
+You will need to provide a password to encrypt your secrets.
+This password will be stored in your OS keyring if available.`)
+	case secrets.OnePasswordType:
+		fmt.Println(`Setting up 1Password secrets provider...
+
+To use 1Password as your secrets provider, you need to:
+1. Create a service account in your 1Password account
+2. Generate a service account token
+3. Set the OP_SERVICE_ACCOUNT_TOKEN environment variable
+
+For more information, visit: https://developer.1password.com/docs/service-accounts/`)
+	case secrets.EnvironmentType:
+		fmt.Println(`Setting up environment variable secrets provider...
+	Secrets will be read from environment variables with the TOOLHIVE_SECRET_ prefix.
+	This provider is read-only and suitable for CI/CD and containerized environments.`)
+	}
+
+	// SetSecretsProvider will handle validation and configuration
+	fmt.Println("Validating provider setup...")
+	if err := SetSecretsProvider(cmd.Context(), providerType); err != nil {
+		return fmt.Errorf("failed to configure secrets provider: %w", err)
+	}
+
+	fmt.Printf("\n✓ Secrets provider '%s' has been successfully configured!\n", providerType)
+
+	// Show additional notes for specific providers
+	if providerType == secrets.OnePasswordType {
+		fmt.Println("Note: 1Password provider is read-only. You can retrieve secrets but not set new ones.")
+	}
+
+	return nil
+}
+
+// runSystemSecretList lists system-managed secrets from the given provider,
+// writing formatted output to w. Only keys prefixed with SystemKeyPrefix are shown.
+func runSystemSecretList(ctx context.Context, provider secrets.Provider, w io.Writer) error {
+	allSecrets, err := provider.ListSecrets(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to list secrets: %w", err)
+	}
+
+	var systemSecrets []secrets.SecretDescription
+	for _, s := range allSecrets {
+		if strings.HasPrefix(s.Key, secrets.SystemKeyPrefix) {
+			systemSecrets = append(systemSecrets, s)
+		}
+	}
+
+	if len(systemSecrets) == 0 {
+		_, err = fmt.Fprintln(w, "No system-managed secrets found")
+		return err
+	}
+
+	if _, err = fmt.Fprintln(w, "System-managed secrets:"); err != nil {
+		return err
+	}
+	for _, s := range systemSecrets {
+		if _, err = fmt.Fprintln(w, formatSystemSecretEntry(s.Key)); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// runSystemSecretDelete deletes a system-managed key from provider.
+// Callers are responsible for validating the key name with validateSystemKeyName
+// before calling this function.
+func runSystemSecretDelete(ctx context.Context, provider secrets.Provider, name string) error {
+	if err := provider.DeleteSecret(ctx, name); err != nil {
+		return fmt.Errorf("failed to delete secret %s: %w", name, err)
+	}
+	return nil
+}
+
+// formatSystemSecretEntry formats a system-managed secret key for display.
+// Key format: __thv_<scope>_<name>
+// The full key is shown so it can be passed directly to "thv secret delete --system".
+func formatSystemSecretEntry(key string) string {
+	scope, _, _ := secrets.ParseSystemKey(key)
+	return fmt.Sprintf("  - %s  [%s]", key, scope)
+}
+
+// validateSystemKeyName returns an error if name is not a system-managed key.
+func validateSystemKeyName(name string) error {
+	if !secrets.IsSystemKey(name) {
+		return fmt.Errorf("--system flag requires a system key (starting with %q); got %q", secrets.SystemKeyPrefix, name)
+	}
+	return nil
+}
+
+// warnWorkloadsUsingSecret checks if any workloads use the specified secret
+// and prints a warning message if so.
+func warnWorkloadsUsingSecret(ctx context.Context, secretName string) {
+	manager, err := workloads.NewManager(ctx)
+	if err != nil {
+		// If we can't create the manager, skip the warning silently
+		// This can happen if no container runtime is available
+		return
+	}
+
+	affectedWorkloads, err := manager.ListWorkloadsUsingSecret(ctx, secretName)
+	if err != nil {
+		// If we can't list workloads, skip the warning silently
+		return
+	}
+
+	if len(affectedWorkloads) > 0 {
+		fmt.Fprintf(os.Stderr, "\nWarning: The following MCP servers use this secret and may need to be restarted:\n")
+		for _, name := range affectedWorkloads {
+			fmt.Fprintf(os.Stderr, "  - %s\n", name)
+		}
+	}
+}

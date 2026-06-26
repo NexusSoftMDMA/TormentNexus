@@ -1,0 +1,17 @@
+{
+  "name": "@tormentnexus/browser-legacy",
+  "version": "1.0.0-alpha.160",
+  "scripts": {
+    "build": "echo \"stub package\""
+  },
+  "dependencies": {
+    "socket.io-client": "^4.7.4"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.0.263",
+    "ts-loader": "^9.5.1",
+    "typescript": "^5.9.3",
+    "webpack": "^5.90.0",
+    "webpack-cli": "^5.1.0"
+  }
+}

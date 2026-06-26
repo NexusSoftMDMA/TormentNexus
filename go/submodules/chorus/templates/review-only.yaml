@@ -1,0 +1,73 @@
+id: review-only
+name: Review Only
+description: |
+  Paste a diff, draft, or text blob. Six reviewers (Codex + Gemini + Claude
+  + opencode-go Kimi + opencode-go DeepSeek + opencode-go Qwen) critique it
+  independently. Single pass — revise yourself and resubmit for another round.
+author: chorus
+agreementThreshold: 0.66
+onThresholdMet: ask
+maxRounds: 1
+yoloDefault: false
+# Lightest template — no doer phase, single reviewer-only ask. Cockpit-side floor.
+estimatedBaselineTokens: 500
+
+# Ship is meaningless without a doer diff. The runner skips it for any
+# review-only template; the explicit `enabled: false` here keeps intent
+# obvious to template-readers.
+ship:
+  enabled: false
+
+phases:
+  - id: review
+    kind: review_only
+    title: External Review
+    description: Five lineages critique the supplied artifact independently.
+    reviewer:
+      require: 2
+      crossLineage: true
+      candidates:
+        - lineage: openai
+          models:
+            - gpt-5.5
+        - lineage: google
+          models:
+            - gemini-3.1-pro-preview
+        - lineage: anthropic
+          models:
+            - claude-opus-4-7
+        # opencode-go transports — both run through the opencode binary
+        # (lineage=opencode). Different model families (Moonshot's Kimi
+        # vs DeepSeek) carried on the voice's vendor_family for diversity
+        # scoring, but both are listed under the opencode lineage because
+        # that's the binary that actually runs them. Listing kimi as
+        # `lineage: moonshot` would imply the standalone kimi-CLI
+        # subscription — an impossible combo for users without it.
+        - lineage: opencode
+          models:
+            - opencode-go/kimi-k2.6
+        - lineage: opencode
+          models:
+            - opencode-go/deepseek-v4-pro
+        - lineage: opencode
+          models:
+            - opencode-go/qwen3.7-max
+    artifact:
+      label: "Artifact to review"
+      hint: "Paste a unified diff, a markdown draft, code, or any text blob."
+      maxBytes: 1048576
+    inputs:
+      include: []
+      exclude: []
+
+# Reviewer fallback — when any reviewer slot exhausts (quota_exhausted,
+# auth_error, rate_limit, etc.) Chorus raises a Claude Sonnet 4.6
+# replacement so the cockpit shows a finished review instead of an
+# ERRORED card. Same-lineage dedupe means this won't fire if Claude Opus
+# is already running in this slot — it activates for the openai/google/
+# opencode reviewers when their primary model fails.
+fallback:
+  reviewer:
+    - lineage: anthropic
+      models:
+        - claude-sonnet-4-6

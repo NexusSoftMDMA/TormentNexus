@@ -1,0 +1,16 @@
+version: "3.9"
+services:
+  mnemosyne-mcp:
+    image: ghcr.io/axdsan/mnemosyne-mcp:latest
+    build: .
+    ports:
+      - "8080:8080"
+    volumes:
+      - mnemosyne-data:/data
+    environment:
+      - MNEMOSYNE_DATA_DIR=/data
+      - MNEMOSYNE_MCP_TOKEN=${MNEMOSYNE_MCP_TOKEN:-}
+    command: ["--transport", "sse", "--host", "0.0.0.0", "--port", "8080"]
+
+volumes:
+  mnemosyne-data:

@@ -1,0 +1,102 @@
+[build-system]
+requires = ["setuptools>=82.0.1"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tinyagentos"
+version = "1.0.0-beta.11"
+description = "Self-hosted AI agent memory system for low-power hardware"
+license = { file = "LICENSE" }
+# Upper-capped at <3.14 because litellm (the proxy extra, the agent/model proxy
+# runtime) supports only >=3.10,<3.14. A fresh distro that defaults python3 to
+# 3.14 would otherwise build the venv on 3.14 and abort with "No matching
+# distribution found for litellm". The installer also steers the venv to a
+# supported interpreter; this cap makes the constraint explicit to pip and uv.
+requires-python = ">=3.11,<3.14"
+dependencies = [
+    # Cap below 0.137: fastapi 0.137.0 regressed include_router so that a
+    # mounted APIRouter contributes none of its routes to the app, leaving
+    # create_app() with an empty API surface. 0.136.3 is the last good release.
+    "fastapi>=0.115.0,<0.137",
+    "uvicorn[standard]>=0.49.0",
+    "httpx>=0.27.0",
+    "jinja2>=3.1.0",
+    "pyyaml>=6.0",
+    "aiosqlite>=0.20.0",
+    "argon2-cffi>=23.1.0",
+    "sqlcipher3>=0.6.2",
+    "psutil>=5.9.0",
+    "python-multipart>=0.0.9",
+    # Project canvas board renders low-fidelity PNG snapshots for vision
+    # agents (tinyagentos/projects/canvas/render.py).
+    "Pillow>=10.0",
+    "lxml>=5.0.0",
+    "readability-lxml>=0.8.1",
+    # Memory system — published to PyPI
+    "taosmd==0.3.0",
+    # WebSocket client for dashboard proxy (shortcut_proxy.py)
+    "websockets>=12.0",
+    # Web Push VAPID signing — pulls in cryptography, http-ece, py-vapid
+    "pywebpush>=1.14",
+    # mDNS/Bonjour publisher so the controller is reachable at
+    # http://taos.local:<port>/ on the LAN without users knowing its IP
+    # (tinyagentos/services/mdns_publisher.py).
+    "zeroconf>=0.140",
+]
+
+[project.optional-dependencies]
+worker = ["pystray>=0.19.0", "Pillow>=10.0"]
+proxy = ["litellm[proxy]>=1.89.3", "prisma>=0.11.0"]
+# Model torrent mesh (optional): libtorrent has no PyPI wheel on most platforms
+# (OS-level libtorrent-rasterbar / python3-libtorrent), so it must not be a core
+# dependency or fresh installs abort. torrent_downloader guards the import and
+# falls back to a direct download when it is absent.
+torrent = ["libtorrent>=2.0.9"]
+dev = [
+    "pytest>=9.1.1",
+    "pytest-asyncio>=0.23.0",
+    "pytest-timeout>=2.3.0",
+    "pytest-xdist>=3.5.0",
+    "httpx",
+    "respx>=0.21.0",
+    "websockets>=12.0",
+]
+e2e = [
+    "pytest>=9.1.1",
+    "pytest-playwright>=0.5.0",
+]
+
+[tool.setuptools.packages.find]
+include = ["tinyagentos*"]
+
+[project.scripts]
+tinyagentos = "tinyagentos.app:main"
+tinyagentos-worker = "tinyagentos.worker.__main__:main"
+taos = "tinyagentos.app:main"
+taos-gui = "tinyagentos.app:gui"
+taos-worker-ctl = "tinyagentos.cli.worker:main"
+taosctl = "tinyagentos.cli.taosctl.__main__:main"
+
+[tool.pytest.ini_options]
+# Per-test timeout: a single hung test fails fast and named instead of
+# silently eating the entire 45-minute CI budget.  120 s covers the
+# slowest legitimate tests (async DB-heavy flows) with headroom to spare.
+# thread method works on all platforms including macOS; signal would be
+# faster but requires the main thread.
+timeout = 120
+timeout_method = "thread"
+markers = [
+    "e2e: End-to-end browser tests (require running server)",
+    "slow: Tests requiring a live stack (skipped in local CI; run with pytest -m slow)",
+]
+filterwarnings = [
+    # Asyncio teardown emits unraisable RuntimeError("Event loop is closed")
+    # warnings when finalisers (httpx clients, aiosqlite connections) fire
+    # during interpreter shutdown after the loop is gone. Harmless — tests
+    # have already passed — but trips GitHub Actions log parser into
+    # ##[error] annotations. Narrow filter: only matches the well-known
+    # "Exception ignored in:" prefix that pytest uses for these, so
+    # genuine unraisable exceptions in __del__ or forgotten awaitables
+    # still surface as test failures.
+    "ignore:Exception ignored in:pytest.PytestUnraisableExceptionWarning",
+]

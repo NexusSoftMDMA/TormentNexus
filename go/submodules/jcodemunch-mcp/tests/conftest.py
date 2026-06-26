@@ -1,0 +1,161 @@
+"""Shared pytest fixtures for jcodemunch-mcp tests."""
+
+import pytest
+
+
+@pytest.fixture(autouse=True)
+def _clear_index_cache():
+    """Clear the in-memory SQLite index cache before and after each test.
+
+    Tests that modify the SQLite DB directly (e.g. changing index_version)
+    can leave stale entries in the module-level cache.  SQLite WAL mode does
+    not always update the main DB file mtime on write, so the cache key
+    (owner, name, mtime_ns) may still match after a direct DB modification.
+    Clearing before each test ensures no cross-test contamination; clearing
+    after ensures no stale entries persist for the next test.
+    """
+    try:
+        from jcodemunch_mcp.storage.sqlite_store import _cache_clear
+        _cache_clear()
+    except ImportError:
+        pass
+    yield
+    try:
+        from jcodemunch_mcp.storage.sqlite_store import _cache_clear
+        _cache_clear()
+    except ImportError:
+        pass
+
+
+@pytest.fixture(autouse=True)
+def _reset_global_config():
+    """Reset the global config state between tests.
+
+    Tests that call main() or load_config() modify _GLOBAL_CONFIG and
+    _PROJECT_CONFIGS at module level.  Without cleanup, subsequent tests
+    see config values left by earlier tests (e.g. 'watch': true from the
+    user's disk config bleeds into tests that expect the default).
+    """
+    yield
+    try:
+        from jcodemunch_mcp import config as cfg
+        from copy import deepcopy
+        cfg._GLOBAL_CONFIG = deepcopy(cfg.DEFAULTS)
+        cfg._PROJECT_CONFIGS.clear()
+        cfg._PROJECT_CONFIG_HASHES.clear()
+        cfg._REPO_PATH_CACHE.clear()
+    except ImportError:
+        pass
+
+
+# ---------------------------------------------------------------------------
+# T12 — Correctness fixture library
+# ---------------------------------------------------------------------------
+# Small, medium, and graph-rich synthetic repos used by multiple test modules.
+# Each fixture builds a deterministic synthetic codebase with ground-truth
+# expected outputs documented inline.
+# ---------------------------------------------------------------------------
+
+@pytest.fixture
+def small_index(tmp_path):
+    """Small synthetic Python repo: 1 file, 3 symbols.
+
+    Ground truth:
+        symbols: MAX_RETRIES (constant), add (function), subtract (function)
+        files:   ["utils.py"]
+        kinds:   {"constant": 1, "function": 2}
+    """
+    from jcodemunch_mcp.tools.index_folder import index_folder
+
+    src = tmp_path / "src"
+    store = tmp_path / "store"
+    src.mkdir()
+    store.mkdir()
+    (src / "utils.py").write_text(
+        "MAX_RETRIES = 3\n\n"
+        "def add(a, b):\n"
+        "    return a + b\n\n"
+        "def subtract(a, b):\n"
+        "    return a - b\n"
+    )
+    r = index_folder(str(src), use_ai_summaries=False, storage_path=str(store))
+    assert r["success"] is True
+    return {"repo": r["repo"], "store": str(store), "src": str(src)}
+
+
+@pytest.fixture
+def medium_index(tmp_path):
+    """Medium synthetic Python repo: 3 files with cross-imports.
+
+    Ground truth:
+        files:   models.py, service.py, api.py
+        classes: User, Product (models.py)
+        functions: get_user, create_user (service.py), handle_request (api.py)
+        imports: service.py imports from models; api.py imports from models + service
+        most_imported: models.py (imported by 2 files)
+    """
+    from jcodemunch_mcp.tools.index_folder import index_folder
+
+    src = tmp_path / "src"
+    store = tmp_path / "store"
+    src.mkdir()
+    store.mkdir()
+    (src / "models.py").write_text(
+        "class User:\n"
+        "    \"\"\"Represents a user.\"\"\"\n"
+        "    pass\n\n"
+        "class Product:\n"
+        "    \"\"\"Represents a product.\"\"\"\n"
+        "    pass\n"
+    )
+    (src / "service.py").write_text(
+        "from models import User\n\n"
+        "def get_user(user_id):\n"
+        "    return User()\n\n"
+        "def create_user(name):\n"
+        "    return User()\n"
+    )
+    (src / "api.py").write_text(
+        "from models import User, Product\n"
+        "from service import get_user\n\n"
+        "def handle_request(req):\n"
+        "    return get_user(req)\n"
+    )
+    r = index_folder(str(src), use_ai_summaries=False, storage_path=str(store))
+    assert r["success"] is True
+    return {"repo": r["repo"], "store": str(store), "src": str(src)}
+
+
+@pytest.fixture
+def hierarchy_index(tmp_path):
+    """Python class hierarchy: Animal -> Mammal -> Dog, Cat.
+
+    Ground truth:
+        Animal:  0 ancestors, 1 descendant (Mammal) [via Mammal, transitively Dog+Cat]
+        Mammal:  1 ancestor (Animal), 2 direct descendants (Dog, Cat)
+        Dog:     2 ancestors (Mammal, Animal), 0 descendants
+        Cat:     2 ancestors (Mammal, Animal), 0 descendants
+    """
+    from jcodemunch_mcp.tools.index_folder import index_folder
+
+    src = tmp_path / "src"
+    store = tmp_path / "store"
+    src.mkdir()
+    store.mkdir()
+    (src / "animals.py").write_text(
+        "class Animal:\n"
+        "    \"\"\"Base animal class.\"\"\"\n"
+        "    pass\n\n"
+        "class Mammal(Animal):\n"
+        "    \"\"\"A warm-blooded animal.\"\"\"\n"
+        "    pass\n\n"
+        "class Dog(Mammal):\n"
+        "    \"\"\"A domestic dog.\"\"\"\n"
+        "    pass\n\n"
+        "class Cat(Mammal):\n"
+        "    \"\"\"A domestic cat.\"\"\"\n"
+        "    pass\n"
+    )
+    r = index_folder(str(src), use_ai_summaries=False, storage_path=str(store))
+    assert r["success"] is True
+    return {"repo": r["repo"], "store": str(store), "src": str(src)}

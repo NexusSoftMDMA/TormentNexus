@@ -1,0 +1,79 @@
+// Copyright 2025 Stacklok, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package upstream
+
+import (
+	"log/slog"
+	"time"
+)
+
+// tokenExpirationBuffer is the time buffer before actual expiration to consider a token expired.
+// This accounts for clock skew and network latency.
+const tokenExpirationBuffer = 30 * time.Second
+
+// Tokens represents the tokens obtained from an upstream Identity Provider.
+// This type is used for token exchange with the IDP, but stored separately
+// (see storage.IDPTokens for the storage representation).
+type Tokens struct {
+	// AccessToken is the access token from the upstream IDP.
+	AccessToken string //nolint:gosec // G117: field legitimately holds sensitive data
+
+	// RefreshToken is the refresh token from the upstream IDP (if provided).
+	RefreshToken string //nolint:gosec // G117: field legitimately holds sensitive data
+
+	// IDToken is the ID token from the upstream IDP (for OIDC).
+	IDToken string
+
+	// ExpiresAt is when the access token expires. Zero value means the provider
+	// did not assert an expiry; callers must treat it as non-expiring.
+	ExpiresAt time.Time
+}
+
+// IsExpired returns true if the access token has expired or will expire within the buffer period.
+// Returns true for nil receivers (treating nil tokens as expired).
+func (t *Tokens) IsExpired() bool {
+	return t.IsExpiredAt(time.Now())
+}
+
+// IsExpiredAt returns true if the access token has expired or will expire within the buffer period
+// at the given time. This method is primarily for testing to avoid time-based race conditions.
+// Returns true for nil receivers (treating nil tokens as expired).
+func (t *Tokens) IsExpiredAt(now time.Time) bool {
+	if t == nil {
+		return true
+	}
+	if t.ExpiresAt.IsZero() {
+		return false
+	}
+	// Token is expired if it expires at or before (now + buffer)
+	// Using !After to include the equality case (expires exactly at boundary)
+	return !t.ExpiresAt.After(now.Add(tokenExpirationBuffer))
+}
+
+// expiresAtLogValue is a slog.LogValuer wrapper for an ExpiresAt time that
+// renders zero time as "none" rather than the misleading year-0001 timestamp
+// slog would otherwise produce. As a LogValuer, formatting is deferred until
+// the log record is actually emitted, so DEBUG logs do no work when the
+// handler level filters them out.
+type expiresAtLogValue time.Time
+
+// LogValue implements slog.LogValuer.
+func (e expiresAtLogValue) LogValue() slog.Value {
+	t := time.Time(e)
+	if t.IsZero() {
+		return slog.StringValue("none")
+	}
+	return slog.StringValue(t.Format(time.RFC3339))
+}

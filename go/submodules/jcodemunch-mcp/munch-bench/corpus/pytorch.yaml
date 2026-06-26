@@ -1,0 +1,81 @@
+repo: pytorch/pytorch
+questions:
+  - id: pytorch-001
+    question: "How does PyTorch implement autograd for automatic differentiation?"
+    ground_truth_answer: "Every Tensor operation creates a grad_fn node in a DAG. backward() traverses this graph in reverse topological order, calling each node's backward function to compute gradients. Gradients accumulate in .grad attributes. The graph is freed after backward unless retain_graph=True."
+    ground_truth_symbols: ["backward", "grad_fn", "AccumulateGrad"]
+    difficulty: hard
+    category: architecture
+    tags: [autograd, gradients]
+
+  - id: pytorch-002
+    question: "How does torch.nn.Module organize parameters and submodules?"
+    ground_truth_answer: "Module uses __setattr__ to intercept attribute assignment. Parameters and buffers are registered in OrderedDicts (_parameters, _buffers). Child modules go in _modules. parameters() recursively yields all Parameters. state_dict() flattens the hierarchy with dotted keys for serialization."
+    ground_truth_symbols: ["Module", "parameters", "state_dict", "register_parameter"]
+    difficulty: medium
+    category: architecture
+    tags: [modules, parameters]
+
+  - id: pytorch-003
+    question: "How does PyTorch's DataLoader implement parallel data loading?"
+    ground_truth_answer: "DataLoader with num_workers>0 spawns worker processes via multiprocessing. Workers run a loop: receive batch indices from the main process, call dataset[idx] to load data, and send results back via a Queue. The main process prefetches batches into a buffer for overlap with GPU computation."
+    ground_truth_symbols: ["DataLoader", "_MultiProcessingDataLoaderIter"]
+    difficulty: medium
+    category: architecture
+    tags: [data-loading, multiprocessing]
+
+  - id: pytorch-004
+    question: "How does PyTorch implement GPU tensor operations?"
+    ground_truth_answer: "Tensor operations dispatch through the ATen library. For CUDA tensors, dispatch selects CUDA kernels. Operations launch kernels on the current CUDA stream. Memory is managed by CUDACachingAllocator which pools allocations to avoid cudaMalloc overhead. torch.cuda.synchronize() waits for completion."
+    ground_truth_symbols: ["Tensor", "CUDACachingAllocator"]
+    difficulty: hard
+    category: architecture
+    tags: [cuda, gpu]
+
+  - id: pytorch-005
+    question: "How does PyTorch implement model serialization with torch.save/load?"
+    ground_truth_answer: "torch.save() uses Python's pickle protocol with a custom Pickler that intercepts Tensor storage. Storages are written separately in a zip archive. torch.load() unpickles the objects, remapping storages from the archive. map_location controls device placement during loading."
+    ground_truth_symbols: ["save", "load", "map_location"]
+    difficulty: medium
+    category: api
+    tags: [serialization, checkpoints]
+
+  - id: pytorch-006
+    question: "How does PyTorch implement the optimizer step and parameter updates?"
+    ground_truth_answer: "Optimizer.step() iterates over param_groups, each containing parameters and hyperparameters (lr, momentum, etc.). For each parameter with a gradient, it applies the update rule (e.g., SGD: p = p - lr * grad). State dict per parameter stores momentum buffers and other optimizer state."
+    ground_truth_symbols: ["Optimizer", "step", "SGD", "Adam"]
+    difficulty: medium
+    category: api
+    tags: [optimization, training]
+
+  - id: pytorch-007
+    question: "How does torch.compile work with the dynamo compiler?"
+    ground_truth_answer: "torch.compile() wraps a model/function with TorchDynamo. Dynamo intercepts Python bytecode execution, traces tensor operations into an FX graph, and applies backends (inductor by default) to generate optimized kernels. Guard conditions detect when recompilation is needed."
+    ground_truth_symbols: ["compile", "dynamo"]
+    difficulty: hard
+    category: architecture
+    tags: [compilation, optimization]
+
+  - id: pytorch-008
+    question: "How does PyTorch implement distributed training with DistributedDataParallel?"
+    ground_truth_answer: "DDP wraps a model and uses all-reduce to synchronize gradients across processes after backward. It buckets parameters by size for efficient communication. A Reducer hooks into autograd to trigger all-reduce as gradients become ready, overlapping communication with computation."
+    ground_truth_symbols: ["DistributedDataParallel", "Reducer"]
+    difficulty: hard
+    category: architecture
+    tags: [distributed, training]
+
+  - id: pytorch-009
+    question: "How does PyTorch implement the learning rate scheduler?"
+    ground_truth_answer: "LRScheduler wraps an optimizer and adjusts learning rates per epoch or step. step() increments an internal counter and calls get_lr() which computes new rates based on the schedule (StepLR, CosineAnnealingLR, etc.). The optimizer's param_groups are updated in-place."
+    ground_truth_symbols: ["LRScheduler", "step", "get_lr", "StepLR"]
+    difficulty: easy
+    category: api
+    tags: [lr-scheduler, training]
+
+  - id: pytorch-010
+    question: "How does PyTorch implement custom autograd functions?"
+    ground_truth_answer: "Users subclass torch.autograd.Function and implement static forward() and backward() methods. forward() receives a ctx object to save tensors for backward. backward() receives grad_output and returns gradients for each input. apply() is used to invoke the custom function."
+    ground_truth_symbols: ["Function", "forward", "backward", "apply"]
+    difficulty: medium
+    category: api
+    tags: [autograd, custom-ops]

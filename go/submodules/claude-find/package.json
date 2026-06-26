@@ -1,0 +1,40 @@
+{
+  "name": "claude-find",
+  "version": "0.2.6",
+  "mcpName": "io.github.Cavinooo/claude-find",
+  "description": "Pull deep memory from across your Claude Code sessions — when you need it.",
+  "type": "module",
+  "bin": {
+    "claude-find": "bin/claude-find.js"
+  },
+  "files": [
+    "bin",
+    "src",
+    ".claude/skills"
+  ],
+  "scripts": {
+    "dev": "bun run src/index.ts",
+    "test": "bun test"
+  },
+  "keywords": [
+    "claude",
+    "claude-code",
+    "session",
+    "search",
+    "semantic-search",
+    "embeddings",
+    "cli"
+  ],
+  "license": "MIT",
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "sqlite-vec": "^0.1.9",
+    "zod": "^4.3.6"
+  }
+}

@@ -1,0 +1,128 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+      - "!v*-pro" # premium (pro) tags never trigger the public release
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  test:
+    runs-on: ubuntu-22.04
+    name: Test
+    steps:
+      - uses: actions/checkout@v4
+
+      # Edition guard: the public skill-deck repo ships the FREE edition only.
+      # Refuse to build/publish if premium (pro) source is present or the tag is
+      # a -pro tag. `build` needs `test`, so a failure here blocks the release.
+      - name: Guard against premium source on a public release
+        shell: bash
+        run: |
+          if [ -d src-tauri/src/harness ] || [ -f src-tauri/src/bin/harness_cli.rs ] || [ -d src/lib/components/chat ]; then
+            echo "::error::Premium (pro) source detected on a public release tag. The public repo must never build or publish the harness/chat edition."
+            exit 1
+          fi
+          if [[ "${GITHUB_REF_NAME}" == *-pro ]]; then
+            echo "::error::'-pro' tags are private-edition only and must never run the public release workflow."
+            exit 1
+          fi
+          echo "OK: free edition on public tag '${GITHUB_REF_NAME}'."
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Rust tests
+        run: cd src-tauri && cargo test --locked
+
+      - name: Svelte type checks
+        run: pnpm check
+
+      - name: Rust clippy
+        run: cd src-tauri && cargo clippy --locked -- -D warnings
+
+  build:
+    needs: test
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: ubuntu-22.04
+            args: ""
+            label: "Linux x64"
+          - platform: macos-latest
+            args: "--target aarch64-apple-darwin"
+            label: "macOS ARM64"
+          - platform: macos-latest
+            args: "--target x86_64-apple-darwin"
+            label: "macOS x64"
+          - platform: windows-latest
+            args: ""
+            label: "Windows x64"
+
+    runs-on: ${{ matrix.platform }}
+    name: Build (${{ matrix.label }})
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      - name: Install Linux dependencies
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Install frontend dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run Rust tests
+        run: cd src-tauri && cargo test --locked
+
+      - name: Run Svelte type checks
+        run: pnpm check
+
+      - name: Build Tauri app
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: "Skill Deck ${{ github.ref_name }}"
+          releaseBody: "Cross-platform release of Skill Deck."
+          releaseDraft: true
+          prerelease: false
+          args: ${{ matrix.args }}

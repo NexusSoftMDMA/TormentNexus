@@ -1,0 +1,47 @@
+name: Feature request
+description: Propose a new capability or improvement
+title: "feat: "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem are you trying to solve?
+      description: Describe the use case, not the solution. We'd rather understand the need first.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed approach (optional)
+      description: If you have one. Skip if you'd rather we figure it out.
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Workarounds you've tried, other tools you've used, related issues.
+
+  - type: dropdown
+    id: scope
+    attributes:
+      label: Scope
+      options:
+        - Daemon / runner
+        - Cockpit UI
+        - CLI shim (claude / codex / gemini / opencode / kimi / openrouter)
+        - MCP server
+        - Templates / personas
+        - Docs
+        - Other
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: prereqs
+    attributes:
+      label: Prerequisites
+      options:
+        - label: I searched existing issues + ROADMAP.md for similar requests
+          required: true

@@ -1,0 +1,43 @@
+{
+  "name": "Arc Relay",
+  "description": "Open-source MCP control plane - proxy, auth, middleware, and archiving for Model Context Protocol servers.",
+  "repository": "https://github.com/comma-compliance/arc-relay",
+  "keywords": ["mcp", "model-context-protocol", "proxy", "ai", "go", "claude"],
+  "stack": "container",
+  "env": {
+    "ARC_RELAY_ENCRYPTION_KEY": {
+      "description": "Encryption key for stored credentials. Any strong random string works; the app derives a 32-byte AES key internally.",
+      "generator": "secret"
+    },
+    "ARC_RELAY_SESSION_SECRET": {
+      "description": "Secret used to sign web UI session cookies.",
+      "generator": "secret"
+    },
+    "ARC_RELAY_ADMIN_PASSWORD": {
+      "description": "Initial admin password. Change it after first login.",
+      "generator": "secret"
+    },
+    "ARC_RELAY_BASE_URL": {
+      "description": "Public URL of this deploy, e.g. https://your-app.herokuapp.com. Required for OAuth flows; set after the first deploy.",
+      "required": false
+    },
+    "ARC_RELAY_LLM_API_KEY": {
+      "description": "Optional Anthropic API key for tool context optimization.",
+      "required": false
+    },
+    "ARC_RELAY_SENTRY_DSN": {
+      "description": "Optional Sentry DSN for error tracking.",
+      "required": false
+    },
+    "ARC_RELAY_DB_PATH": {
+      "description": "SQLite database path. Heroku dynos have ephemeral filesystems, so data does not persist across restarts unless you attach external storage.",
+      "value": "/tmp/arc-relay.db"
+    }
+  },
+  "formation": {
+    "web": {
+      "quantity": 1,
+      "size": "basic"
+    }
+  }
+}

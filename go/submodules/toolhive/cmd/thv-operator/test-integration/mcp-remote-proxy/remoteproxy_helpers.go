@@ -1,0 +1,275 @@
+// SPDX-FileCopyrightText: Copyright 2025 Stacklok, Inc.
+// SPDX-License-Identifier: Apache-2.0
+
+package controllers
+
+import (
+	"context"
+	"fmt"
+	"time"
+
+	"github.com/onsi/ginkgo/v2"
+	"github.com/onsi/gomega"
+	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	mcpv1beta1 "github.com/stacklok/toolhive/cmd/thv-operator/api/v1beta1"
+)
+
+// ServiceName returns the expected Service name for an MCPRemoteProxy,
+// mirroring the controller's naming convention.
+func ServiceName(proxyName string) string {
+	return fmt.Sprintf("mcp-%s-remote-proxy", proxyName)
+}
+
+// ConfigMapName returns the expected RunConfig ConfigMap name for an MCPRemoteProxy,
+// mirroring the controller's naming convention.
+func ConfigMapName(proxyName string) string {
+	return fmt.Sprintf("%s-runconfig", proxyName)
+}
+
+// ServiceAccountName returns the expected ServiceAccount name for an MCPRemoteProxy,
+// mirroring the controller's naming convention.
+func ServiceAccountName(proxyName string) string {
+	return fmt.Sprintf("%s-remote-proxy-runner", proxyName)
+}
+
+// Common timeout values for different types of operations
+const (
+	// MediumTimeout for operations that may take some time (e.g., controller reconciliation)
+	MediumTimeout = 30 * time.Second
+
+	// LongTimeout for operations that may take a while (e.g., sync operations)
+	LongTimeout = 2 * time.Minute
+
+	// DefaultPollingInterval for Eventually/Consistently checks
+	DefaultPollingInterval = 1 * time.Second
+)
+
+// MCPRemoteProxyTestHelper provides specialized utilities for MCPRemoteProxy testing
+type MCPRemoteProxyTestHelper struct {
+	Client    client.Client
+	Context   context.Context
+	Namespace string
+}
+
+// NewMCPRemoteProxyTestHelper creates a new test helper for MCPRemoteProxy operations
+func NewMCPRemoteProxyTestHelper(
+	ctx context.Context, k8sClient client.Client, namespace string,
+) *MCPRemoteProxyTestHelper {
+	return &MCPRemoteProxyTestHelper{
+		Client:    k8sClient,
+		Context:   ctx,
+		Namespace: namespace,
+	}
+}
+
+// RemoteProxyBuilder provides a fluent interface for building MCPRemoteProxy objects
+type RemoteProxyBuilder struct {
+	proxy *mcpv1beta1.MCPRemoteProxy
+}
+
+// NewRemoteProxyBuilder creates a new MCPRemoteProxy builder with sensible defaults
+// for required fields (RemoteURL, OIDCConfig) so tests only need to override what they're testing
+func (h *MCPRemoteProxyTestHelper) NewRemoteProxyBuilder(name string) *RemoteProxyBuilder {
+	return &RemoteProxyBuilder{
+		proxy: &mcpv1beta1.MCPRemoteProxy{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      name,
+				Namespace: h.Namespace,
+				Labels: map[string]string{
+					"test.toolhive.io/suite": "operator-e2e",
+				},
+			},
+			Spec: mcpv1beta1.MCPRemoteProxySpec{
+				RemoteURL: "https://remote.example.com/mcp",
+				ProxyPort: 8080,
+				Transport: "streamable-http",
+			},
+		},
+	}
+}
+
+// WithProxyPort sets the proxy port for the proxy
+func (rb *RemoteProxyBuilder) WithProxyPort(port int32) *RemoteProxyBuilder {
+	rb.proxy.Spec.ProxyPort = port
+	return rb
+}
+
+// WithExternalAuthConfigRef sets the ExternalAuthConfigRef for the proxy
+func (rb *RemoteProxyBuilder) WithExternalAuthConfigRef(name string) *RemoteProxyBuilder {
+	rb.proxy.Spec.ExternalAuthConfigRef = &mcpv1beta1.ExternalAuthConfigRef{
+		Name: name,
+	}
+	return rb
+}
+
+// WithAuthServerRef sets the AuthServerRef for the proxy
+func (rb *RemoteProxyBuilder) WithAuthServerRef(name string) *RemoteProxyBuilder {
+	rb.proxy.Spec.AuthServerRef = &mcpv1beta1.AuthServerRef{
+		Kind: "MCPExternalAuthConfig",
+		Name: name,
+	}
+	return rb
+}
+
+// WithOIDCConfigRef sets the OIDCConfigRef for the proxy.
+// resourceURL sets both Audience and ResourceURL to the same value, which is
+// required when an embedded auth server is active (#4860).
+func (rb *RemoteProxyBuilder) WithOIDCConfigRef(name, resourceURL string) *RemoteProxyBuilder {
+	rb.proxy.Spec.OIDCConfigRef = &mcpv1beta1.MCPOIDCConfigReference{
+		Name:        name,
+		Audience:    resourceURL,
+		ResourceURL: resourceURL,
+	}
+	return rb
+}
+
+// WithToolConfigRef sets the ToolConfigRef for the proxy
+func (rb *RemoteProxyBuilder) WithToolConfigRef(name string) *RemoteProxyBuilder {
+	rb.proxy.Spec.ToolConfigRef = &mcpv1beta1.ToolConfigRef{
+		Name: name,
+	}
+	return rb
+}
+
+// WithGroupRef sets the GroupRef for the proxy
+func (rb *RemoteProxyBuilder) WithGroupRef(name string) *RemoteProxyBuilder {
+	rb.proxy.Spec.GroupRef = &mcpv1beta1.MCPGroupRef{Name: name}
+	return rb
+}
+
+// WithRemoteURL overrides the default remote URL
+func (rb *RemoteProxyBuilder) WithRemoteURL(url string) *RemoteProxyBuilder {
+	rb.proxy.Spec.RemoteURL = url
+	return rb
+}
+
+// WithInlineAuthzConfig sets an inline authz config with Cedar policies
+func (rb *RemoteProxyBuilder) WithInlineAuthzConfig(policies []string) *RemoteProxyBuilder {
+	rb.proxy.Spec.AuthzConfig = &mcpv1beta1.AuthzConfigRef{
+		Type: mcpv1beta1.AuthzConfigTypeInline,
+		Inline: &mcpv1beta1.InlineAuthzConfig{
+			Policies: policies,
+		},
+	}
+	return rb
+}
+
+// WithAuthzConfigMapRef sets an authz config referencing a ConfigMap
+func (rb *RemoteProxyBuilder) WithAuthzConfigMapRef(name, key string) *RemoteProxyBuilder {
+	rb.proxy.Spec.AuthzConfig = &mcpv1beta1.AuthzConfigRef{
+		Type: mcpv1beta1.AuthzConfigTypeConfigMap,
+		ConfigMap: &mcpv1beta1.ConfigMapAuthzRef{
+			Name: name,
+			Key:  key,
+		},
+	}
+	return rb
+}
+
+// WithHeaderFromSecret sets a header forward config that references a secret
+func (rb *RemoteProxyBuilder) WithHeaderFromSecret(
+	headerName, secretName, secretKey string,
+) *RemoteProxyBuilder {
+	rb.proxy.Spec.HeaderForward = &mcpv1beta1.HeaderForwardConfig{
+		AddHeadersFromSecret: []mcpv1beta1.HeaderFromSecret{
+			{
+				HeaderName: headerName,
+				ValueSecretRef: &mcpv1beta1.SecretKeyRef{
+					Name: secretName,
+					Key:  secretKey,
+				},
+			},
+		},
+	}
+	return rb
+}
+
+// Build returns a deep copy of the MCPRemoteProxy without creating it in the cluster.
+// Use this when testing CRD-level validation that rejects the resource at creation time.
+func (rb *RemoteProxyBuilder) Build() *mcpv1beta1.MCPRemoteProxy {
+	return rb.proxy.DeepCopy()
+}
+
+// Create builds and creates the MCPRemoteProxy in the cluster
+func (rb *RemoteProxyBuilder) Create(h *MCPRemoteProxyTestHelper) *mcpv1beta1.MCPRemoteProxy {
+	proxy := rb.proxy.DeepCopy()
+	err := h.Client.Create(h.Context, proxy)
+	gomega.Expect(err).NotTo(gomega.HaveOccurred(), "Failed to create MCPRemoteProxy")
+	return proxy
+}
+
+// GetRemoteProxy retrieves an MCPRemoteProxy by name
+func (h *MCPRemoteProxyTestHelper) GetRemoteProxy(name string) (*mcpv1beta1.MCPRemoteProxy, error) {
+	proxy := &mcpv1beta1.MCPRemoteProxy{}
+	err := h.Client.Get(h.Context, types.NamespacedName{
+		Namespace: h.Namespace,
+		Name:      name,
+	}, proxy)
+	return proxy, err
+}
+
+// GetRemoteProxyStatus returns the current status of an MCPRemoteProxy
+func (h *MCPRemoteProxyTestHelper) GetRemoteProxyStatus(
+	name string,
+) (*mcpv1beta1.MCPRemoteProxyStatus, error) {
+	proxy, err := h.GetRemoteProxy(name)
+	if err != nil {
+		return nil, err
+	}
+	return &proxy.Status, nil
+}
+
+// GetRemoteProxyPhase returns the current phase of an MCPRemoteProxy
+func (h *MCPRemoteProxyTestHelper) GetRemoteProxyPhase(
+	name string,
+) (mcpv1beta1.MCPRemoteProxyPhase, error) {
+	status, err := h.GetRemoteProxyStatus(name)
+	if err != nil {
+		return "", err
+	}
+	return status.Phase, nil
+}
+
+// GetRemoteProxyCondition returns a specific condition from the proxy status
+func (h *MCPRemoteProxyTestHelper) GetRemoteProxyCondition(
+	name, conditionType string,
+) (*metav1.Condition, error) {
+	status, err := h.GetRemoteProxyStatus(name)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, condition := range status.Conditions {
+		if condition.Type == conditionType {
+			return &condition, nil
+		}
+	}
+	return nil, fmt.Errorf("condition %s not found", conditionType)
+}
+
+// CleanupRemoteProxies deletes all MCPRemoteProxies in the namespace
+func (h *MCPRemoteProxyTestHelper) CleanupRemoteProxies() error {
+	proxyList := &mcpv1beta1.MCPRemoteProxyList{}
+	err := h.Client.List(h.Context, proxyList, client.InNamespace(h.Namespace))
+	if err != nil {
+		return err
+	}
+
+	for _, proxy := range proxyList.Items {
+		if err := h.Client.Delete(h.Context, &proxy); err != nil && !errors.IsNotFound(err) {
+			return err
+		}
+
+		// Wait for proxy to be actually deleted
+		ginkgo.By(fmt.Sprintf("waiting for remote proxy %s to be deleted", proxy.Name))
+		gomega.Eventually(func() bool {
+			_, err := h.GetRemoteProxy(proxy.Name)
+			return err != nil && errors.IsNotFound(err)
+		}, LongTimeout, DefaultPollingInterval).Should(gomega.BeTrue())
+	}
+	return nil
+}

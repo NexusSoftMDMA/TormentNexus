@@ -1,0 +1,1020 @@
+// SPDX-FileCopyrightText: Copyright 2025 Stacklok, Inc.
+// SPDX-License-Identifier: Apache-2.0
+
+package server_test
+
+import (
+	"context"
+	"errors"
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+
+	"github.com/stacklok/toolhive/pkg/audit"
+	"github.com/stacklok/toolhive/pkg/authz/authorizers"
+	"github.com/stacklok/toolhive/pkg/authz/authorizers/cedar"
+	mcpparser "github.com/stacklok/toolhive/pkg/mcp"
+	"github.com/stacklok/toolhive/pkg/vmcp"
+	"github.com/stacklok/toolhive/pkg/vmcp/mocks"
+	"github.com/stacklok/toolhive/pkg/vmcp/optimizer"
+	routerMocks "github.com/stacklok/toolhive/pkg/vmcp/router/mocks"
+	"github.com/stacklok/toolhive/pkg/vmcp/server"
+)
+
+// stubReporter allows controlling Start/ReportStatus behavior in tests.
+type stubReporter struct {
+	startErr       error
+	shutdownErr    error
+	shutdownCalled chan struct{}
+	reported       []*vmcp.Status
+}
+
+func (s *stubReporter) ReportStatus(_ context.Context, status *vmcp.Status) error {
+	s.reported = append(s.reported, status)
+	return nil
+}
+
+func (s *stubReporter) Start(_ context.Context) (func(context.Context) error, error) {
+	if s.startErr != nil {
+		return nil, s.startErr
+	}
+	return func(_ context.Context) error {
+		if s.shutdownCalled != nil {
+			select {
+			case s.shutdownCalled <- struct{}{}:
+			default:
+			}
+		}
+		return s.shutdownErr
+	}, nil
+}
+
+func TestServerStartFailsWhenReporterStartFails(t *testing.T) {
+	t.Parallel()
+
+	sr := &stubReporter{startErr: errors.New("boom")}
+
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+	mockRouter := routerMocks.NewMockRouter(ctrl)
+	mockBackendClient := mocks.NewMockBackendClient(ctrl)
+	mockBackendRegistry := mocks.NewMockBackendRegistry(ctrl)
+
+	srv, err := server.New(
+		context.Background(),
+		&server.Config{Host: "127.0.0.1", Port: 0, StatusReporter: sr, SessionFactory: newNoopMockFactory(t), Aggregator: newStubAggregator(nil)},
+		mockRouter,
+		mockBackendClient,
+		mockBackendRegistry,
+		nil,
+	)
+	require.NoError(t, err)
+
+	err = srv.Start(context.Background())
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "failed to start status reporter")
+}
+
+func TestServerStopRunsReporterShutdown(t *testing.T) {
+	t.Parallel()
+
+	shutdownCalled := make(chan struct{}, 1)
+	sr := &stubReporter{shutdownErr: nil, shutdownCalled: shutdownCalled}
+
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+	mockRouter := routerMocks.NewMockRouter(ctrl)
+	mockBackendClient := mocks.NewMockBackendClient(ctrl)
+	mockBackendRegistry := mocks.NewMockBackendRegistry(ctrl)
+
+	srv, err := server.New(
+		context.Background(),
+		&server.Config{Host: "127.0.0.1", Port: 0, StatusReporter: sr, SessionFactory: newNoopMockFactory(t), Aggregator: newStubAggregator(nil)},
+		mockRouter,
+		mockBackendClient,
+		mockBackendRegistry,
+		nil,
+	)
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	done := make(chan error, 1)
+	go func() {
+		done <- srv.Start(ctx)
+	}()
+
+	select {
+	case <-srv.Ready():
+	case err := <-done:
+		t.Fatalf("server failed to start: %v", err)
+	case <-time.After(3 * time.Second):
+		t.Fatalf("server did not become ready")
+	}
+
+	cancel()
+
+	select {
+	case err := <-done:
+		require.NoError(t, err)
+	case <-time.After(3 * time.Second):
+		t.Fatalf("server start/stop did not complete")
+	}
+
+	select {
+	case <-shutdownCalled:
+	case <-time.After(time.Second):
+		t.Fatalf("shutdown func was not called")
+	}
+}
+
+func TestNew(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		config       *server.Config
+		expectedHost string
+		expectedPort int
+		expectedPath string
+		expectedName string
+		expectedVer  string
+	}{
+		{
+			name:         "applies all defaults",
+			config:       &server.Config{SessionFactory: newNoopMockFactory(t), Aggregator: newStubAggregator(nil)},
+			expectedHost: "127.0.0.1",
+			expectedPort: 4483,
+			expectedPath: "/mcp",
+			expectedName: "toolhive-vmcp",
+			expectedVer:  "0.1.0",
+		},
+		{
+			name: "uses provided configuration",
+			config: &server.Config{
+				Name:           "custom-vmcp",
+				Version:        "1.0.0",
+				Host:           "0.0.0.0",
+				Port:           8080,
+				EndpointPath:   "/api/mcp",
+				SessionFactory: newNoopMockFactory(t), Aggregator: newStubAggregator(nil),
+			},
+			expectedHost: "0.0.0.0",
+			expectedPort: 8080,
+			expectedPath: "/api/mcp",
+			expectedName: "custom-vmcp",
+			expectedVer:  "1.0.0",
+		},
+		{
+			name: "applies partial defaults",
+			config: &server.Config{
+				Host:           "192.168.1.1",
+				Port:           9000,
+				SessionFactory: newNoopMockFactory(t), Aggregator: newStubAggregator(nil),
+			},
+			expectedHost: "192.168.1.1",
+			expectedPort: 9000,
+			expectedPath: "/mcp",
+			expectedName: "toolhive-vmcp",
+			expectedVer:  "0.1.0",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctrl := gomock.NewController(t)
+			t.Cleanup(ctrl.Finish)
+
+			mockRouter := routerMocks.NewMockRouter(ctrl)
+			mockBackendClient := mocks.NewMockBackendClient(ctrl)
+
+			s, err := server.New(context.Background(), tt.config, mockRouter, mockBackendClient, vmcp.NewImmutableRegistry([]vmcp.Backend{}), nil)
+			require.NoError(t, err)
+			require.NotNil(t, s)
+
+			addr := s.Address()
+			require.Contains(t, addr, tt.expectedHost)
+		})
+	}
+}
+
+// TestWithDefaults covers the single transport-defaulting resolver. It is the one place
+// the default list lives; the composition root and the constructors route
+// their Config through it, so New/Serve/derive* downstream are pure pass-through.
+func TestWithDefaults(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		in   *server.Config
+		want server.Config // only transport scalars are compared
+	}{
+		{
+			name: "fills every transport default on an empty config",
+			in:   &server.Config{},
+			want: server.Config{
+				Name: "toolhive-vmcp", Version: "0.1.0", Host: "127.0.0.1",
+				EndpointPath: "/mcp", SessionTTL: 30 * time.Minute, Port: 0,
+			},
+		},
+		{
+			name: "preserves explicitly set values",
+			in: &server.Config{
+				Name: "custom", Version: "1.2.3", Host: "0.0.0.0",
+				EndpointPath: "/rpc", SessionTTL: 7 * time.Minute, Port: 8080,
+			},
+			want: server.Config{
+				Name: "custom", Version: "1.2.3", Host: "0.0.0.0",
+				EndpointPath: "/rpc", SessionTTL: 7 * time.Minute, Port: 8080,
+			},
+		},
+		{
+			name: "fills only the unset fields",
+			in:   &server.Config{Host: "192.168.1.1", Port: 9000},
+			want: server.Config{
+				Name: "toolhive-vmcp", Version: "0.1.0", Host: "192.168.1.1",
+				EndpointPath: "/mcp", SessionTTL: 30 * time.Minute, Port: 9000,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := server.WithDefaults(tt.in)
+			assert.Equal(t, tt.want.Name, got.Name)
+			assert.Equal(t, tt.want.Version, got.Version)
+			assert.Equal(t, tt.want.Host, got.Host)
+			assert.Equal(t, tt.want.EndpointPath, got.EndpointPath)
+			assert.Equal(t, tt.want.SessionTTL, got.SessionTTL)
+			assert.Equal(t, tt.want.Port, got.Port) // Port is never defaulted (0 => OS-assigned)
+		})
+	}
+}
+
+// TestWithDefaultsDoesNotMutateInput verifies WithDefaults treats its argument as
+// read-only: an all-unset Config passes through with no fields written back, so callers
+// (and the constructors that call it on a copy) never see their value mutated. This
+// non-mutation is what preserves the raw cfg.Name for downstream Cedar authz parity.
+func TestWithDefaultsDoesNotMutateInput(t *testing.T) {
+	t.Parallel()
+
+	in := &server.Config{} // all unset: defaulting would be visible as mutation
+	_ = server.WithDefaults(in)
+
+	assert.Empty(t, in.Name)
+	assert.Empty(t, in.Version)
+	assert.Empty(t, in.Host)
+	assert.Empty(t, in.EndpointPath)
+	assert.Zero(t, in.SessionTTL)
+}
+
+func TestServer_Address(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		config   *server.Config
+		expected string
+	}{
+		{
+			name: "default host with explicit port",
+			config: &server.Config{
+				Port:           4483,
+				SessionFactory: newNoopMockFactory(t), Aggregator: newStubAggregator(nil),
+			},
+			expected: "127.0.0.1:4483",
+		},
+		{
+			name: "port 0 for dynamic allocation",
+			config: &server.Config{
+				Port:           0,
+				SessionFactory: newNoopMockFactory(t), Aggregator: newStubAggregator(nil),
+			},
+			expected: "127.0.0.1:0",
+		},
+		{
+			name: "custom host and port",
+			config: &server.Config{
+				Host:           "0.0.0.0",
+				Port:           8080,
+				SessionFactory: newNoopMockFactory(t), Aggregator: newStubAggregator(nil),
+			},
+			expected: "0.0.0.0:8080",
+		},
+		{
+			name: "localhost",
+			config: &server.Config{
+				Host:           "localhost",
+				Port:           3000,
+				SessionFactory: newNoopMockFactory(t), Aggregator: newStubAggregator(nil),
+			},
+			expected: "localhost:3000",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctrl := gomock.NewController(t)
+			t.Cleanup(ctrl.Finish)
+
+			mockRouter := routerMocks.NewMockRouter(ctrl)
+			mockBackendClient := mocks.NewMockBackendClient(ctrl)
+
+			s, err := server.New(context.Background(), tt.config, mockRouter, mockBackendClient, vmcp.NewImmutableRegistry([]vmcp.Backend{}), nil)
+			require.NoError(t, err)
+			addr := s.Address()
+			assert.Equal(t, tt.expected, addr)
+		})
+	}
+}
+
+func TestServer_Stop(t *testing.T) {
+	t.Parallel()
+
+	t.Run("stop without starting is safe", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		t.Cleanup(ctrl.Finish)
+
+		mockRouter := routerMocks.NewMockRouter(ctrl)
+		mockBackendClient := mocks.NewMockBackendClient(ctrl)
+
+		s, err := server.New(context.Background(), &server.Config{SessionFactory: newNoopMockFactory(t), Aggregator: newStubAggregator(nil)}, mockRouter, mockBackendClient, vmcp.NewImmutableRegistry([]vmcp.Backend{}), nil)
+		require.NoError(t, err)
+		err = s.Stop(context.Background())
+		require.NoError(t, err)
+	})
+}
+
+func TestNew_NilSessionFactory_ReturnsError(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	mockRouter := routerMocks.NewMockRouter(ctrl)
+	mockBackendClient := mocks.NewMockBackendClient(ctrl)
+
+	_, err := server.New(
+		context.Background(),
+		&server.Config{
+			SessionFactory: nil, // deliberately omitted
+			Aggregator:     newStubAggregator(nil),
+		},
+		mockRouter, mockBackendClient,
+		vmcp.NewImmutableRegistry([]vmcp.Backend{}), nil,
+	)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "SessionFactory")
+}
+
+// TestNew_NilAggregator_ReturnsError guards the now-required Config.Aggregator: the core
+// is the single source of the advertised capability set, so server.New must fail (via
+// core.New's validation) rather than silently construct a server with no aggregation.
+func TestNew_NilAggregator_ReturnsError(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	mockRouter := routerMocks.NewMockRouter(ctrl)
+	mockBackendClient := mocks.NewMockBackendClient(ctrl)
+
+	_, err := server.New(
+		context.Background(),
+		&server.Config{
+			SessionFactory: newNoopMockFactory(t),
+			Aggregator:     nil, // deliberately omitted: now a required field
+		},
+		mockRouter, mockBackendClient,
+		vmcp.NewImmutableRegistry([]vmcp.Backend{}), nil,
+	)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "Aggregator")
+}
+
+func TestNew_WithAuditConfig(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		auditConfig *audit.Config
+		wantErr     bool
+		errContains string
+	}{
+		{
+			name:        "nil audit config is valid",
+			auditConfig: nil,
+			wantErr:     false,
+		},
+		{
+			name: "empty audit config is valid",
+			auditConfig: &audit.Config{
+				Component: "vmcp-server",
+			},
+			wantErr: false,
+		},
+		{
+			name: "full audit config is valid",
+			auditConfig: &audit.Config{
+				Component:           "vmcp-server",
+				IncludeRequestData:  true,
+				IncludeResponseData: true,
+				MaxDataSize:         1024,
+			},
+			wantErr: false,
+		},
+		{
+			name: "negative MaxDataSize is invalid",
+			auditConfig: &audit.Config{
+				Component:   "vmcp-server",
+				MaxDataSize: -100,
+			},
+			wantErr:     true,
+			errContains: "maxDataSize cannot be negative",
+		},
+		{
+			name: "invalid event type is rejected",
+			auditConfig: &audit.Config{
+				Component:  "vmcp-server",
+				EventTypes: []string{"invalid_event_type"},
+			},
+			wantErr:     true,
+			errContains: "unknown event type: invalid_event_type",
+		},
+		{
+			name: "invalid exclude event type is rejected",
+			auditConfig: &audit.Config{
+				Component:         "vmcp-server",
+				ExcludeEventTypes: []string{"bad_event"},
+			},
+			wantErr:     true,
+			errContains: "unknown exclude event type: bad_event",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctrl := gomock.NewController(t)
+			t.Cleanup(ctrl.Finish)
+
+			mockRouter := routerMocks.NewMockRouter(ctrl)
+			mockBackendClient := mocks.NewMockBackendClient(ctrl)
+
+			config := &server.Config{
+				AuditConfig:    tt.auditConfig,
+				SessionFactory: newNoopMockFactory(t), Aggregator: newStubAggregator(nil),
+			}
+
+			s, err := server.New(context.Background(), config, mockRouter, mockBackendClient, vmcp.NewImmutableRegistry([]vmcp.Backend{}), nil)
+
+			if tt.wantErr {
+				require.Error(t, err)
+				if tt.errContains != "" {
+					assert.Contains(t, err.Error(), tt.errContains)
+				}
+				return
+			}
+
+			require.NoError(t, err)
+			require.NotNil(t, s)
+		})
+	}
+}
+
+func TestServerStopClosesOptimizerStore(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+	mockRouter := routerMocks.NewMockRouter(ctrl)
+	mockBackendClient := mocks.NewMockBackendClient(ctrl)
+	mockBackendRegistry := mocks.NewMockBackendRegistry(ctrl)
+
+	srv, err := server.New(
+		context.Background(),
+		&server.Config{Host: "127.0.0.1", Port: 0, OptimizerConfig: &optimizer.Config{}, SessionFactory: newNoopMockFactory(t), Aggregator: newStubAggregator(nil)},
+		mockRouter,
+		mockBackendClient,
+		mockBackendRegistry,
+		nil,
+	)
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	done := make(chan error, 1)
+	go func() {
+		done <- srv.Start(ctx)
+	}()
+
+	select {
+	case <-srv.Ready():
+	case err := <-done:
+		require.NoError(t, err, "server failed to start")
+	case <-time.After(3 * time.Second):
+		require.FailNow(t, "server did not become ready")
+	}
+
+	// Cancel triggers Stop which must run shutdownFuncs (including store.Close)
+	cancel()
+
+	select {
+	case err := <-done:
+		require.NoError(t, err)
+	case <-time.After(3 * time.Second):
+		require.FailNow(t, "server start/stop did not complete")
+	}
+}
+
+func TestHandler_ReturnsNonNilHandler(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	mockRouter := routerMocks.NewMockRouter(ctrl)
+	mockBackendClient := mocks.NewMockBackendClient(ctrl)
+	mockBackendRegistry := mocks.NewMockBackendRegistry(ctrl)
+
+	// Allow discovery middleware calls
+	mockBackendRegistry.EXPECT().List(gomock.Any()).Return(nil).AnyTimes()
+
+	srv, err := server.New(
+		t.Context(),
+		&server.Config{Host: "127.0.0.1", Port: 0, SessionFactory: newNoopMockFactory(t), Aggregator: newStubAggregator(nil)},
+		mockRouter,
+		mockBackendClient,
+		mockBackendRegistry,
+		nil,
+	)
+	require.NoError(t, err)
+
+	handler, err := srv.Handler(t.Context())
+	require.NoError(t, err)
+	require.NotNil(t, handler)
+
+	// Verify handler responds to health endpoint
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/health", nil)
+	handler.ServeHTTP(rec, req)
+	assert.Equal(t, http.StatusOK, rec.Code)
+	assert.Contains(t, rec.Body.String(), `"status":"ok"`)
+}
+
+func TestHandler_ReturnsErrorOnInvalidAuditConfig(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	mockRouter := routerMocks.NewMockRouter(ctrl)
+	mockBackendClient := mocks.NewMockBackendClient(ctrl)
+	mockBackendRegistry := mocks.NewMockBackendRegistry(ctrl)
+
+	// AuditConfig with negative MaxDataSize fails validation inside Handler()
+	srv, err := server.New(
+		t.Context(),
+		&server.Config{
+			Host: "127.0.0.1",
+			Port: 0,
+			AuditConfig: &audit.Config{
+				Component:   "vmcp-server",
+				MaxDataSize: -1,
+			},
+			SessionFactory: newNoopMockFactory(t), Aggregator: newStubAggregator(nil),
+		},
+		mockRouter,
+		mockBackendClient,
+		mockBackendRegistry,
+		nil,
+	)
+	// New() also validates AuditConfig, so this may fail at New() level
+	// If it passes New(), Handler() should catch it
+	if err != nil {
+		require.Contains(t, err.Error(), "maxDataSize cannot be negative")
+		return
+	}
+
+	_, err = srv.Handler(t.Context())
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid audit configuration")
+}
+
+func TestHandler_CanBeCalledMultipleTimes(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	mockRouter := routerMocks.NewMockRouter(ctrl)
+	mockBackendClient := mocks.NewMockBackendClient(ctrl)
+	mockBackendRegistry := mocks.NewMockBackendRegistry(ctrl)
+
+	mockBackendRegistry.EXPECT().List(gomock.Any()).Return(nil).AnyTimes()
+
+	srv, err := server.New(
+		t.Context(),
+		&server.Config{Host: "127.0.0.1", Port: 0, SessionFactory: newNoopMockFactory(t), Aggregator: newStubAggregator(nil)},
+		mockRouter,
+		mockBackendClient,
+		mockBackendRegistry,
+		nil,
+	)
+	require.NoError(t, err)
+
+	h1, err := srv.Handler(t.Context())
+	require.NoError(t, err)
+	require.NotNil(t, h1)
+
+	h2, err := srv.Handler(t.Context())
+	require.NoError(t, err)
+	require.NotNil(t, h2)
+
+	// Both handlers should work independently
+	for _, h := range []http.Handler{h1, h2} {
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodGet, "/health", nil)
+		h.ServeHTTP(rec, req)
+		assert.Equal(t, http.StatusOK, rec.Code)
+	}
+}
+
+func TestHandler_RegistersWellKnownRoutes(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	mockRouter := routerMocks.NewMockRouter(ctrl)
+	mockBackendClient := mocks.NewMockBackendClient(ctrl)
+	mockBackendRegistry := mocks.NewMockBackendRegistry(ctrl)
+
+	mockBackendRegistry.EXPECT().List(gomock.Any()).Return(nil).AnyTimes()
+
+	// Stub AuthInfoHandler that responds with a fixed JSON body.
+	authInfoHandler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"resource":"https://mcp.example.com"}`))
+	})
+
+	srv, err := server.New(
+		t.Context(),
+		&server.Config{
+			Host:            "127.0.0.1",
+			Port:            0,
+			AuthInfoHandler: authInfoHandler,
+			SessionFactory:  newNoopMockFactory(t), Aggregator: newStubAggregator(nil),
+			// AuthServer is not set here because the concrete type
+			// *asrunner.EmbeddedAuthServer cannot be easily constructed in an
+			// external test without a real auth server backing it.
+			// The RegisterHandlers code path on EmbeddedAuthServer is covered
+			// by TestRegisterHandlers in pkg/authserver/runner.
+		},
+		mockRouter,
+		mockBackendClient,
+		mockBackendRegistry,
+		nil,
+	)
+	require.NoError(t, err)
+
+	handler, err := srv.Handler(t.Context())
+	require.NoError(t, err)
+	require.NotNil(t, handler)
+
+	t.Run("oauth-protected-resource returns 200", func(t *testing.T) {
+		t.Parallel()
+
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodGet, "/.well-known/oauth-protected-resource", nil)
+		handler.ServeHTTP(rec, req)
+
+		assert.Equal(t, http.StatusOK, rec.Code)
+		assert.Equal(t, "application/json", rec.Header().Get("Content-Type"))
+		assert.Contains(t, rec.Body.String(), `"resource"`)
+	})
+
+	t.Run("oauth-protected-resource subpath returns 200", func(t *testing.T) {
+		t.Parallel()
+
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodGet, "/.well-known/oauth-protected-resource/mcp", nil)
+		handler.ServeHTTP(rec, req)
+
+		// The NewWellKnownHandler matches the prefix, so subpaths should also be handled.
+		assert.Equal(t, http.StatusOK, rec.Code)
+	})
+
+	t.Run("unrelated well-known path is not handled by AuthInfoHandler", func(t *testing.T) {
+		t.Parallel()
+
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodGet, "/.well-known/other", nil)
+		handler.ServeHTTP(rec, req)
+
+		// Should not be 200 from our stub handler.
+		assert.NotEqual(t, http.StatusOK, rec.Code)
+	})
+}
+
+func TestAcceptHeaderValidation(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name           string
+		method         string
+		acceptHeader   string
+		expectRejected bool
+	}{
+		{
+			name:           "GET without Accept header returns 406",
+			method:         http.MethodGet,
+			acceptHeader:   "",
+			expectRejected: true,
+		},
+		{
+			name:           "GET with Accept application/json returns 406",
+			method:         http.MethodGet,
+			acceptHeader:   "application/json",
+			expectRejected: true,
+		},
+		{
+			name:           "GET with Accept text/event-stream passes through",
+			method:         http.MethodGet,
+			acceptHeader:   "text/event-stream",
+			expectRejected: false,
+		},
+		{
+			name:           "GET with multiple Accept types including text/event-stream passes through",
+			method:         http.MethodGet,
+			acceptHeader:   "text/event-stream, application/json",
+			expectRejected: false,
+		},
+		{
+			name:           "POST without Accept header passes through",
+			method:         http.MethodPost,
+			acceptHeader:   "",
+			expectRejected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Use httptest recorder + handler directly to avoid shared server lifecycle issues.
+			// Each subtest gets its own mocks and handler, making parallel execution safe.
+			ctrl := gomock.NewController(t)
+			t.Cleanup(ctrl.Finish)
+
+			mockRouter := routerMocks.NewMockRouter(ctrl)
+			mockBackendClient := mocks.NewMockBackendClient(ctrl)
+			mockBackendRegistry := mocks.NewMockBackendRegistry(ctrl)
+
+			mockBackendRegistry.EXPECT().List(gomock.Any()).Return(nil).AnyTimes()
+
+			srv, err := server.New(
+				t.Context(),
+				&server.Config{Host: "127.0.0.1", Port: 0, SessionFactory: newNoopMockFactory(t), Aggregator: newStubAggregator(nil)},
+				mockRouter,
+				mockBackendClient,
+				mockBackendRegistry,
+				nil,
+			)
+			require.NoError(t, err)
+
+			handler, err := srv.Handler(t.Context())
+			require.NoError(t, err)
+
+			reqCtx, reqCancel := context.WithCancel(t.Context())
+			t.Cleanup(reqCancel)
+
+			req := httptest.NewRequest(tt.method, "/mcp", nil).WithContext(reqCtx)
+			if tt.acceptHeader != "" {
+				req.Header.Set("Accept", tt.acceptHeader)
+			}
+
+			rec := httptest.NewRecorder()
+
+			if tt.expectRejected {
+				// For rejected cases, ServeHTTP returns quickly with 406.
+				handler.ServeHTTP(rec, req)
+
+				resp := rec.Result()
+				defer resp.Body.Close()
+
+				body, err := io.ReadAll(resp.Body)
+				require.NoError(t, err)
+
+				assert.Equal(t, http.StatusNotAcceptable, resp.StatusCode)
+				assert.Contains(t, string(body), "Not Acceptable")
+				assert.Contains(t, string(body), "text/event-stream")
+				assert.Equal(t, "application/json", resp.Header.Get("Content-Type"))
+			} else {
+				// Run the handler in a goroutine since it may block on streaming.
+				// The Accept validation middleware runs before any blocking, so a
+				// 406 would be written within the first 50 ms.
+				done := make(chan struct{})
+				go func() {
+					defer close(done)
+					handler.ServeHTTP(rec, req)
+				}()
+
+				// Give the middleware time to write any immediate response (like 406).
+				time.Sleep(50 * time.Millisecond)
+				reqCancel() // Unblock any long-running handler (e.g. SSE).
+
+				// Require the goroutine to finish — it must exit once the context is
+				// canceled. Only read rec.Code after done to avoid a data race.
+				select {
+				case <-done:
+				case <-time.After(2 * time.Second):
+					t.Fatal("handler goroutine did not return after context cancellation")
+				}
+
+				assert.NotEqual(t, http.StatusNotAcceptable, rec.Code,
+					"expected request to pass Accept validation but got 406")
+			}
+		})
+	}
+}
+
+// newTestAuthzConfig builds a minimal, permissive Cedar authz config. server.New now
+// requires Config.Authz to be set whenever Config.AuthzMiddleware is (the vestigial
+// middleware must not silently degrade to allow-all), so tests that exercise AuthzMiddleware
+// must supply it. The policy permits everything so the core admission seam never interferes
+// with what these tests actually assert.
+func newTestAuthzConfig(t *testing.T) *authorizers.Config {
+	t.Helper()
+	cfg, err := authorizers.NewConfig(cedar.Config{
+		Version: "1.0",
+		Type:    cedar.ConfigType,
+		Options: &cedar.ConfigOptions{Policies: []string{`permit(principal, action, resource);`}, EntitiesJSON: "[]"},
+	})
+	require.NoError(t, err)
+	return cfg
+}
+
+// TestNew_AuthzMiddlewareWithoutAuthz_ReturnsError guards the fail-fast that replaced the
+// former WARN: setting the vestigial Config.AuthzMiddleware without Config.Authz would
+// silently degrade to allow-all on the New/Serve path, so server.New must reject it.
+func TestNew_AuthzMiddlewareWithoutAuthz_ReturnsError(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+	mockRouter := routerMocks.NewMockRouter(ctrl)
+	mockBackendClient := mocks.NewMockBackendClient(ctrl)
+
+	_, err := server.New(t.Context(),
+		&server.Config{
+			SessionFactory:  newNoopMockFactory(t),
+			Aggregator:      newStubAggregator(nil),
+			AuthzMiddleware: func(h http.Handler) http.Handler { return h }, // set without Authz
+		},
+		mockRouter, mockBackendClient,
+		vmcp.NewImmutableRegistry([]vmcp.Backend{}), nil,
+	)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, vmcp.ErrInvalidConfig)
+	assert.Contains(t, err.Error(), "AuthzMiddleware")
+}
+
+// TestNew_AuthzWithOptimizer_ReturnsError guards the documented mutual exclusion: the core
+// admission seam has no representation for the optimizer's meta-tools, so combining Authz
+// with the optimizer would silently bypass Cedar. server.New must reject the combination.
+func TestNew_AuthzWithOptimizer_ReturnsError(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+	mockRouter := routerMocks.NewMockRouter(ctrl)
+	mockBackendClient := mocks.NewMockBackendClient(ctrl)
+
+	_, err := server.New(t.Context(),
+		&server.Config{
+			Name:            "test-vmcp",
+			SessionFactory:  newNoopMockFactory(t),
+			Aggregator:      newStubAggregator(nil),
+			Authz:           newTestAuthzConfig(t),
+			OptimizerConfig: &optimizer.Config{},
+		},
+		mockRouter, mockBackendClient,
+		vmcp.NewImmutableRegistry([]vmcp.Backend{}), nil,
+	)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, vmcp.ErrInvalidConfig)
+	assert.Contains(t, err.Error(), "OptimizerConfig")
+}
+
+// TestNew_AuthzWithoutName_ReturnsError guards the documented Config.Authz requirement:
+// Cedar resource entities are scoped to MCP::"<Name>", so an empty Name with Authz set would
+// silently key policies on MCP::"" and stop matching. server.New rejects it at the
+// construction root (core.New also enforces it, with a deeper message).
+func TestNew_AuthzWithoutName_ReturnsError(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+	mockRouter := routerMocks.NewMockRouter(ctrl)
+	mockBackendClient := mocks.NewMockBackendClient(ctrl)
+
+	_, err := server.New(t.Context(),
+		&server.Config{
+			// Name intentionally empty.
+			SessionFactory: newNoopMockFactory(t),
+			Aggregator:     newStubAggregator(nil),
+			Authz:          newTestAuthzConfig(t),
+		},
+		mockRouter, mockBackendClient,
+		vmcp.NewImmutableRegistry([]vmcp.Backend{}), nil,
+	)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, vmcp.ErrInvalidConfig)
+	assert.Contains(t, err.Error(), "Name")
+}
+
+// TestNewIgnoresVestigialAuthzMiddleware proves that server.New — now routed through
+// core.New + Serve — does NOT apply the HTTP authz or annotation-enrichment layers even
+// when Config.AuthzMiddleware is set (alongside the now-required Config.Authz, mirroring
+// cli/serve.go). deriveServerConfig/buildServeConfig drop AuthzMiddleware (it is vestigial
+// on the New/Serve path), so the shared (*Server).Handler skips both blocks and
+// authorization is enforced by the core admission seam (#5438) instead. The now-dead HTTP
+// blocks remain in the shared Handler until the #5445 follow-up removes them; this guards
+// that they never run via the public constructor. The Serve-path view of the same behavior
+// is TestServeOmitsAuthzAndAnnotation (serve_test.go).
+func TestNewIgnoresVestigialAuthzMiddleware(t *testing.T) {
+	t.Parallel()
+
+	// Distinctive status the observable authz layer would write if it ever ran.
+	const sentinelStatus = http.StatusTeapot
+
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+	mockRouter := routerMocks.NewMockRouter(ctrl)
+	mockBackendClient := mocks.NewMockBackendClient(ctrl)
+	mockBackendRegistry := mocks.NewMockBackendRegistry(ctrl)
+	mockBackendRegistry.EXPECT().List(gomock.Any()).Return(nil).AnyTimes()
+
+	// If this authz middleware is ever applied it records the fact and short-circuits
+	// with the sentinel status.
+	authzApplied := false
+	authz := func(_ http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			authzApplied = true
+			w.WriteHeader(sentinelStatus)
+		})
+	}
+
+	// AuthzMiddleware is set (alongside Authz, as cli/serve.go does), but server.New routes
+	// through Serve, which drops the HTTP AuthzMiddleware layer; authz is enforced by the
+	// core admission seam from Config.Authz instead.
+	cfg := &server.Config{
+		Name:            "test-vmcp", // required once Authz is set
+		Host:            "127.0.0.1",
+		Port:            0,
+		SessionFactory:  newNoopMockFactory(t),
+		Aggregator:      newStubAggregator(nil),
+		AuthzMiddleware: authz,
+		Authz:           newTestAuthzConfig(t),
+	}
+	srv, err := server.New(t.Context(), cfg, mockRouter, mockBackendClient, mockBackendRegistry, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = srv.Stop(context.Background()) })
+
+	handler, err := srv.Handler(t.Context())
+	require.NoError(t, err)
+
+	// A tools/call request with a pre-parsed MCP request in ctx (this chain has no
+	// auth-parser). If the HTTP authz layer were applied it would short-circuit with the
+	// sentinel before the inner SDK handler.
+	ctx := context.WithValue(t.Context(), mcpparser.MCPRequestContextKey,
+		&mcpparser.ParsedMCPRequest{Method: "tools/call", ResourceID: "my_tool"})
+	req := httptest.NewRequest(http.MethodPost, "/mcp", nil).WithContext(ctx)
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	assert.False(t, authzApplied,
+		"server.New routes through Serve, which drops AuthzMiddleware; the HTTP authz layer must not run")
+	assert.NotEqual(t, sentinelStatus, rec.Code,
+		"no HTTP authz layer should short-circuit on the New/Serve path (authz is in the core)")
+}

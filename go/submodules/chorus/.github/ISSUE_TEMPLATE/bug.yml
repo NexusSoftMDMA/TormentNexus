@@ -1,0 +1,79 @@
+name: Bug report
+description: Something is broken or behaves unexpectedly
+title: "bug: "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. Please run `chorus doctor` and paste its
+        output below — it covers the most common environment issues.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: Concrete reproduction. What did you do, what did you expect, what actually happened?
+      placeholder: |
+        Steps to reproduce:
+        1. chorus init
+        2. ...
+        Expected: ...
+        Actual: ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: doctor
+    attributes:
+      label: Output of `chorus doctor`
+      description: Full output, including the PATH visibility section.
+      render: shell
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Chorus version
+      description: Run `chorus --version`
+      placeholder: 0.7.0
+    validations:
+      required: true
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - macOS
+        - Linux
+        - Windows
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: node
+    attributes:
+      label: Node version
+      placeholder: v22.x
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / errors
+      description: Anything from `~/.chorus/` logs, daemon stderr, or the cockpit console.
+      render: shell
+
+  - type: checkboxes
+    id: prereqs
+    attributes:
+      label: Prerequisites
+      options:
+        - label: I searched existing issues for duplicates
+          required: true
+        - label: I'm running the latest published version (or main)
+          required: true

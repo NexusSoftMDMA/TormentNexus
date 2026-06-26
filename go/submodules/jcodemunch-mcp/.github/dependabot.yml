@@ -1,0 +1,15 @@
+version: 2
+# Security-only, batched. We do NOT run version updates (open-pull-requests-limit: 0
+# suppresses them); Dependabot still opens PRs for actual vulnerability alerts, and the
+# `groups` directive collapses those into a single combined PR instead of one-per-alert.
+updates:
+  - package-ecosystem: "uv"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 0
+    groups:
+      security-updates:
+        applies-to: security-updates
+        patterns:
+          - "*"

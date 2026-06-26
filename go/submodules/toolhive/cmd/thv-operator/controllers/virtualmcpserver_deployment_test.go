@@ -1,0 +1,1430 @@
+// Copyright 2025 Stacklok, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package controllers
+
+import (
+	"context"
+	"os"
+	"strings"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+
+	mcpv1beta1 "github.com/stacklok/toolhive/cmd/thv-operator/api/v1beta1"
+	"github.com/stacklok/toolhive/cmd/thv-operator/api/v1beta1/v1beta1test"
+	"github.com/stacklok/toolhive/cmd/thv-operator/internal/testutil"
+	ctrlutil "github.com/stacklok/toolhive/cmd/thv-operator/pkg/controllerutil"
+	"github.com/stacklok/toolhive/cmd/thv-operator/pkg/runconfig/configmap/checksum"
+	vmcpconfig "github.com/stacklok/toolhive/pkg/vmcp/config"
+	"github.com/stacklok/toolhive/pkg/vmcp/workloads"
+)
+
+// TestDeploymentForVirtualMCPServer tests Deployment creation
+func TestDeploymentForVirtualMCPServer(t *testing.T) {
+	t.Parallel()
+
+	vmcp := v1beta1test.NewVirtualMCPServer("test-vmcp", "default",
+		v1beta1test.WithVMCPGroupRef("test-group"),
+	)
+
+	scheme := testutil.NewScheme(t)
+
+	r := &VirtualMCPServerReconciler{
+		Scheme:           scheme,
+		PlatformDetector: ctrlutil.NewSharedPlatformDetector(),
+	}
+
+	deployment := r.deploymentForVirtualMCPServer(context.Background(), vmcp, "test-checksum", nil, []workloads.TypedWorkload{})
+
+	require.NotNil(t, deployment)
+	assert.Equal(t, vmcp.Name, deployment.Name)
+	assert.Equal(t, vmcp.Namespace, deployment.Namespace)
+	// spec.replicas is nil in this test — nil-passthrough for HPA compatibility
+	assert.Nil(t, deployment.Spec.Replicas)
+
+	// Verify labels
+	expectedLabels := labelsForVirtualMCPServer(vmcp.Name)
+	assert.Equal(t, expectedLabels, deployment.Labels)
+	assert.Equal(t, expectedLabels, deployment.Spec.Template.Labels)
+
+	// Verify terminationGracePeriodSeconds is always set
+	require.NotNil(t, deployment.Spec.Template.Spec.TerminationGracePeriodSeconds)
+	assert.Equal(t, vmcpTerminationGracePeriodSeconds, *deployment.Spec.Template.Spec.TerminationGracePeriodSeconds)
+
+	// Verify service account
+	assert.Equal(t, vmcpServiceAccountName(vmcp.Name), deployment.Spec.Template.Spec.ServiceAccountName)
+
+	// Verify checksum annotation using standard annotation key
+	assert.Equal(t, "test-checksum",
+		deployment.Spec.Template.Annotations[checksum.RunConfigChecksumAnnotation])
+
+	// Verify default resource requirements
+	require.Len(t, deployment.Spec.Template.Spec.Containers, 1)
+	container := deployment.Spec.Template.Spec.Containers[0]
+	assert.Equal(t, resource.MustParse("100m"), container.Resources.Requests[corev1.ResourceCPU])
+	assert.Equal(t, resource.MustParse("128Mi"), container.Resources.Requests[corev1.ResourceMemory])
+	assert.Equal(t, resource.MustParse("500m"), container.Resources.Limits[corev1.ResourceCPU])
+	assert.Equal(t, resource.MustParse("512Mi"), container.Resources.Limits[corev1.ResourceMemory])
+}
+
+// TestDeploymentForVirtualMCPServer_WithRedisPassword tests that the deployment pod
+// spec includes THV_SESSION_REDIS_PASSWORD when spec.sessionStorage has a passwordRef.
+func TestDeploymentForVirtualMCPServer_WithRedisPassword(t *testing.T) {
+	t.Parallel()
+
+	passwordRef := &mcpv1beta1.SecretKeyRef{Name: "redis-secret", Key: "password"}
+
+	vmcp := v1beta1test.NewVirtualMCPServer("test-vmcp-redis", "default",
+		v1beta1test.WithVMCPGroupRef("test-group"),
+		v1beta1test.WithVMCPSessionStorage(&mcpv1beta1.SessionStorageConfig{
+			Provider:    mcpv1beta1.SessionStorageProviderRedis,
+			Address:     "redis:6379",
+			PasswordRef: passwordRef,
+		}),
+	)
+
+	scheme := testutil.NewScheme(t)
+
+	r := &VirtualMCPServerReconciler{
+		Scheme:           scheme,
+		PlatformDetector: ctrlutil.NewSharedPlatformDetector(),
+	}
+
+	deployment := r.deploymentForVirtualMCPServer(context.Background(), vmcp, "test-checksum", nil, []workloads.TypedWorkload{})
+	require.NotNil(t, deployment)
+	require.Len(t, deployment.Spec.Template.Spec.Containers, 1)
+
+	container := deployment.Spec.Template.Spec.Containers[0]
+	var found bool
+	for _, e := range container.Env {
+		if e.Name == vmcpconfig.RedisPasswordEnvVar {
+			found = true
+			assert.Empty(t, e.Value, "password must not appear as plaintext")
+			require.NotNil(t, e.ValueFrom)
+			require.NotNil(t, e.ValueFrom.SecretKeyRef)
+			assert.Equal(t, passwordRef.Name, e.ValueFrom.SecretKeyRef.Name)
+			assert.Equal(t, passwordRef.Key, e.ValueFrom.SecretKeyRef.Key)
+		}
+	}
+	assert.True(t, found, "deployment should contain %s env var", vmcpconfig.RedisPasswordEnvVar)
+}
+
+// TestBuildContainerArgsForVmcp tests container argument generation
+func TestBuildContainerArgsForVmcp(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		vmcp     *mcpv1beta1.VirtualMCPServer
+		wantArgs []string
+	}{
+		{
+			name: "without log level",
+			vmcp: v1beta1test.NewVirtualMCPServer("test-vmcp", "default",
+				v1beta1test.WithVMCPGroupRef("test-group"),
+			),
+			wantArgs: []string{"serve", "--config=/etc/vmcp-config/config.yaml", "--host=0.0.0.0", "--port=4483"},
+		},
+		{
+			name: "with log level debug",
+			vmcp: v1beta1test.NewVirtualMCPServer("test-vmcp", "default",
+				v1beta1test.WithVMCPGroupRef("test-group"),
+				v1beta1test.WithVMCPConfig(vmcpconfig.Config{
+					Operational: &vmcpconfig.OperationalConfig{
+						LogLevel: "debug",
+					},
+				}),
+			),
+			wantArgs: []string{"serve", "--config=/etc/vmcp-config/config.yaml", "--host=0.0.0.0", "--port=4483", "--debug"},
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt // capture range variable
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			r := &VirtualMCPServerReconciler{}
+			args := r.buildContainerArgsForVmcp(tt.vmcp)
+
+			assert.Equal(t, tt.wantArgs, args)
+		})
+	}
+}
+
+// TestBuildVolumesForVmcp tests volume and volume mount generation
+func TestBuildVolumesForVmcp(t *testing.T) {
+	t.Parallel()
+
+	vmcp := v1beta1test.NewVirtualMCPServer("test-vmcp", "default",
+		v1beta1test.WithVMCPGroupRef("test-group"),
+	)
+
+	r := &VirtualMCPServerReconciler{}
+	volumeMounts, volumes, err := r.buildVolumesForVmcp(context.Background(), vmcp)
+	require.NoError(t, err)
+
+	// Verify vmcp config volume
+	require.Len(t, volumeMounts, 1)
+	assert.Equal(t, "vmcp-config", volumeMounts[0].Name)
+	assert.Equal(t, "/etc/vmcp-config", volumeMounts[0].MountPath)
+	assert.True(t, volumeMounts[0].ReadOnly)
+
+	require.Len(t, volumes, 1)
+	assert.Equal(t, "vmcp-config", volumes[0].Name)
+	assert.NotNil(t, volumes[0].ConfigMap)
+	assert.Equal(t, "test-vmcp-vmcp-config", volumes[0].ConfigMap.Name)
+}
+
+// TestBuildEnvVarsForVmcp tests environment variable generation
+func TestBuildEnvVarsForVmcp(t *testing.T) {
+	t.Parallel()
+
+	vmcp := v1beta1test.NewVirtualMCPServer("test-vmcp", "test-namespace",
+		v1beta1test.WithVMCPGroupRef("test-group"),
+	)
+
+	r := &VirtualMCPServerReconciler{}
+	env, err := r.buildEnvVarsForVmcp(context.Background(), vmcp, nil, []workloads.TypedWorkload{})
+	require.NoError(t, err)
+
+	// Should have VMCP_NAME and VMCP_NAMESPACE
+	foundName := false
+	foundNamespace := false
+
+	for _, e := range env {
+		if e.Name == "VMCP_NAME" {
+			foundName = true
+			assert.Equal(t, "test-vmcp", e.Value)
+		}
+		if e.Name == "VMCP_NAMESPACE" {
+			foundNamespace = true
+			assert.Equal(t, "test-namespace", e.Value)
+		}
+	}
+
+	assert.True(t, foundName, "Should have VMCP_NAME env var")
+	assert.True(t, foundNamespace, "Should have VMCP_NAMESPACE env var")
+}
+
+// TestBuildRedisPasswordEnvVar tests conditional Redis password env var injection.
+func TestBuildRedisPasswordEnvVar(t *testing.T) {
+	t.Parallel()
+
+	r := &VirtualMCPServerReconciler{}
+
+	passwordRef := &mcpv1beta1.SecretKeyRef{Name: "redis-secret", Key: "password"}
+
+	tests := []struct {
+		name        string
+		storage     *mcpv1beta1.SessionStorageConfig
+		expectEnVar bool
+	}{
+		{
+			name:        "nil sessionStorage produces no env var",
+			storage:     nil,
+			expectEnVar: false,
+		},
+		{
+			name:        "memory provider produces no env var",
+			storage:     &mcpv1beta1.SessionStorageConfig{Provider: "memory"},
+			expectEnVar: false,
+		},
+		{
+			name:        "redis without passwordRef produces no env var",
+			storage:     &mcpv1beta1.SessionStorageConfig{Provider: mcpv1beta1.SessionStorageProviderRedis, Address: "redis:6379"},
+			expectEnVar: false,
+		},
+		{
+			name:        "redis with passwordRef produces THV_SESSION_REDIS_PASSWORD",
+			storage:     &mcpv1beta1.SessionStorageConfig{Provider: mcpv1beta1.SessionStorageProviderRedis, Address: "redis:6379", PasswordRef: passwordRef},
+			expectEnVar: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			vmcp := v1beta1test.NewVirtualMCPServer("test-vmcp", "default",
+				v1beta1test.WithVMCPSessionStorage(tc.storage),
+			)
+			env := r.buildRedisPasswordEnvVar(vmcp)
+			if tc.expectEnVar {
+				require.Len(t, env, 1)
+				assert.Equal(t, vmcpconfig.RedisPasswordEnvVar, env[0].Name)
+				assert.Empty(t, env[0].Value, "must not use plaintext Value")
+				require.NotNil(t, env[0].ValueFrom)
+				require.NotNil(t, env[0].ValueFrom.SecretKeyRef)
+				assert.Equal(t, passwordRef.Name, env[0].ValueFrom.SecretKeyRef.Name)
+				assert.Equal(t, passwordRef.Key, env[0].ValueFrom.SecretKeyRef.Key)
+			} else {
+				assert.Empty(t, env)
+			}
+		})
+	}
+}
+
+func TestBuildRedisPasswordEnvVar_GlobalDefault(t *testing.T) {
+	t.Setenv("TOOLHIVE_DEFAULT_REDIS_ADDR", "global-redis:6379")
+	t.Setenv("TOOLHIVE_DEFAULT_REDIS_SECRET_NAME", "global-redis-secret")
+	t.Setenv("TOOLHIVE_DEFAULT_REDIS_SECRET_KEY", "redis-password")
+
+	vmcp := &mcpv1beta1.VirtualMCPServer{
+		Spec: mcpv1beta1.VirtualMCPServerSpec{},
+	}
+	r := &VirtualMCPServerReconciler{}
+	got := r.buildRedisPasswordEnvVar(vmcp)
+
+	require.Len(t, got, 1)
+	assert.Equal(t, vmcpconfig.RedisPasswordEnvVar, got[0].Name)
+	assert.Equal(t, "global-redis-secret", got[0].ValueFrom.SecretKeyRef.Name)
+	assert.Equal(t, "redis-password", got[0].ValueFrom.SecretKeyRef.Key)
+}
+
+func TestBuildRedisPasswordEnvVar_NonRedisProviderNotOverriddenByGlobal(t *testing.T) {
+	t.Setenv("TOOLHIVE_DEFAULT_REDIS_ADDR", "global-redis:6379")
+	t.Setenv("TOOLHIVE_DEFAULT_REDIS_SECRET_NAME", "global-secret")
+
+	vmcp := &mcpv1beta1.VirtualMCPServer{
+		Spec: mcpv1beta1.VirtualMCPServerSpec{
+			SessionStorage: &mcpv1beta1.SessionStorageConfig{
+				Provider: "memory",
+			},
+		},
+	}
+	r := &VirtualMCPServerReconciler{}
+	got := r.buildRedisPasswordEnvVar(vmcp)
+	assert.Empty(t, got, "non-Redis provider should not receive global Redis password env var")
+}
+
+func TestBuildRedisPasswordEnvVar_NilWhenNoGlobal(t *testing.T) {
+	t.Setenv("TOOLHIVE_DEFAULT_REDIS_ADDR", "")
+
+	vmcp := &mcpv1beta1.VirtualMCPServer{Spec: mcpv1beta1.VirtualMCPServerSpec{}}
+	r := &VirtualMCPServerReconciler{}
+	got := r.buildRedisPasswordEnvVar(vmcp)
+
+	assert.Empty(t, got)
+}
+
+// TestBuildDeploymentMetadataForVmcp tests deployment metadata generation
+func TestBuildDeploymentMetadataForVmcp(t *testing.T) {
+	t.Parallel()
+
+	baseLabels := labelsForVirtualMCPServer("test-vmcp")
+	vmcp := v1beta1test.NewVirtualMCPServer("test-vmcp", "default")
+
+	r := &VirtualMCPServerReconciler{}
+	labels, annotations := r.buildDeploymentMetadataForVmcp(baseLabels, vmcp)
+
+	assert.Equal(t, baseLabels, labels)
+	assert.NotNil(t, annotations)
+}
+
+// TestBuildPodTemplateMetadata tests pod template metadata generation
+func TestBuildPodTemplateMetadata(t *testing.T) {
+	t.Parallel()
+
+	baseLabels := labelsForVirtualMCPServer("test-vmcp")
+	vmcp := v1beta1test.NewVirtualMCPServer("test-vmcp", "default")
+	checksumValue := "test-checksum-123"
+
+	r := &VirtualMCPServerReconciler{}
+	labels, annotations := r.buildPodTemplateMetadata(baseLabels, vmcp, checksumValue)
+
+	assert.Equal(t, baseLabels, labels)
+	assert.Equal(t, checksumValue, annotations[checksum.RunConfigChecksumAnnotation])
+}
+
+// TestBuildSecurityContextsForVmcp tests security context generation
+func TestBuildSecurityContextsForVmcp(t *testing.T) {
+	t.Parallel()
+
+	vmcp := v1beta1test.NewVirtualMCPServer("test-vmcp", "default")
+
+	r := &VirtualMCPServerReconciler{
+		PlatformDetector: ctrlutil.NewSharedPlatformDetector(),
+	}
+
+	podSecCtx, containerSecCtx := r.buildSecurityContextsForVmcp(context.Background(), vmcp)
+
+	assert.NotNil(t, podSecCtx)
+	assert.NotNil(t, containerSecCtx)
+}
+
+// TestBuildContainerPortsForVmcp tests container port generation
+func TestBuildContainerPortsForVmcp(t *testing.T) {
+	t.Parallel()
+
+	vmcp := v1beta1test.NewVirtualMCPServer("test-vmcp", "default")
+
+	r := &VirtualMCPServerReconciler{}
+	ports := r.buildContainerPortsForVmcp(vmcp)
+
+	require.Len(t, ports, 1)
+	assert.Equal(t, vmcpDefaultPort, ports[0].ContainerPort)
+	assert.Equal(t, "http", ports[0].Name)
+	assert.Equal(t, corev1.ProtocolTCP, ports[0].Protocol)
+}
+
+// TestServiceForVirtualMCPServer tests Service creation
+func TestServiceForVirtualMCPServer(t *testing.T) {
+	t.Parallel()
+
+	vmcp := v1beta1test.NewVirtualMCPServer("test-vmcp", "default",
+		v1beta1test.WithVMCPGroupRef("test-group"),
+	)
+
+	scheme := testutil.NewScheme(t)
+
+	r := &VirtualMCPServerReconciler{
+		Scheme: scheme,
+	}
+
+	service := r.serviceForVirtualMCPServer(context.Background(), vmcp)
+
+	require.NotNil(t, service)
+	assert.Equal(t, vmcpServiceName(vmcp.Name), service.Name)
+	assert.Equal(t, vmcp.Namespace, service.Namespace)
+	assert.Equal(t, corev1.ServiceTypeClusterIP, service.Spec.Type)
+	assert.Equal(t, corev1.ServiceAffinityClientIP, service.Spec.SessionAffinity)
+
+	// Verify labels
+	expectedLabels := labelsForVirtualMCPServer(vmcp.Name)
+	assert.Equal(t, expectedLabels, service.Spec.Selector)
+
+	// Verify ports
+	require.Len(t, service.Spec.Ports, 1)
+	assert.Equal(t, vmcpDefaultPort, service.Spec.Ports[0].Port)
+	assert.Equal(t, "http", service.Spec.Ports[0].Name)
+}
+
+// TestServiceForVirtualMCPServerSessionAffinityNone tests session affinity None
+func TestServiceForVirtualMCPServerSessionAffinityNone(t *testing.T) {
+	t.Parallel()
+
+	vmcp := v1beta1test.NewVirtualMCPServer("test-vmcp", "default",
+		v1beta1test.WithVMCPGroupRef("test-group"),
+		v1beta1test.MutateVMCP(func(v *mcpv1beta1.VirtualMCPServer) {
+			v.Spec.SessionAffinity = string(corev1.ServiceAffinityNone)
+		}),
+	)
+
+	scheme := testutil.NewScheme(t)
+
+	r := &VirtualMCPServerReconciler{
+		Scheme: scheme,
+	}
+
+	service := r.serviceForVirtualMCPServer(context.Background(), vmcp)
+
+	require.NotNil(t, service)
+	assert.Equal(t, corev1.ServiceAffinityNone, service.Spec.SessionAffinity)
+}
+
+// TestBuildServiceMetadataForVmcp tests service metadata generation
+func TestBuildServiceMetadataForVmcp(t *testing.T) {
+	t.Parallel()
+
+	baseLabels := labelsForVirtualMCPServer("test-vmcp")
+	vmcp := v1beta1test.NewVirtualMCPServer("test-vmcp", "default")
+
+	r := &VirtualMCPServerReconciler{}
+	labels, annotations := r.buildServiceMetadataForVmcp(baseLabels, vmcp)
+
+	assert.Equal(t, baseLabels, labels)
+	assert.NotNil(t, annotations)
+}
+
+// TestGetVmcpImage tests vmcp image retrieval
+//
+//nolint:paralleltest,tparallel // Cannot run in parallel due to environment variable manipulation
+func TestGetVmcpImage(t *testing.T) {
+	// Note: Not using t.Parallel() because subtests manipulate environment variables
+	tests := []struct {
+		name          string
+		envValue      string
+		expectedImage string
+	}{
+		{
+			name:          "default image",
+			envValue:      "",
+			expectedImage: "ghcr.io/stacklok/toolhive/vmcp:latest",
+		},
+		{
+			name:          "custom image from env",
+			envValue:      "custom-registry/vmcp:v1.0.0",
+			expectedImage: "custom-registry/vmcp:v1.0.0",
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			// Cannot run subtests in parallel due to environment variable manipulation
+
+			if tt.envValue != "" {
+				err := os.Setenv("VMCP_IMAGE", tt.envValue)
+				require.NoError(t, err)
+				defer os.Unsetenv("VMCP_IMAGE")
+			}
+
+			image := getVmcpImage()
+			assert.Equal(t, tt.expectedImage, image)
+		})
+	}
+}
+
+// TestDeploymentNeedsUpdate tests deployment update detection
+func TestDeploymentNeedsUpdate(t *testing.T) {
+	t.Parallel()
+
+	// This is a basic test - full testing would require more setup
+	r := &VirtualMCPServerReconciler{
+		PlatformDetector: ctrlutil.NewSharedPlatformDetector(),
+	}
+
+	// Test nil inputs
+	assert.True(t, r.deploymentNeedsUpdate(context.Background(), nil, nil, "", nil, []workloads.TypedWorkload{}))
+
+	vmcp := v1beta1test.NewVirtualMCPServer("test-vmcp", "default")
+
+	// Test with nil deployment
+	assert.True(t, r.deploymentNeedsUpdate(context.Background(), nil, vmcp, "checksum", nil, []workloads.TypedWorkload{}))
+}
+
+// TestServiceNeedsUpdate tests service update detection
+func TestServiceNeedsUpdate(t *testing.T) {
+	t.Parallel()
+
+	r := &VirtualMCPServerReconciler{}
+
+	// Test nil inputs
+	assert.True(t, r.serviceNeedsUpdate(nil, nil))
+
+	vmcp := v1beta1test.NewVirtualMCPServer("test-vmcp", "default")
+
+	// Test with nil service
+	assert.True(t, r.serviceNeedsUpdate(nil, vmcp))
+
+	// Test with service missing port
+	service := &corev1.Service{
+		Spec: corev1.ServiceSpec{
+			Ports: []corev1.ServicePort{},
+		},
+	}
+	assert.True(t, r.serviceNeedsUpdate(service, vmcp))
+}
+
+// TestCABundleMountPath tests the CA bundle mount path generation helper
+func TestCABundleMountPath(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		entryName    string
+		caBundleRef  *mcpv1beta1.CABundleSource
+		expectedPath string
+	}{
+		{
+			name:      "default key (no key specified)",
+			entryName: "my-entry",
+			caBundleRef: &mcpv1beta1.CABundleSource{
+				ConfigMapRef: &corev1.ConfigMapKeySelector{
+					LocalObjectReference: corev1.LocalObjectReference{Name: "ca-configmap"},
+				},
+			},
+			expectedPath: "/etc/toolhive/ca-bundles/my-entry/ca.crt",
+		},
+		{
+			name:      "custom key specified",
+			entryName: "my-entry",
+			caBundleRef: &mcpv1beta1.CABundleSource{
+				ConfigMapRef: &corev1.ConfigMapKeySelector{
+					LocalObjectReference: corev1.LocalObjectReference{Name: "ca-configmap"},
+					Key:                  "custom-ca.pem",
+				},
+			},
+			expectedPath: "/etc/toolhive/ca-bundles/my-entry/custom-ca.pem",
+		},
+		{
+			name:      "nil configMapRef uses default key",
+			entryName: "another-entry",
+			caBundleRef: &mcpv1beta1.CABundleSource{
+				ConfigMapRef: nil,
+			},
+			expectedPath: "/etc/toolhive/ca-bundles/another-entry/ca.crt",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			result := caBundleMountPath(tt.entryName, tt.caBundleRef)
+			assert.Equal(t, tt.expectedPath, result)
+		})
+	}
+}
+
+// TestCABundleVolumeName tests the CA bundle volume name generation helper
+func TestCABundleVolumeName(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		entryName    string
+		expectedName string
+		validate     func(t *testing.T, result string)
+	}{
+		{
+			name:         "simple entry name",
+			entryName:    "my-entry",
+			expectedName: "ca-bundle-my-entry",
+		},
+		{
+			name:         "entry with dashes",
+			entryName:    "some-long-entry-name",
+			expectedName: "ca-bundle-some-long-entry-name",
+		},
+		{
+			name:      "long name is truncated with hash suffix and fits 63 chars",
+			entryName: "this-is-a-very-long-entry-name-that-exceeds-the-sixty-three-character-limit",
+			validate: func(t *testing.T, result string) {
+				t.Helper()
+				assert.LessOrEqual(t, len(result), 63)
+				assert.True(t, strings.HasPrefix(result, "ca-bundle-"))
+				assert.False(t, strings.HasSuffix(result, "-"), "volume name should not end with hyphen")
+			},
+		},
+		{
+			name:      "two long names with same prefix produce different volume names",
+			entryName: "shared-prefix-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-suffix-one",
+			validate: func(t *testing.T, result string) {
+				t.Helper()
+				other := caBundleVolumeName("shared-prefix-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-suffix-two")
+				assert.NotEqual(t, result, other, "different entry names must produce different volume names")
+				assert.LessOrEqual(t, len(result), 63)
+				assert.LessOrEqual(t, len(other), 63)
+			},
+		},
+		{
+			name:      "truncation does not leave trailing hyphen",
+			entryName: "entry-name-with-hyphens-placed-so-truncation-lands-on----------end",
+			validate: func(t *testing.T, result string) {
+				t.Helper()
+				assert.LessOrEqual(t, len(result), 63)
+				assert.False(t, strings.HasSuffix(result, "-"), "volume name should not end with hyphen")
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			result := caBundleVolumeName(tt.entryName)
+			if tt.expectedName != "" {
+				assert.Equal(t, tt.expectedName, result)
+			}
+			if tt.validate != nil {
+				tt.validate(t, result)
+			}
+		})
+	}
+}
+
+// TestBuildCABundleVolumesForEntries tests volume and mount generation for MCPServerEntry CA bundles
+func TestBuildCABundleVolumesForEntries(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name            string
+		entries         []mcpv1beta1.MCPServerEntry
+		workloads       []workloads.TypedWorkload
+		expectedVolumes int
+		expectedMounts  int
+		validateVolumes func(t *testing.T, volumes []corev1.Volume, mounts []corev1.VolumeMount)
+	}{
+		{
+			name:    "no MCPServerEntry workloads yields no volumes",
+			entries: nil,
+			workloads: []workloads.TypedWorkload{
+				{Name: "server1", Type: workloads.WorkloadTypeMCPServer},
+			},
+			expectedVolumes: 0,
+			expectedMounts:  0,
+		},
+		{
+			name: "entry without caBundleRef yields no volumes",
+			entries: []mcpv1beta1.MCPServerEntry{
+				{
+					ObjectMeta: metav1.ObjectMeta{Name: "entry-no-ca", Namespace: "default"},
+					Spec: mcpv1beta1.MCPServerEntrySpec{
+						RemoteURL: "https://mcp.example.com",
+						Transport: "streamable-http",
+						GroupRef:  &mcpv1beta1.MCPGroupRef{Name: "test-group"},
+					},
+				},
+			},
+			workloads: []workloads.TypedWorkload{
+				{Name: "entry-no-ca", Type: workloads.WorkloadTypeMCPServerEntry},
+			},
+			expectedVolumes: 0,
+			expectedMounts:  0,
+		},
+		{
+			name: "entry with caBundleRef produces volume and mount",
+			entries: []mcpv1beta1.MCPServerEntry{
+				{
+					ObjectMeta: metav1.ObjectMeta{Name: "entry-with-ca", Namespace: "default"},
+					Spec: mcpv1beta1.MCPServerEntrySpec{
+						RemoteURL: "https://mcp.example.com",
+						Transport: "streamable-http",
+						GroupRef:  &mcpv1beta1.MCPGroupRef{Name: "test-group"},
+						CABundleRef: &mcpv1beta1.CABundleSource{
+							ConfigMapRef: &corev1.ConfigMapKeySelector{
+								LocalObjectReference: corev1.LocalObjectReference{Name: "my-ca-configmap"},
+								Key:                  "ca.crt",
+							},
+						},
+					},
+				},
+			},
+			workloads: []workloads.TypedWorkload{
+				{Name: "entry-with-ca", Type: workloads.WorkloadTypeMCPServerEntry},
+			},
+			expectedVolumes: 1,
+			expectedMounts:  1,
+			validateVolumes: func(t *testing.T, volumes []corev1.Volume, mounts []corev1.VolumeMount) {
+				t.Helper()
+				assert.Equal(t, "ca-bundle-entry-with-ca", volumes[0].Name)
+				require.NotNil(t, volumes[0].ConfigMap)
+				assert.Equal(t, "my-ca-configmap", volumes[0].ConfigMap.Name)
+				require.Len(t, volumes[0].ConfigMap.Items, 1)
+				assert.Equal(t, "ca.crt", volumes[0].ConfigMap.Items[0].Key)
+
+				assert.Equal(t, "ca-bundle-entry-with-ca", mounts[0].Name)
+				assert.Equal(t, "/etc/toolhive/ca-bundles/entry-with-ca", mounts[0].MountPath)
+				assert.True(t, mounts[0].ReadOnly)
+			},
+		},
+		{
+			name: "entry with custom key in caBundleRef",
+			entries: []mcpv1beta1.MCPServerEntry{
+				{
+					ObjectMeta: metav1.ObjectMeta{Name: "custom-key-entry", Namespace: "default"},
+					Spec: mcpv1beta1.MCPServerEntrySpec{
+						RemoteURL: "https://mcp.example.com",
+						Transport: "streamable-http",
+						GroupRef:  &mcpv1beta1.MCPGroupRef{Name: "test-group"},
+						CABundleRef: &mcpv1beta1.CABundleSource{
+							ConfigMapRef: &corev1.ConfigMapKeySelector{
+								LocalObjectReference: corev1.LocalObjectReference{Name: "custom-ca"},
+								Key:                  "custom-cert.pem",
+							},
+						},
+					},
+				},
+			},
+			workloads: []workloads.TypedWorkload{
+				{Name: "custom-key-entry", Type: workloads.WorkloadTypeMCPServerEntry},
+			},
+			expectedVolumes: 1,
+			expectedMounts:  1,
+			validateVolumes: func(t *testing.T, volumes []corev1.Volume, _ []corev1.VolumeMount) {
+				t.Helper()
+				require.Len(t, volumes[0].ConfigMap.Items, 1)
+				assert.Equal(t, "custom-cert.pem", volumes[0].ConfigMap.Items[0].Key)
+				assert.Equal(t, "custom-cert.pem", volumes[0].ConfigMap.Items[0].Path)
+			},
+		},
+		{
+			name: "mixed workload types only produces volumes for entries with CA bundles",
+			entries: []mcpv1beta1.MCPServerEntry{
+				{
+					ObjectMeta: metav1.ObjectMeta{Name: "entry-with-ca", Namespace: "default"},
+					Spec: mcpv1beta1.MCPServerEntrySpec{
+						RemoteURL: "https://mcp.example.com",
+						Transport: "streamable-http",
+						GroupRef:  &mcpv1beta1.MCPGroupRef{Name: "test-group"},
+						CABundleRef: &mcpv1beta1.CABundleSource{
+							ConfigMapRef: &corev1.ConfigMapKeySelector{
+								LocalObjectReference: corev1.LocalObjectReference{Name: "ca-cm"},
+							},
+						},
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{Name: "entry-without-ca", Namespace: "default"},
+					Spec: mcpv1beta1.MCPServerEntrySpec{
+						RemoteURL: "https://mcp2.example.com",
+						Transport: "streamable-http",
+						GroupRef:  &mcpv1beta1.MCPGroupRef{Name: "test-group"},
+					},
+				},
+			},
+			workloads: []workloads.TypedWorkload{
+				{Name: "server1", Type: workloads.WorkloadTypeMCPServer},
+				{Name: "entry-with-ca", Type: workloads.WorkloadTypeMCPServerEntry},
+				{Name: "entry-without-ca", Type: workloads.WorkloadTypeMCPServerEntry},
+			},
+			expectedVolumes: 1,
+			expectedMounts:  1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			scheme := testutil.NewScheme(t)
+
+			objs := make([]client.Object, 0, len(tt.entries))
+			for i := range tt.entries {
+				objs = append(objs, &tt.entries[i])
+			}
+
+			fakeClient := fake.NewClientBuilder().
+				WithScheme(scheme).
+				WithObjects(objs...).
+				Build()
+
+			r := &VirtualMCPServerReconciler{
+				Client: fakeClient,
+				Scheme: scheme,
+			}
+
+			volumes, mounts, err := r.buildCABundleVolumesForEntries(t.Context(), "default", tt.workloads)
+			require.NoError(t, err)
+
+			assert.Len(t, volumes, tt.expectedVolumes)
+			assert.Len(t, mounts, tt.expectedMounts)
+
+			if tt.validateVolumes != nil {
+				tt.validateVolumes(t, volumes, mounts)
+			}
+		})
+	}
+}
+
+// TestDeploymentForVirtualMCPServer_ImagePullSecrets verifies that
+// spec.imagePullSecrets propagates to the Deployment's PodSpec.ImagePullSecrets,
+// and that user-provided spec.podTemplateSpec.spec.imagePullSecrets are merged
+// on top via strategic merge patch.
+func TestDeploymentForVirtualMCPServer_ImagePullSecrets(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		spec     mcpv1beta1.VirtualMCPServerSpec
+		expected []corev1.LocalObjectReference
+	}{
+		{
+			name: "explicit field propagates to deployment",
+			spec: mcpv1beta1.VirtualMCPServerSpec{
+				GroupRef: &mcpv1beta1.MCPGroupRef{Name: "test-group"},
+				ImagePullSecrets: []corev1.LocalObjectReference{
+					{Name: "vmcp-creds"},
+				},
+			},
+			expected: []corev1.LocalObjectReference{{Name: "vmcp-creds"}},
+		},
+		{
+			name: "no field, no podtemplatespec yields empty",
+			spec: mcpv1beta1.VirtualMCPServerSpec{
+				GroupRef: &mcpv1beta1.MCPGroupRef{Name: "test-group"},
+			},
+			expected: nil,
+		},
+		{
+			name: "podtemplatespec entry wins on overlap by name (strategic merge)",
+			spec: mcpv1beta1.VirtualMCPServerSpec{
+				GroupRef: &mcpv1beta1.MCPGroupRef{Name: "test-group"},
+				ImagePullSecrets: []corev1.LocalObjectReference{
+					{Name: "shared-creds"},
+					{Name: "explicit-only"},
+				},
+				PodTemplateSpec: &runtime.RawExtension{
+					Raw: []byte(`{"spec":{"imagePullSecrets":[{"name":"shared-creds"},{"name":"podtemplate-only"}]}}`),
+				},
+			},
+			// Strategic merge with patchMergeKey=name: same names dedup (PodTemplateSpec wins),
+			// distinct names are unioned.
+			expected: []corev1.LocalObjectReference{
+				{Name: "shared-creds"},
+				{Name: "explicit-only"},
+				{Name: "podtemplate-only"},
+			},
+		},
+		{
+			name: "podtemplatespec without imagePullSecrets preserves explicit field",
+			spec: mcpv1beta1.VirtualMCPServerSpec{
+				GroupRef: &mcpv1beta1.MCPGroupRef{Name: "test-group"},
+				ImagePullSecrets: []corev1.LocalObjectReference{
+					{Name: "explicit-creds"},
+				},
+				PodTemplateSpec: &runtime.RawExtension{
+					Raw: []byte(`{"spec":{"nodeSelector":{"disktype":"ssd"}}}`),
+				},
+			},
+			expected: []corev1.LocalObjectReference{{Name: "explicit-creds"}},
+		},
+		{
+			name: "podtemplatespec only (legacy behavior preserved)",
+			spec: mcpv1beta1.VirtualMCPServerSpec{
+				GroupRef: &mcpv1beta1.MCPGroupRef{Name: "test-group"},
+				PodTemplateSpec: &runtime.RawExtension{
+					Raw: []byte(`{"spec":{"imagePullSecrets":[{"name":"legacy-creds"}]}}`),
+				},
+			},
+			expected: []corev1.LocalObjectReference{{Name: "legacy-creds"}},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			scheme := testutil.NewScheme(t)
+
+			vmcp := v1beta1test.NewVirtualMCPServer("test-vmcp", "default",
+				v1beta1test.MutateVMCP(func(v *mcpv1beta1.VirtualMCPServer) {
+					v.Spec = tt.spec
+				}),
+			)
+
+			r := &VirtualMCPServerReconciler{
+				Scheme:           scheme,
+				PlatformDetector: ctrlutil.NewSharedPlatformDetector(),
+			}
+
+			deployment := r.deploymentForVirtualMCPServer(t.Context(), vmcp, "test-checksum", nil, []workloads.TypedWorkload{})
+			require.NotNil(t, deployment)
+
+			assert.ElementsMatch(t, tt.expected, deployment.Spec.Template.Spec.ImagePullSecrets)
+		})
+	}
+}
+
+// TestDeploymentForVirtualMCPServer_ImagePullSecrets_UpdatePath verifies that edits
+// to spec.imagePullSecrets on an existing CR are detected by deploymentNeedsUpdate
+// and propagated through to the live Deployment. Regression test for the gap where
+// the drift-detection chain compared individual container fields but never the
+// PodSpec.ImagePullSecrets list, leaving the running pod with stale credentials.
+func TestDeploymentForVirtualMCPServer_ImagePullSecrets_UpdatePath(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name                   string
+		initial                []corev1.LocalObjectReference
+		updated                []corev1.LocalObjectReference
+		podTemplateRaw         []byte
+		expectedDeployedSecret []corev1.LocalObjectReference
+	}{
+		{
+			name:                   "pure add",
+			initial:                nil,
+			updated:                []corev1.LocalObjectReference{{Name: "secret-a"}},
+			expectedDeployedSecret: []corev1.LocalObjectReference{{Name: "secret-a"}},
+		},
+		{
+			name:                   "pure remove",
+			initial:                []corev1.LocalObjectReference{{Name: "secret-a"}},
+			updated:                nil,
+			expectedDeployedSecret: nil,
+		},
+		{
+			name:                   "replace",
+			initial:                []corev1.LocalObjectReference{{Name: "secret-a"}},
+			updated:                []corev1.LocalObjectReference{{Name: "secret-b"}},
+			expectedDeployedSecret: []corev1.LocalObjectReference{{Name: "secret-b"}},
+		},
+		{
+			name:                   "extend",
+			initial:                []corev1.LocalObjectReference{{Name: "secret-a"}},
+			updated:                []corev1.LocalObjectReference{{Name: "secret-a"}, {Name: "secret-b"}},
+			expectedDeployedSecret: []corev1.LocalObjectReference{{Name: "secret-a"}, {Name: "secret-b"}},
+		},
+		{
+			name:           "replace combined with podtemplatespec union",
+			initial:        []corev1.LocalObjectReference{{Name: "explicit-a"}},
+			updated:        []corev1.LocalObjectReference{{Name: "explicit-b"}},
+			podTemplateRaw: []byte(`{"spec":{"imagePullSecrets":[{"name":"podtemplate-c"}]}}`),
+			// Strategic merge unions distinct names; explicit-b is the new explicit field
+			// and podtemplate-c comes from PodTemplateSpec.
+			expectedDeployedSecret: []corev1.LocalObjectReference{{Name: "explicit-b"}, {Name: "podtemplate-c"}},
+		},
+		{
+			name:    "reorder is a no-op (no spurious update)",
+			initial: []corev1.LocalObjectReference{{Name: "secret-a"}, {Name: "secret-b"}},
+			updated: []corev1.LocalObjectReference{{Name: "secret-b"}, {Name: "secret-a"}},
+			// Same set of names, just reordered. The hash normalizes order so the
+			// drift check should NOT trigger an update.
+			expectedDeployedSecret: nil, // sentinel: see assertion below
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			scheme := testutil.NewScheme(t)
+
+			r := &VirtualMCPServerReconciler{
+				Scheme:           scheme,
+				PlatformDetector: ctrlutil.NewSharedPlatformDetector(),
+			}
+
+			vmcp := v1beta1test.NewVirtualMCPServer("test-vmcp", "default",
+				v1beta1test.WithVMCPGroupRef("test-group"),
+				v1beta1test.MutateVMCP(func(v *mcpv1beta1.VirtualMCPServer) {
+					v.Spec.ImagePullSecrets = tt.initial
+				}),
+			)
+			if tt.podTemplateRaw != nil {
+				vmcp.Spec.PodTemplateSpec = &runtime.RawExtension{Raw: tt.podTemplateRaw}
+			}
+
+			// Step 1: build the initial Deployment, simulating the create path.
+			initialDep := r.deploymentForVirtualMCPServer(t.Context(), vmcp, "test-checksum", nil, []workloads.TypedWorkload{})
+			require.NotNil(t, initialDep)
+
+			// Step 2: mutate the spec, then assert drift detection.
+			vmcp.Spec.ImagePullSecrets = tt.updated
+
+			needsUpdate := r.imagePullSecretsNeedsUpdate(t.Context(), initialDep, vmcp)
+			if tt.name == "reorder is a no-op (no spurious update)" {
+				assert.False(t, needsUpdate, "reordering same names must not trigger drift")
+				return
+			}
+			assert.True(t, needsUpdate, "imagePullSecrets edit must be detected as drift")
+
+			// Also assert the parent deploymentNeedsUpdate flags the change. Stub
+			// out env/checksum so the rest of the chain doesn't trigger drift on
+			// other axes for unrelated reasons.
+			parentNeedsUpdate := r.deploymentNeedsUpdate(
+				t.Context(), initialDep, vmcp, "test-checksum", nil, []workloads.TypedWorkload{},
+			)
+			assert.True(t, parentNeedsUpdate, "deploymentNeedsUpdate must propagate imagePullSecrets drift")
+
+			// Step 3: rebuild the Deployment with the updated spec and assert the
+			// live PodSpec.ImagePullSecrets reflects the new value.
+			updatedDep := r.deploymentForVirtualMCPServer(t.Context(), vmcp, "test-checksum", nil, []workloads.TypedWorkload{})
+			require.NotNil(t, updatedDep)
+			assert.ElementsMatch(t, tt.expectedDeployedSecret, updatedDep.Spec.Template.Spec.ImagePullSecrets)
+
+			// Step 4: a second drift check against the freshly-built Deployment must
+			// return false — once the new annotation is on the Deployment, we are
+			// in steady state and must not loop.
+			settled := r.imagePullSecretsNeedsUpdate(t.Context(), updatedDep, vmcp)
+			assert.False(t, settled, "drift check must settle once Deployment is rebuilt")
+		})
+	}
+}
+
+// TestDeploymentForVirtualMCPServer_AuthServerConfig_NoUpdateLoop is a regression
+// test for #5616: a VirtualMCPServer with an embedded auth server (AuthServerConfig)
+// hot-looped Deployment updates forever. deploymentForVirtualMCPServer injected the
+// auth-server client-secret env var into the container, but buildEnvVarsForVmcp (used
+// by containerNeedsUpdate to compute the expected env) did not, so the reflect.DeepEqual
+// drift check never matched and the operator issued a no-op Update on every reconcile.
+//
+// The test builds a Deployment for a vMCP with AuthServerConfig set, then asserts that
+// a drift check against that freshly-built Deployment reports no update needed. Before
+// the fix this fails (deploymentNeedsUpdate returns true); after it, the env is symmetric
+// and the check settles.
+func TestDeploymentForVirtualMCPServer_AuthServerConfig_NoUpdateLoop(t *testing.T) {
+	t.Parallel()
+
+	scheme := testutil.NewScheme(t)
+
+	r := &VirtualMCPServerReconciler{
+		Scheme:           scheme,
+		PlatformDetector: ctrlutil.NewSharedPlatformDetector(),
+	}
+
+	// An OIDC upstream provider with a ClientSecretRef makes GenerateAuthServerEnvVars
+	// emit TOOLHIVE_UPSTREAM_CLIENT_SECRET_OKTA — the env var that was present on the
+	// built container but absent from the expected set.
+	vmcp := v1beta1test.NewVirtualMCPServer("test-vmcp", "default",
+		v1beta1test.WithVMCPGroupRef("test-group"),
+		v1beta1test.WithVMCPAuthServerConfig(&mcpv1beta1.EmbeddedAuthServerConfig{
+			UpstreamProviders: []mcpv1beta1.UpstreamProviderConfig{
+				{
+					Name: "okta",
+					Type: mcpv1beta1.UpstreamProviderTypeOIDC,
+					OIDCConfig: &mcpv1beta1.OIDCUpstreamConfig{
+						IssuerURL:       "https://example.okta.com",
+						ClientID:        "test-client",
+						ClientSecretRef: &mcpv1beta1.SecretKeyRef{Name: "okta-secret", Key: "client-secret"},
+					},
+				},
+			},
+		}),
+	)
+
+	const cfgChecksum = "test-checksum"
+	dep := r.deploymentForVirtualMCPServer(t.Context(), vmcp, cfgChecksum, nil, []workloads.TypedWorkload{})
+	require.NotNil(t, dep)
+
+	// Sanity: the auth-server client-secret env var must actually be on the built
+	// container, otherwise this test isn't exercising the asymmetry it guards against.
+	require.NotEmpty(t, dep.Spec.Template.Spec.Containers)
+	var hasAuthEnv bool
+	for _, e := range dep.Spec.Template.Spec.Containers[0].Env {
+		if e.Name == "TOOLHIVE_UPSTREAM_CLIENT_SECRET_OKTA" {
+			hasAuthEnv = true
+			break
+		}
+	}
+	require.True(t, hasAuthEnv, "built container must carry the auth-server client-secret env var")
+
+	// The freshly-built Deployment is steady state: a drift check against it must
+	// not request an update. Before the fix this returned true on every reconcile.
+	needsUpdate := r.deploymentNeedsUpdate(t.Context(), dep, vmcp, cfgChecksum, nil, []workloads.TypedWorkload{})
+	assert.False(t, needsUpdate,
+		"deploymentNeedsUpdate must not loop on a vMCP with AuthServerConfig (regression #5616)")
+}
+
+// TestImagePullSecretsHash verifies the hash helper normalizes order, treats an
+// empty list as the sentinel "" hash, and produces stable hashes across calls.
+func TestImagePullSecretsHash(t *testing.T) {
+	t.Parallel()
+
+	t.Run("empty list returns empty hash", func(t *testing.T) {
+		t.Parallel()
+		hash, err := imagePullSecretsHash(nil)
+		require.NoError(t, err)
+		assert.Empty(t, hash)
+	})
+
+	t.Run("order-insensitive", func(t *testing.T) {
+		t.Parallel()
+		a, err := imagePullSecretsHash([]corev1.LocalObjectReference{{Name: "x"}, {Name: "y"}})
+		require.NoError(t, err)
+		b, err := imagePullSecretsHash([]corev1.LocalObjectReference{{Name: "y"}, {Name: "x"}})
+		require.NoError(t, err)
+		assert.Equal(t, a, b, "reordering must not change the hash")
+	})
+
+	t.Run("different sets produce different hashes", func(t *testing.T) {
+		t.Parallel()
+		a, err := imagePullSecretsHash([]corev1.LocalObjectReference{{Name: "x"}})
+		require.NoError(t, err)
+		b, err := imagePullSecretsHash([]corev1.LocalObjectReference{{Name: "y"}})
+		require.NoError(t, err)
+		assert.NotEqual(t, a, b)
+	})
+}
+
+// TestBuildHeaderForwardEnvVarsForEntries verifies the operator emits one env
+// var per (entry, header) declared on an MCPServerEntry.spec.headerForward,
+// using literal values for plaintext and valueFrom.secretKeyRef for
+// secret-backed headers. The map iteration is sorted for determinism so that
+// two reconciles with the same input produce byte-identical Deployment specs.
+func TestBuildHeaderForwardEnvVarsForEntries(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		entries   []mcpv1beta1.MCPServerEntry
+		workloads []workloads.TypedWorkload
+		validate  func(t *testing.T, env []corev1.EnvVar)
+	}{
+		{
+			name:    "no MCPServerEntry workloads yields no env vars",
+			entries: nil,
+			workloads: []workloads.TypedWorkload{
+				{Name: "server1", Type: workloads.WorkloadTypeMCPServer},
+			},
+			validate: func(t *testing.T, env []corev1.EnvVar) {
+				t.Helper()
+				assert.Empty(t, env)
+			},
+		},
+		{
+			name: "entry without headerForward yields no env vars",
+			entries: []mcpv1beta1.MCPServerEntry{
+				{
+					ObjectMeta: metav1.ObjectMeta{Name: "entry-noop", Namespace: "default"},
+					Spec: mcpv1beta1.MCPServerEntrySpec{
+						RemoteURL: "https://mcp.example.com",
+						Transport: "streamable-http",
+						GroupRef:  &mcpv1beta1.MCPGroupRef{Name: "test-group"},
+					},
+				},
+			},
+			workloads: []workloads.TypedWorkload{
+				{Name: "entry-noop", Type: workloads.WorkloadTypeMCPServerEntry},
+			},
+			validate: func(t *testing.T, env []corev1.EnvVar) {
+				t.Helper()
+				assert.Empty(t, env)
+			},
+		},
+		{
+			name: "entry with plaintext headers emits one JSON manifest env var preserving original casing",
+			entries: []mcpv1beta1.MCPServerEntry{
+				{
+					ObjectMeta: metav1.ObjectMeta{Name: "github-copilot", Namespace: "default"},
+					Spec: mcpv1beta1.MCPServerEntrySpec{
+						RemoteURL: "https://api.githubcopilot.com/mcp/",
+						Transport: "streamable-http",
+						GroupRef:  &mcpv1beta1.MCPGroupRef{Name: "test-group"},
+						HeaderForward: &mcpv1beta1.HeaderForwardConfig{
+							AddPlaintextHeaders: map[string]string{
+								"X-MCP-Toolsets": "projects,issues,pull_requests",
+								"X-Trace-Id":     "abc123",
+							},
+						},
+					},
+				},
+			},
+			workloads: []workloads.TypedWorkload{
+				{Name: "github-copilot", Type: workloads.WorkloadTypeMCPServerEntry},
+			},
+			validate: func(t *testing.T, env []corev1.EnvVar) {
+				t.Helper()
+				require.Len(t, env, 1)
+				assert.Equal(t, "TOOLHIVE_HEADER_FORWARD_GITHUB_COPILOT", env[0].Name)
+				assert.Nil(t, env[0].ValueFrom)
+				// json.Marshal sorts map keys alphabetically.
+				assert.JSONEq(t,
+					`{"addPlaintextHeaders":{"X-MCP-Toolsets":"projects,issues,pull_requests","X-Trace-Id":"abc123"}}`,
+					env[0].Value,
+				)
+			},
+		},
+		{
+			name: "entry with secret-backed headers emits both manifest and valueFrom.secretKeyRef env var",
+			entries: []mcpv1beta1.MCPServerEntry{
+				{
+					ObjectMeta: metav1.ObjectMeta{Name: "stripe", Namespace: "default"},
+					Spec: mcpv1beta1.MCPServerEntrySpec{
+						RemoteURL: "https://api.stripe.example/mcp/",
+						Transport: "streamable-http",
+						GroupRef:  &mcpv1beta1.MCPGroupRef{Name: "test-group"},
+						HeaderForward: &mcpv1beta1.HeaderForwardConfig{
+							AddHeadersFromSecret: []mcpv1beta1.HeaderFromSecret{
+								{
+									HeaderName: "X-API-Key",
+									ValueSecretRef: &mcpv1beta1.SecretKeyRef{
+										Name: "stripe-key",
+										Key:  "token",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			workloads: []workloads.TypedWorkload{
+				{Name: "stripe", Type: workloads.WorkloadTypeMCPServerEntry},
+			},
+			validate: func(t *testing.T, env []corev1.EnvVar) {
+				t.Helper()
+				require.Len(t, env, 2)
+
+				assert.Equal(t, "TOOLHIVE_HEADER_FORWARD_STRIPE", env[0].Name)
+				assert.JSONEq(t,
+					`{"addHeadersFromSecret":{"X-API-Key":"HEADER_FORWARD_X_API_KEY_STRIPE"}}`,
+					env[0].Value,
+				)
+
+				assert.Equal(t, "TOOLHIVE_SECRET_HEADER_FORWARD_X_API_KEY_STRIPE", env[1].Name)
+				assert.Empty(t, env[1].Value)
+				require.NotNil(t, env[1].ValueFrom)
+				require.NotNil(t, env[1].ValueFrom.SecretKeyRef)
+				assert.Equal(t, "stripe-key", env[1].ValueFrom.SecretKeyRef.Name)
+				assert.Equal(t, "token", env[1].ValueFrom.SecretKeyRef.Key)
+			},
+		},
+		{
+			name: "mixed plaintext + secret across multiple entries are scoped per entry",
+			entries: []mcpv1beta1.MCPServerEntry{
+				{
+					ObjectMeta: metav1.ObjectMeta{Name: "alpha", Namespace: "default"},
+					Spec: mcpv1beta1.MCPServerEntrySpec{
+						RemoteURL: "https://alpha.example/mcp/",
+						Transport: "streamable-http",
+						GroupRef:  &mcpv1beta1.MCPGroupRef{Name: "test-group"},
+						HeaderForward: &mcpv1beta1.HeaderForwardConfig{
+							AddPlaintextHeaders: map[string]string{"X-Trace": "alpha-trace"},
+							AddHeadersFromSecret: []mcpv1beta1.HeaderFromSecret{
+								{HeaderName: "X-Token", ValueSecretRef: &mcpv1beta1.SecretKeyRef{Name: "alpha-secret", Key: "tok"}},
+							},
+						},
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{Name: "beta", Namespace: "default"},
+					Spec: mcpv1beta1.MCPServerEntrySpec{
+						RemoteURL: "https://beta.example/mcp/",
+						Transport: "streamable-http",
+						GroupRef:  &mcpv1beta1.MCPGroupRef{Name: "test-group"},
+						HeaderForward: &mcpv1beta1.HeaderForwardConfig{
+							AddPlaintextHeaders: map[string]string{"X-Trace": "beta-trace"},
+						},
+					},
+				},
+			},
+			workloads: []workloads.TypedWorkload{
+				{Name: "alpha", Type: workloads.WorkloadTypeMCPServerEntry},
+				{Name: "beta", Type: workloads.WorkloadTypeMCPServerEntry},
+			},
+			validate: func(t *testing.T, env []corev1.EnvVar) {
+				t.Helper()
+				require.Len(t, env, 3)
+
+				// After sort.Slice by Name:
+				//   TOOLHIVE_HEADER_FORWARD_ALPHA
+				//   TOOLHIVE_HEADER_FORWARD_BETA
+				//   TOOLHIVE_SECRET_HEADER_FORWARD_X_TOKEN_ALPHA
+				assert.Equal(t, "TOOLHIVE_HEADER_FORWARD_ALPHA", env[0].Name)
+				assert.JSONEq(t,
+					`{"addPlaintextHeaders":{"X-Trace":"alpha-trace"},"addHeadersFromSecret":{"X-Token":"HEADER_FORWARD_X_TOKEN_ALPHA"}}`,
+					env[0].Value,
+				)
+
+				assert.Equal(t, "TOOLHIVE_HEADER_FORWARD_BETA", env[1].Name)
+				assert.JSONEq(t,
+					`{"addPlaintextHeaders":{"X-Trace":"beta-trace"}}`,
+					env[1].Value,
+				)
+
+				assert.Equal(t, "TOOLHIVE_SECRET_HEADER_FORWARD_X_TOKEN_ALPHA", env[2].Name)
+				require.NotNil(t, env[2].ValueFrom)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			scheme := testutil.NewScheme(t)
+
+			objs := make([]client.Object, 0, len(tt.entries))
+			for i := range tt.entries {
+				objs = append(objs, &tt.entries[i])
+			}
+
+			fakeClient := fake.NewClientBuilder().
+				WithScheme(scheme).
+				WithObjects(objs...).
+				Build()
+
+			r := &VirtualMCPServerReconciler{
+				Client: fakeClient,
+				Scheme: scheme,
+			}
+
+			env, err := r.buildHeaderForwardEnvVarsForEntries(t.Context(), "default", tt.workloads)
+			require.NoError(t, err)
+			tt.validate(t, env)
+		})
+	}
+}
+
+// TestBuildHeaderForwardEnvVarsForEntries_ShuffledInputDeterministic verifies
+// that the env-var emission is byte-identical regardless of the order
+// typedWorkloads arrives in. The function sorts internally; this test pins
+// that contract so a future refactor that drops the sort is caught
+// immediately. Together with the comment block in the function, this
+// closes the deployment-update-loop hazard from informer-cache ordering.
+func TestBuildHeaderForwardEnvVarsForEntries_ShuffledInputDeterministic(t *testing.T) {
+	t.Parallel()
+
+	entries := []mcpv1beta1.MCPServerEntry{
+		{
+			ObjectMeta: metav1.ObjectMeta{Name: "alpha", Namespace: "default"},
+			Spec: mcpv1beta1.MCPServerEntrySpec{
+				RemoteURL: "https://alpha.example/",
+				Transport: "streamable-http",
+				GroupRef:  &mcpv1beta1.MCPGroupRef{Name: "g"},
+				HeaderForward: &mcpv1beta1.HeaderForwardConfig{
+					AddPlaintextHeaders: map[string]string{"X-Trace": "alpha-trace"},
+					AddHeadersFromSecret: []mcpv1beta1.HeaderFromSecret{
+						{HeaderName: "X-Token", ValueSecretRef: &mcpv1beta1.SecretKeyRef{Name: "alpha-secret", Key: "tok"}},
+					},
+				},
+			},
+		},
+		{
+			ObjectMeta: metav1.ObjectMeta{Name: "beta", Namespace: "default"},
+			Spec: mcpv1beta1.MCPServerEntrySpec{
+				RemoteURL: "https://beta.example/",
+				Transport: "streamable-http",
+				GroupRef:  &mcpv1beta1.MCPGroupRef{Name: "g"},
+				HeaderForward: &mcpv1beta1.HeaderForwardConfig{
+					AddPlaintextHeaders: map[string]string{"X-Trace": "beta-trace"},
+				},
+			},
+		},
+		{
+			ObjectMeta: metav1.ObjectMeta{Name: "gamma", Namespace: "default"},
+			Spec: mcpv1beta1.MCPServerEntrySpec{
+				RemoteURL: "https://gamma.example/",
+				Transport: "streamable-http",
+				GroupRef:  &mcpv1beta1.MCPGroupRef{Name: "g"},
+				HeaderForward: &mcpv1beta1.HeaderForwardConfig{
+					AddHeadersFromSecret: []mcpv1beta1.HeaderFromSecret{
+						{HeaderName: "X-Key", ValueSecretRef: &mcpv1beta1.SecretKeyRef{Name: "gamma-secret", Key: "key"}},
+					},
+				},
+			},
+		},
+	}
+
+	// Two workload orderings — natural and reversed.
+	natural := []workloads.TypedWorkload{
+		{Name: "alpha", Type: workloads.WorkloadTypeMCPServerEntry},
+		{Name: "beta", Type: workloads.WorkloadTypeMCPServerEntry},
+		{Name: "gamma", Type: workloads.WorkloadTypeMCPServerEntry},
+	}
+	reversed := []workloads.TypedWorkload{
+		{Name: "gamma", Type: workloads.WorkloadTypeMCPServerEntry},
+		{Name: "beta", Type: workloads.WorkloadTypeMCPServerEntry},
+		{Name: "alpha", Type: workloads.WorkloadTypeMCPServerEntry},
+	}
+
+	scheme := testutil.NewScheme(t)
+
+	objs := make([]client.Object, 0, len(entries))
+	for i := range entries {
+		objs = append(objs, &entries[i])
+	}
+
+	fakeClient := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(objs...).
+		Build()
+
+	r := &VirtualMCPServerReconciler{Client: fakeClient, Scheme: scheme}
+
+	envNatural, err := r.buildHeaderForwardEnvVarsForEntries(t.Context(), "default", natural)
+	require.NoError(t, err)
+
+	envReversed, err := r.buildHeaderForwardEnvVarsForEntries(t.Context(), "default", reversed)
+	require.NoError(t, err)
+
+	assert.Equal(t, envNatural, envReversed,
+		"buildHeaderForwardEnvVarsForEntries must produce byte-identical output regardless of input workload order")
+}

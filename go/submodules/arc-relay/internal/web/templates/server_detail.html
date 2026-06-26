@@ -1,0 +1,821 @@
+{{define "title"}}{{.Server.DisplayName}}{{end}}
+{{define "content"}}
+<div class="page-header">
+  <h2>{{.Server.DisplayName}}</h2>
+  {{if .IsAdmin}}
+  <div class="actions">
+    {{if eq (printf "%s" .Server.Status) "stopped"}}
+    <form method="POST" action="/servers/{{.Server.ID}}/start" style="display:inline">
+      <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+      <button type="submit" class="btn btn-success">Start</button>
+    </form>
+    {{else if eq (printf "%s" .Server.Status) "running"}}
+    <form method="POST" action="/servers/{{.Server.ID}}/stop" style="display:inline">
+      <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+      <button type="submit" class="btn btn-outline">Stop</button>
+    </form>
+    {{if .ConfigDisplay.ImageStale}}
+    <form method="POST" action="/servers/{{.Server.ID}}/recreate-stream" style="display:inline"
+          onsubmit="return recreateStream(this)">
+      <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+      <button type="submit" class="btn btn-outline" style="border-color:#e6a817;color:#664d03">Recreate Container</button>
+    </form>
+    {{else if and .ConfigDisplay.IsDocker (not .ConfigDisplay.HasBuildConfig)}}
+    <form method="POST" action="/servers/{{.Server.ID}}/recreate-stream" style="display:inline"
+          onsubmit="return recreateStream(this)">
+      <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+      <input type="hidden" name="pull" value="1">
+      <button type="submit" class="btn btn-outline" style="border-color:#0d6efd;color:#0d6efd">Pull &amp; Recreate</button>
+    </form>
+    {{end}}
+    {{else if eq (printf "%s" .Server.Status) "error"}}
+    <form method="POST" action="/servers/{{.Server.ID}}/start" style="display:inline">
+      <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+      <button type="submit" class="btn btn-success">Restart</button>
+    </form>
+    <form method="POST" action="/servers/{{.Server.ID}}/stop" style="display:inline">
+      <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+      <button type="submit" class="btn btn-outline">Stop</button>
+    </form>
+    {{end}}
+    {{if eq (printf "%s" .Server.Status) "running"}}
+    <form method="POST" action="/servers/{{.Server.ID}}/enumerate" style="display:inline">
+      <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+      <button type="submit" class="btn btn-outline">Re-enumerate</button>
+    </form>
+    {{end}}
+    <a href="/servers/{{.Server.ID}}/edit" class="btn btn-outline">Edit</a>
+    <form method="POST" action="/servers/{{.Server.ID}}/delete" style="display:inline"
+          onsubmit="return confirm('Delete this server? This cannot be undone.')">
+      <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+      <button type="submit" class="btn btn-danger">Delete</button>
+    </form>
+  </div>
+  {{end}}
+</div>
+
+<div id="recreate-progress" style="display:none;margin-bottom:1rem;padding:0.75rem 1rem;border-radius:6px;background:#f0f4ff;border:1px solid #c5d5f0;font-size:0.9rem">
+  <span id="recreate-spinner" style="display:inline-block;width:14px;height:14px;border:2px solid #0d6efd;border-top-color:transparent;border-radius:50%;animation:spin 0.8s linear infinite;vertical-align:middle;margin-right:0.5rem"></span>
+  <span id="recreate-status">Starting...</span>
+  <style>@keyframes spin{to{transform:rotate(360deg)}}</style>
+</div>
+
+<div class="card">
+  <h2>Server Info</h2>
+  <div class="detail-grid">
+    <dt>Name (slug)</dt><dd><code>{{.Server.Name}}</code></dd>
+    <dt>Type</dt><dd><span class="badge badge-{{.Server.ServerType}}">{{.Server.ServerType}}</span></dd>
+    <dt>Status</dt><dd><span class="badge badge-{{.Server.Status}}">{{.Server.Status}}</span></dd>
+    {{if .Server.ErrorMsg}}
+    <dt>Error</dt><dd style="color:var(--danger)">{{.Server.ErrorMsg}}</dd>
+    {{end}}
+    <dt>Health</dt>
+    <dd>
+      <span class="health-dot health-dot-{{.Server.Health}}"></span>
+      <span class="badge badge-{{.Server.Health}}">{{.Server.Health}}</span>
+      {{if .Server.HealthCheckAt}}
+        <span style="font-size:0.8rem;color:var(--text-muted);margin-left:0.5rem">checked {{.Server.HealthCheckAt.Format "15:04:05"}}</span>
+      {{end}}
+      {{if and .IsAdmin (eq (printf "%s" .Server.Status) "running")}}
+      <form method="POST" action="/servers/{{.Server.ID}}/health-check" style="display:inline;margin-left:0.5rem">
+        <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+        <button type="submit" class="btn btn-outline btn-sm">Check Now</button>
+      </form>
+      {{end}}
+    </dd>
+    {{if .Server.HealthError}}
+    <dt>Health Error</dt><dd style="color:var(--danger);font-size:0.85rem">{{.Server.HealthError}}</dd>
+    {{end}}
+    <dt>Proxy URL</dt><dd><code>/mcp/{{.Server.Name}}</code></dd>
+    {{if .IsAdmin}}
+    <dt>Created</dt><dd>{{.Server.CreatedAt.Format "2006-01-02 15:04:05"}}</dd>
+    <dt>Updated</dt><dd>{{.Server.UpdatedAt.Format "2006-01-02 15:04:05"}}</dd>
+    {{end}}
+  </div>
+</div>
+
+{{if and .IsAdmin .ConfigDisplay}}
+<div class="card">
+  <h2>Configuration</h2>
+  {{if .ConfigDisplay.HasBuild}}
+  <div class="detail-grid">
+    <dt>Image Source</dt><dd>{{if and .ConfigDisplay.BuildGitURL (not .ConfigDisplay.BuildPackage)}}<span class="badge" style="background:#198754;color:#fff">Built from Git repo</span>{{else}}<span class="badge" style="background:#0d6efd;color:#fff">Auto-built from package</span>{{end}}</dd>
+    <dt>Runtime</dt><dd>{{.ConfigDisplay.BuildRuntime}}</dd>
+    {{if .ConfigDisplay.BuildPackage}}<dt>Package</dt><dd><code>{{.ConfigDisplay.BuildPackage}}{{if .ConfigDisplay.BuildVersion}}=={{.ConfigDisplay.BuildVersion}}{{end}}</code></dd>{{end}}
+    {{if .ConfigDisplay.BuildGitURL}}<dt>Git URL</dt><dd><code>{{.ConfigDisplay.BuildGitURL}}</code></dd>{{end}}
+    {{if .ConfigDisplay.BuildGitRef}}<dt>Git Ref</dt><dd><code>{{.ConfigDisplay.BuildGitRef}}</code></dd>{{end}}
+    {{if .ConfigDisplay.BuildCustom}}<dt>Dockerfile</dt><dd>Custom</dd>{{end}}
+    {{if .ConfigDisplay.Image}}<dt>Built Image</dt><dd><code>{{.ConfigDisplay.Image}}</code></dd>{{end}}
+    {{if .ConfigDisplay.Command}}<dt>Command</dt><dd><code>{{.ConfigDisplay.Command}}</code></dd>{{end}}
+    {{if .ConfigDisplay.ImageAge}}<dt>Image Built</dt><dd>{{.ConfigDisplay.ImageAge}}</dd>{{end}}
+    {{if .ConfigDisplay.ImageStale}}
+    <dt>Image Status</dt>
+    <dd>
+      <span class="badge" style="background:#fff3cd;color:#664d03">Image Updated</span>
+      <span style="font-size:0.8rem;color:var(--text-muted);margin-left:0.5rem">Restart to use the latest image</span>
+    </dd>
+    {{end}}
+  </div>
+  <div style="margin-top: 0.75rem;">
+    <form method="POST" action="/servers/{{.Server.ID}}/rebuild" style="display:inline">
+      <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+      <button type="submit" class="btn btn-outline btn-sm">Rebuild Image</button>
+    </form>
+    {{if eq (printf "%s" .Server.Status) "running"}}
+    <form method="POST" action="/servers/{{.Server.ID}}/rebuild-restart" style="display:inline"
+          onsubmit="return confirm('This will rebuild the image and restart the server. Continue?')">
+      <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+      <button type="submit" class="btn btn-primary btn-sm">Rebuild &amp; Restart</button>
+    </form>
+    {{end}}
+  </div>
+  {{else if .ConfigDisplay.Image}}
+  <div class="detail-grid">
+    <dt>Docker Image</dt><dd><code>{{.ConfigDisplay.Image}}</code></dd>
+    {{if .ConfigDisplay.Command}}<dt>Command</dt><dd><code>{{.ConfigDisplay.Command}}</code></dd>{{end}}
+    {{if .ConfigDisplay.Port}}<dt>Port</dt><dd>{{.ConfigDisplay.Port}}</dd>{{end}}
+    {{if .ConfigDisplay.URL}}<dt>URL</dt><dd><code>{{.ConfigDisplay.URL}}</code></dd>{{end}}
+    {{if .ConfigDisplay.HealthCheck}}<dt>Health Check</dt><dd><code>{{.ConfigDisplay.HealthCheck}}</code></dd>{{end}}
+    {{if .ConfigDisplay.AuthType}}<dt>Auth Type</dt><dd>{{.ConfigDisplay.AuthType}}</dd>{{end}}
+    {{if .ConfigDisplay.ImageAge}}<dt>Image Built</dt><dd>{{.ConfigDisplay.ImageAge}}</dd>{{end}}
+    {{if .ConfigDisplay.ImageStale}}
+    <dt>Image Status</dt>
+    <dd>
+      <span class="badge" style="background:#fff3cd;color:#664d03">Update Available</span>
+      <span style="font-size:0.8rem;color:var(--text-muted);margin-left:0.5rem">Recreate container to use the latest image</span>
+    </dd>
+    <dt>Container Image</dt><dd><code>{{.ConfigDisplay.ContainerIDShort}}</code></dd>
+    <dt>Latest Image</dt><dd><code>{{.ConfigDisplay.ImageIDShort}}</code></dd>
+    {{end}}
+  </div>
+  {{if and .IsAdmin .ConfigDisplay.IsDocker (not .ConfigDisplay.HasBuildConfig) (eq (printf "%s" .Server.Status) "running")}}
+  <div style="margin-top: 0.75rem;">
+    {{if .ConfigDisplay.ImageStale}}
+    <form method="POST" action="/servers/{{.Server.ID}}/recreate-stream" style="display:inline"
+          onsubmit="return recreateStream(this)">
+      <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+      <button type="submit" class="btn btn-primary btn-sm">Recreate Container</button>
+    </form>
+    {{end}}
+    <form method="POST" action="/servers/{{.Server.ID}}/recreate-stream" style="display:inline"
+          onsubmit="return recreateStream(this)">
+      <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+      <input type="hidden" name="pull" value="1">
+      <button type="submit" class="btn btn-outline btn-sm">Pull &amp; Recreate</button>
+    </form>
+  </div>
+  {{end}}
+  {{else if .ConfigDisplay.URL}}
+  <div class="detail-grid">
+    <dt>URL</dt><dd><code>{{.ConfigDisplay.URL}}</code></dd>
+    {{if .ConfigDisplay.AuthType}}<dt>Auth Type</dt><dd>{{.ConfigDisplay.AuthType}}</dd>{{end}}
+    {{if eq .ConfigDisplay.AuthType "oauth"}}
+    <dt>OAuth Status</dt>
+    <dd>
+      {{if .ConfigDisplay.OAuthAuthorized}}
+        <span class="badge badge-running">Authorized</span>
+        {{if .ConfigDisplay.OAuthTokenExpiry}}
+          <span style="font-size:0.85rem;color:var(--text-muted);margin-left:0.5rem">expires {{.ConfigDisplay.OAuthTokenExpiry}}</span>
+        {{end}}
+      {{else}}
+        <span class="badge badge-error">Not Authorized</span>
+      {{end}}
+    </dd>
+    {{if .ConfigDisplay.OAuthScopes}}<dt>Scopes</dt><dd><code>{{.ConfigDisplay.OAuthScopes}}</code></dd>{{end}}
+    {{end}}
+  </div>
+  {{if eq .ConfigDisplay.AuthType "oauth"}}
+  <div style="margin-top: 1rem; display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+    <a href="/oauth/start/{{.Server.ID}}" class="btn {{if .ConfigDisplay.OAuthAuthorized}}btn-outline{{else}}btn-primary{{end}}">
+      {{if .ConfigDisplay.OAuthAuthorized}}Reauthorize{{else}}Authorize{{end}}
+    </a>
+    <a href="/oauth/start/{{.Server.ID}}?force=1" class="btn btn-outline">Re-register</a>
+  </div>
+  <p style="font-size:0.85rem;color:var(--text-muted);margin-top:0.5rem;">
+    <strong>{{if .ConfigDisplay.OAuthAuthorized}}Reauthorize{{else}}Authorize{{end}}</strong> signs in with the OAuth provider using existing credentials.
+    <strong>Re-register</strong> creates a fresh client registration first - use this if authorization fails with redirect URI errors.
+  </p>
+  {{end}}
+  {{end}}
+
+  {{if .ConfigDisplay.EnvKeys}}
+  <div style="display:flex;align-items:center;gap:0.75rem;margin:1rem 0 0.5rem;">
+    <h3 style="font-size:0.95rem;margin:0;">Environment Variables</h3>
+    <button type="button" class="btn btn-outline btn-sm" id="env-toggle" onclick="toggleEnv()">Show Values</button>
+  </div>
+  <table class="env-table">
+    {{$vars := .ConfigDisplay.EnvVars}}
+    {{range .ConfigDisplay.EnvKeys}}
+    <tr>
+      <td>{{.}}</td>
+      <td class="env-hidden" style="color:var(--text-muted)">(configured)</td>
+      <td class="env-value" style="display:none"><code>{{index $vars .}}</code></td>
+    </tr>
+    {{end}}
+  </table>
+  <script>
+  function toggleEnv() {
+    var hidden = document.querySelectorAll('.env-hidden');
+    var values = document.querySelectorAll('.env-value');
+    var btn = document.getElementById('env-toggle');
+    var showing = values[0] && values[0].style.display !== 'none';
+    hidden.forEach(function(el) { el.style.display = showing ? '' : 'none'; });
+    values.forEach(function(el) { el.style.display = showing ? 'none' : ''; });
+    btn.textContent = showing ? 'Show Values' : 'Hide Values';
+  }
+  </script>
+  {{end}}
+</div>
+{{end}}
+
+{{/* Tool Context Optimizer - Admin only */}}
+{{if and .IsAdmin .ToolAudit}}
+{{$audit := .ToolAudit}}
+<div class="card">
+  <h2>Tool Context Optimizer</h2>
+  <p style="font-size:0.85rem;color:var(--text-muted);margin-bottom:1rem">
+    Analyze and optimize tool definitions to reduce LLM token consumption. Uses an LLM to compress verbose descriptions while preserving semantic meaning.
+  </p>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:0.75rem;margin-bottom:1rem">
+    <div style="padding:0.75rem;background:var(--bg-secondary);border-radius:6px;text-align:center">
+      <div style="font-size:1.4rem;font-weight:600">{{$audit.ToolCount}}</div>
+      <div style="font-size:0.8rem;color:var(--text-muted)">Tools</div>
+    </div>
+    <div style="padding:0.75rem;background:var(--bg-secondary);border-radius:6px;text-align:center">
+      <div style="font-size:1.4rem;font-weight:600">~{{commas $audit.EstTokens}}</div>
+      <div style="font-size:0.8rem;color:var(--text-muted)">Est. Tokens</div>
+    </div>
+    {{if $audit.OptimizedTokens}}
+    <div style="padding:0.75rem;background:var(--bg-secondary);border-radius:6px;text-align:center">
+      <div style="font-size:1.4rem;font-weight:600">~{{commas $audit.OptimizedTokens}}</div>
+      <div style="font-size:0.8rem;color:var(--text-muted)">Optimized Tokens</div>
+    </div>
+    <div style="padding:0.75rem;background:var(--bg-secondary);border-radius:6px;text-align:center">
+      <div style="font-size:1.4rem;font-weight:600;color:{{if ge $audit.SavingsPercent 0}}var(--success){{else}}var(--danger){{end}}">{{$audit.SavingsPercent}}%</div>
+      <div style="font-size:0.8rem;color:var(--text-muted)">Reduction</div>
+    </div>
+    {{end}}
+  </div>
+
+  {{if $audit.HasOptimized}}
+  <div style="margin-bottom:1rem;padding:0.75rem;background:var(--bg-secondary);border-radius:6px">
+    <div style="display:flex;align-items:center;gap:0.75rem">
+      <div style="flex:1">
+        <strong>Serve optimized tools</strong>
+        <div style="font-size:0.8rem;color:var(--text-muted)">
+          Status: <span id="opt-status" class="badge" style="{{if eq $audit.Status "ready"}}background:var(--success){{else if eq $audit.Status "stale"}}background:var(--warning){{else if eq $audit.Status "error"}}background:var(--danger){{else if eq $audit.Status "running"}}background:var(--info){{else}}background:#6c757d{{end}};color:#fff;font-size:0.75rem;padding:2px 8px">{{$audit.Status}}</span>
+          {{if eq $audit.Status "running"}} <span style="font-size:0.8rem;color:var(--text-muted)">Optimizing tools in background...</span>{{end}}
+          {{if $audit.IsStale}} <span style="color:var(--warning);font-size:0.8rem">(tools changed - re-run optimization)</span>{{end}}
+          {{if $audit.Model}} <span style="font-size:0.75rem;color:var(--text-muted)">Model: {{$audit.Model}}</span>{{end}}
+        </div>
+      </div>
+      {{if eq $audit.Status "ready"}}
+      <label class="switch">
+        <input type="checkbox" id="opt-enable-toggle" onchange="toggleOptimize(this.checked)"
+          {{if .Server.OptimizeEnabled}}checked{{end}}>
+        <span class="slider"></span>
+      </label>
+      {{end}}
+    </div>
+    {{if and $audit.ErrorMsg (ne $audit.Status "running")}}
+    <div style="margin-top:0.5rem;padding:0.5rem 0.75rem;background:var(--danger-bg, #f8d7da);border:1px solid var(--danger, #dc3545);border-radius:4px;font-size:0.8rem;color:var(--danger, #dc3545)">
+      {{$audit.ErrorMsg}}
+    </div>
+    {{end}}
+  </div>
+  {{end}}
+
+  <div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center">
+    {{if $audit.LLMAvailable}}
+    <button class="btn btn-primary" id="opt-run-btn" onclick="runOptimize()" style="font-size:0.85rem">
+      {{if $audit.HasOptimized}}Re-run Optimization{{else}}Run Optimization{{end}}
+    </button>
+    {{else}}
+    <button class="btn btn-primary" disabled style="font-size:0.85rem;opacity:0.6" title="Set ARC_RELAY_LLM_API_KEY to enable">
+      Run Optimization
+    </button>
+    <span style="font-size:0.8rem;color:var(--text-muted)">Set <code>ARC_RELAY_LLM_API_KEY</code> to enable LLM optimization</span>
+    {{end}}
+    <button class="btn btn-secondary" onclick="toggleToolAuditDetails()" style="font-size:0.85rem">
+      Show Tool Details
+    </button>
+  </div>
+
+  <div id="tool-audit-details" style="display:none;margin-top:1rem">
+    <div class="table-wrap">
+    <table class="table" style="font-size:0.85rem">
+      <thead>
+        <tr>
+          <th>Tool</th>
+          <th style="text-align:right">Desc</th>
+          <th style="text-align:right">Schema</th>
+          <th style="text-align:right">Total</th>
+          {{if $audit.OptimizedTokens}}
+          <th style="text-align:right">Opt Desc</th>
+          <th style="text-align:right">Opt Schema</th>
+          <th style="text-align:right">Opt Total</th>
+          <th style="text-align:right">Saved</th>
+          {{end}}
+        </tr>
+      </thead>
+      <tbody>
+        {{range $audit.Tools}}
+        <tr>
+          <td><code>{{.Name}}</code></td>
+          <td style="text-align:right">{{commas .DescChars}}</td>
+          <td style="text-align:right">{{commas .SchemaChar}}</td>
+          <td style="text-align:right">{{commas .TotalChars}}</td>
+          {{if $audit.OptimizedTokens}}
+          <td style="text-align:right;color:{{if le .OptDescChars .DescChars}}var(--success){{else}}var(--danger){{end}}">{{commas .OptDescChars}}</td>
+          <td style="text-align:right;color:{{if le .OptSchemaChar .SchemaChar}}var(--success){{else}}var(--danger){{end}}">{{commas .OptSchemaChar}}</td>
+          <td style="text-align:right;color:{{if le .OptTotalChars .TotalChars}}var(--success){{else}}var(--danger){{end}}">{{commas .OptTotalChars}}</td>
+          <td style="text-align:right;color:{{if ge (subtract .TotalChars .OptTotalChars) 0}}var(--success){{else}}var(--danger){{end}}">{{if .TotalChars}}{{subtract .TotalChars .OptTotalChars}}{{end}}</td>
+          {{end}}
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+    </div>
+  </div>
+</div>
+
+<script>
+var _csrfToken = _csrfToken || (document.querySelector('meta[name="csrf-token"]') || {}).content || '';
+function runOptimize() {
+  const btn = document.getElementById('opt-run-btn');
+  btn.disabled = true;
+  btn.textContent = 'Optimizing...';
+  fetch('/servers/{{.Server.ID}}/optimize', {
+    method: 'POST',
+    headers: {'X-CSRF-Token': _csrfToken}
+  })
+    .then(r => {
+      if (!r.ok) return r.json().then(e => { throw new Error(e.error) });
+      return r.json();
+    })
+    .then(() => {
+      const status = document.getElementById('opt-status');
+      if (status) { status.textContent = 'running'; status.style.background = 'var(--info)'; }
+      btn.textContent = 'Running...';
+      const poll = setInterval(() => {
+        fetch('/servers/{{.Server.ID}}/tool-audit')
+          .then(r => r.json())
+          .then(data => {
+            if (data.status === 'ready' || data.status === 'error') {
+              clearInterval(poll);
+              location.reload();
+            }
+          });
+      }, 3000);
+    })
+    .catch(err => {
+      alert('Optimization failed: ' + err.message);
+      btn.disabled = false;
+      btn.textContent = 'Run Optimization';
+    });
+}
+
+function toggleOptimize(enabled) {
+  fetch('/servers/{{.Server.ID}}/optimize-toggle', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', 'X-CSRF-Token': _csrfToken},
+    body: JSON.stringify({enabled: enabled})
+  }).then(r => {
+    if (!r.ok) { alert('Failed to toggle optimization'); location.reload(); }
+  });
+}
+
+function toggleToolAuditDetails() {
+  const el = document.getElementById('tool-audit-details');
+  el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}
+</script>
+{{end}}
+
+{{/* Middleware Pipeline - Admin only */}}
+{{if .IsAdmin}}
+<div class="card">
+  <h2>Middleware Pipeline</h2>
+  <p style="font-size:0.85rem;color:var(--text-muted);margin-bottom:1rem">
+    Middleware processes requests and responses flowing through the proxy. Enable middleware to add sanitization, size limits, or alerting.
+  </p>
+
+  <div style="display:flex;flex-direction:column;gap:0.75rem" id="middleware-panel">
+    {{range .MiddlewareCards}}
+      {{if .Descriptor.TemplateName}}
+        {{/* Middleware with a custom partial */}}
+        {{callTemplate .Descriptor.TemplateName .}}
+      {{else}}
+        {{/* Toggle-only middleware card */}}
+        <div class="mw-card" id="mw-{{.Descriptor.Name}}">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <div>
+              <strong>{{.Descriptor.DisplayName}}</strong>
+              <span style="font-size:0.8rem;color:var(--text-muted);margin-left:0.5rem">{{.Descriptor.Description}}</span>
+            </div>
+            <label class="toggle">
+              <input type="checkbox" id="mw-{{.Descriptor.Name}}-toggle"
+                onchange="toggleMiddleware('{{.Descriptor.Name}}', this.checked)"
+                {{if .Enabled}}checked{{end}}>
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+        </div>
+      {{end}}
+    {{end}}
+  </div>
+
+  <script>
+  var _csrfToken = (document.querySelector('meta[name="csrf-token"]') || {}).content || '';
+  function toggleMiddleware(name, enabled) {
+    fetch('/servers/{{.Server.ID}}/middleware', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'X-CSRF-Token': _csrfToken},
+      body: JSON.stringify({middleware: name, enabled: enabled})
+    }).then(r => {
+      if (!r.ok) alert('Failed to update middleware');
+    });
+  }
+  </script>
+</div>
+
+{{if .MiddlewareEvents}}
+<div class="card">
+  <h2>Middleware Events <span class="badge" style="background:#6c757d;color:#fff;font-size:0.8rem;margin-left:0.5rem">{{len .MiddlewareEvents}}</span></h2>
+  <div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>Time</th>
+        <th>Middleware</th>
+        <th>Event</th>
+        <th>Summary</th>
+        <th>Method</th>
+        <th>Endpoint</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .MiddlewareEvents}}
+      <tr>
+        <td style="white-space:nowrap;font-size:0.85rem">{{.Timestamp.Format "2006-01-02 15:04:05"}}</td>
+        <td><code>{{.Middleware}}</code></td>
+        <td><span class="badge badge-{{.EventType}}">{{.EventType}}</span></td>
+        <td style="font-size:0.85rem">{{.Summary}}</td>
+        <td><code>{{.RequestMethod}}</code></td>
+        <td>{{if .EndpointName}}<code>{{.EndpointName}}</code>{{else}}-{{end}}</td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+  </div>
+</div>
+{{end}}
+{{end}}
+
+{{if .Endpoints}}
+<div class="card">
+  <h2>MCP Server Info</h2>
+  <div class="detail-grid">
+    <dt>Server Name</dt><dd>{{.Endpoints.ServerInfo.Name}}</dd>
+    <dt>Version</dt><dd>{{.Endpoints.ServerInfo.Version}}</dd>
+    <dt>Initialized</dt><dd>{{if .Endpoints.Initialized}}Yes{{else}}No{{end}}</dd>
+    {{if .Endpoints.Error}}<dt>Error</dt><dd style="color:var(--danger)">{{.Endpoints.Error}}</dd>{{end}}
+  </div>
+</div>
+
+{{if .Endpoints.Tools}}
+<div class="card">
+  <h2>Tools <span class="badge" style="background:#6c757d;color:#fff;font-size:0.8rem;margin-left:0.5rem">{{len .Endpoints.Tools}}</span></h2>
+  <div class="table-wrap">
+  <table class="table">
+    <thead>
+      <tr><th>Name</th><th>Description</th>{{if $.IsAdmin}}<th>Calls</th><th>Errors</th><th style="width:120px">Access Tier</th>{{end}}</tr>
+    </thead>
+    <tbody>
+      {{$serverID := .Server.ID}}{{$tierMap := .TierMap}}{{$usage := .EndpointUsage}}
+      {{range .Endpoints.Tools}}
+      {{$tier := ""}}{{if $tierMap}}{{$tier = index $tierMap (printf "tool:%s" .Name)}}{{end}}
+      {{$eu := ""}}{{if $usage}}{{$eu = index $usage .Name}}{{end}}
+      <tr>
+        <td><code>{{.Name}}</code></td>
+        <td style="font-size:0.85rem;color:var(--text-muted)">{{.Description}}</td>
+        {{if $.IsAdmin}}
+        <td>{{if $eu}}{{$eu.CallCount}}{{else}}0{{end}}</td>
+        <td>{{if $eu}}{{$eu.ErrorCount}}{{else}}0{{end}}</td>
+        <td>
+          <select class="tier-select tier-{{$tier}}" data-server="{{$serverID}}" data-type="tool" data-name="{{.Name}}"
+                  onchange="updateTier(this)">
+            <option value="read" {{if eq $tier "read"}}selected{{end}}>read</option>
+            <option value="write" {{if eq $tier "write"}}selected{{end}}>write</option>
+            <option value="admin" {{if eq $tier "admin"}}selected{{end}}>admin</option>
+          </select>
+        </td>
+        {{end}}
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+  </div>
+</div>
+{{end}}
+
+{{if .Endpoints.Resources}}
+<div class="card">
+  <h2>Resources <span class="badge" style="background:#6c757d;color:#fff;font-size:0.8rem;margin-left:0.5rem">{{len .Endpoints.Resources}}</span></h2>
+  <div class="table-wrap">
+  <table class="table">
+    <thead>
+      <tr><th>URI</th><th>Name</th><th>Description</th>{{if $.IsAdmin}}<th>Calls</th><th>Errors</th><th style="width:120px">Access Tier</th>{{end}}</tr>
+    </thead>
+    <tbody>
+      {{$serverID := .Server.ID}}{{$tierMap := .TierMap}}{{$usage := .EndpointUsage}}
+      {{range .Endpoints.Resources}}
+      {{$tier := ""}}{{if $tierMap}}{{$tier = index $tierMap (printf "resource:%s" .URI)}}{{end}}
+      {{$eu := ""}}{{if $usage}}{{$eu = index $usage .URI}}{{end}}
+      <tr>
+        <td><code>{{.URI}}</code></td>
+        <td>{{.Name}}</td>
+        <td style="font-size:0.85rem;color:var(--text-muted)">{{.Description}}</td>
+        {{if $.IsAdmin}}
+        <td>{{if $eu}}{{$eu.CallCount}}{{else}}0{{end}}</td>
+        <td>{{if $eu}}{{$eu.ErrorCount}}{{else}}0{{end}}</td>
+        <td>
+          <select class="tier-select tier-{{$tier}}" data-server="{{$serverID}}" data-type="resource" data-name="{{.URI}}"
+                  onchange="updateTier(this)">
+            <option value="read" {{if eq $tier "read"}}selected{{end}}>read</option>
+            <option value="write" {{if eq $tier "write"}}selected{{end}}>write</option>
+            <option value="admin" {{if eq $tier "admin"}}selected{{end}}>admin</option>
+          </select>
+        </td>
+        {{end}}
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+  </div>
+</div>
+{{end}}
+
+{{if .Endpoints.Prompts}}
+<div class="card">
+  <h2>Prompts <span class="badge" style="background:#6c757d;color:#fff;font-size:0.8rem;margin-left:0.5rem">{{len .Endpoints.Prompts}}</span></h2>
+  <div class="table-wrap">
+  <table class="table">
+    <thead>
+      <tr><th>Name</th><th>Description</th>{{if $.IsAdmin}}<th>Calls</th><th>Errors</th><th style="width:120px">Access Tier</th>{{end}}</tr>
+    </thead>
+    <tbody>
+      {{$serverID := .Server.ID}}{{$tierMap := .TierMap}}{{$usage := .EndpointUsage}}
+      {{range .Endpoints.Prompts}}
+      {{$tier := ""}}{{if $tierMap}}{{$tier = index $tierMap (printf "prompt:%s" .Name)}}{{end}}
+      {{$eu := ""}}{{if $usage}}{{$eu = index $usage .Name}}{{end}}
+      <tr>
+        <td><code>{{.Name}}</code></td>
+        <td style="font-size:0.85rem;color:var(--text-muted)">{{.Description}}</td>
+        {{if $.IsAdmin}}
+        <td>{{if $eu}}{{$eu.CallCount}}{{else}}0{{end}}</td>
+        <td>{{if $eu}}{{$eu.ErrorCount}}{{else}}0{{end}}</td>
+        <td>
+          <select class="tier-select tier-{{$tier}}" data-server="{{$serverID}}" data-type="prompt" data-name="{{.Name}}"
+                  onchange="updateTier(this)">
+            <option value="read" {{if eq $tier "read"}}selected{{end}}>read</option>
+            <option value="write" {{if eq $tier "write"}}selected{{end}}>write</option>
+            <option value="admin" {{if eq $tier "admin"}}selected{{end}}>admin</option>
+          </select>
+        </td>
+        {{end}}
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+  </div>
+</div>
+{{end}}
+
+{{if .IsAdmin}}
+<script>
+function updateTier(el) {
+  const serverID = el.dataset.server;
+  const csrfTok = (document.querySelector('meta[name="csrf-token"]') || {}).content || '';
+  const body = JSON.stringify({
+    endpoint_type: el.dataset.type,
+    endpoint_name: el.dataset.name,
+    access_tier: el.value
+  });
+  fetch('/servers/' + serverID + '/access-tier', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', 'X-CSRF-Token': csrfTok},
+    body: body
+  }).then(r => {
+    if (r.ok) {
+      el.className = 'tier-select tier-' + el.value;
+    } else {
+      alert('Failed to update access tier');
+    }
+  });
+}
+</script>
+{{end}}
+{{end}}
+
+{{if and .IsAdmin .RecentLogs}}
+<div class="card">
+  <h2>Recent Activity</h2>
+  <div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>Time</th>
+        <th>User</th>
+        <th>Method</th>
+        <th>Endpoint</th>
+        <th>Duration</th>
+        <th>Status</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .RecentLogs}}
+      <tr>
+        <td style="white-space:nowrap;font-size:0.85rem">{{.Timestamp.Format "2006-01-02 15:04:05"}}</td>
+        <td>{{if .Username}}{{.Username}}{{else}}-{{end}}</td>
+        <td><code>{{.Method}}</code></td>
+        <td>{{if .EndpointName}}<code>{{.EndpointName}}</code>{{else}}-{{end}}</td>
+        <td>{{.DurationMs}} ms</td>
+        <td><span class="badge badge-{{.Status}}">{{.Status}}</span></td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+  </div>
+</div>
+{{end}}
+
+<div class="card">
+  <h2>Connection Examples</h2>
+  <p style="margin-bottom: 0.75rem; font-size: 0.9rem; color: var(--text-muted)">
+    Connect AI tools to this MCP server through Arc Relay.
+  </p>
+
+  <h3 style="font-size: 0.9rem; margin-bottom: 0.3rem;">arc-sync CLI (Recommended)</h3>
+  <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.5rem;">
+    The easiest way to connect. Handles config files, auth headers, and per-project management automatically.
+  </p>
+  <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.5rem;">
+    <pre style="background: #e9ecef; padding: 0.75rem; border-radius: 6px; font-size: 0.8rem; overflow-x: auto; flex:1; margin:0;"><code id="sync-cmd">arc-sync add {{.Server.Name}}</code></pre>
+    <button type="button" class="btn btn-outline btn-sm" onclick="copyText('sync-cmd')" title="Copy command">Copy</button>
+  </div>
+  <details style="margin-bottom: 1rem;">
+    <summary style="font-size: 0.85rem; color: var(--text-muted); cursor: pointer; margin-bottom: 0.5rem;">First-time setup &amp; install</summary>
+    <pre style="background: #e9ecef; padding: 0.75rem; border-radius: 6px; font-size: 0.75rem; overflow-x: auto; margin: 0.5rem 0;"><code># One-line install &amp; setup (Linux/macOS)
+curl -fsSL {{.BaseURL}}/install.sh | bash
+
+# Or install manually, then init with browser-based auth
+arc-sync init {{.BaseURL}}</code></pre>
+  </details>
+
+  <details style="margin-bottom: 0.75rem;">
+    <summary style="font-size: 0.85rem; color: var(--text-muted); cursor: pointer;">Claude Code (.mcp.json) - manual setup</summary>
+    <p style="font-size: 0.8rem; color: var(--text-muted); margin: 0.5rem 0 0.3rem;">Add to <code>.mcp.json</code> in your project root:</p>
+    <pre style="background: #e9ecef; padding: 0.75rem; border-radius: 6px; font-size: 0.75rem; overflow-x: auto;"><code>{
+  "mcpServers": {
+    "{{.Server.Name}}": {
+      "type": "http",
+      "url": "{{.BaseURL}}/mcp/{{.Server.Name}}",
+      "headers": {
+        "Authorization": "Bearer YOUR_API_KEY"
+      }
+    }
+  }
+}</code></pre>
+  </details>
+
+  <div style="background: var(--bg-dark, #f8f9fa); border: 1px solid var(--border, #dee2e6); border-radius: 8px; padding: 1rem; margin-bottom: 0.75rem;">
+    <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem;">
+      <strong style="font-size: 0.95rem;">Claude Desktop</strong>
+      <span style="font-size: 0.7rem; background: #198754; color: #fff; padding: 0.15rem 0.5rem; border-radius: 10px;">OAuth</span>
+    </div>
+    <p style="font-size: 0.85rem; color: var(--text-muted); margin: 0 0 0.75rem;">Add this server to Claude Desktop as a custom connector. Authentication is handled automatically via OAuth.</p>
+    <div style="margin-bottom: 0.75rem;">
+      <label style="font-size: 0.8rem; font-weight: 500; display: block; margin-bottom: 0.25rem;">Connector URL</label>
+      <div style="display: flex; gap: 0.5rem; align-items: center;">
+        <code id="desktop-url" style="flex: 1; background: #fff; border: 1px solid var(--border, #dee2e6); padding: 0.4rem 0.6rem; border-radius: 4px; font-size: 0.8rem; word-break: break-all;">{{.BaseURL}}/mcp/{{.Server.Name}}</code>
+        <button onclick="copyDesktopURL()" id="copy-desktop-btn" class="btn btn-sm" style="white-space: nowrap; padding: 0.3rem 0.75rem; font-size: 0.8rem;">Copy URL</button>
+      </div>
+    </div>
+    <details style="margin-bottom: 0;">
+      <summary style="font-size: 0.8rem; color: var(--text-muted); cursor: pointer;">Setup steps</summary>
+      <ol style="font-size: 0.8rem; color: var(--text-muted); margin: 0.5rem 0 0; padding-left: 1.5rem;">
+        <li>In Claude Desktop, click your profile icon > <strong>Settings</strong></li>
+        <li>Go to <strong>Connectors</strong> > <strong>Add custom connector</strong></li>
+        <li>Paste the URL above and click <strong>Add</strong></li>
+        <li>A browser window will open - log in and click <strong>Approve</strong></li>
+        <li>Return to Claude Desktop - the server should show as connected</li>
+      </ol>
+    </details>
+  </div>
+
+  <script>
+  function copyText(id) {
+    var text = document.getElementById(id).textContent;
+    navigator.clipboard.writeText(text).then(function() {
+      var btn = document.getElementById(id).closest('div').querySelector('button');
+      btn.textContent = 'Copied!';
+      setTimeout(function() { btn.textContent = 'Copy'; }, 1500);
+    });
+  }
+  function copyDesktopURL() {
+    var text = document.getElementById('desktop-url').textContent;
+    navigator.clipboard.writeText(text).then(function() {
+      var btn = document.getElementById('copy-desktop-btn');
+      btn.textContent = 'Copied!';
+      setTimeout(function() { btn.textContent = 'Copy URL'; }, 1500);
+    });
+  }
+
+  function recreateStream(form) {
+    var progressEl = document.getElementById('recreate-progress');
+    var statusEl = document.getElementById('recreate-status');
+    var spinnerEl = document.getElementById('recreate-spinner');
+    progressEl.style.display = 'block';
+    statusEl.textContent = 'Starting...';
+    form.querySelector('button').disabled = true;
+
+    var finished = false; // tracks whether done/error event was received
+    var buf = '';         // accumulates partial SSE chunks across reads
+
+    fetch(form.action, {
+      method: 'POST',
+      body: new FormData(form)
+    }).then(function(response) {
+      if (!response.ok) {
+        return response.text().then(function(body) {
+          var detail = body.trim();
+          throw new Error(detail || ('Server returned ' + response.status));
+        });
+      }
+      var reader = response.body.getReader();
+      var decoder = new TextDecoder();
+
+      function processLines(text) {
+        buf += text;
+        var parts = buf.split('\n');
+        buf = parts.pop(); // keep incomplete trailing line in buffer
+        for (var i = 0; i < parts.length; i++) {
+          var line = parts[i];
+          if (line.indexOf('event: error') === 0) {
+            finished = true;
+            progressEl.style.background = '#fde8e8';
+            progressEl.style.borderColor = '#f5c6cb';
+            spinnerEl.style.display = 'none';
+          } else if (line.indexOf('event: done') === 0) {
+            finished = true;
+            progressEl.style.background = '#e8f5e9';
+            progressEl.style.borderColor = '#c3e6cb';
+            spinnerEl.style.animation = 'none';
+            spinnerEl.innerHTML = '<span style="color:#198754;margin-right:0.5rem">&#10003;</span><span id="recreate-status"></span>';
+            statusEl = document.getElementById('recreate-status');
+            setTimeout(function() { location.reload(); }, 1200);
+          } else if (line.indexOf('data: ') === 0) {
+            statusEl.textContent = line.slice(6);
+          }
+        }
+      }
+
+      function read() {
+        reader.read().then(function(result) {
+          if (result.done) {
+            if (buf) processLines('\n'); // flush remaining buffer
+            if (!finished) {
+              // Stream closed without done/error event - unexpected
+              statusEl.textContent = 'Connection closed unexpectedly';
+              progressEl.style.background = '#fde8e8';
+              progressEl.style.borderColor = '#f5c6cb';
+              spinnerEl.style.display = 'none';
+            }
+            return;
+          }
+          processLines(decoder.decode(result.value, {stream: true}));
+          read();
+        }).catch(function(err) {
+          if (!finished) {
+            statusEl.textContent = 'Connection error: ' + err.message;
+            progressEl.style.background = '#fde8e8';
+            progressEl.style.borderColor = '#f5c6cb';
+            spinnerEl.style.display = 'none';
+          }
+        });
+      }
+      read();
+    }).catch(function(err) {
+      statusEl.textContent = 'Error: ' + err.message;
+      progressEl.style.background = '#fde8e8';
+      progressEl.style.borderColor = '#f5c6cb';
+      spinnerEl.style.display = 'none';
+    });
+
+    return false;
+  }
+  </script>
+</div>
+{{end}}

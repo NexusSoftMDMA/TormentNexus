@@ -1,0 +1,68 @@
+{
+  "name": "self_v1_75_0",
+  "description": "Self-indexed jcodemunch-mcp golden queries for ranking-quality regression testing.",
+  "repo": "local/jcodemunch-mcp-0394b683",
+  "repo_sha": "a3ac91765a7fb84f8d20b87ef5d5319c71b45c7f",
+  "queries": [
+    {
+      "query": "search_symbols",
+      "expected_top_k": [
+        "src/jcodemunch_mcp/tools/search_symbols.py::search_symbols#function"
+      ]
+    },
+    {
+      "query": "compute_confidence",
+      "expected_top_k": [
+        "src/jcodemunch_mcp/retrieval/confidence.py::compute_confidence#function"
+      ]
+    },
+    {
+      "query": "attach_confidence",
+      "expected_top_k": [
+        "src/jcodemunch_mcp/retrieval/confidence.py::attach_confidence#function"
+      ]
+    },
+    {
+      "query": "record_tool_latency",
+      "expected_top_k": [
+        "src/jcodemunch_mcp/storage/token_tracker.py::record_tool_latency#function"
+      ]
+    },
+    {
+      "query": "analyze_perf",
+      "expected_top_k": [
+        "src/jcodemunch_mcp/tools/analyze_perf.py::analyze_perf#function"
+      ]
+    },
+    {
+      "query": "get_repo_health",
+      "expected_top_k": [
+        "src/jcodemunch_mcp/tools/get_repo_health.py::get_repo_health#function"
+      ]
+    },
+    {
+      "query": "ndcg_at_k",
+      "expected_top_k": [
+        "benchmarks/replay/metrics.py::ndcg_at_k#function"
+      ]
+    },
+    {
+      "query": "_State",
+      "expected_top_k": [
+        "src/jcodemunch_mcp/storage/token_tracker.py::_State#class"
+      ]
+    },
+    {
+      "query": "build_identity_channel",
+      "expected_top_k": [
+        "src/jcodemunch_mcp/retrieval/signal_fusion.py::build_identity_channel#function"
+      ]
+    },
+    {
+      "query": "ENTRY_POINT_DECORATOR_RE",
+      "expected_top_k": [
+        "src/jcodemunch_mcp/parser/context/_route_utils.py::ENTRY_POINT_DECORATOR_RE#constant"
+      ]
+    }
+  ]
+}

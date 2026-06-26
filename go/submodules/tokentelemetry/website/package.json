@@ -1,0 +1,33 @@
+{
+  "name": "tokentelemetry-website",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev -p 3001",
+    "build": "fumadocs-mdx && next build && node ./scripts/post-build.mjs",
+    "start": "next start -p 3001",
+    "lint": "eslint"
+  },
+  "dependencies": {
+    "@types/mdx": "^2.0.14",
+    "framer-motion": "^11.11.0",
+    "fumadocs-core": "^16.10.3",
+    "fumadocs-mdx": "^15.0.12",
+    "fumadocs-ui": "^16.10.3",
+    "lucide-react": "^1.8.0",
+    "next": "16.2.9",
+    "react": "19.2.4",
+    "react-dom": "19.2.4"
+  },
+  "overrides": {
+    "postcss": "^8.5.10"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "tailwindcss": "^4",
+    "typescript": "^5"
+  }
+}

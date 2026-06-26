@@ -1,0 +1,269 @@
+// SPDX-FileCopyrightText: Copyright 2025 Stacklok, Inc.
+// SPDX-License-Identifier: Apache-2.0
+
+package server_test
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+
+	"github.com/stacklok/toolhive/pkg/vmcp"
+	"github.com/stacklok/toolhive/pkg/vmcp/aggregator"
+	vmcpauth "github.com/stacklok/toolhive/pkg/vmcp/auth"
+	"github.com/stacklok/toolhive/pkg/vmcp/auth/strategies"
+	authtypes "github.com/stacklok/toolhive/pkg/vmcp/auth/types"
+	vmcpclient "github.com/stacklok/toolhive/pkg/vmcp/client"
+	"github.com/stacklok/toolhive/pkg/vmcp/mocks"
+	"github.com/stacklok/toolhive/pkg/vmcp/router"
+	"github.com/stacklok/toolhive/pkg/vmcp/server"
+	vmcpsession "github.com/stacklok/toolhive/pkg/vmcp/session"
+)
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+// startRealMCPBackend is defined in testutil_test.go as a shared test utility.
+
+// newRealTestHandler builds the full vMCP handler backed by the MCP server at
+// backendURL. It is the low-level helper used by newRealTestServer and any test
+// that needs control over the httptest.Server configuration (e.g. WriteTimeout).
+func newRealTestHandler(t *testing.T, backendURL string) http.Handler {
+	t.Helper()
+
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	mockBackendRegistry := mocks.NewMockBackendRegistry(ctrl)
+
+	backend := vmcp.Backend{
+		ID:            "real-backend",
+		Name:          "real-backend",
+		BaseURL:       backendURL,
+		TransportType: "streamable-http",
+	}
+
+	// BackendRegistry.List() is consumed by the core's on-demand aggregation and by
+	// CreateSession(). Get() resolves the backend display name during session registration
+	// (audit labelling). Discover() is no longer called (the discovery middleware is guarded
+	// off on the Serve path); the AnyTimes expectation tolerates zero calls.
+	mockBackendRegistry.EXPECT().List(gomock.Any()).Return([]vmcp.Backend{backend}).AnyTimes()
+	mockBackendRegistry.EXPECT().Get(gomock.Any(), gomock.Any()).Return(&backend).AnyTimes()
+
+	authReg := vmcpauth.NewDefaultOutgoingAuthRegistry()
+	require.NoError(t, authReg.RegisterStrategy(
+		authtypes.StrategyTypeUnauthenticated,
+		strategies.NewUnauthenticatedStrategy(),
+	))
+	factory := vmcpsession.NewSessionFactory(authReg)
+
+	// Real backend client + aggregator: server.New routes through core.New + Serve, so the
+	// core sources the advertised set by querying the real backend through this client and
+	// routes tools/call back through it. A priority resolver keeps raw tool names (the
+	// prefix resolver would rename "echo" → "real-backend_echo").
+	backendClient, err := vmcpclient.NewHTTPBackendClient(authReg)
+	require.NoError(t, err)
+	resolver, err := aggregator.NewPriorityConflictResolver([]string{backend.Name})
+	require.NoError(t, err)
+	agg := aggregator.NewDefaultAggregator(backendClient, resolver, nil, nil)
+
+	rt := router.NewSessionRouter(&vmcp.RoutingTable{})
+	srv, err := server.New(
+		context.Background(),
+		&server.Config{
+			Host:           "127.0.0.1",
+			Port:           0,
+			SessionTTL:     5 * time.Minute,
+			SessionFactory: factory,
+			Aggregator:     agg,
+		},
+		rt,
+		backendClient,
+		mockBackendRegistry,
+		nil,
+	)
+	require.NoError(t, err)
+
+	handler, err := srv.Handler(context.Background())
+	require.NoError(t, err)
+	return handler
+}
+
+// newRealTestServer builds a vMCP server with session management and a real
+// SessionFactory. The BackendRegistry mock returns the backend at backendURL
+// so that CreateSession() opens a real HTTP connection to the MCP server.
+func newRealTestServer(t *testing.T, backendURL string) *httptest.Server {
+	t.Helper()
+	ts := httptest.NewServer(newRealTestHandler(t, backendURL))
+	t.Cleanup(ts.Close)
+	return ts
+}
+
+// waitForEchoTool polls tools/list until the "echo" tool appears or the
+// deadline elapses. It relies on require.Eventually so the test fails
+// immediately on timeout.
+func waitForEchoTool(t *testing.T, baseURL, sessionID string) {
+	t.Helper()
+	listReq := map[string]any{
+		"jsonrpc": "2.0",
+		"id":      99,
+		"method":  "tools/list",
+		"params":  map[string]any{},
+	}
+	require.Eventually(t, func() bool {
+		resp := postMCP(t, baseURL, listReq, sessionID)
+		body, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		return resp.StatusCode == http.StatusOK && bytes.Contains(body, []byte(`"echo"`))
+	}, 5*time.Second, 50*time.Millisecond,
+		"tools/list should expose the 'echo' tool after session creation")
+}
+
+// ---------------------------------------------------------------------------
+// Integration tests — real MCP backend, real SessionFactory
+// ---------------------------------------------------------------------------
+
+// TestIntegration_RealBackend_ToolDiscovery verifies that when a client
+// initializes a session, the vMCP server connects to the real backend and
+// registers its tools. A subsequent tools/list request must return the "echo"
+// tool discovered from the backend.
+func TestIntegration_RealBackend_ToolDiscovery(t *testing.T) {
+	t.Parallel()
+
+	backendURL := startRealMCPBackend(t)
+	ts := newRealTestServer(t, backendURL)
+
+	// Initialize session using the test client.
+	client := NewMCPTestClient(t, ts.URL)
+	client.InitializeSession()
+
+	// Wait for the OnRegisterSession hook to complete and the echo tool to appear.
+	waitForEchoTool(t, ts.URL, client.SessionID())
+
+	// Fetch tools/list and parse the response.
+	resp := client.ListTools()
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	var rpc struct {
+		Result struct {
+			Tools []struct {
+				Name        string `json:"name"`
+				Description string `json:"description"`
+			} `json:"tools"`
+		} `json:"result"`
+	}
+	require.NoError(t, json.Unmarshal(body, &rpc), "body: %s", string(body))
+
+	require.Len(t, rpc.Result.Tools, 1, "expected exactly the 'echo' tool from the real backend")
+	assert.Equal(t, "echo", rpc.Result.Tools[0].Name)
+	assert.Equal(t, "Echoes the input back", rpc.Result.Tools[0].Description)
+}
+
+// TestIntegration_RealBackend_ToolCall verifies the full tool-call path:
+// a tools/call request travels through the vMCP session manager to the real
+// backend MCP server and the result is returned to the client.
+func TestIntegration_RealBackend_ToolCall(t *testing.T) {
+	t.Parallel()
+
+	backendURL := startRealMCPBackend(t)
+	ts := newRealTestServer(t, backendURL)
+
+	// Initialize session.
+	client := NewMCPTestClient(t, ts.URL)
+	client.InitializeSession()
+
+	// Wait for the session to be fully established before sending a tool call.
+	waitForEchoTool(t, ts.URL, client.SessionID())
+
+	// Call the echo tool and verify the result from the real backend.
+	toolResp := client.CallTool("echo", map[string]any{"input": "hello from backend"})
+	defer toolResp.Body.Close()
+
+	body, err := io.ReadAll(toolResp.Body)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, toolResp.StatusCode, "body: %s", string(body))
+
+	var rpc struct {
+		Result struct {
+			Content []struct {
+				Type string `json:"type"`
+				Text string `json:"text"`
+			} `json:"content"`
+			IsError bool `json:"isError"`
+		} `json:"result"`
+	}
+	require.NoError(t, json.Unmarshal(body, &rpc), "body: %s", string(body))
+	require.Len(t, rpc.Result.Content, 1)
+	assert.False(t, rpc.Result.IsError)
+	assert.Equal(t, "text", rpc.Result.Content[0].Type)
+	assert.Equal(t, "hello from backend", rpc.Result.Content[0].Text)
+}
+
+// TestIntegration_NonSSEGetRejectedWithNotAcceptable verifies that a GET request
+// without Accept: text/event-stream is rejected by the vMCP server with 406.
+// This confirms that headerValidatingMiddleware fires before the SSE stream is
+// opened, and that the write-timeout middleware does not interfere with the
+// rejection path.
+func TestIntegration_RealBackend_NonSSEGetRejectedWithNotAcceptable(t *testing.T) {
+	t.Parallel()
+
+	// The request is rejected by headerValidatingMiddleware with 406 before any
+	// backend interaction, so no real MCP backend is needed.
+	ts := newRealTestServer(t, "http://127.0.0.1:0")
+
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, ts.URL+"/mcp", nil)
+	require.NoError(t, err)
+	// No Accept header — not a qualifying SSE request.
+
+	resp, err := ts.Client().Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	assert.Equal(t, http.StatusNotAcceptable, resp.StatusCode,
+		"GET without Accept: text/event-stream must be rejected with 406")
+}
+
+// TestIntegration_RealBackend_Termination verifies the session termination path
+// against a real backend: a DELETE request closes the backend connection, and
+// subsequent requests with the terminated session ID are rejected.
+func TestIntegration_RealBackend_Termination(t *testing.T) {
+	t.Parallel()
+
+	backendURL := startRealMCPBackend(t)
+	ts := newRealTestServer(t, backendURL)
+
+	// Initialize session.
+	client := NewMCPTestClient(t, ts.URL)
+	client.InitializeSession()
+
+	// Wait for session creation to complete before terminating.
+	waitForEchoTool(t, ts.URL, client.SessionID())
+
+	// Terminate the session.
+	delResp := client.Terminate()
+	defer delResp.Body.Close()
+	require.Equal(t, http.StatusOK, delResp.StatusCode, "DELETE should return 200 OK")
+
+	// Subsequent requests with the terminated session ID are rejected.
+	// After Terminate() deletes the session from storage, the discovery middleware passes
+	// through (no session found → skip capability injection), and the SDK's Validate()
+	// returns HTTP 404 for the unknown session ID.
+	postResp := client.CallTool("echo", map[string]any{"input": "should fail"})
+	defer postResp.Body.Close()
+	assert.Equal(t, http.StatusNotFound, postResp.StatusCode,
+		"request with terminated session ID should be rejected")
+}

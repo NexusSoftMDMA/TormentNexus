@@ -1,0 +1,19 @@
+{
+  "mcpServers": {
+    "sentry": {
+      "type": "http",
+      "url": "http://127.0.0.1:8080/mcp/sentry",
+      "headers": {
+        "Authorization": "Bearer test-key"
+      }
+    },
+    "my-local-server": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["server.js"]
+    }
+  },
+  "someOtherTopLevelKey": {
+    "preserved": true
+  }
+}

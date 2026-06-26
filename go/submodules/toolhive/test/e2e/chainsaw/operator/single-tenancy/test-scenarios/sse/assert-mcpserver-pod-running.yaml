@@ -1,0 +1,11 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: st-sse
+  namespace: toolhive-system
+spec:
+  template:
+    spec:
+      serviceAccountName: (join('-', [$testPrefix, 'sa']))
+status:
+  availableReplicas: 1

@@ -1,0 +1,376 @@
+import Foundation
+
+/// One task from `hermes kanban list --json` (v0.12+).
+///
+/// Hermes ships a SQLite-backed task board under `~/.hermes/kanban.db`.
+/// v2.6 surfaced this as a read-only list; v2.7.5 lifts it to a full
+/// drag-and-drop board with the complete write surface (`create`,
+/// `claim`, `complete`, `block`, `unblock`, `archive`, `assign`,
+/// `link`/`unlink`, `comment`, `dispatch`).
+///
+/// Hermes has no `update` verb — `priority` / `title` / `body` /
+/// `tenant` / `max_retries` are write-once at create time. Mutations
+/// after that are expressed as state transitions (status, assignee) or
+/// new comments.
+public struct HermesKanbanTask: Sendable, Equatable, Identifiable, Codable {
+    public let id: String
+    public let title: String
+    public let body: String?
+    public let assignee: String?
+    public let status: String          // archived | blocked | done | ready | running | todo | triage
+    public let priority: Int?
+    public let tenant: String?
+    public let workspaceKind: String?  // scratch | worktree | dir
+    public let workspacePath: String?
+    public let createdBy: String?
+    public let createdAt: String?      // ISO timestamp
+    public let startedAt: String?
+    public let completedAt: String?
+    public let result: String?
+    public let skills: [String]
+
+    // v2.7.5 fields exposed by `kanban show --json` and `kanban watch`.
+    public let idempotencyKey: String?
+    public let lastHeartbeatAt: String?
+    public let maxRuntimeSeconds: Int?
+    public let currentRunId: Int?
+
+    // v0.13 (v2026.5.7) reliability + recovery fields. All Optional with
+    // `nil` decoded for pre-v0.13 hosts so the v2.7.5 surface keeps
+    // rendering unchanged when the connected Hermes hasn't shipped them.
+    /// Per-task retry budget set at create time via `--max-retries N`.
+    /// Hermes pattern is write-once — no `set_max_retries` verb. Scarf
+    /// surfaces this read-only on the inspector header.
+    public let maxRetries: Int?
+    /// Server-supplied reason a task was auto-blocked (e.g. "worker
+    /// exited (code 0) without calling `kanban complete`"). Surfaced
+    /// verbatim in the inspector banner.
+    public let autoBlockedReason: String?
+    /// `pending` / `verified` / `rejected` / nil. Pending means a worker
+    /// claimed it created this card but Hermes hasn't confirmed the
+    /// underlying work exists. Read through `KanbanHallucinationGate.from`
+    /// to map to a typed mirror — kept as a String at the wire level so
+    /// Hermes can add new gate states (e.g. `quarantined`) without a
+    /// Scarf release.
+    public let hallucinationGateStatus: String?
+    /// Cross-run distress signals (retry cap hit, etc.). Per-run signals
+    /// hang off `HermesKanbanRun.diagnostics`. Empty array for pre-v0.13
+    /// hosts AND for tasks the diagnostics engine hasn't flagged.
+    public let diagnostics: [HermesKanbanDiagnostic]
+
+    // v0.15 (v2026.5.28) field.
+    /// Originating ACP chat session id, stamped by `kanban_create` from
+    /// the `HERMES_SESSION_ID` env the ACP adapter sets around the agent
+    /// loop. `nil` for CLI/dashboard-created tasks and on pre-v0.15 hosts.
+    /// Lets the chat-scoped board filter precisely by `--session` instead
+    /// of the old tenant + time-window heuristic.
+    public let sessionId: String?
+
+    // v0.15 (v2026.5.28) worktree + workflow fields.
+    /// Git branch a worktree-workspace task operates on, set via
+    /// `kanban create --branch`. Present in `list --json`; `nil` for
+    /// non-worktree tasks and pre-v0.15 hosts.
+    public let branchName: String?
+    /// Identifier of the multi-step workflow template driving this task.
+    /// Present in `list --json`; `nil` for ad-hoc tasks and pre-v0.15
+    /// hosts.
+    public let workflowTemplateId: String?
+    /// Key of the current step within the task's workflow template.
+    /// Present in `list --json`; `nil` outside a workflow and pre-v0.15.
+    public let currentStepKey: String?
+    /// Per-task model override (e.g. a worker pinned to a specific
+    /// model). Only emitted by `show --json` / tool calls, NOT `list
+    /// --json` — still decoded tolerantly so it's `nil` from list rows.
+    public let modelOverride: String?
+
+    // v0.16 (v2026.6.5) goal-mode fields.
+    /// Whether the task runs as a Ralph-style persistent goal loop instead
+    /// of a one-shot execution. `nil` for non-goal tasks and on pre-v0.16
+    /// hosts (no `goal_mode` key on the wire).
+    public let goalMode: Bool?
+    /// Optional per-task turn budget for a goal-mode loop. `nil` when
+    /// unbounded, for non-goal tasks, and on pre-v0.16 hosts.
+    public let goalMaxTurns: Int?
+
+    public init(
+        id: String,
+        title: String,
+        body: String? = nil,
+        assignee: String? = nil,
+        status: String,
+        priority: Int? = nil,
+        tenant: String? = nil,
+        workspaceKind: String? = nil,
+        workspacePath: String? = nil,
+        createdBy: String? = nil,
+        createdAt: String? = nil,
+        startedAt: String? = nil,
+        completedAt: String? = nil,
+        result: String? = nil,
+        skills: [String] = [],
+        idempotencyKey: String? = nil,
+        lastHeartbeatAt: String? = nil,
+        maxRuntimeSeconds: Int? = nil,
+        currentRunId: Int? = nil,
+        maxRetries: Int? = nil,
+        autoBlockedReason: String? = nil,
+        hallucinationGateStatus: String? = nil,
+        diagnostics: [HermesKanbanDiagnostic] = [],
+        sessionId: String? = nil,
+        branchName: String? = nil,
+        workflowTemplateId: String? = nil,
+        currentStepKey: String? = nil,
+        modelOverride: String? = nil,
+        goalMode: Bool? = nil,
+        goalMaxTurns: Int? = nil
+    ) {
+        self.id = id
+        self.title = title
+        self.body = body
+        self.assignee = assignee
+        self.status = status
+        self.priority = priority
+        self.tenant = tenant
+        self.workspaceKind = workspaceKind
+        self.workspacePath = workspacePath
+        self.createdBy = createdBy
+        self.createdAt = createdAt
+        self.startedAt = startedAt
+        self.completedAt = completedAt
+        self.result = result
+        self.skills = skills
+        self.idempotencyKey = idempotencyKey
+        self.lastHeartbeatAt = lastHeartbeatAt
+        self.maxRuntimeSeconds = maxRuntimeSeconds
+        self.currentRunId = currentRunId
+        self.maxRetries = maxRetries
+        self.autoBlockedReason = autoBlockedReason
+        self.hallucinationGateStatus = hallucinationGateStatus
+        self.diagnostics = diagnostics
+        self.sessionId = sessionId
+        self.branchName = branchName
+        self.workflowTemplateId = workflowTemplateId
+        self.currentStepKey = currentStepKey
+        self.modelOverride = modelOverride
+        self.goalMode = goalMode
+        self.goalMaxTurns = goalMaxTurns
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case id, title, body, assignee, status, priority, tenant
+        case workspaceKind = "workspace_kind"
+        case workspacePath = "workspace_path"
+        case createdBy = "created_by"
+        case createdAt = "created_at"
+        case startedAt = "started_at"
+        case completedAt = "completed_at"
+        case result, skills
+        case idempotencyKey = "idempotency_key"
+        case lastHeartbeatAt = "last_heartbeat_at"
+        case maxRuntimeSeconds = "max_runtime_seconds"
+        case currentRunId = "current_run_id"
+        case maxRetries = "max_retries"
+        case autoBlockedReason = "auto_blocked_reason"
+        case hallucinationGateStatus = "hallucination_gate_status"
+        case diagnostics
+        case sessionId = "session_id"
+        case branchName = "branch_name"
+        case workflowTemplateId = "workflow_template_id"
+        case currentStepKey = "current_step_key"
+        case modelOverride = "model_override"
+        case goalMode = "goal_mode"
+        case goalMaxTurns = "goal_max_turns"
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        self.id = try c.decode(String.self, forKey: .id)
+        self.title = try c.decode(String.self, forKey: .title)
+        self.body = try c.decodeIfPresent(String.self, forKey: .body)
+        self.assignee = try c.decodeIfPresent(String.self, forKey: .assignee)
+        self.status = try c.decodeIfPresent(String.self, forKey: .status) ?? "unknown"
+        self.priority = try c.decodeIfPresent(Int.self, forKey: .priority)
+        self.tenant = try c.decodeIfPresent(String.self, forKey: .tenant)
+        self.workspaceKind = try c.decodeIfPresent(String.self, forKey: .workspaceKind)
+        self.workspacePath = try c.decodeIfPresent(String.self, forKey: .workspacePath)
+        self.createdBy = try c.decodeIfPresent(String.self, forKey: .createdBy)
+        // Hermes emits timestamps as Unix integer seconds for tasks
+        // returned from `create`/`show`/`list` (its SQLite columns are
+        // INTEGER) but ISO-8601 strings in some other paths. Normalize
+        // both shapes into ISO-8601 strings so UI code only deals with
+        // one type.
+        self.createdAt = try Self.decodeFlexibleTimestamp(c, forKey: .createdAt)
+        self.startedAt = try Self.decodeFlexibleTimestamp(c, forKey: .startedAt)
+        self.completedAt = try Self.decodeFlexibleTimestamp(c, forKey: .completedAt)
+        self.result = try c.decodeIfPresent(String.self, forKey: .result)
+        self.skills = try c.decodeIfPresent([String].self, forKey: .skills) ?? []
+        self.idempotencyKey = try c.decodeIfPresent(String.self, forKey: .idempotencyKey)
+        self.lastHeartbeatAt = try Self.decodeFlexibleTimestamp(c, forKey: .lastHeartbeatAt)
+        self.maxRuntimeSeconds = try c.decodeIfPresent(Int.self, forKey: .maxRuntimeSeconds)
+        self.currentRunId = try c.decodeIfPresent(Int.self, forKey: .currentRunId)
+        // v0.13 fields — every one is `decodeIfPresent` so a v0.12 host's
+        // task row decodes successfully with these all nil/empty. The
+        // tolerant-decode contract is pinned by KanbanModelsTests.
+        self.maxRetries = try c.decodeIfPresent(Int.self, forKey: .maxRetries)
+        self.autoBlockedReason = try c.decodeIfPresent(String.self, forKey: .autoBlockedReason)
+        self.hallucinationGateStatus = try c.decodeIfPresent(String.self, forKey: .hallucinationGateStatus)
+        // Wrap diagnostics decode in `try?` so a single malformed entry
+        // (or the whole array being the wrong shape) doesn't poison the
+        // task row — the rest of the decoder still produces a usable
+        // task. Empty default matches the `skills` pattern.
+        self.diagnostics = (try? c.decodeIfPresent([HermesKanbanDiagnostic].self, forKey: .diagnostics)) ?? []
+        // v0.15 field — `decodeIfPresent` so pre-v0.15 task rows (no
+        // `session_id` key) decode with `sessionId == nil`.
+        self.sessionId = try c.decodeIfPresent(String.self, forKey: .sessionId)
+        // v0.15 worktree + workflow fields. All `decodeIfPresent` so
+        // pre-v0.15 rows decode with nil; `modelOverride` is nil from
+        // `list --json` rows even on v0.15 (only `show --json` emits it).
+        self.branchName = try c.decodeIfPresent(String.self, forKey: .branchName)
+        self.workflowTemplateId = try c.decodeIfPresent(String.self, forKey: .workflowTemplateId)
+        self.currentStepKey = try c.decodeIfPresent(String.self, forKey: .currentStepKey)
+        self.modelOverride = try c.decodeIfPresent(String.self, forKey: .modelOverride)
+        // v0.16 goal-mode fields — `decodeIfPresent` so pre-v0.16 task rows
+        // (no `goal_mode` / `goal_max_turns` keys) decode with both nil.
+        self.goalMode = try c.decodeIfPresent(Bool.self, forKey: .goalMode)
+        self.goalMaxTurns = try c.decodeIfPresent(Int.self, forKey: .goalMaxTurns)
+    }
+
+    /// Decode a timestamp that may arrive as a Unix integer or an
+    /// ISO-8601 string. Returns the ISO-8601 string form so downstream
+    /// code only deals with one type.
+    static func decodeFlexibleTimestamp(
+        _ container: KeyedDecodingContainer<CodingKeys>,
+        forKey key: CodingKeys
+    ) throws -> String? {
+        if !container.contains(key) { return nil }
+        // Try the SQLite-style integer first (most common from Hermes).
+        if let unix = try? container.decodeIfPresent(Double.self, forKey: key) {
+            let date = Date(timeIntervalSince1970: unix)
+            return Self.isoFormatter.string(from: date)
+        }
+        // Fall back to a plain string.
+        return try container.decodeIfPresent(String.self, forKey: key)
+    }
+
+    static let isoFormatter: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime]
+        return f
+    }()
+
+    /// `createdAt` parsed back into a `Date` for time-window filtering
+    /// (e.g. the "Since chat opened" lens on the project board). Nil
+    /// when the wire field is absent OR the string can't be parsed —
+    /// callers that filter by time treat unparseable rows as outside
+    /// the window rather than crashing.
+    public var createdAtDate: Date? {
+        guard let createdAt else { return nil }
+        return Self.isoFormatter.date(from: createdAt)
+    }
+}
+
+// MARK: - Status enum (typed view of the wire string)
+
+/// Typed mirror of Hermes's status enum. Models keep `status: String` for
+/// forward compatibility with new statuses Hermes might add; UI code uses
+/// `KanbanStatus.from(_:)` to map known values into typed categories and
+/// fall back to `.unknown` for anything new.
+public enum KanbanStatus: String, Sendable, CaseIterable, Identifiable {
+    case triage
+    case todo
+    // v0.15: tasks parked by `kanban schedule` await a trigger.
+    case scheduled
+    case ready
+    case running
+    case blocked
+    // v0.15: completed work awaiting verification before `done`.
+    case review
+    case done
+    case archived
+    case unknown
+
+    public var id: String { rawValue }
+
+    public static func from(_ raw: String) -> KanbanStatus {
+        KanbanStatus(rawValue: raw.lowercased()) ?? .unknown
+    }
+
+    /// Coarse board grouping. `triage` is a column; `todo` and `ready`
+    /// collapse to one ("Up Next"); everything else maps 1:1.
+    /// `archived` lives outside the board (toggle). The v0.15 statuses
+    /// `scheduled` and `review` map to their own dedicated columns.
+    public var boardColumn: KanbanBoardColumn {
+        switch self {
+        case .triage:              return .triage
+        case .scheduled:           return .scheduled
+        case .todo, .ready, .unknown: return .upNext
+        case .running:             return .running
+        case .review:              return .review
+        case .blocked:             return .blocked
+        case .done:                return .done
+        case .archived:            return .archived
+        }
+    }
+}
+
+public enum KanbanBoardColumn: String, Sendable, CaseIterable, Identifiable {
+    case triage
+    // v0.15: pre-work parked via `kanban schedule`, awaiting a trigger.
+    case scheduled
+    case upNext
+    case running
+    // v0.15: completed work awaiting verification before `done`.
+    case review
+    case blocked
+    case done
+    case archived
+
+    public var id: String { rawValue }
+
+    public var displayName: String {
+        switch self {
+        case .triage:    return "Triage"
+        case .scheduled: return "Scheduled"
+        case .upNext:    return "Up Next"
+        case .running:   return "Running"
+        case .review:    return "Review"
+        case .blocked:   return "Blocked"
+        case .done:      return "Done"
+        case .archived:  return "Archived"
+        }
+    }
+
+    /// Visible columns in the default board layout. `archived` appears
+    /// only when the "Show archived" toggle is on. `triage`, `scheduled`,
+    /// and `review` are shown only when the board has at least one task
+    /// in that bucket (collapsed otherwise to keep the layout focused).
+    /// `scheduled` sits before Up Next (it's pre-work); `review` sits
+    /// between Running and Done.
+    public static let defaultVisible: [KanbanBoardColumn] = [
+        .triage, .scheduled, .upNext, .running, .review, .blocked, .done
+    ]
+}
+
+// MARK: - Hallucination gate (v0.13)
+
+/// Typed mirror of Hermes v0.13's hallucination-gate state. Worker-created
+/// cards land in `pending` until something verifies the underlying work
+/// exists; Scarf surfaces a Verify / Reject UX above the task body so the
+/// user can act as the verification gate.
+///
+/// Kept separate from `KanbanStatus` because hallucination state is
+/// orthogonal to the lifecycle — a card can be `ready` *and* `pending`,
+/// for example.
+public enum KanbanHallucinationGate: String, Sendable, CaseIterable {
+    case pending
+    case verified
+    case rejected
+
+    /// Map a raw `hallucination_gate_status` string (case-insensitive) to
+    /// a typed gate. Returns nil for empty/nil/unknown values so callers
+    /// can short-circuit "no gate" branches with `if let gate = …`.
+    public static func from(_ raw: String?) -> KanbanHallucinationGate? {
+        guard let raw, !raw.isEmpty else { return nil }
+        return KanbanHallucinationGate(rawValue: raw.lowercased())
+    }
+}

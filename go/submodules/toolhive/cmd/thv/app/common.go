@@ -1,0 +1,219 @@
+// SPDX-FileCopyrightText: Copyright 2025 Stacklok, Inc.
+// SPDX-License-Identifier: Apache-2.0
+
+package app
+
+import (
+	"context"
+	"fmt"
+
+	"github.com/spf13/cobra"
+
+	groupval "github.com/stacklok/toolhive-core/validation/group"
+	"github.com/stacklok/toolhive/pkg/config"
+	"github.com/stacklok/toolhive/pkg/container/runtime"
+	"github.com/stacklok/toolhive/pkg/secrets"
+	"github.com/stacklok/toolhive/pkg/workloads"
+)
+
+// AddOIDCFlags adds OIDC validation flags to the provided command.
+func AddOIDCFlags(cmd *cobra.Command) {
+	cmd.Flags().String("oidc-issuer", "", "OIDC issuer URL (e.g., https://accounts.google.com)")
+	cmd.Flags().String("oidc-audience", "", "Expected audience for the token")
+	cmd.Flags().String("oidc-jwks-url", "", "URL to fetch the JWKS from")
+	cmd.Flags().String("oidc-introspection-url", "", "URL for token introspection endpoint")
+	cmd.Flags().String("oidc-client-id", "", "OIDC client ID")
+	cmd.Flags().String("oidc-client-secret", "", "OIDC client secret (optional, for introspection)")
+	cmd.Flags().StringSlice("oidc-scopes", nil,
+		"OAuth scopes to advertise in the well-known endpoint (RFC 9728, defaults to 'openid' if not specified)")
+}
+
+// GetStringFlagOrEmpty tries to get the string value of the given flag.
+// If the flag doesn't exist or there's an error, it returns an empty string.
+func GetStringFlagOrEmpty(cmd *cobra.Command, flagName string) string {
+	value, err := cmd.Flags().GetString(flagName)
+	if err != nil {
+		return ""
+	}
+	return value
+}
+
+// IsOIDCEnabled returns true if OIDC validation is enabled for the given command.
+// OIDC validation is considered enabled if either the OIDC issuer or the JWKS URL flag is provided.
+func IsOIDCEnabled(cmd *cobra.Command) bool {
+	jwksURL := GetStringFlagOrEmpty(cmd, "oidc-jwks-url")
+	issuer := GetStringFlagOrEmpty(cmd, "oidc-issuer")
+	introspectionURL := GetStringFlagOrEmpty(cmd, "oidc-introspection-url")
+
+	return jwksURL != "" || issuer != "" || introspectionURL != ""
+}
+
+// SetSecretsProvider sets the secrets provider type in the configuration.
+// It validates the input, tests the provider functionality, and updates the configuration.
+// Choices are `encrypted`, `1password`, and `environment`.
+func SetSecretsProvider(ctx context.Context, provider secrets.ProviderType) error {
+	// Validate input
+	if provider == "" {
+		return fmt.Errorf("validation error: provider cannot be empty")
+	}
+
+	// Validate the provider type
+	switch provider {
+	case secrets.EncryptedType:
+	case secrets.OnePasswordType:
+	case secrets.EnvironmentType:
+		// Valid provider type
+	default:
+		return fmt.Errorf("invalid secrets provider type: %s (valid types: %s, %s, %s)",
+			provider,
+			string(secrets.EncryptedType),
+			string(secrets.OnePasswordType),
+			string(secrets.EnvironmentType),
+		)
+	}
+
+	// Validate that the provider can be created and works correctly
+	result := secrets.ValidateProvider(ctx, provider)
+	if !result.Success {
+		return fmt.Errorf("provider validation failed: %w", result.Error)
+	}
+
+	// Update the secrets provider type and mark setup as completed
+	err := config.UpdateConfig(func(c *config.Config) error {
+		c.Secrets.ProviderType = string(provider)
+		c.Secrets.SetupCompleted = true
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("failed to update configuration: %w", err)
+	}
+
+	return nil
+}
+
+// completeMCPServerNames provides completion for MCP server names.
+// This function is used by commands like 'rm' and 'stop' to auto-complete
+// workload names with available MCP servers.
+func completeMCPServerNames(cmd *cobra.Command, args []string, _ string) ([]string, cobra.ShellCompDirective) {
+	// Only complete the first argument (workload name)
+	if len(args) > 0 {
+		return nil, cobra.ShellCompDirectiveNoFileComp
+	}
+
+	ctx := cmd.Context()
+
+	// Create status manager
+	manager, err := workloads.NewManager(ctx)
+	if err != nil {
+		return nil, cobra.ShellCompDirectiveError
+	}
+
+	// List all workloads (including stopped ones for rm command, only running for stop)
+	// We'll include all workloads since rm can remove stopped workloads too
+	workloadList, err := manager.ListWorkloads(ctx, true)
+	if err != nil {
+		return nil, cobra.ShellCompDirectiveError
+	}
+
+	// Extract workload names for completion
+	var names []string
+	for _, workload := range workloadList {
+		names = append(names, workload.Name)
+	}
+
+	return names, cobra.ShellCompDirectiveNoFileComp
+}
+
+// completeLogsArgs provides completion for the logs command.
+// This function completes both MCP server names and the special "prune" argument.
+func completeLogsArgs(cmd *cobra.Command, args []string, _ string) ([]string, cobra.ShellCompDirective) {
+	// Only complete the first argument
+	if len(args) > 0 {
+		return nil, cobra.ShellCompDirectiveNoFileComp
+	}
+
+	ctx := cmd.Context()
+
+	// Create status manager
+	manager, err := workloads.NewManager(ctx)
+	if err != nil {
+		return []string{"prune"}, cobra.ShellCompDirectiveNoFileComp
+	}
+
+	// List all workloads (including stopped ones)
+	workloadList, err := manager.ListWorkloads(ctx, true)
+	if err != nil {
+		return []string{"prune"}, cobra.ShellCompDirectiveNoFileComp
+	}
+
+	// Extract workload names and add "prune" option
+	var completions []string
+	completions = append(completions, "prune")
+	for _, workload := range workloadList {
+		completions = append(completions, workload.Name)
+	}
+
+	return completions, cobra.ShellCompDirectiveNoFileComp
+}
+
+// workloadStatusIndicator returns the status string with a visual indicator prepended
+// for statuses that warrant user attention (unauthenticated, auth_retrying, policy_stopped).
+// All other statuses are returned as plain strings.
+func workloadStatusIndicator(status runtime.WorkloadStatus) string {
+	switch status {
+	case runtime.WorkloadStatusUnauthenticated:
+		return "⚠️  " + string(status)
+	case runtime.WorkloadStatusAuthRetrying:
+		return "🔄 " + string(status)
+	case runtime.WorkloadStatusPolicyStopped:
+		return "🚫 " + string(status)
+	case runtime.WorkloadStatusRunning, runtime.WorkloadStatusStopped, runtime.WorkloadStatusError,
+		runtime.WorkloadStatusStarting, runtime.WorkloadStatusStopping, runtime.WorkloadStatusUnhealthy,
+		runtime.WorkloadStatusRemoving, runtime.WorkloadStatusUnknown:
+		return string(status)
+	}
+	return string(status)
+}
+
+// AddGroupFlag adds a --group flag to the provided command for filtering by group.
+// If withShorthand is true, adds the -g shorthand as well.
+func AddGroupFlag(cmd *cobra.Command, groupVar *string, withShorthand bool) {
+	if withShorthand {
+		cmd.Flags().StringVarP(groupVar, "group", "g", "", "Filter by group")
+	} else {
+		cmd.Flags().StringVar(groupVar, "group", "", "Filter by group")
+	}
+}
+
+// AddAllFlag adds an --all flag to the provided command.
+// If withShorthand is true, adds the -a shorthand as well.
+func AddAllFlag(cmd *cobra.Command, allVar *bool, withShorthand bool, description string) {
+	if withShorthand {
+		cmd.Flags().BoolVarP(allVar, "all", "a", false, description)
+	} else {
+		cmd.Flags().BoolVar(allVar, "all", false, description)
+	}
+}
+
+// ValidateGroupFlag returns a cobra PreRunE-compatible function
+// that validates the --group flag *if provided*.
+func validateGroupFlag() func(cmd *cobra.Command, args []string) error {
+	return func(cmd *cobra.Command, _ []string) error {
+		groupName, err := cmd.Flags().GetString("group")
+		if err != nil {
+			return fmt.Errorf("could not read --group flag: %w", err)
+		}
+
+		if groupName == "" {
+			// Optional flag not provided — no validation needed
+			return nil
+		}
+
+		// Validate if provided
+		if err := groupval.ValidateName(groupName); err != nil {
+			return fmt.Errorf("invalid group name in --group: %w", err)
+		}
+
+		return nil
+	}
+}

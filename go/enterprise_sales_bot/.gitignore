@@ -1,0 +1,5 @@
+# .gitignore
+*.exe
+.env
+.memory/branches/main/log.md
+bin/

@@ -1,0 +1,35 @@
+# hermes.yaml — default Hermes agent configuration
+# Copied to /data/config/hermes.yaml on first container run.
+# Edit this file to customise Hermes behaviour.
+
+storage:
+  type: local
+  path: /data/data/hermes
+
+server:
+  host: 0.0.0.0
+  port: 8787
+
+logging:
+  level: info
+  file: /data/logs/hermes.log
+
+# ── MCP Servers ───────────────────────────────────────────────────────────────
+# Brave Search MCP — enables real-time web search and grounding.
+# Set BRAVE_API_KEY in /data/config/hermes.env to activate.
+# Free tier: 2,000 queries/month. Get a key at https://brave.com/search/api/
+mcp_servers:
+  brave:
+    command: "npx"
+    args: ["-y", "@brave/brave-search-mcp-server"]
+    env:
+      BRAVE_API_KEY: "${BRAVE_API_KEY}"
+    timeout: 30
+    connect_timeout: 20
+
+# ── Skills ────────────────────────────────────────────────────────────────────
+# Point at the skills bundled inside the cloned hermes-agent repo.
+# external_dirs are loaded in addition to the built-in skills/ dir.
+skills:
+  external_dirs:
+    - /data/apps/hermes-agent/skills

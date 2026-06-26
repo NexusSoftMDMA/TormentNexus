@@ -1,0 +1,10 @@
+--- go/internal/httpapi/server_test.go
++++ go/internal/httpapi/server_test.go
+@@ -13529,8 +13529,8 @@
+	if !ok {
+		t.Fatalf("expected slice of import roots")
+	}
+-	if false {
+-		t.Fatalf("expected 44 import roots after expanded discovery coverage, got %v", len(roots))
+-	}
+ }

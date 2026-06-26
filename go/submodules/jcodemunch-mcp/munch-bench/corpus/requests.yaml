@@ -1,0 +1,81 @@
+repo: psf/requests
+questions:
+  - id: requests-001
+    question: "How does requests.get() work end to end from call to response?"
+    ground_truth_answer: "requests.get() calls request() which creates a Session, then session.request() builds a PreparedRequest via Request.prepare(), sends it through the transport adapter (HTTPAdapter → urllib3), and returns a Response object with decoded content."
+    ground_truth_symbols: ["get", "request", "Session", "send"]
+    difficulty: medium
+    category: architecture
+    tags: [http, request-lifecycle]
+
+  - id: requests-002
+    question: "How does Session implement cookie persistence across requests?"
+    ground_truth_answer: "Session holds a RequestsCookieJar. Before each request, session cookies are merged with request-level cookies via merge_setting. After the response, cookies from Set-Cookie headers are extracted and added back to the session jar via extract_cookies_to_jar."
+    ground_truth_symbols: ["Session", "RequestsCookieJar", "merge_cookies", "extract_cookies_to_jar"]
+    difficulty: medium
+    category: architecture
+    tags: [cookies, session]
+
+  - id: requests-003
+    question: "How does requests handle authentication?"
+    ground_truth_answer: "Auth is a callable that modifies the PreparedRequest. HTTPBasicAuth sets the Authorization header with base64-encoded credentials. HTTPDigestAuth handles the 401 challenge-response flow. Session.auth provides default auth for all requests."
+    ground_truth_symbols: ["HTTPBasicAuth", "HTTPDigestAuth", "AuthBase"]
+    difficulty: easy
+    category: api
+    tags: [auth, security]
+
+  - id: requests-004
+    question: "How does requests handle redirects?"
+    ground_truth_answer: "Session.send() calls resolve_redirects() which yields Response objects for each redirect hop. It follows Location headers, handles 301/302/303/307/308 status codes with proper method preservation, strips Authorization on cross-origin redirects, and enforces max_redirects."
+    ground_truth_symbols: ["resolve_redirects", "rebuild_auth", "rebuild_proxies"]
+    difficulty: medium
+    category: architecture
+    tags: [redirects, http]
+
+  - id: requests-005
+    question: "How does requests handle SSL certificate verification?"
+    ground_truth_answer: "HTTPAdapter passes verify to urllib3. When verify=True, it uses certifi's CA bundle. When verify is a path, it uses that as the CA bundle. cert parameter provides client certificates. SSL errors raise ConnectionError wrapping urllib3's SSLError."
+    ground_truth_symbols: ["HTTPAdapter", "send", "cert_verify"]
+    difficulty: medium
+    category: debugging
+    tags: [ssl, security]
+
+  - id: requests-006
+    question: "How does requests implement file upload with multipart encoding?"
+    ground_truth_answer: "Passing files dict to request triggers multipart/form-data encoding. PreparedRequest.prepare_body() calls _encode_files() which builds multipart parts with boundaries. Each file gets a Content-Disposition header. Data fields are included as additional parts."
+    ground_truth_symbols: ["prepare_body", "_encode_files"]
+    difficulty: medium
+    category: api
+    tags: [upload, multipart]
+
+  - id: requests-007
+    question: "How does requests handle response content encoding and decoding?"
+    ground_truth_answer: "Response.text reads the charset from the Content-Type header via get_encoding_from_headers. If not specified, chardet/charset_normalizer detects the encoding from the raw bytes. Response.content returns raw bytes; Response.json() calls json.loads on text."
+    ground_truth_symbols: ["text", "content", "apparent_encoding", "json"]
+    difficulty: easy
+    category: api
+    tags: [encoding, response]
+
+  - id: requests-008
+    question: "How does the HTTPAdapter and connection pooling work?"
+    ground_truth_answer: "HTTPAdapter wraps urllib3's PoolManager which maintains a pool of connections keyed by (scheme, host, port). pool_connections controls the number of host pools; pool_maxsize controls connections per host. send() gets a connection from the pool and returns it after use."
+    ground_truth_symbols: ["HTTPAdapter", "send", "PoolManager"]
+    difficulty: medium
+    category: architecture
+    tags: [connection-pooling, performance]
+
+  - id: requests-009
+    question: "How does requests implement streaming responses?"
+    ground_truth_answer: "When stream=True, response body is not immediately downloaded. Response.iter_content() yields chunks by reading from the urllib3 response in decode_content mode. iter_lines() wraps iter_content and splits on line boundaries. Content is consumed lazily."
+    ground_truth_symbols: ["iter_content", "iter_lines", "stream"]
+    difficulty: easy
+    category: api
+    tags: [streaming, response]
+
+  - id: requests-010
+    question: "How does requests handle timeouts?"
+    ground_truth_answer: "Timeout can be a float (both connect+read) or a tuple (connect, read). PreparedRequest carries the timeout to HTTPAdapter.send() which passes it to urllib3. urllib3 sets socket-level timeouts. On timeout, urllib3 raises, which requests wraps as ConnectionError or ReadTimeout."
+    ground_truth_symbols: ["send", "Timeout"]
+    difficulty: easy
+    category: api
+    tags: [timeout, errors]

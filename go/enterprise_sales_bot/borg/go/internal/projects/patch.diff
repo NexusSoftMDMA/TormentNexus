@@ -1,0 +1,9 @@
+--- go/internal/projects/tracker.go
++++ go/internal/projects/tracker.go
+@@ -292,8 +292,8 @@
+			// Ignore parsing errors for now
+		}
+	}
+
+	return result, nil
+ }

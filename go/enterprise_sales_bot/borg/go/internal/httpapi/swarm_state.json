@@ -1,0 +1,80 @@
+{
+  "missions": [
+    {
+      "missionId": "mission-20260409-002648",
+      "status": "started",
+      "createdAt": 1775708808624
+    },
+    {
+      "missionId": "mission-20260417-004946",
+      "status": "started",
+      "createdAt": 1776386986911
+    },
+    {
+      "missionId": "mission-20260417-005752",
+      "status": "started",
+      "createdAt": 1776387472390
+    },
+    {
+      "missionId": "mission-20260417-010738",
+      "status": "started",
+      "createdAt": 1776388058539
+    },
+    {
+      "missionId": "mission-20260417-011204",
+      "status": "started",
+      "createdAt": 1776388324842
+    },
+    {
+      "missionId": "mission-20260417-011823",
+      "status": "started",
+      "createdAt": 1776388703565
+    },
+    {
+      "missionId": "mission-20260419-060226",
+      "status": "started",
+      "createdAt": 1776578546065
+    },
+    {
+      "missionId": "mission-20260419-060619",
+      "status": "started",
+      "createdAt": 1776578779719
+    },
+    {
+      "missionId": "mission-20260419-062850",
+      "status": "started",
+      "createdAt": 1776580130029
+    },
+    {
+      "missionId": "mission-20260419-063520",
+      "status": "started",
+      "createdAt": 1776580520359
+    },
+    {
+      "missionId": "mission-20260419-083151",
+      "status": "started",
+      "createdAt": 1776587511463
+    },
+    {
+      "missionId": "mission-20260419-083220",
+      "status": "started",
+      "createdAt": 1776587540166
+    },
+    {
+      "missionId": "mission-20260419-083935",
+      "status": "started",
+      "createdAt": 1776587975795
+    },
+    {
+      "missionId": "mission-20260419-084356",
+      "status": "started",
+      "createdAt": 1776588236146
+    },
+    {
+      "missionId": "mission-20260419-084820",
+      "status": "started",
+      "createdAt": 1776588500763
+    }
+  ],
+  "updatedAt": 1776588500763
+}

@@ -1,0 +1,14 @@
+# Ogham MCP code owners
+# Changes to these paths require review from the listed owners.
+
+# Workflow and CI files -- highest sensitivity
+.github/ @kevin-burns
+
+# Source code
+src/ @kevin-burns
+
+# SQL schemas
+sql/ @kevin-burns
+
+# Tests
+tests/ @kevin-burns

@@ -1,0 +1,224 @@
+@import "tailwindcss";
+
+/* =========================================================================
+   TokenTelemetry design tokens
+   ========================================================================= */
+:root {
+  /* Surface elevation system: sunken < canvas < panel < raised < overlay */
+  --tt-canvas:    #0a0c10;   /* app background */
+  --tt-sunken:    #07090d;   /* inset surfaces (track, code blocks) */
+  --tt-panel:     #11141a;   /* primary card surface */
+  --tt-raised:    #181c25;   /* hover / popovers / nested cards */
+  --tt-overlay:   #1d2230;   /* modals, menus */
+
+  /* Hairline borders */
+  --tt-border:        rgba(255, 255, 255, 0.06);
+  --tt-border-strong: rgba(255, 255, 255, 0.10);
+  --tt-border-focus:  rgba(96, 165, 250, 0.45);
+
+  /* Text */
+  --tt-fg:        #e8eaf0;
+  --tt-fg-muted:  #9aa1ad;
+  --tt-fg-dim:    #5f6675;
+  --tt-fg-faint:  #3d434f;
+
+  /* Brand + signal */
+  --tt-brand:        #60a5fa;
+  --tt-brand-strong: #3b82f6;
+  --tt-brand-deep:   #1d4ed8;
+  --tt-brand-glow:   rgba(96, 165, 250, 0.18);
+
+  /* Status */
+  --tt-success: #10b981;
+  --tt-warn:    #f59e0b;
+  --tt-danger:  #f43f5e;
+  --tt-info:    #38bdf8;
+
+  /* Agent identity (single source of truth) */
+  --agent-claude:      #f97316;
+  --agent-codex:       #a855f7;
+  --agent-gemini:      #06b6d4;
+  --agent-antigravity: #10b981;
+  --agent-qwen:        #3b82f6;
+  --agent-vibe:        #f472b6;
+  --agent-cursor:      #60a5fa;
+  --agent-copilot:     #6366f1;
+  --agent-opencode:    #f59e0b;
+
+  /* Radii + shadow */
+  --tt-radius-sm: 6px;
+  --tt-radius:    10px;
+  --tt-radius-lg: 14px;
+  --tt-radius-xl: 18px;
+  --tt-shadow-soft:  0 1px 0 rgba(255,255,255,0.03) inset, 0 8px 24px -16px rgba(0,0,0,0.6);
+  --tt-shadow-pop:   0 1px 0 rgba(255,255,255,0.04) inset, 0 24px 60px -24px rgba(0,0,0,0.7);
+
+  --tt-empty-cell: rgba(255,255,255,0.03);
+
+  /* Status palette — readable text colors when sitting on tinted/neutral surfaces.
+     Each family has fg (text), bg (10% tint), bd (border) — flipped in light theme. */
+  --tt-success-fg: #6ee7b7;  --tt-success-bg: rgba(16,185,129,0.12);  --tt-success-bd: rgba(16,185,129,0.28);
+  --tt-warn-fg:    #fcd34d;  --tt-warn-bg:    rgba(245,158,11,0.12);  --tt-warn-bd:    rgba(245,158,11,0.28);
+  --tt-danger-fg:  #fda4af;  --tt-danger-bg:  rgba(244, 63, 94,0.12); --tt-danger-bd:  rgba(244, 63, 94,0.28);
+  --tt-info-fg:    #7dd3fc;  --tt-info-bg:    rgba(56,189,248,0.12);  --tt-info-bd:    rgba(56,189,248,0.28);
+  --tt-violet-fg:  #c4b5fd;  --tt-violet-bg:  rgba(168, 85,247,0.12); --tt-violet-bd:  rgba(168, 85,247,0.28);
+  --tt-cyan-fg:    #67e8f9;  --tt-cyan-bg:    rgba( 6,182,212,0.12);  --tt-cyan-bd:    rgba( 6,182,212,0.28);
+
+  color-scheme: dark;
+}
+
+/* Light theme — flips every token; downstream components consume var(--tt-…) */
+[data-theme="light"] {
+  /* Cool slate, off-white. Elevation goes panel → raised (darker) so hovers
+     "press into the page", matching the dark-mode intuition in reverse. */
+  --tt-canvas:    #f4f5f8;
+  --tt-sunken:    #e8eaf0;
+  --tt-panel:     #fbfbfd;
+  --tt-raised:    #f0f2f6;
+  --tt-overlay:   #fdfdfe;
+
+  --tt-border:        rgba(15, 23, 42, 0.10);
+  --tt-border-strong: rgba(15, 23, 42, 0.16);
+  --tt-border-focus:  rgba(37, 99, 235, 0.45);
+
+  --tt-fg:        #1a1f2b;
+  --tt-fg-muted:  #4b5566;
+  --tt-fg-dim:    #6b7488;
+  --tt-fg-faint:  #9aa3b5;
+
+  --tt-brand:        #2563eb;
+  --tt-brand-strong: #1d4ed8;
+  --tt-brand-deep:   #1e40af;
+  --tt-brand-glow:   rgba(37, 99, 235, 0.10);
+
+  --tt-shadow-soft:  0 1px 0 rgba(15,23,42,0.02) inset, 0 4px 12px -6px rgba(15,23,42,0.10);
+  --tt-shadow-pop:   0 1px 0 rgba(15,23,42,0.03) inset, 0 18px 40px -18px rgba(15,23,42,0.15);
+
+  --tt-empty-cell: rgba(15,23,42,0.05);
+
+  /* Light-mode status palette: deeper hues so text is readable on near-white panels. */
+  --tt-success-fg: #047857;  --tt-success-bg: rgba(16,185,129,0.10);  --tt-success-bd: rgba(16,185,129,0.30);
+  --tt-warn-fg:    #b45309;  --tt-warn-bg:    rgba(245,158,11,0.10);  --tt-warn-bd:    rgba(245,158,11,0.32);
+  --tt-danger-fg:  #be123c;  --tt-danger-bg:  rgba(244, 63, 94,0.10); --tt-danger-bd:  rgba(244, 63, 94,0.32);
+  --tt-info-fg:    #0369a1;  --tt-info-bg:    rgba(56,189,248,0.10);  --tt-info-bd:    rgba(56,189,248,0.32);
+  --tt-violet-fg:  #6d28d9;  --tt-violet-bg:  rgba(168, 85,247,0.10); --tt-violet-bd:  rgba(168, 85,247,0.32);
+  --tt-cyan-fg:    #0e7490;  --tt-cyan-bg:    rgba( 6,182,212,0.10);  --tt-cyan-bd:    rgba( 6,182,212,0.32);
+
+  color-scheme: light;
+}
+
+@theme inline {
+  --color-canvas:    var(--tt-canvas);
+  --color-panel:     var(--tt-panel);
+  --color-raised:    var(--tt-raised);
+  --color-overlay:   var(--tt-overlay);
+  --color-fg:        var(--tt-fg);
+  --color-fg-muted:  var(--tt-fg-muted);
+  --color-fg-dim:    var(--tt-fg-dim);
+  --color-fg-faint:  var(--tt-fg-faint);
+  --color-brand:     var(--tt-brand);
+  --color-brand-strong: var(--tt-brand-strong);
+  --color-success:   var(--tt-success);
+  --color-warn:      var(--tt-warn);
+  --color-danger:    var(--tt-danger);
+  --color-info:      var(--tt-info);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+/* =========================================================================
+   Base
+   ========================================================================= */
+html, body { height: 100%; }
+body {
+  background: var(--tt-canvas);
+  color: var(--tt-fg);
+  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+  font-feature-settings: "ss01", "cv11";
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+::selection { background: var(--tt-brand-glow); color: var(--tt-fg); }
+
+/* Focus ring (keyboard-only) */
+:where(a, button, [role="button"], input, select, textarea):focus-visible {
+  outline: 2px solid var(--tt-border-focus);
+  outline-offset: 2px;
+  border-radius: var(--tt-radius-sm);
+}
+
+/* Tabular numerals for metrics */
+.tabular { font-variant-numeric: tabular-nums; }
+
+/* =========================================================================
+   Theme-aware tints (replace ad-hoc `bg-white/X` so hovers/tracks read in both themes)
+   ========================================================================= */
+.tt-tint-1   { background-color: rgba(255,255,255,0.04); }
+.tt-tint-2   { background-color: rgba(255,255,255,0.06); }
+.tt-tint-3   { background-color: rgba(255,255,255,0.10); }
+.tt-tint-track { background-color: rgba(255,255,255,0.04); }
+[data-theme="light"] .tt-tint-1   { background-color: rgba(15,23,42,0.04); }
+[data-theme="light"] .tt-tint-2   { background-color: rgba(15,23,42,0.06); }
+[data-theme="light"] .tt-tint-3   { background-color: rgba(15,23,42,0.09); }
+[data-theme="light"] .tt-tint-track { background-color: rgba(15,23,42,0.06); }
+
+.hover\:tt-tint-1:hover { background-color: rgba(255,255,255,0.04); }
+.hover\:tt-tint-2:hover { background-color: rgba(255,255,255,0.06); }
+[data-theme="light"] .hover\:tt-tint-1:hover { background-color: rgba(15,23,42,0.04); }
+[data-theme="light"] .hover\:tt-tint-2:hover { background-color: rgba(15,23,42,0.06); }
+
+/* =========================================================================
+   Scrollbar
+   ========================================================================= */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.06); border-radius: 999px; border: 2px solid transparent; background-clip: padding-box; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.12); background-clip: padding-box; border: 2px solid transparent; }
+[data-theme="light"] ::-webkit-scrollbar-thumb { background: rgba(15,23,42,0.12); }
+[data-theme="light"] ::-webkit-scrollbar-thumb:hover { background: rgba(15,23,42,0.22); }
+
+/* =========================================================================
+   Ambient canvas glow (rendered by app shell)
+   ========================================================================= */
+.tt-canvas-glow {
+  background:
+    radial-gradient(1100px 600px at 85% -10%, rgba(96,165,250,0.07), transparent 60%),
+    radial-gradient(900px 500px at -10% 110%, rgba(168,85,247,0.05), transparent 60%);
+}
+[data-theme="light"] .tt-canvas-glow {
+  background:
+    radial-gradient(1100px 600px at 85% -10%, rgba(37,99,235,0.06), transparent 60%),
+    radial-gradient(900px 500px at -10% 110%, rgba(168,85,247,0.04), transparent 60%);
+}
+
+/* =========================================================================
+   Grid texture (subtle)
+   ========================================================================= */
+.tt-grid {
+  background-image:
+    linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px);
+  background-size: 48px 48px;
+}
+[data-theme="light"] .tt-grid {
+  background-image:
+    linear-gradient(rgba(15,23,42,0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(15,23,42,0.025) 1px, transparent 1px);
+}
+
+/* =========================================================================
+   Markdown prose (session viewer plans)
+   ========================================================================= */
+.prose { color: var(--tt-fg-muted); }
+.prose h1, .prose h2, .prose h3 { color: var(--tt-fg); font-weight: 700; margin-top: 1.5em; margin-bottom: 0.5em; letter-spacing: -0.01em; }
+.prose h1 { font-size: 1.5rem; }
+.prose h2 { font-size: 1.25rem; }
+.prose h3 { font-size: 1.05rem; }
+.prose p { margin-bottom: 1em; line-height: 1.65; }
+.prose ul, .prose ol { margin-left: 1.5em; margin-bottom: 1em; list-style-type: disc; }
+.prose li { margin-bottom: 0.25em; }
+.prose code { background: var(--tt-sunken); padding: 0.15em 0.4em; border-radius: 4px; font-family: var(--font-mono); font-size: 0.88em; border: 1px solid var(--tt-border); }
+.prose pre { background: var(--tt-sunken); padding: 1em; border-radius: var(--tt-radius); overflow-x: auto; border: 1px solid var(--tt-border); margin-bottom: 1.5em; }
+.prose blockquote { border-left: 3px solid var(--tt-success); padding-left: 1em; color: var(--tt-fg-dim); font-style: italic; }

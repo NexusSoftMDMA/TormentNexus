@@ -1,0 +1,235 @@
+{{define "title"}}Connect Clients{{end}}
+{{define "content"}}
+<div style="max-width: 700px; margin: 0 auto;">
+
+<h2 style="margin-bottom: 0.25rem;">Connect MCP Clients</h2>
+<p style="color: var(--text-muted); margin-bottom: 1.5rem;">
+  Add your MCP servers to Claude Desktop, Cursor, VS Code, or Codex CLI.
+</p>
+
+{{if .Servers}}
+
+<!-- Client selector tabs -->
+<div style="display: flex; gap: 0; margin-bottom: 1.25rem; border-bottom: 2px solid var(--border, #dee2e6);">
+  <button onclick="showTab('claude')" id="tab-claude" class="tab-btn active" style="padding: 0.5rem 1rem; border: none; background: none; font-size: 0.85rem; font-weight: 500; cursor: pointer; border-bottom: 2px solid var(--primary); margin-bottom: -2px; color: var(--primary);">Claude Desktop</button>
+  <button onclick="showTab('cursor')" id="tab-cursor" class="tab-btn" style="padding: 0.5rem 1rem; border: none; background: none; font-size: 0.85rem; font-weight: 500; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -2px; color: var(--text-muted);">Cursor</button>
+  <button onclick="showTab('vscode')" id="tab-vscode" class="tab-btn" style="padding: 0.5rem 1rem; border: none; background: none; font-size: 0.85rem; font-weight: 500; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -2px; color: var(--text-muted);">VS Code</button>
+  <button onclick="showTab('codex')" id="tab-codex" class="tab-btn" style="padding: 0.5rem 1rem; border: none; background: none; font-size: 0.85rem; font-weight: 500; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -2px; color: var(--text-muted);">Codex CLI</button>
+  <button onclick="showTab('code')" id="tab-code" class="tab-btn" style="padding: 0.5rem 1rem; border: none; background: none; font-size: 0.85rem; font-weight: 500; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -2px; color: var(--text-muted);">Claude Code</button>
+</div>
+
+<!-- Claude Desktop tab -->
+<div id="panel-claude" class="tab-panel">
+  <div style="background: var(--bg-dark, #f8f9fa); border: 1px solid var(--border, #dee2e6); border-radius: 8px; padding: 1rem; margin-bottom: 1rem;">
+    <strong style="font-size: 0.9rem;">Setup</strong>
+    <span style="font-size: 0.7rem; background: #198754; color: #fff; padding: 0.1rem 0.4rem; border-radius: 10px; margin-left: 0.5rem;">OAuth</span>
+    <ol style="font-size: 0.85rem; color: var(--text-muted); margin: 0.5rem 0 0; padding-left: 1.5rem;">
+      <li>Copy a connector URL below</li>
+      <li>In Claude Desktop: profile icon > <strong>Settings</strong> > <strong>Connectors</strong> > <strong>Add custom connector</strong></li>
+      <li>Paste the URL and click <strong>Add</strong></li>
+      <li>A browser window opens - log in and click <strong>Approve</strong></li>
+    </ol>
+  </div>
+  <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+  {{range .Servers}}
+    <div style="background: #fff; border: 1px solid var(--border, #dee2e6); border-radius: 8px; padding: 0.75rem 1rem; display: flex; align-items: center; gap: 0.75rem;">
+      <div style="flex: 1; min-width: 0;">
+        <strong style="font-size: 0.85rem;">{{.DisplayName}}</strong>
+        <span style="width: 7px; height: 7px; border-radius: 50%; background: #198754; display: inline-block; margin-left: 4px;" title="Running"></span>
+        <div><code id="claude-url-{{.Name}}" style="font-size: 0.72rem; color: var(--text-muted); word-break: break-all;">{{$.BaseURL}}/mcp/{{.Name}}</code></div>
+      </div>
+      <button onclick="copyEl('claude-url-{{.Name}}', this)" class="btn btn-sm btn-primary" style="white-space: nowrap; padding: 0.3rem 0.75rem; font-size: 0.78rem;">Copy URL</button>
+    </div>
+  {{end}}
+  </div>
+</div>
+
+<!-- Cursor tab -->
+<div id="panel-cursor" class="tab-panel" style="display: none;">
+  <div style="background: var(--bg-dark, #f8f9fa); border: 1px solid var(--border, #dee2e6); border-radius: 8px; padding: 1rem; margin-bottom: 1rem;">
+    <strong style="font-size: 0.9rem;">Setup</strong>
+    <span style="font-size: 0.7rem; background: #0d6efd; color: #fff; padding: 0.1rem 0.4rem; border-radius: 10px; margin-left: 0.5rem;">Deeplink</span>
+    <p style="font-size: 0.85rem; color: var(--text-muted); margin: 0.5rem 0 0;">Click "Add to Cursor" to open Cursor with the server pre-configured, or copy the URL to add manually in <code>.cursor/mcp.json</code>.</p>
+  </div>
+  <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+  {{range .Servers}}
+    <div style="background: #fff; border: 1px solid var(--border, #dee2e6); border-radius: 8px; padding: 0.75rem 1rem; display: flex; align-items: center; gap: 0.75rem;">
+      <div style="flex: 1; min-width: 0;">
+        <strong style="font-size: 0.85rem;">{{.DisplayName}}</strong>
+        <span style="width: 7px; height: 7px; border-radius: 50%; background: #198754; display: inline-block; margin-left: 4px;"></span>
+        <div><code style="font-size: 0.72rem; color: var(--text-muted); word-break: break-all;">{{$.BaseURL}}/mcp/{{.Name}}</code></div>
+      </div>
+      <a onclick="openCursorDeeplink('{{.Name}}', '{{.DisplayName}}')" class="btn btn-sm btn-primary" style="white-space: nowrap; padding: 0.3rem 0.75rem; font-size: 0.78rem; cursor: pointer;">Add to Cursor</a>
+    </div>
+  {{end}}
+  </div>
+</div>
+
+<!-- VS Code tab -->
+<div id="panel-vscode" class="tab-panel" style="display: none;">
+  <div style="background: var(--bg-dark, #f8f9fa); border: 1px solid var(--border, #dee2e6); border-radius: 8px; padding: 1rem; margin-bottom: 1rem;">
+    <strong style="font-size: 0.9rem;">Setup</strong>
+    <span style="font-size: 0.7rem; background: #0d6efd; color: #fff; padding: 0.1rem 0.4rem; border-radius: 10px; margin-left: 0.5rem;">Deeplink</span>
+    <p style="font-size: 0.85rem; color: var(--text-muted); margin: 0.5rem 0 0;">Click "Add to VS Code" to open VS Code with the server pre-configured, or add manually via <code>.vscode/mcp.json</code>.</p>
+  </div>
+  <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+  {{range .Servers}}
+    <div style="background: #fff; border: 1px solid var(--border, #dee2e6); border-radius: 8px; padding: 0.75rem 1rem; display: flex; align-items: center; gap: 0.75rem;">
+      <div style="flex: 1; min-width: 0;">
+        <strong style="font-size: 0.85rem;">{{.DisplayName}}</strong>
+        <span style="width: 7px; height: 7px; border-radius: 50%; background: #198754; display: inline-block; margin-left: 4px;"></span>
+        <div><code style="font-size: 0.72rem; color: var(--text-muted); word-break: break-all;">{{$.BaseURL}}/mcp/{{.Name}}</code></div>
+      </div>
+      <a onclick="openVSCodeDeeplink('{{.Name}}', '{{.DisplayName}}')" class="btn btn-sm btn-primary" style="white-space: nowrap; padding: 0.3rem 0.75rem; font-size: 0.78rem; cursor: pointer;">Add to VS Code</a>
+    </div>
+  {{end}}
+  </div>
+</div>
+
+<!-- Codex CLI tab -->
+<div id="panel-codex" class="tab-panel" style="display: none;">
+  <div style="background: var(--bg-dark, #f8f9fa); border: 1px solid var(--border, #dee2e6); border-radius: 8px; padding: 1rem; margin-bottom: 1rem;">
+    <strong style="font-size: 0.9rem;">Setup</strong>
+    <span style="font-size: 0.7rem; background: #6c757d; color: #fff; padding: 0.1rem 0.4rem; border-radius: 10px; margin-left: 0.5rem;">CLI</span>
+    <p style="font-size: 0.85rem; color: var(--text-muted); margin: 0.5rem 0 0;">Copy the command below and run it in your terminal. Use <code>codex mcp login</code> for OAuth, or set <code>ARC_RELAY_TOKEN</code> for API key auth.</p>
+  </div>
+  <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+  {{range .Servers}}
+    <div style="background: #fff; border: 1px solid var(--border, #dee2e6); border-radius: 8px; padding: 0.75rem 1rem;">
+      <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.35rem;">
+        <strong style="font-size: 0.85rem;">{{.DisplayName}}</strong>
+        <span style="width: 7px; height: 7px; border-radius: 50%; background: #198754; display: inline-block;"></span>
+      </div>
+      <div style="display: flex; gap: 0.5rem; align-items: center;">
+        <code id="codex-cmd-{{.Name}}" style="flex: 1; font-size: 0.72rem; color: var(--text-muted); word-break: break-all;">codex mcp add {{.Name}} --url {{$.BaseURL}}/mcp/{{.Name}}</code>
+        <button onclick="copyEl('codex-cmd-{{.Name}}', this)" class="btn btn-sm" style="white-space: nowrap; padding: 0.3rem 0.75rem; font-size: 0.78rem;">Copy</button>
+      </div>
+    </div>
+  {{end}}
+  </div>
+</div>
+
+<!-- Claude Code tab -->
+<div id="panel-code" class="tab-panel" style="display: none;">
+  <div style="background: var(--bg-dark, #f8f9fa); border: 1px solid var(--border, #dee2e6); border-radius: 8px; padding: 1rem; margin-bottom: 1rem;">
+    <strong style="font-size: 0.9rem;">Setup</strong>
+    <span style="font-size: 0.7rem; background: #6c757d; color: #fff; padding: 0.1rem 0.4rem; border-radius: 10px; margin-left: 0.5rem;">CLI</span>
+    <p style="font-size: 0.85rem; color: var(--text-muted); margin: 0.5rem 0 0;">Use <strong>arc-sync</strong> for the best experience. It manages .mcp.json automatically.</p>
+    <pre style="background: #e9ecef; padding: 0.6rem; border-radius: 6px; font-size: 0.75rem; margin: 0.5rem 0 0; overflow-x: auto;"><code>curl -fsSL {{.BaseURL}}/install.sh | bash</code></pre>
+  </div>
+  <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+  {{range .Servers}}
+    <div style="background: #fff; border: 1px solid var(--border, #dee2e6); border-radius: 8px; padding: 0.75rem 1rem;">
+      <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.35rem;">
+        <strong style="font-size: 0.85rem;">{{.DisplayName}}</strong>
+        <span style="width: 7px; height: 7px; border-radius: 50%; background: #198754; display: inline-block;"></span>
+      </div>
+      <div style="display: flex; gap: 0.5rem; align-items: center;">
+        <code id="code-cmd-{{.Name}}" style="flex: 1; font-size: 0.72rem; color: var(--text-muted);">arc-sync add {{.Name}}</code>
+        <button onclick="copyEl('code-cmd-{{.Name}}', this)" class="btn btn-sm" style="white-space: nowrap; padding: 0.3rem 0.75rem; font-size: 0.78rem;">Copy</button>
+      </div>
+    </div>
+  {{end}}
+  </div>
+</div>
+
+{{else}}
+<div class="card">
+  <p style="color: var(--text-muted); text-align: center;">No servers available. Add servers from the <a href="/servers">server management</a> page.</p>
+</div>
+{{end}}
+
+<!-- Compliance Archive -->
+<div style="margin-top: 2rem; border-top: 2px solid var(--border, #dee2e6); padding-top: 1.5rem;">
+  <h3 style="margin-bottom: 0.25rem;">Compliance Archive</h3>
+  <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1rem;">
+    Archive MCP tool calls for compliance, audit, and security review. Enable the archive middleware on each server to stream requests and responses to a configured webhook endpoint.
+  </p>
+  <div style="display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;">
+    {{if .IsAdmin}}
+    <button onclick="testArchiveConnect()" id="connect-test-btn" class="btn" style="font-size: 0.85rem; padding: 0.5rem 1rem; border: 1px solid var(--border, #dee2e6); background: var(--bg, #fff); cursor: pointer; border-radius: 4px;">
+      Test Connection
+    </button>
+    {{end}}
+  </div>
+  {{if .IsAdmin}}
+  <div id="connect-test-result" style="margin-top: 0.5rem; font-size: 0.85rem; display: none;"></div>
+  {{end}}
+</div>
+
+</div>
+
+<script>
+var _csrfToken = (document.querySelector('meta[name="csrf-token"]') || {}).content || '';
+function testArchiveConnect() {
+  var btn = document.getElementById('connect-test-btn');
+  var result = document.getElementById('connect-test-result');
+  btn.disabled = true;
+  btn.textContent = 'Testing...';
+  if (result) result.style.display = 'none';
+  fetch('/api/middleware/archive/action/test', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', 'X-CSRF-Token': _csrfToken},
+  }).then(function(r) { return r.json(); }).then(function(data) {
+    btn.disabled = false;
+    btn.textContent = 'Test Connection';
+    if (result) {
+      result.style.display = 'block';
+      if (data.success) {
+        result.style.color = '#198754';
+        result.textContent = 'Connection successful (HTTP ' + data.status_code + ')';
+      } else if (data.error && data.error.indexOf('no archive config') >= 0) {
+        result.style.color = '#856404';
+        result.textContent = 'No archive config saved yet. Configure it on any server detail page first.';
+      } else {
+        result.style.color = '#dc3545';
+        result.textContent = 'Connection failed: ' + (data.error || 'unknown error');
+      }
+      setTimeout(function(){ result.style.display = 'none'; }, 8000);
+    }
+  }).catch(function(err) {
+    btn.disabled = false;
+    btn.textContent = 'Test Connection';
+    if (result) {
+      result.style.display = 'block';
+      result.style.color = '#dc3545';
+      result.textContent = 'Request failed: ' + err.message;
+    }
+  });
+}
+
+function copyEl(id, btn) {
+  var text = document.getElementById(id).textContent;
+  navigator.clipboard.writeText(text).then(function() {
+    var orig = btn.textContent;
+    btn.textContent = 'Copied!';
+    setTimeout(function() { btn.textContent = orig; }, 1500);
+  });
+}
+
+function showTab(name) {
+  document.querySelectorAll('.tab-panel').forEach(function(p) { p.style.display = 'none'; });
+  document.querySelectorAll('.tab-btn').forEach(function(b) {
+    b.style.borderBottomColor = 'transparent';
+    b.style.color = 'var(--text-muted)';
+  });
+  document.getElementById('panel-' + name).style.display = 'block';
+  var tab = document.getElementById('tab-' + name);
+  tab.style.borderBottomColor = 'var(--primary)';
+  tab.style.color = 'var(--primary)';
+}
+
+function openCursorDeeplink(name, displayName) {
+  var config = JSON.stringify({"url": "{{.BaseURL}}/mcp/" + name});
+  var encoded = btoa(config);
+  window.location.href = "cursor://anysphere.cursor-deeplink/mcp/install?name=" + encodeURIComponent(displayName) + "&config=" + encodeURIComponent(encoded);
+}
+
+function openVSCodeDeeplink(name, displayName) {
+  var config = JSON.stringify({"servers": {}});
+  var obj = JSON.parse(config);
+  obj.servers[name] = {"type": "http", "url": "{{.BaseURL}}/mcp/" + name};
+  window.location.href = "vscode:mcp/install?" + encodeURIComponent(JSON.stringify(obj));
+}
+</script>
+{{end}}

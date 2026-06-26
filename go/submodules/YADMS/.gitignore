@@ -1,0 +1,41 @@
+# .gitignore
+
+# Build results
+[Dd]ebug/
+[Dd]ebugPublic/
+[Rr]elease/
+[Rr]eleases/
+x64/
+x86/
+[Ww][Ii][Nn]32/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+bld/
+[Bb]in/
+[Oo]bj/
+artifacts/
+installers/
+[Ll]og/
+[Ll]ogs/
+
+# Visual Studio files
+.vs/
+*.user
+*.userosscache
+*.sln.docstates
+*.suo
+
+# Large files & Binaries
+ffmpeg.exe
+*.zip
+*.log
+*.bak
+*.dmp
+LICENSE.txt
+SOCIALS.txt
+
+# Test and Debug Output
+TestResults/
+dshow.txt
+wasapi.txt
+audit_error.txt

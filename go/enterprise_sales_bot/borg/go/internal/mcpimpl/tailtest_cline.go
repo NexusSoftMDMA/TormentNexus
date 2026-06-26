@@ -1,0 +1,12 @@
+package mcpimpl
+
+import "context"
+
+func HandleTailtestCline(ctx context.Context, args map[string]interface{}) (ToolResponse, error) {
+	return ok("Tailtest Cline MCP server is running.")
+}
+
+func HandleEcho_tailtest_cline(ctx context.Context, args map[string]interface{}) (ToolResponse, error) {
+	msg, _ :=getString(args, "message")
+	return ok(msg)
+}

@@ -1,0 +1,97 @@
+{
+  "members": [
+    {
+      "id": "member-20260409-002649",
+      "role": "",
+      "status": "active",
+      "createdAt": 1775708809027
+    },
+    {
+      "id": "member-20260417-004947",
+      "role": "",
+      "status": "active",
+      "createdAt": 1776386987118
+    },
+    {
+      "id": "member-20260417-005752",
+      "role": "",
+      "status": "active",
+      "createdAt": 1776387472571
+    },
+    {
+      "id": "member-20260417-010738",
+      "role": "",
+      "status": "active",
+      "createdAt": 1776388058708
+    },
+    {
+      "id": "member-20260417-011205",
+      "role": "",
+      "status": "active",
+      "createdAt": 1776388325046
+    },
+    {
+      "id": "member-20260417-011823",
+      "role": "",
+      "status": "active",
+      "createdAt": 1776388703778
+    },
+    {
+      "id": "member-20260419-060226",
+      "role": "",
+      "status": "active",
+      "createdAt": 1776578546286
+    },
+    {
+      "id": "member-20260419-060619",
+      "role": "",
+      "status": "active",
+      "createdAt": 1776578779981
+    },
+    {
+      "id": "member-20260419-062850",
+      "role": "",
+      "status": "active",
+      "createdAt": 1776580130195
+    },
+    {
+      "id": "member-20260419-063520",
+      "role": "",
+      "status": "active",
+      "createdAt": 1776580520546
+    },
+    {
+      "id": "member-20260419-083151",
+      "role": "",
+      "status": "active",
+      "createdAt": 1776587511746
+    },
+    {
+      "id": "member-20260419-083220",
+      "role": "",
+      "status": "active",
+      "createdAt": 1776587540371
+    },
+    {
+      "id": "member-20260419-083935",
+      "role": "",
+      "status": "active",
+      "createdAt": 1776587975969
+    },
+    {
+      "id": "member-20260419-084356",
+      "role": "",
+      "status": "active",
+      "createdAt": 1776588236460
+    },
+    {
+      "id": "member-20260419-084820",
+      "role": "",
+      "status": "active",
+      "createdAt": 1776588500940
+    }
+  ],
+  "indexerActive": false,
+  "brainActive": false,
+  "updatedAt": 1776588500942
+}

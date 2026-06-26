@@ -1,0 +1,206 @@
+{{define "title"}}Users{{end}}
+{{define "content"}}
+<div class="page-header">
+  <h2>Users</h2>
+</div>
+
+{{if .InviteCmd}}
+<div class="card" style="border: 2px solid var(--success, #28a745);">
+  <h2>Invite Created</h2>
+  <p style="margin-bottom: 0.75rem;">Share one of these with the new user. The invite expires in 48 hours and can only be used once.</p>
+  {{if .InviteLink}}
+  <div style="margin-bottom: 0.75rem;">
+    <strong>Browser setup:</strong>
+    <div style="background: var(--bg-dark, #f8f9fa); border: 1px solid var(--border); border-radius: 6px; padding: 0.75rem; font-family: monospace; font-size: 0.85rem; word-break: break-all; position: relative; margin-top: 0.25rem;">
+      <code id="invite-link">{{.InviteLink}}</code>
+      <button onclick="navigator.clipboard.writeText(document.getElementById('invite-link').textContent).then(function(){this.textContent='Copied!'}.bind(this))" class="btn btn-sm btn-outline" style="position: absolute; top: 0.5rem; right: 0.5rem; font-size: 0.75rem;">Copy</button>
+    </div>
+  </div>
+  {{end}}
+  <div>
+    <strong>CLI install:</strong>
+    <div style="background: var(--bg-dark, #f8f9fa); border: 1px solid var(--border); border-radius: 6px; padding: 0.75rem; font-family: monospace; font-size: 0.85rem; word-break: break-all; position: relative; margin-top: 0.25rem;">
+      <code id="invite-cmd">{{.InviteCmd}}</code>
+      <button onclick="navigator.clipboard.writeText(document.getElementById('invite-cmd').textContent).then(function(){this.textContent='Copied!'}.bind(this))" class="btn btn-sm btn-outline" style="position: absolute; top: 0.5rem; right: 0.5rem; font-size: 0.75rem;">Copy</button>
+    </div>
+  </div>
+</div>
+{{end}}
+
+<div class="card">
+  {{if .Users}}
+  <div class="table-wrap">
+  <table>
+    <thead>
+      <tr><th>Username</th><th>Role</th><th>Profile</th><th>Created</th><th>Actions</th></tr>
+    </thead>
+    <tbody>
+      {{range .Users}}
+      <tr>
+        <td>{{.Username}}</td>
+        <td><span class="badge {{if eq .Role "admin"}}badge-running{{else}}badge-stopped{{end}}">{{.Role}}</span></td>
+        <td>
+          {{if .ProfileName}}
+            <span class="badge badge-stdio">{{.ProfileName}}</span>
+          {{else}}
+            <span style="color:var(--text-muted)">None
+              {{if ne .Role "admin"}}
+              <span class="tier-select tier-{{.AccessLevel}}" style="font-size:0.7rem;padding:0.1rem 0.3rem;">(legacy: {{.AccessLevel}})</span>
+              {{end}}
+            </span>
+          {{end}}
+        </td>
+        <td>{{.CreatedAt.Format "2006-01-02 15:04"}}</td>
+        <td>
+          <div class="actions">
+            <form method="POST" action="/users/{{.ID}}/update" style="display:flex; gap:0.3rem; align-items:center;">
+              <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
+              <select name="role" style="font-size:0.8rem;padding:0.15rem 0.3rem;border:1px solid var(--border);border-radius:4px;">
+                <option value="user" {{if eq .Role "user"}}selected{{end}}>user</option>
+                <option value="admin" {{if eq .Role "admin"}}selected{{end}}>admin</option>
+              </select>
+              <select name="default_profile_id" style="font-size:0.8rem;padding:0.15rem 0.3rem;border:1px solid var(--border);border-radius:4px;">
+                <option value="">No profile</option>
+                {{$currentProfile := .DefaultProfileID}}
+                {{range $.Profiles}}
+                <option value="{{.ID}}" {{if and $currentProfile (eq (deref $currentProfile) .ID)}}selected{{end}}>{{.Name}}</option>
+                {{end}}
+              </select>
+              <button type="submit" class="btn btn-sm btn-outline">Save</button>
+            </form>
+            <form method="POST" action="/users/{{.ID}}/reset-password" style="display:inline;"
+                  onsubmit="var pw=prompt('Enter temporary password for {{.Username}} (min 8 chars). They will be required to change it on next login:'); if(!pw||pw.length<8){alert('Password must be at least 8 characters');return false;} var inp=document.createElement('input'); inp.type='hidden'; inp.name='new_password'; inp.value=pw; this.appendChild(inp);">
+              <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
+              <button type="submit" class="btn btn-sm btn-outline" title="Reset password (forces change on next login)">Reset PW</button>
+            </form>
+            {{if ne .Username "admin"}}
+            <form method="POST" action="/users/{{.ID}}/delete"
+                  onsubmit="return confirm('Delete user {{.Username}}?')">
+              <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
+              <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+            </form>
+            {{end}}
+          </div>
+        </td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+  </div>
+  {{else}}
+  <div class="empty-state"><p>No users found.</p></div>
+  {{end}}
+</div>
+
+<div class="card">
+  <h2>Create Invite</h2>
+  <p style="margin-bottom: 1rem; color: var(--text-muted); font-size: 0.9rem;">
+    Generate a one-time invite link. The recipient will choose their own username and password.
+  </p>
+  {{if .Error}}
+  <div class="alert alert-danger">{{.Error}}</div>
+  {{end}}
+  <form method="POST" action="/users/invite-new">
+    <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+    <div class="form-row">
+      <div class="form-group">
+        <label for="invite_role">Role</label>
+        <select id="invite_role" name="role">
+          <option value="user">User</option>
+          <option value="admin">Admin</option>
+        </select>
+        <div class="help">Admin role grants full UI access.</div>
+      </div>
+      <div class="form-group">
+        <label for="invite_profile">Default Profile</label>
+        <select id="invite_profile" name="profile_id">
+          <option value="">None (legacy tier-based access)</option>
+          {{range .Profiles}}
+          <option value="{{.ID}}">{{.Name}}{{if .Description}} - {{.Description}}{{end}}</option>
+          {{end}}
+        </select>
+        <div class="help">Assigns endpoint permissions. API keys inherit this by default.</div>
+      </div>
+    </div>
+    <button type="submit" class="btn btn-primary">Generate Invite</button>
+  </form>
+</div>
+
+{{if .PendingInvites}}
+<div class="card">
+  <h2>Pending Invites</h2>
+  <div class="table-wrap">
+  <table>
+    <thead>
+      <tr><th>Role</th><th>Created By</th><th>Expires</th><th>Actions</th></tr>
+    </thead>
+    <tbody>
+      {{range .PendingInvites}}
+      <tr>
+        <td><span class="badge {{if eq .Role "admin"}}badge-running{{else}}badge-stopped{{end}}">{{.Role}}</span></td>
+        <td>{{.CreatedByName}}</td>
+        <td>{{.ExpiresAt.Format "2006-01-02 15:04"}}</td>
+        <td>
+          <form method="POST" action="/users/invite-revoke/{{.ID}}" onsubmit="return confirm('Revoke this pending invite?')">
+            <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
+            <button type="submit" class="btn btn-danger btn-sm">Revoke</button>
+          </form>
+        </td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+  </div>
+</div>
+{{end}}
+
+<div class="card">
+  <h2>Add User Directly</h2>
+  <p style="margin-bottom: 1rem; color: var(--text-muted); font-size: 0.9rem;">
+    Create a user account directly with a password you choose. For most cases, use Create Invite above instead.
+  </p>
+  <form method="POST" action="/users/new">
+    <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+    <div class="form-row">
+      <div class="form-group">
+        <label for="username">Username</label>
+        <input type="text" id="username" name="username" required>
+      </div>
+      <div class="form-group">
+        <label for="password">Password</label>
+        <input type="password" id="password" name="password" required>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label for="role">Role</label>
+        <select id="role" name="role">
+          <option value="user">User</option>
+          <option value="admin">Admin</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="default_profile_id">Default Profile</label>
+        <select id="default_profile_id" name="default_profile_id">
+          <option value="">None (legacy tier-based access)</option>
+          {{range .Profiles}}
+          <option value="{{.ID}}">{{.Name}}{{if .Description}} - {{.Description}}{{end}}</option>
+          {{end}}
+        </select>
+      </div>
+    </div>
+    <div class="form-row" id="legacy-row">
+      <div class="form-group">
+        <label for="access_level">Legacy Access Level</label>
+        <select id="access_level" name="access_level">
+          <option value="read">Read</option>
+          <option value="write" selected>Write</option>
+          <option value="admin">Admin</option>
+        </select>
+        <div class="help">Fallback for API keys without a profile. Only used if no profile is set.</div>
+      </div>
+    </div>
+    <button type="submit" class="btn btn-primary">Create User</button>
+  </form>
+</div>
+{{end}}

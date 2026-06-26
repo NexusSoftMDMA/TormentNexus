@@ -1,0 +1,59 @@
+{{define "title"}}Agent Profiles{{end}}
+{{define "content"}}
+<div class="page-header">
+  <h2>Agent Profiles</h2>
+</div>
+
+<div class="card">
+  {{if .Profiles}}
+  <div class="table-wrap">
+  <table>
+    <thead>
+      <tr><th>Name</th><th>Description</th><th>Permissions</th><th>API Keys</th><th>Created</th><th>Actions</th></tr>
+    </thead>
+    <tbody>
+      {{range .Profiles}}
+      <tr>
+        <td><a href="/profiles/{{.ID}}">{{.Name}}</a></td>
+        <td>{{.Description}}</td>
+        <td>{{.PermCount}}</td>
+        <td>{{.KeyCount}}</td>
+        <td>{{.CreatedAt.Format "2006-01-02 15:04"}}</td>
+        <td class="actions">
+          <a href="/profiles/{{.ID}}" class="btn btn-outline btn-sm">Edit</a>
+          <form method="POST" action="/profiles/{{.ID}}/delete"
+                onsubmit="return confirm('Delete this profile? API keys using it will revert to legacy access control.')">
+            <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
+            <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+          </form>
+        </td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+  </div>
+  {{else}}
+  <div class="empty-state">
+    <p>No agent profiles yet. Create one to define granular endpoint permissions.</p>
+  </div>
+  {{end}}
+</div>
+
+<div class="card">
+  <h2>Create Profile</h2>
+  <form method="POST" action="/profiles">
+    <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+    <div class="form-row">
+      <div class="form-group">
+        <label for="name">Profile Name</label>
+        <input type="text" id="name" name="name" required placeholder="e.g. research-readonly, network-admin">
+      </div>
+      <div class="form-group">
+        <label for="description">Description</label>
+        <input type="text" id="description" name="description" placeholder="What this profile is for">
+      </div>
+    </div>
+    <button type="submit" class="btn btn-primary">Create Profile</button>
+  </form>
+</div>
+{{end}}

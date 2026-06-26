@@ -1,0 +1,49 @@
+---
+export const prerender = false;
+
+interface Props {
+  initialCount?: number;
+  label?: string;
+}
+
+const { initialCount = 0, label = 'Count' } = Astro.props;
+---
+<div id="counter-island" data-initial={initialCount}>
+  <span id="label">{label}</span>
+  <button id="dec">-</button>
+  <span id="value">{initialCount}</span>
+  <button id="inc">+</button>
+</div>
+
+<script define:vars={{ initialCount, label }}>
+  let count = initialCount;
+
+  function updateDisplay() {
+    document.getElementById('value').textContent = String(count);
+  }
+
+  function increment() {
+    count += 1;
+    updateDisplay();
+  }
+
+  function decrement() {
+    count = Math.max(0, count - 1);
+    updateDisplay();
+  }
+
+  document.getElementById('inc').addEventListener('click', increment);
+  document.getElementById('dec').addEventListener('click', decrement);
+</script>
+
+<style>
+  #counter-island {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  button {
+    padding: 0.25rem 0.75rem;
+    cursor: pointer;
+  }
+</style>

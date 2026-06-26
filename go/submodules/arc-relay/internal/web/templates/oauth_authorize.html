@@ -1,0 +1,75 @@
+{{define "title"}}Authorize Application{{end}}
+{{define "content"}}
+<div style="max-width: 480px; margin: 2rem auto;">
+
+{{if .Error}}
+<div class="card">
+  <h2>Authorization Error</h2>
+  <div class="alert alert-danger">{{.Error}}</div>
+</div>
+
+{{else if .ShowSuccess}}
+<div class="card">
+  <h2>Authorization Successful</h2>
+  <div class="alert alert-success" style="margin-bottom: 1rem;">
+    You have authorized <strong>{{.ClientName}}</strong> to access your MCP servers.
+  </div>
+  <p style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 1rem;">
+    Completing connection - you can close this tab.
+  </p>
+  <p style="font-size: 0.85rem; color: var(--text-muted);">
+    If you are not redirected automatically, <a href="{{.RedirectURL}}">click here</a>.
+  </p>
+</div>
+<script>
+  // Short delay so the success message paints before redirect is intercepted
+  setTimeout(function() {
+    window.location.replace({{.RedirectURL}});
+  }, 500);
+</script>
+
+{{else if .ShowConsent}}
+<div class="card">
+  <h2>Authorize Application</h2>
+  <p style="margin-bottom: 1rem;">
+    <strong>{{.ClientName}}</strong> is requesting access to your MCP servers.
+  </p>
+
+  <div style="background: var(--bg-dark, #f8f9fa); border: 1px solid var(--border, #dee2e6); border-radius: 8px; padding: 1rem; margin-bottom: 1.5rem;">
+    <div style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.5rem;">Requested permissions:</div>
+    <div style="font-weight: 500;">MCP proxy access (tools, resources, prompts)</div>
+  </div>
+
+  <p style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 1rem;">
+    Approving will grant <strong>{{.ClientName}}</strong> access to MCP proxy endpoints as <strong>{{.User.Username}}</strong>.
+    This does not grant access to server management.
+    After you approve, Claude will finish connecting your account and this window will close.
+  </p>
+
+  <form method="POST" action="/oauth/authorize">
+    <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+    <input type="hidden" name="client_id" value="{{.ClientID}}">
+    <input type="hidden" name="redirect_uri" value="{{.RedirectURI}}">
+    <input type="hidden" name="state" value="{{.State}}">
+    <input type="hidden" name="code_challenge" value="{{.CodeChallenge}}">
+    <input type="hidden" name="code_challenge_method" value="{{.CodeChallengeMethod}}">
+    <input type="hidden" name="scope" value="{{.Scope}}">
+    <input type="hidden" name="resource" value="{{.Resource}}">
+    <div style="display: flex; gap: 0.75rem;">
+      <button type="submit" name="action" value="approve" class="btn btn-primary" style="flex: 1;">Approve</button>
+      <button type="submit" name="action" value="deny" class="btn btn-danger" style="flex: 1;">Deny</button>
+    </div>
+  </form>
+</div>
+
+{{else}}
+<div class="card">
+  <h2>Authorization</h2>
+  <p style="color: var(--text-muted);">
+    No authorization request found. This page is used by MCP clients like Claude Desktop to request access.
+  </p>
+</div>
+{{end}}
+
+</div>
+{{end}}

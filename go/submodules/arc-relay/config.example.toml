@@ -1,0 +1,52 @@
+[server]
+host = "0.0.0.0"
+port = 8080
+
+[database]
+path = "/data/arc-relay.db"
+
+[docker]
+# Docker socket path (default for Linux)
+socket = "unix:///var/run/docker.sock"
+# Network for managed containers
+network = "arc-relay"
+
+[encryption]
+# Key for encrypting stored credentials (generate with: openssl rand -hex 32)
+key = "change-me-generate-a-real-key"
+
+[auth]
+# Session secret for web UI cookies
+session_secret = "change-me-generate-a-real-secret"
+# Default admin password (only used on first run to create admin user)
+admin_password = "changeme"
+
+[sentry]
+# Sentry DSN for error tracking (leave blank to disable)
+dsn = ""
+
+# --- Middleware Configuration ---
+# Middleware is configured per-server via the web UI or API.
+# Below are examples of the JSON config for each middleware type.
+# These are NOT TOML settings - they're provided here for reference.
+
+# Sanitizer - redact or block patterns in responses:
+#   {"patterns": [
+#     {"name": "api_key", "regex": "(?i)(api[_-]?key|secret)\\s*[=:]\\s*\\S+", "action": "redact"},
+#     {"name": "ssn", "regex": "\\b\\d{3}-\\d{2}-\\d{4}\\b", "action": "redact"},
+#     {"name": "credit_card", "regex": "\\b\\d{4}[\\s-]?\\d{4}[\\s-]?\\d{4}[\\s-]?\\d{4}\\b", "action": "block"}
+#   ]}
+
+# Sizer - enforce response size limits:
+#   {"max_response_bytes": 500000, "action": "truncate"}
+#   Actions: "truncate", "warn", "block"
+
+# Alerter - pattern and size-based alerts:
+#   {"rules": [
+#     {"name": "prod_access", "match": "(?i)production", "direction": "request", "action": "log"},
+#     {"name": "large_response", "match_size": 100000, "direction": "response", "action": "webhook", "webhook_url": "https://hooks.example.com/alerts"}
+#   ]}
+
+# Archive - stream tool calls to a compliance webhook:
+#   {"url": "https://compliance.example.com/webhooks/incoming/arc_webhooks", "auth_type": "bearer", "auth_value": "token", "include": "both"}
+#   Optional NaCl encryption: add "nacl_recipient_key": "base64-curve25519-public-key"

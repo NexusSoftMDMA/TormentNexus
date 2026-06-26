@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-label="mnem logo">
+  <title>mnem logo</title>
+  <desc>A four-node knowledge-graph diamond. Slate edges, rust gradient corner nodes, subtle teal accent stroke along each edge.</desc>
+
+  <defs>
+    <linearGradient id="rustNode" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%"  stop-color="#e07a3a"/>
+      <stop offset="100%" stop-color="#c25620"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Slate diamond edges: 20-wide strokes, butt-capped -->
+  <g stroke="#1f2a36" stroke-width="20" stroke-linecap="butt" fill="none">
+    <line x1="128" y1="48"  x2="48"  y2="128"/>
+    <line x1="48"  y1="128" x2="128" y2="208"/>
+    <line x1="128" y1="208" x2="208" y2="128"/>
+    <line x1="208" y1="128" x2="128" y2="48"/>
+  </g>
+
+  <!-- Subtle teal inner stroke for graph-edge accent -->
+  <g stroke="rgba(0,200,150,0.28)" stroke-width="1.4" fill="none">
+    <line x1="128" y1="48"  x2="48"  y2="128"/>
+    <line x1="48"  y1="128" x2="128" y2="208"/>
+    <line x1="128" y1="208" x2="208" y2="128"/>
+    <line x1="208" y1="128" x2="128" y2="48"/>
+  </g>
+
+  <!-- Rust tilted-square nodes with subtle gradient depth -->
+  <g fill="url(#rustNode)">
+    <polygon points="128,34  142,48  128,62  114,48"/>
+    <polygon points="48,114  62,128  48,142  34,128"/>
+    <polygon points="208,114 222,128 208,142 194,128"/>
+    <polygon points="128,194 142,208 128,222 114,208"/>
+  </g>
+
+</svg>

@@ -1,0 +1,172 @@
+// SPDX-FileCopyrightText: Copyright 2025 Stacklok, Inc.
+// SPDX-License-Identifier: Apache-2.0
+
+// Package statuses provides an interface and implementation for managing workload statuses.
+package statuses
+
+import (
+	"context"
+	"fmt"
+	"log/slog"
+
+	"github.com/stacklok/toolhive-core/env"
+	rt "github.com/stacklok/toolhive/pkg/container/runtime"
+	"github.com/stacklok/toolhive/pkg/core"
+	"github.com/stacklok/toolhive/pkg/state"
+	"github.com/stacklok/toolhive/pkg/workloads/types"
+)
+
+// StatusManager is an interface for fetching and retrieving workload statuses.
+//
+//go:generate mockgen -destination=mocks/mock_status_manager.go -package=mocks -source=status.go StatusManager
+type StatusManager interface {
+	// GetWorkload retrieves details of a workload by its name.
+	GetWorkload(ctx context.Context, workloadName string) (core.Workload, error)
+	// ListWorkloads returns details of all workloads.
+	ListWorkloads(ctx context.Context, listAll bool, labelFilters []string) ([]core.Workload, error)
+	// SetWorkloadStatus sets the status of a workload by its name.
+	// Note that this does not return errors, but logs them instead.
+	// This method will do nothing if the workload does not exist.
+	// This method will preserve the PID of the workload if it was previously set.
+	SetWorkloadStatus(ctx context.Context, workloadName string, status rt.WorkloadStatus, contextMsg string) error
+	// DeleteWorkloadStatus removes the status of a workload by its name.
+	DeleteWorkloadStatus(ctx context.Context, workloadName string) error
+	// SetWorkloadPID sets the PID of a workload by its name.
+	// This method will do nothing if the workload does not exist.
+	SetWorkloadPID(ctx context.Context, workloadName string, pid int) error
+	// ResetWorkloadPID resets the PID of a workload to 0.
+	// This method will do nothing if the workload does not exist.
+	ResetWorkloadPID(ctx context.Context, workloadName string) error
+	// ResetWorkloadPIDIfMatch resets the PID of a workload to 0 only if the
+	// current PID in the status file matches expectedPID. This prevents a
+	// dying process from clobbering the PID written by a replacement process
+	// that started in the meantime.
+	ResetWorkloadPIDIfMatch(ctx context.Context, workloadName string, expectedPID int) error
+	// GetWorkloadPID retrieves the PID of a workload by its name.
+	// Returns 0 if the workload does not exist or if PID is not available.
+	GetWorkloadPID(ctx context.Context, workloadName string) (int, error)
+}
+
+// NewStatusManagerFromRuntime creates a new instance of StatusManager from an existing runtime.
+func NewStatusManagerFromRuntime(runtime rt.Runtime, runConfigStore state.Store) StatusManager {
+	return &runtimeStatusManager{
+		runtime:        runtime,
+		runConfigStore: runConfigStore,
+	}
+}
+
+// NewStatusManager creates a new status manager instance using the appropriate implementation
+// based on the runtime environment. If running in Kubernetes, it returns the runtime-based
+// implementation. Otherwise, it returns the file-based implementation.
+func NewStatusManager(runtime rt.Runtime) (StatusManager, error) {
+	return NewStatusManagerWithEnv(runtime, &env.OSReader{})
+}
+
+// NewStatusManagerWithEnv creates a new status manager instance using the provided environment reader.
+// This allows for dependency injection of environment variable access for testing.
+func NewStatusManagerWithEnv(runtime rt.Runtime, envReader env.Reader) (StatusManager, error) {
+	if rt.IsKubernetesRuntimeWithEnv(envReader) {
+		runConfigStore, err := state.NewRunConfigStore(state.DefaultAppName)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create run config store: %w", err)
+		}
+		return NewStatusManagerFromRuntime(runtime, runConfigStore), nil
+	}
+	return NewFileStatusManager(runtime)
+}
+
+// runtimeStatusManager is an implementation of StatusManager that uses the state
+// returned by the underlying runtime. This reflects the existing behaviour of
+// ToolHive at the time of writing.
+type runtimeStatusManager struct {
+	runtime        rt.Runtime
+	runConfigStore state.Store
+}
+
+func (r *runtimeStatusManager) GetWorkload(ctx context.Context, workloadName string) (core.Workload, error) {
+	if err := types.ValidateWorkloadName(workloadName); err != nil {
+		return core.Workload{}, err
+	}
+
+	info, err := r.runtime.GetWorkloadInfo(ctx, workloadName)
+	if err != nil {
+		// The error from the runtime is already wrapped in context.
+		return core.Workload{}, err
+	}
+
+	return types.WorkloadFromContainerInfo(&info, r.runConfigStore)
+}
+
+func (r *runtimeStatusManager) ListWorkloads(ctx context.Context, listAll bool, labelFilters []string) ([]core.Workload, error) {
+	// List containers
+	containers, err := r.runtime.ListWorkloads(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list containers: %w", err)
+	}
+
+	// Parse the filters into a format we can use for matching.
+	parsedFilters, err := types.ParseLabelFilters(labelFilters)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse label filters: %w", err)
+	}
+
+	// Filter containers to only show those managed by ToolHive
+	var workloads []core.Workload
+	for _, c := range containers {
+		// If the caller did not set `listAll` to true, only include running containers.
+		if c.IsRunning() || listAll {
+			workload, err := types.WorkloadFromContainerInfo(&c, r.runConfigStore)
+			if err != nil {
+				return nil, err
+			}
+			// If label filters are provided, check if the workload matches them.
+			if types.MatchesLabelFilters(workload.Labels, parsedFilters) {
+				workloads = append(workloads, workload)
+			}
+		}
+	}
+
+	return workloads, nil
+}
+
+func (*runtimeStatusManager) SetWorkloadStatus(
+	_ context.Context,
+	workloadName string,
+	status rt.WorkloadStatus,
+	contextMsg string,
+) error {
+	// TODO: This will need to handle concurrent updates.
+	slog.Debug("workload status set", "workload", workloadName, "status", status, "context", contextMsg)
+	return nil
+}
+
+func (*runtimeStatusManager) DeleteWorkloadStatus(_ context.Context, _ string) error {
+	// TODO: This will need to handle concurrent updates.
+	// Noop
+	return nil
+}
+
+func (*runtimeStatusManager) SetWorkloadPID(_ context.Context, workloadName string, pid int) error {
+	// Noop for runtime status manager
+	slog.Debug("workload PID set (noop for runtime status manager)", "workload", workloadName, "pid", pid)
+	return nil
+}
+
+func (*runtimeStatusManager) ResetWorkloadPID(_ context.Context, workloadName string) error {
+	// Noop for runtime status manager
+	slog.Debug("workload PID reset (noop for runtime status manager)", "workload", workloadName)
+	return nil
+}
+
+func (*runtimeStatusManager) ResetWorkloadPIDIfMatch(_ context.Context, workloadName string, expectedPID int) error {
+	// Noop for runtime status manager
+	slog.Debug("workload PID conditional reset (noop for runtime status manager)",
+		"workload", workloadName, "expected_pid", expectedPID)
+	return nil
+}
+
+func (*runtimeStatusManager) GetWorkloadPID(_ context.Context, workloadName string) (int, error) {
+	// Noop for runtime status manager - always return 0
+	slog.Debug("workload PID requested (noop for runtime status manager, returning 0)", "workload", workloadName)
+	return 0, nil
+}

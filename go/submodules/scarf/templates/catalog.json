@@ -1,0 +1,169 @@
+{
+  "generated": true,
+  "schemaVersion": 1,
+  "templates": [
+    {
+      "author": {
+        "name": "Alan Wizemann",
+        "url": "https://github.com/awizemann"
+      },
+      "bundleSha256": "4889bc63c25e928ce96cf4032f248435348ee72d3b9c30ae5282361605a8616d",
+      "bundleSize": 8049,
+      "category": "news",
+      "config": {
+        "modelRecommendation": {
+          "preferred": "claude-haiku-4",
+          "rationale": "Simple HTTP fetch + filter + markdown render. Haiku is plenty fast and the cheapest option for a daily run."
+        },
+        "schema": [
+          {
+            "default": [],
+            "description": "Keywords or phrases to highlight in the digest (case-insensitive substring match against story titles). Leave empty to include every top story above the score threshold.",
+            "itemType": "string",
+            "key": "topics",
+            "label": "Highlight Topics (optional)",
+            "maxItems": 20,
+            "minItems": 0,
+            "required": false,
+            "type": "list"
+          },
+          {
+            "default": 100,
+            "description": "Only include stories at or above this point score. HN's front page averages ~150; lower this to widen the net, raise it to focus on viral-only items.",
+            "key": "min_score",
+            "label": "Minimum Score",
+            "max": 1000,
+            "min": 1,
+            "required": false,
+            "type": "number"
+          },
+          {
+            "default": 15,
+            "description": "Cap on how many stories appear in each digest. Avoids blowing up the dashboard list when HN has a busy day.",
+            "key": "max_items",
+            "label": "Maximum Items",
+            "max": 50,
+            "min": 5,
+            "required": false,
+            "type": "number"
+          }
+        ]
+      },
+      "contents": {
+        "agentsMd": true,
+        "config": 3,
+        "cron": 1,
+        "dashboard": true
+      },
+      "description": "A daily digest of HackerNews top stories. Pulls Hacker News' Firebase API, filters by minimum score and optional topics, prepends a markdown digest to digest.md, and keeps the dashboard's top stories list current. No API keys required.",
+      "detailSlug": "awizemann-hackernews-digest",
+      "id": "awizemann/hackernews-digest",
+      "installUrl": "https://raw.githubusercontent.com/awizemann/scarf/main/templates/awizemann/hackernews-digest/hackernews-digest.scarftemplate",
+      "minHermesVersion": "0.9.0",
+      "minScarfVersion": "2.3.0",
+      "name": "HackerNews Daily Digest",
+      "tags": [
+        "news",
+        "digest",
+        "hackernews",
+        "cron",
+        "starter",
+        "configurable"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "author": {
+        "name": "Alan Wizemann",
+        "url": "https://github.com/awizemann/scarf"
+      },
+      "bundleSha256": "0a20802a8830a7cfdd1afa2888e42e113c9a17a37439384a3037d32ad1f24c1f",
+      "bundleSize": 7569,
+      "category": "monitoring",
+      "config": {
+        "modelRecommendation": {
+          "preferred": "claude-haiku-4",
+          "rationale": "Simple tool-use task \u2014 HTTP GETs + a short summary. Haiku is plenty and keeps cost low when the cron runs daily."
+        },
+        "schema": [
+          {
+            "default": [
+              "https://example.com",
+              "https://example.org"
+            ],
+            "description": "One URL per item. HTTP or HTTPS. You can add and remove entries after install via the Configuration button on the dashboard.",
+            "itemType": "string",
+            "key": "sites",
+            "label": "Sites to Watch",
+            "maxItems": 25,
+            "minItems": 1,
+            "required": true,
+            "type": "list"
+          },
+          {
+            "default": 10,
+            "description": "How long to wait for each URL before giving up.",
+            "key": "timeout_seconds",
+            "label": "Request Timeout (seconds)",
+            "max": 60,
+            "min": 1,
+            "required": false,
+            "type": "number"
+          }
+        ]
+      },
+      "contents": {
+        "agentsMd": true,
+        "config": 2,
+        "cron": 1,
+        "dashboard": true
+      },
+      "description": "A daily uptime check for a list of URLs you configure on install. Writes status to status-log.md and updates the dashboard with current counts.",
+      "detailSlug": "awizemann-site-status-checker",
+      "id": "awizemann/site-status-checker",
+      "installUrl": "https://raw.githubusercontent.com/awizemann/scarf/main/templates/awizemann/site-status-checker/site-status-checker.scarftemplate",
+      "minHermesVersion": "0.9.0",
+      "minScarfVersion": "2.3.0",
+      "name": "Site Status Checker",
+      "tags": [
+        "monitoring",
+        "uptime",
+        "cron",
+        "starter",
+        "configurable"
+      ],
+      "version": "1.1.0"
+    },
+    {
+      "author": {
+        "name": "Alan Wizemann",
+        "url": "https://github.com/awizemann"
+      },
+      "bundleSha256": "f0f3e7960a07b66ffd84e521184750f826f2df521438c2a1a138b246da2731c5",
+      "bundleSize": 16487,
+      "category": "developer-tools",
+      "config": null,
+      "contents": {
+        "agentsMd": true,
+        "dashboard": true,
+        "skills": [
+          "scarf-template-author"
+        ]
+      },
+      "description": "Install this to give your agent a skill that scaffolds new Scarf projects \u2014 dashboards, optional configuration schemas, cron jobs, and AGENTS.md \u2014 from a short conversational interview. Scaffolded projects are usable locally and cleanly exportable as .scarftemplate bundles.",
+      "detailSlug": "awizemann-template-author",
+      "id": "awizemann/template-author",
+      "installUrl": "https://raw.githubusercontent.com/awizemann/scarf/main/templates/awizemann/template-author/template-author.scarftemplate",
+      "minHermesVersion": null,
+      "minScarfVersion": "2.2.0",
+      "name": "Scarf Template Author",
+      "tags": [
+        "meta",
+        "authoring",
+        "skill",
+        "scaffolding"
+      ],
+      "version": "1.0.0"
+    }
+  ]
+}

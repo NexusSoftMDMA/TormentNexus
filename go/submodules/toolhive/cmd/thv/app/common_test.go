@@ -1,0 +1,306 @@
+// SPDX-FileCopyrightText: Copyright 2025 Stacklok, Inc.
+// SPDX-License-Identifier: Apache-2.0
+
+package app
+
+import (
+	"strings"
+	"testing"
+
+	"github.com/spf13/cobra"
+
+	"github.com/stacklok/toolhive/pkg/container/runtime"
+)
+
+func TestAddFormatFlag(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name            string
+		allowedFormats  []string
+		wantDescription string
+	}{
+		{
+			name:            "adds format flag with default formats",
+			allowedFormats:  nil,
+			wantDescription: "Output format (json, text)",
+		},
+		{
+			name:            "adds format flag with custom formats",
+			allowedFormats:  []string{"json", "yaml", "xml"},
+			wantDescription: "Output format (json, yaml, xml)",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			cmd := &cobra.Command{}
+			var format string
+
+			AddFormatFlag(cmd, &format, tt.allowedFormats...)
+
+			// Verify flag exists
+			flag := cmd.Flags().Lookup("format")
+			if flag == nil {
+				t.Fatal("format flag was not added")
+				return
+			}
+
+			// Verify default value
+			if flag.DefValue != FormatText {
+				t.Errorf("expected default value %q, got %q", FormatText, flag.DefValue)
+			}
+
+			// Verify description
+			if flag.Usage != tt.wantDescription {
+				t.Errorf("expected description %q, got %q", tt.wantDescription, flag.Usage)
+			}
+		})
+	}
+}
+
+func TestAddGroupFlag(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name          string
+		withShorthand bool
+		wantShorthand string
+	}{
+		{
+			name:          "adds group flag without shorthand",
+			withShorthand: false,
+			wantShorthand: "",
+		},
+		{
+			name:          "adds group flag with shorthand",
+			withShorthand: true,
+			wantShorthand: "g",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			cmd := &cobra.Command{}
+			var group string
+
+			AddGroupFlag(cmd, &group, tt.withShorthand)
+
+			// Verify flag exists
+			flag := cmd.Flags().Lookup("group")
+			if flag == nil {
+				t.Fatal("group flag was not added")
+				return
+			}
+
+			// Verify shorthand
+			if flag.Shorthand != tt.wantShorthand {
+				t.Errorf("expected shorthand %q, got %q", tt.wantShorthand, flag.Shorthand)
+			}
+
+			// Verify default value is empty
+			if flag.DefValue != "" {
+				t.Errorf("expected empty default value, got %q", flag.DefValue)
+			}
+		})
+	}
+}
+
+func TestAddAllFlag(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name          string
+		withShorthand bool
+		description   string
+		wantShorthand string
+	}{
+		{
+			name:          "adds all flag without shorthand",
+			withShorthand: false,
+			description:   "Show all items",
+			wantShorthand: "",
+		},
+		{
+			name:          "adds all flag with shorthand",
+			withShorthand: true,
+			description:   "Show all workloads",
+			wantShorthand: "a",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			cmd := &cobra.Command{}
+			var all bool
+
+			AddAllFlag(cmd, &all, tt.withShorthand, tt.description)
+
+			// Verify flag exists
+			flag := cmd.Flags().Lookup("all")
+			if flag == nil {
+				t.Fatal("all flag was not added")
+				return
+			}
+
+			// Verify shorthand
+			if flag.Shorthand != tt.wantShorthand {
+				t.Errorf("expected shorthand %q, got %q", tt.wantShorthand, flag.Shorthand)
+			}
+
+			// Verify description
+			if flag.Usage != tt.description {
+				t.Errorf("expected description %q, got %q", tt.description, flag.Usage)
+			}
+
+			// Verify default value is false
+			if flag.DefValue != "false" {
+				t.Errorf("expected default value 'false', got %q", flag.DefValue)
+			}
+		})
+	}
+}
+
+func TestGetStringFlagOrEmpty(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		flagName string
+		flagVal  string
+		expected string
+	}{
+		{
+			name:     "returns flag value when exists",
+			flagName: "test-flag",
+			flagVal:  "test-value",
+			expected: "test-value",
+		},
+		{
+			name:     "returns empty when flag does not exist",
+			flagName: "nonexistent",
+			flagVal:  "",
+			expected: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			cmd := &cobra.Command{}
+
+			if tt.flagVal != "" {
+				cmd.Flags().String(tt.flagName, tt.flagVal, "test flag")
+			}
+
+			result := GetStringFlagOrEmpty(cmd, tt.flagName)
+
+			if result != tt.expected {
+				t.Errorf("GetStringFlagOrEmpty() = %q, want %q", result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestIsOIDCEnabled(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name             string
+		jwksURL          string
+		issuer           string
+		introspectionURL string
+		expectedEnabled  bool
+	}{
+		{
+			name:            "enabled with jwks url",
+			jwksURL:         "https://example.com/.well-known/jwks.json",
+			expectedEnabled: true,
+		},
+		{
+			name:            "enabled with issuer",
+			issuer:          "https://accounts.google.com",
+			expectedEnabled: true,
+		},
+		{
+			name:             "enabled with introspection url",
+			introspectionURL: "https://example.com/introspect",
+			expectedEnabled:  true,
+		},
+		{
+			name:            "disabled with no flags",
+			expectedEnabled: false,
+		},
+		{
+			name:            "enabled with multiple flags",
+			jwksURL:         "https://example.com/.well-known/jwks.json",
+			issuer:          "https://accounts.google.com",
+			expectedEnabled: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			cmd := &cobra.Command{}
+
+			// Add OIDC flags
+			AddOIDCFlags(cmd)
+
+			// Set flag values
+			if tt.jwksURL != "" {
+				_ = cmd.Flags().Set("oidc-jwks-url", tt.jwksURL)
+			}
+			if tt.issuer != "" {
+				_ = cmd.Flags().Set("oidc-issuer", tt.issuer)
+			}
+			if tt.introspectionURL != "" {
+				_ = cmd.Flags().Set("oidc-introspection-url", tt.introspectionURL)
+			}
+
+			result := IsOIDCEnabled(cmd)
+
+			if result != tt.expectedEnabled {
+				t.Errorf("IsOIDCEnabled() = %v, want %v", result, tt.expectedEnabled)
+			}
+		})
+	}
+}
+
+func TestWorkloadStatusIndicator(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name      string
+		status    runtime.WorkloadStatus
+		wantHas   string // substring that must appear
+		wantExact string // if non-empty, must match exactly
+	}{
+		{"unauthenticated has ⚠️ prefix", runtime.WorkloadStatusUnauthenticated, "⚠️", ""},
+		{"auth_retrying has 🔄 prefix", runtime.WorkloadStatusAuthRetrying, "🔄", ""},
+		{"policy_stopped has 🚫 prefix", runtime.WorkloadStatusPolicyStopped, "🚫", ""},
+		{"running passes through plain", runtime.WorkloadStatusRunning, "", "running"},
+		{"stopped passes through plain", runtime.WorkloadStatusStopped, "", "stopped"},
+		{"unhealthy passes through plain", runtime.WorkloadStatusUnhealthy, "", "unhealthy"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got := workloadStatusIndicator(tc.status)
+			if tc.wantExact != "" && got != tc.wantExact {
+				t.Errorf("workloadStatusIndicator(%q) = %q, want exact %q",
+					tc.status, got, tc.wantExact)
+			}
+			if tc.wantHas != "" && !strings.Contains(got, tc.wantHas) {
+				t.Errorf("workloadStatusIndicator(%q) = %q, want substring %q",
+					tc.status, got, tc.wantHas)
+			}
+			if !strings.Contains(got, string(tc.status)) {
+				t.Errorf("workloadStatusIndicator(%q) = %q, must include status name",
+					tc.status, got)
+			}
+		})
+	}
+}

@@ -1,0 +1,382 @@
+import os
+from pathlib import Path
+from typing import Any, cast
+
+import pytest
+
+
+def _truthy_env(name: str) -> bool:
+    return os.environ.get(name, "").strip().lower() in ("1", "true", "yes")
+
+
+def pytest_configure(config):
+    """Default local collection to hermetic unit-test config.
+
+    Several legacy integration modules perform reachability checks at import
+    time, before autouse fixtures can isolate environment variables. If a
+    developer's local Ogham config points at Postgres, ordinary ``pytest`` can
+    spend minutes trying to connect to that database during collection. Keep
+    default local runs hermetic, while preserving explicit scratch Postgres and
+    external Supabase/Ollama opt-in paths.
+    """
+    if _truthy_env("OGHAM_RUN_EXTERNAL_INTEGRATION") or _truthy_env("OGHAM_TEST_ALLOW_DESTRUCTIVE"):
+        return
+
+    url = os.environ.get("DATABASE_URL", "")
+    if "scratch" in url.lower():
+        return
+
+    os.environ.setdefault("DATABASE_BACKEND", "supabase")
+    os.environ.setdefault("SUPABASE_URL", "https://fake.supabase.co")
+    os.environ.setdefault("SUPABASE_KEY", "fake-key")
+    os.environ.setdefault("EMBEDDING_PROVIDER", "ollama")
+    os.environ.setdefault("DEFAULT_PROFILE", "default")
+
+
+def _destructive_db_safe() -> tuple[bool, str]:
+    """Return (allowed, reason). Guard for fixtures that DROP / DELETE.
+
+    Default-deny: only allow destructive fixtures when either
+    ``OGHAM_TEST_ALLOW_DESTRUCTIVE=1`` is set explicitly, or
+    ``DATABASE_URL`` clearly points at a scratch DB (contains ``scratch``).
+
+    Protects against accidentally running the lifecycle test fixtures
+    against a prod / demo DB and wiping triggers, columns, or rows.
+    """
+    if _truthy_env("OGHAM_TEST_ALLOW_DESTRUCTIVE"):
+        return True, "OGHAM_TEST_ALLOW_DESTRUCTIVE set"
+    url = os.environ.get("DATABASE_URL", "")
+    if "scratch" in url.lower():
+        return True, "DATABASE_URL contains 'scratch'"
+    return (
+        False,
+        f"refusing destructive fixture: DATABASE_URL={url!r} is not a scratch DB "
+        "and OGHAM_TEST_ALLOW_DESTRUCTIVE is not set",
+    )
+
+
+def _postgres_integration_db_safe() -> tuple[bool, str]:
+    """Return whether live Postgres integration tests may run.
+
+    Unlike unit tests, postgres integration tests use the configured
+    ``Settings`` object so a developer's ~/.ogham/config.env is visible.
+    We still require a scratch database name/URL, or explicit opt-in, so
+    `pytest` never exercises a personal/prod Ogham database by accident.
+    """
+    if _truthy_env("OGHAM_TEST_ALLOW_DESTRUCTIVE"):
+        return True, "OGHAM_TEST_ALLOW_DESTRUCTIVE set"
+
+    url = os.environ.get("DATABASE_URL", "")
+    if not url:
+        try:
+            from ogham.config import settings
+
+            url = settings.database_url or ""
+        except Exception:
+            url = ""
+
+    if "scratch" in url.lower():
+        return True, "database URL contains 'scratch'"
+    return (
+        False,
+        f"Postgres integration tests require a scratch DATABASE_URL; got {url!r}",
+    )
+
+
+@pytest.fixture(autouse=True)
+def _isolated_unit_environment(monkeypatch, request):
+    """Keep unit tests independent from a developer's local Ogham env."""
+    is_external_integration = request.node.get_closest_marker(
+        "integration"
+    ) or request.node.get_closest_marker("postgres_integration")
+
+    if request.node.get_closest_marker("postgres_integration"):
+        allowed, reason = _postgres_integration_db_safe()
+        if not allowed:
+            pytest.skip(reason)
+
+    if not is_external_integration:
+        monkeypatch.setenv("DATABASE_BACKEND", "supabase")
+        monkeypatch.setenv("SUPABASE_URL", "https://fake.supabase.co")
+        monkeypatch.setenv("SUPABASE_KEY", "fake-key")
+        monkeypatch.setenv("EMBEDDING_PROVIDER", "ollama")
+        monkeypatch.setenv("DEFAULT_PROFILE", "default")
+
+    from ogham.config import settings
+    from ogham.database import _reset_backend
+
+    settings._reset()
+    _reset_backend()
+    yield
+    _reset_backend()
+    settings._reset()
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _ensure_standard_postgres_test_schema():
+    """Ensure scratch Postgres has the standard pgvector test schema.
+
+    Local Postgres integration tests should run against a predictable
+    scratch database, not whatever schema happens to live in a developer's
+    personal Ogham DB. For an empty scratch DB, apply schema_postgres.sql.
+    For an older scratch DB, apply the small idempotent baseline migrations
+    needed by current tests.
+
+    The ``pg_fresh_db`` fixture drops everything on teardown; tests that
+    use it re-apply the migrations explicitly -- so even though this
+    session fixture runs first, the tear-down/re-apply dance still
+    works.
+    """
+    try:
+        from ogham.config import settings
+
+        if settings.database_backend != "postgres":
+            return
+        allowed, reason = _postgres_integration_db_safe()
+        if not allowed:
+            # Session-scope fixture can't skip individual tests; just no-op
+            # and let per-test guards handle the skip with a clear reason.
+            return
+        from ogham.backends.postgres import PostgresBackend
+
+        backend = PostgresBackend()
+        repo_root = Path(__file__).parent.parent
+
+        tables = backend._execute(
+            "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'",
+            fetch="all",
+        )
+        table_names = {str(r["table_name"]) for r in tables}
+        if "memories" not in table_names:
+            schema = repo_root / "sql/schema_postgres.sql"
+            backend._execute(schema.read_text(), fetch="none")
+            return
+
+        # Current profile stats tests require migration 022's additive
+        # relationship/tagging/decay counters.
+        mig_022 = repo_root / "sql/migrations/022_profile_health_stats.sql"
+        backend._execute(mig_022.read_text(), fetch="none")
+
+        # Has 026 been applied? (i.e. memory_lifecycle exists)
+        tables = backend._execute(
+            "SELECT table_name FROM information_schema.tables "
+            "WHERE table_schema = 'public' AND table_name = 'memory_lifecycle'",
+            fetch="all",
+        )
+        if tables:
+            return
+
+        # Does memories.stage exist? If not, apply 025 first.
+        cols = backend._execute(
+            "SELECT column_name FROM information_schema.columns WHERE table_name = 'memories'",
+            fetch="all",
+        )
+        col_names = {str(r["column_name"]) for r in cols}
+        if "stage" not in col_names:
+            mig_025 = repo_root / "sql/migrations/025_memory_lifecycle.sql"
+            backend._execute(mig_025.read_text(), fetch="none")
+
+        # Apply 026.
+        mig_026 = repo_root / "sql/migrations/026_memory_lifecycle_split.sql"
+        backend._execute(mig_026.read_text(), fetch="none")
+    except Exception:
+        # Tests that need the columns will still skip via _can_connect
+        # guards; tests that don't touch Postgres are unaffected.
+        pass
+
+
+@pytest.fixture
+def pg_client():
+    """Raw-SQL helper for integration tests.
+
+    Thin wrapper over ``PostgresBackend._execute`` that offers
+    ``.execute(sql, params)`` (no fetch) and ``.fetchone(sql, params)``.
+    Params must be dicts -- backend uses psycopg named placeholders
+    (``%(name)s``), not positional ``%s``.
+    """
+    from ogham.backends.postgres import PostgresBackend
+
+    backend = PostgresBackend()
+
+    class _Client:
+        def execute(self, sql, params=None):
+            backend._execute(sql, params, fetch="none")
+
+        def fetchone(self, sql, params=None):
+            return backend._execute(sql, params, fetch="one")
+
+    return _Client()
+
+
+@pytest.fixture
+def pg_test_profile():
+    """Dedicated profile for lifecycle tests; cleaned before and after.
+
+    Idempotently ensures migrations 025 + 026 have been applied -- if a
+    prior test ran ``pg_fresh_db`` and dropped everything on teardown,
+    this fixture reapplies them in order so downstream tests can rely on
+    the ``memory_lifecycle`` table + trigger existing.
+
+    Refuses to run against a non-scratch DB (see ``_destructive_db_safe``).
+    """
+    allowed, reason = _destructive_db_safe()
+    if not allowed:
+        pytest.skip(reason)
+
+    from ogham.database import get_backend
+
+    profile = "test-lifecycle-parity"
+    backend = cast(Any, get_backend())
+
+    def _table_exists(name):
+        rows = backend._execute(
+            "SELECT table_name FROM information_schema.tables "
+            "WHERE table_schema = 'public' AND table_name = %(t)s",
+            {"t": name},
+            fetch="all",
+        )
+        return bool(rows)
+
+    def _col_names(table):
+        rows = backend._execute(
+            "SELECT column_name FROM information_schema.columns WHERE table_name = %(t)s",
+            {"t": table},
+            fetch="all",
+        )
+        return {str(r["column_name"]) for r in rows}
+
+    # If memory_lifecycle isn't there yet, apply 025 (if needed) then 026.
+    if not _table_exists("memory_lifecycle"):
+        if "stage" not in _col_names("memories"):
+            mig_025 = Path(__file__).parent.parent / "sql/migrations/025_memory_lifecycle.sql"
+            backend._execute(mig_025.read_text(), fetch="none")
+        mig_026 = Path(__file__).parent.parent / "sql/migrations/026_memory_lifecycle_split.sql"
+        backend._execute(mig_026.read_text(), fetch="none")
+
+    backend._execute(
+        "DELETE FROM memories WHERE profile = %(p)s",
+        {"p": profile},
+        fetch="none",
+    )
+    yield profile
+    backend._execute(
+        "DELETE FROM memories WHERE profile = %(p)s",
+        {"p": profile},
+        fetch="none",
+    )
+
+
+@pytest.fixture
+def pg_fresh_db():
+    """Migration harness fixture.
+
+    Yields a helper object exposing ``count``, ``apply_sql``, and
+    ``column_names`` against the shared Postgres backend. Scoped to the
+    ``test-025`` profile for any row-level cleanup. On setup and teardown
+    this fixture deletes ``test-025`` memories and drops the lifecycle
+    columns (IF EXISTS), so repeated runs start clean.
+
+    Refuses to run against a non-scratch DB (see ``_destructive_db_safe``).
+    DROP TABLE / DROP COLUMN against a prod DB would wipe live state.
+    """
+    allowed, reason = _destructive_db_safe()
+    if not allowed:
+        pytest.skip(reason)
+
+    from ogham.database import get_backend
+
+    backend = cast(Any, get_backend())
+    profile = "test-025"
+
+    class _Harness:
+        def __init__(self, be):
+            self.be = be
+
+        def count(self, table):
+            return self.be._execute(
+                f"SELECT count(*) FROM {table} WHERE profile = %(p)s",
+                {"p": profile},
+                fetch="scalar",
+            )
+
+        def apply_sql(self, path):
+            sql = Path(path).read_text()
+            self.be._execute(sql, fetch="none")
+
+        def apply_rollback(self, path):
+            sql = Path(path).read_text()
+            self.be._execute(
+                "SET ogham.confirm_rollback = 'I-KNOW-WHAT-I-AM-DOING';\n" + sql,
+                fetch="none",
+            )
+
+        def column_names(self, table):
+            rows = self.be._execute(
+                "SELECT column_name FROM information_schema.columns WHERE table_name = %(t)s",
+                {"t": table},
+                fetch="all",
+            )
+            return [str(r["column_name"]) for r in rows]
+
+        def tables(self):
+            rows = self.be._execute(
+                "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'",
+                fetch="all",
+            )
+            return [str(r["table_name"]) for r in rows]
+
+    def _cleanup():
+        # Row-level cleanup for test-025 profile (shared by 025 + 026 tests).
+        backend._execute(
+            "DELETE FROM memories WHERE profile = %(p)s",
+            {"p": profile},
+            fetch="none",
+        )
+
+        # Cleanup migration 026 artifacts (triggers, function, table).
+        backend._execute(
+            "DROP TRIGGER IF EXISTS memories_init_lifecycle ON memories",
+            fetch="none",
+        )
+        backend._execute(
+            "DROP TRIGGER IF EXISTS memories_sync_lifecycle_profile ON memories",
+            fetch="none",
+        )
+        backend._execute("DROP FUNCTION IF EXISTS init_memory_lifecycle()", fetch="none")
+        backend._execute("DROP FUNCTION IF EXISTS sync_memory_lifecycle_profile()", fetch="none")
+        backend._execute("DROP TABLE IF EXISTS memory_lifecycle", fetch="none")
+
+        # Cleanup 025 artifacts on memories.
+        backend._execute("DROP INDEX IF EXISTS memories_stage_idx", fetch="none")
+        backend._execute(
+            "ALTER TABLE memories DROP CONSTRAINT IF EXISTS memories_stage_valid",
+            fetch="none",
+        )
+        backend._execute(
+            "ALTER TABLE memories "
+            "DROP COLUMN IF EXISTS stage, "
+            "DROP COLUMN IF EXISTS stage_entered_at",
+            fetch="none",
+        )
+
+        # Cleanup migration 036 artifacts (v0.14 entities backfill).
+        # Drop in dependency order so FK constraints clear cleanly.
+        backend._execute(
+            "DROP FUNCTION IF EXISTS link_memory_entities(uuid, text, text[]) CASCADE",
+            fetch="none",
+        )
+        backend._execute(
+            "DROP FUNCTION IF EXISTS spread_entity_activation_memories"
+            "(text[], text, int, float, float, int) CASCADE",
+            fetch="none",
+        )
+        backend._execute(
+            "DROP FUNCTION IF EXISTS refresh_entity_temporal_span(bigint) CASCADE",
+            fetch="none",
+        )
+        backend._execute("DROP TABLE IF EXISTS memory_entities CASCADE", fetch="none")
+        backend._execute("DROP TABLE IF EXISTS entities CASCADE", fetch="none")
+
+    _cleanup()
+    yield _Harness(backend)
+    _cleanup()

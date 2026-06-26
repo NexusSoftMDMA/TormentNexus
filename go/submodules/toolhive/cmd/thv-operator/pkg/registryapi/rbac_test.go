@@ -1,0 +1,294 @@
+// SPDX-FileCopyrightText: Copyright 2025 Stacklok, Inc.
+// SPDX-License-Identifier: Apache-2.0
+
+package registryapi
+
+import (
+	"context"
+	"errors"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
+
+	mcpv1beta1 "github.com/stacklok/toolhive/cmd/thv-operator/api/v1beta1"
+	"github.com/stacklok/toolhive/cmd/thv-operator/internal/testutil"
+)
+
+func createTestMCPRegistry() *mcpv1beta1.MCPRegistry {
+	return &mcpv1beta1.MCPRegistry{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-registry",
+			Namespace: "test-namespace",
+			UID:       types.UID("test-uid"),
+		},
+		Spec: mcpv1beta1.MCPRegistrySpec{
+			ConfigYAML: "sources:\n  - name: default\n    format: toolhive\nregistries:\n  - name: default\n    sources: [\"default\"]\n",
+		},
+	}
+}
+
+func TestEnsureRBACResources(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name          string
+		mcpRegistry   *mcpv1beta1.MCPRegistry
+		setupClient   func(*testing.T) client.Client
+		expectedError string
+		validate      func(*testing.T, client.Client, *mcpv1beta1.MCPRegistry)
+	}{
+		{
+			name:        "creates all RBAC resources when none exist",
+			mcpRegistry: createTestMCPRegistry(),
+			setupClient: func(t *testing.T) client.Client {
+				t.Helper()
+				return fake.NewClientBuilder().WithScheme(testutil.NewScheme(t)).Build()
+			},
+			validate: func(t *testing.T, c client.Client, mcpRegistry *mcpv1beta1.MCPRegistry) {
+				t.Helper()
+				ctx := context.Background()
+				resourceName := mcpRegistry.Name + "-registry-api"
+
+				// Verify ServiceAccount
+				sa := &corev1.ServiceAccount{}
+				err := c.Get(ctx, types.NamespacedName{Name: resourceName, Namespace: mcpRegistry.Namespace}, sa)
+				require.NoError(t, err)
+				require.Len(t, sa.OwnerReferences, 1)
+				assert.Equal(t, mcpRegistry.Name, sa.OwnerReferences[0].Name)
+
+				// Verify Role
+				role := &rbacv1.Role{}
+				err = c.Get(ctx, types.NamespacedName{Name: resourceName, Namespace: mcpRegistry.Namespace}, role)
+				require.NoError(t, err)
+				assert.Equal(t, registryAPIRBACRules, role.Rules)
+				require.Len(t, role.OwnerReferences, 1)
+				assert.Equal(t, mcpRegistry.Name, role.OwnerReferences[0].Name)
+
+				// Verify RoleBinding
+				rb := &rbacv1.RoleBinding{}
+				err = c.Get(ctx, types.NamespacedName{Name: resourceName, Namespace: mcpRegistry.Namespace}, rb)
+				require.NoError(t, err)
+				assert.Equal(t, resourceName, rb.RoleRef.Name)
+				assert.Equal(t, "Role", rb.RoleRef.Kind)
+				require.Len(t, rb.Subjects, 1)
+				assert.Equal(t, resourceName, rb.Subjects[0].Name)
+				require.Len(t, rb.OwnerReferences, 1)
+				assert.Equal(t, mcpRegistry.Name, rb.OwnerReferences[0].Name)
+			},
+		},
+		{
+			name:        "is idempotent with existing resources",
+			mcpRegistry: createTestMCPRegistry(),
+			setupClient: func(t *testing.T) client.Client {
+				t.Helper()
+				mcpRegistry := createTestMCPRegistry()
+				resourceName := mcpRegistry.Name + "-registry-api"
+				return fake.NewClientBuilder().
+					WithScheme(testutil.NewScheme(t)).
+					WithObjects(
+						&corev1.ServiceAccount{ObjectMeta: metav1.ObjectMeta{Name: resourceName, Namespace: mcpRegistry.Namespace}},
+						&rbacv1.Role{ObjectMeta: metav1.ObjectMeta{Name: resourceName, Namespace: mcpRegistry.Namespace}, Rules: registryAPIRBACRules},
+						&rbacv1.RoleBinding{ObjectMeta: metav1.ObjectMeta{Name: resourceName, Namespace: mcpRegistry.Namespace}, RoleRef: rbacv1.RoleRef{APIGroup: "rbac.authorization.k8s.io", Kind: "Role", Name: resourceName}},
+					).Build()
+			},
+			validate: func(t *testing.T, c client.Client, mcpRegistry *mcpv1beta1.MCPRegistry) {
+				t.Helper()
+				ctx := context.Background()
+				resourceName := mcpRegistry.Name + "-registry-api"
+				role := &rbacv1.Role{}
+				require.NoError(t, c.Get(ctx, types.NamespacedName{Name: resourceName, Namespace: mcpRegistry.Namespace}, role))
+			},
+		},
+		{
+			name:        "returns error when ServiceAccount creation fails",
+			mcpRegistry: createTestMCPRegistry(),
+			setupClient: func(t *testing.T) client.Client {
+				t.Helper()
+				return fake.NewClientBuilder().
+					WithScheme(testutil.NewScheme(t)).
+					WithInterceptorFuncs(interceptor.Funcs{
+						Create: func(ctx context.Context, c client.WithWatch, obj client.Object, opts ...client.CreateOption) error {
+							if _, ok := obj.(*corev1.ServiceAccount); ok {
+								return errors.New("simulated failure")
+							}
+							return c.Create(ctx, obj, opts...)
+						},
+					}).Build()
+			},
+			expectedError: "failed to ensure service account",
+		},
+		{
+			name:        "returns error when Role creation fails",
+			mcpRegistry: createTestMCPRegistry(),
+			setupClient: func(t *testing.T) client.Client {
+				t.Helper()
+				return fake.NewClientBuilder().
+					WithScheme(testutil.NewScheme(t)).
+					WithInterceptorFuncs(interceptor.Funcs{
+						Create: func(ctx context.Context, c client.WithWatch, obj client.Object, opts ...client.CreateOption) error {
+							if _, ok := obj.(*rbacv1.Role); ok {
+								return errors.New("simulated failure")
+							}
+							return c.Create(ctx, obj, opts...)
+						},
+					}).Build()
+			},
+			expectedError: "failed to ensure role",
+		},
+		{
+			name:        "returns error when RoleBinding creation fails",
+			mcpRegistry: createTestMCPRegistry(),
+			setupClient: func(t *testing.T) client.Client {
+				t.Helper()
+				return fake.NewClientBuilder().
+					WithScheme(testutil.NewScheme(t)).
+					WithInterceptorFuncs(interceptor.Funcs{
+						Create: func(ctx context.Context, c client.WithWatch, obj client.Object, opts ...client.CreateOption) error {
+							if _, ok := obj.(*rbacv1.RoleBinding); ok {
+								return errors.New("simulated failure")
+							}
+							return c.Create(ctx, obj, opts...)
+						},
+					}).Build()
+			},
+			expectedError: "failed to ensure role binding",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			c := tt.setupClient(t)
+			m := &manager{client: c, scheme: testutil.NewScheme(t)}
+
+			err := m.ensureRBACResources(context.Background(), tt.mcpRegistry)
+
+			if tt.expectedError != "" {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.expectedError)
+			} else {
+				require.NoError(t, err)
+				if tt.validate != nil {
+					tt.validate(t, c, tt.mcpRegistry)
+				}
+			}
+		})
+	}
+}
+
+func TestRegistryAPIRBACRules(t *testing.T) {
+	t.Parallel()
+
+	require.Len(t, registryAPIRBACRules, 6)
+
+	// ToolHive resources (MCP discovery)
+	assert.ElementsMatch(t, []string{"toolhive.stacklok.dev"}, registryAPIRBACRules[0].APIGroups)
+	assert.ElementsMatch(t, []string{"mcpservers", "mcpremoteproxies", "virtualmcpservers"}, registryAPIRBACRules[0].Resources)
+	assert.ElementsMatch(t, []string{"get", "list", "watch"}, registryAPIRBACRules[0].Verbs)
+
+	// Core services
+	assert.ElementsMatch(t, []string{""}, registryAPIRBACRules[1].APIGroups)
+	assert.ElementsMatch(t, []string{"services"}, registryAPIRBACRules[1].Resources)
+	assert.ElementsMatch(t, []string{"get", "list", "watch"}, registryAPIRBACRules[1].Verbs)
+
+	// Gateway API
+	assert.ElementsMatch(t, []string{"gateway.networking.k8s.io"}, registryAPIRBACRules[2].APIGroups)
+	assert.ElementsMatch(t, []string{"httproutes", "gateways"}, registryAPIRBACRules[2].Resources)
+	assert.ElementsMatch(t, []string{"get", "list", "watch"}, registryAPIRBACRules[2].Verbs)
+
+	// Leader election - ConfigMaps
+	assert.ElementsMatch(t, []string{""}, registryAPIRBACRules[3].APIGroups)
+	assert.ElementsMatch(t, []string{"configmaps"}, registryAPIRBACRules[3].Resources)
+	assert.ElementsMatch(t, []string{"get", "list", "watch", "create", "update", "patch", "delete"}, registryAPIRBACRules[3].Verbs)
+
+	// Leader election - Leases
+	assert.ElementsMatch(t, []string{"coordination.k8s.io"}, registryAPIRBACRules[4].APIGroups)
+	assert.ElementsMatch(t, []string{"leases"}, registryAPIRBACRules[4].Resources)
+	assert.ElementsMatch(t, []string{"get", "list", "watch", "create", "update", "patch", "delete"}, registryAPIRBACRules[4].Verbs)
+
+	// Leader election - Events
+	assert.ElementsMatch(t, []string{"events.k8s.io"}, registryAPIRBACRules[5].APIGroups)
+	assert.ElementsMatch(t, []string{"events"}, registryAPIRBACRules[5].Resources)
+	assert.ElementsMatch(t, []string{"create", "patch"}, registryAPIRBACRules[5].Verbs)
+}
+
+func TestEnsureRBACResources_ImagePullSecrets(t *testing.T) {
+	t.Parallel()
+
+	mcpRegistry := createTestMCPRegistry()
+	mcpRegistry.Spec.ImagePullSecrets = []corev1.LocalObjectReference{
+		{Name: "registry-creds"},
+		{Name: "extra-creds"},
+	}
+
+	scheme := testutil.NewScheme(t)
+	c := fake.NewClientBuilder().WithScheme(scheme).Build()
+	m := &manager{client: c, scheme: scheme}
+
+	require.NoError(t, m.ensureRBACResources(t.Context(), mcpRegistry))
+
+	resourceName := mcpRegistry.Name + "-registry-api"
+	sa := &corev1.ServiceAccount{}
+	require.NoError(t, c.Get(t.Context(), types.NamespacedName{
+		Name:      resourceName,
+		Namespace: mcpRegistry.Namespace,
+	}, sa))
+
+	expected := []corev1.LocalObjectReference{
+		{Name: "registry-creds"},
+		{Name: "extra-creds"},
+	}
+	assert.Equal(t, expected, sa.ImagePullSecrets)
+}
+
+// TestEnsureRBACResources_EmptyImagePullSecretsPreservesSAPullSecrets verifies that an
+// explicit empty list (spec.imagePullSecrets: []) does not wipe pre-existing
+// ServiceAccount-level ImagePullSecrets such as OpenShift's auto-managed dockercfg
+// entries. Empty slice and omitted field must behave identically.
+func TestEnsureRBACResources_EmptyImagePullSecretsPreservesSAPullSecrets(t *testing.T) {
+	t.Parallel()
+
+	mcpRegistry := createTestMCPRegistry()
+	mcpRegistry.Spec.ImagePullSecrets = []corev1.LocalObjectReference{} // explicit empty
+
+	resourceName := mcpRegistry.Name + "-registry-api"
+
+	// Pre-populate a ServiceAccount with platform-managed pull secrets
+	// (simulating OpenShift's openshift-controller-manager).
+	preexistingSA := &corev1.ServiceAccount{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      resourceName,
+			Namespace: mcpRegistry.Namespace,
+		},
+		ImagePullSecrets: []corev1.LocalObjectReference{
+			{Name: resourceName + "-dockercfg-platform"},
+		},
+	}
+
+	scheme := testutil.NewScheme(t)
+	c := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(mcpRegistry, preexistingSA).
+		Build()
+	m := &manager{client: c, scheme: scheme}
+
+	require.NoError(t, m.ensureRBACResources(t.Context(), mcpRegistry))
+
+	sa := &corev1.ServiceAccount{}
+	require.NoError(t, c.Get(t.Context(), types.NamespacedName{
+		Name:      resourceName,
+		Namespace: mcpRegistry.Namespace,
+	}, sa))
+
+	// The platform-managed pull secret must still be present.
+	require.Len(t, sa.ImagePullSecrets, 1, "platform-managed pull secret should be preserved")
+	assert.Equal(t, resourceName+"-dockercfg-platform", sa.ImagePullSecrets[0].Name)
+}

@@ -1,0 +1,81 @@
+repo: vuejs/core
+questions:
+  - id: vue-001
+    question: "How does Vue 3's reactivity system track dependencies?"
+    ground_truth_answer: "Vue uses Proxy-based reactive objects. When a reactive property is read, track() records the dependency between the active effect (activeEffect) and the property. Dependencies are stored in a WeakMap→Map→Set structure (targetMap). On mutation, trigger() runs all collected effects."
+    ground_truth_symbols: ["track", "trigger", "reactive", "targetMap"]
+    difficulty: hard
+    category: architecture
+    tags: [reactivity, proxy]
+
+  - id: vue-002
+    question: "How does Vue's virtual DOM diffing algorithm work?"
+    ground_truth_answer: "patchChildren compares old and new VNode arrays. It uses a keyed fast path: it aligns from both ends (head/tail matching), handles insertions/removals at edges, and falls back to a longest-increasing-subsequence algorithm for the middle section to minimize DOM moves."
+    ground_truth_symbols: ["patchChildren", "patchKeyedChildren"]
+    difficulty: hard
+    category: architecture
+    tags: [vdom, diffing]
+
+  - id: vue-003
+    question: "How does Vue implement the Composition API's setup() function?"
+    ground_truth_answer: "When a component with setup() is mounted, setupComponent() calls setup with props and a SetupContext (attrs, slots, emit, expose). The return value is either a render function or an object whose properties are exposed to the template. Refs returned are automatically unwrapped in templates."
+    ground_truth_symbols: ["setupComponent", "SetupContext"]
+    difficulty: medium
+    category: api
+    tags: [composition-api, setup]
+
+  - id: vue-004
+    question: "How does Vue implement computed properties?"
+    ground_truth_answer: "computed() creates a ComputedRefImpl with a lazy getter wrapped in a ReactiveEffect. The value is cached and only recomputed when dependencies change (dirty flag). On dependency trigger, the computed marks itself dirty but doesn't recompute until .value is accessed."
+    ground_truth_symbols: ["computed", "ComputedRefImpl", "ReactiveEffect"]
+    difficulty: medium
+    category: architecture
+    tags: [computed, reactivity]
+
+  - id: vue-005
+    question: "How does Vue implement the watch() API?"
+    ground_truth_answer: "watch() creates a ReactiveEffect with a scheduler. The source is normalized to a getter function. On dependency change, the scheduler queues the effect callback (with old/new values) into the flush queue. flush modes (pre, post, sync) control when the callback runs relative to rendering."
+    ground_truth_symbols: ["watch", "doWatch"]
+    difficulty: medium
+    category: api
+    tags: [watch, reactivity]
+
+  - id: vue-006
+    question: "How does Vue implement template compilation?"
+    ground_truth_answer: "The compiler pipeline: parse() tokenizes the template into an AST, transform() applies directive transforms and optimizations (hoisting static trees, patching flags), generate() outputs a render function as a JavaScript string. Static trees are hoisted outside render for reuse."
+    ground_truth_symbols: ["parse", "transform", "generate", "compile"]
+    difficulty: hard
+    category: architecture
+    tags: [compiler, templates]
+
+  - id: vue-007
+    question: "How does Vue implement provide/inject for dependency injection?"
+    ground_truth_answer: "provide() stores key-value pairs on the component instance's provides object, which prototypically inherits from the parent's provides. inject() walks the prototype chain to find the value. This gives O(1) lookup and automatic scope inheritance without prop drilling."
+    ground_truth_symbols: ["provide", "inject"]
+    difficulty: easy
+    category: api
+    tags: [dependency-injection, composition]
+
+  - id: vue-008
+    question: "How does Vue implement transition animations?"
+    ground_truth_answer: "The Transition component wraps enter/leave hooks around child mounting/unmounting. On enter, it adds transition classes (v-enter-from, v-enter-active, v-enter-to) in sequence using requestAnimationFrame. On leave, it delays unmounting until the CSS transition/animation ends."
+    ground_truth_symbols: ["Transition", "BaseTransition"]
+    difficulty: medium
+    category: api
+    tags: [transitions, animation]
+
+  - id: vue-009
+    question: "How does Vue implement slots in the Composition API?"
+    ground_truth_answer: "Slots are passed as the third argument to h() (VNode children). In setup(), they're accessed via context.slots or useSlots(). Each slot is a function returning VNodes. Scoped slots receive props. The compiler generates slot functions from template <slot> elements."
+    ground_truth_symbols: ["useSlots", "renderSlot"]
+    difficulty: medium
+    category: api
+    tags: [slots, composition]
+
+  - id: vue-010
+    question: "How does Vue implement the Suspense component?"
+    ground_truth_answer: "Suspense tracks async dependencies (async setup, async components). It renders the default slot but catches pending promises. While pending, it shows the fallback slot. When all async deps resolve, it swaps to the resolved content. Nested Suspense boundaries are supported."
+    ground_truth_symbols: ["Suspense", "SuspenseImpl"]
+    difficulty: hard
+    category: architecture
+    tags: [suspense, async]

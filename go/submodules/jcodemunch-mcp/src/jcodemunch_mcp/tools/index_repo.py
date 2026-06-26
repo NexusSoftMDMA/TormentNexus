@@ -1,0 +1,611 @@
+"""Index repository tool - fetch, parse, summarize, save."""
+
+import asyncio
+import hashlib
+import logging
+import os
+import re
+import time
+from typing import Callable, Optional
+from urllib.parse import urlparse
+
+import httpx
+
+logger = logging.getLogger(__name__)
+
+from ..parser import get_language_for_path
+from ..security import is_secret_file, is_binary_extension, get_max_index_files, get_extra_ignore_patterns, get_skip_patterns
+from ..storage import IndexStore
+from ._indexing_pipeline import (
+    parse_and_prepare_incremental,
+    parse_and_prepare_full,
+)
+
+
+_SLUG_RE = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9._-]*$")
+_ALLOWED_GITHUB_HOSTS = {"github.com"}
+_SSH_RE = re.compile(r"^git@([a-zA-Z0-9.-]+):(.+)$")
+
+
+def parse_github_url(url: str) -> tuple[str, str]:
+    """Extract owner/repo from a GitHub URL or owner/repo string.
+
+    Accepted forms:
+    - owner/repo
+    - https://github.com/owner/repo[/]
+    - https://github.com/owner/repo.git
+    - git@github.com:owner/repo[.git]
+    - github.com/owner/repo
+    """
+    url = url.strip()
+    if not url:
+        raise ValueError("Empty GitHub URL")
+
+    # SSH form: git@host:path
+    ssh_match = _SSH_RE.match(url)
+    if ssh_match:
+        host, path = ssh_match.group(1), ssh_match.group(2)
+        if host not in _ALLOWED_GITHUB_HOSTS:
+            raise ValueError(
+                f"Unsupported host {host!r}. Only github.com URLs are accepted."
+            )
+        url = path  # fall through to path-only handling
+
+    # Strip .git suffix and any trailing slash
+    url = url.rstrip("/").removesuffix(".git").rstrip("/")
+
+    # Bare host prefix (no scheme): "github.com/owner/repo"
+    lower = url.lower()
+    for host in _ALLOWED_GITHUB_HOSTS:
+        prefix = host + "/"
+        if lower.startswith(prefix):
+            url = url[len(prefix):]
+            break
+
+    # owner/repo (no scheme)
+    if "/" in url and "://" not in url:
+        parts = url.split("/")
+        owner, repo = parts[0], parts[1]
+        if not _SLUG_RE.match(owner) or not _SLUG_RE.match(repo):
+            raise ValueError(f"Invalid owner/repo format: {url!r}")
+        return owner, repo
+
+    # Full URL with scheme — validate hostname before any network call
+    parsed = urlparse(url)
+    host = parsed.hostname or ""
+    if host not in _ALLOWED_GITHUB_HOSTS:
+        raise ValueError(
+            f"Unsupported host {host!r}. Only github.com URLs are accepted."
+        )
+    path = parsed.path.strip("/")
+    parts = path.split("/")
+    if len(parts) >= 2:
+        owner, repo = parts[0], parts[1]
+        if not _SLUG_RE.match(owner) or not _SLUG_RE.match(repo):
+            raise ValueError(f"Invalid owner/repo in URL: {url!r}")
+        return owner, repo
+
+    raise ValueError(
+        f"Could not parse GitHub URL: {url!r}. "
+        "Accepted forms: owner/repo, https://github.com/owner/repo, "
+        "git@github.com:owner/repo.git, github.com/owner/repo."
+    )
+
+
+async def fetch_repo_tree(owner: str, repo: str, token: Optional[str] = None) -> tuple[list[dict], str]:
+    """Fetch full repository tree via git/trees API.
+
+    Uses recursive=1 to get all paths in a single API call.
+    Retries on 403/429 with exponential backoff (max 3 attempts).
+
+    Returns:
+        Tuple of (tree_entries, tree_sha). The tree_sha can be stored and
+        compared on subsequent calls to detect whether anything has changed
+        without downloading file contents.
+    """
+    url = f"https://api.github.com/repos/{owner}/{repo}/git/trees/HEAD"
+    params = {"recursive": "1"}
+    headers = {"Accept": "application/vnd.github.v3+json"}
+
+    if token:
+        headers["Authorization"] = f"token {token}"
+
+    max_retries = 3
+    async with httpx.AsyncClient() as client:
+        for attempt in range(max_retries):
+            response = await client.get(url, params=params, headers=headers)
+            if response.status_code in (403, 429):
+                retry_after = response.headers.get("retry-after")
+                wait = int(retry_after) if retry_after else (2 ** attempt)
+                if attempt < max_retries - 1:
+                    logger.warning(
+                        "GitHub rate limit hit (%d), retrying in %ds (attempt %d/%d)",
+                        response.status_code, wait, attempt + 1, max_retries,
+                    )
+                    await asyncio.sleep(wait)
+                    continue
+                else:
+                    hint = " Set GITHUB_TOKEN env var for 5000 req/hr limit." if not token else ""
+                    raise httpx.HTTPStatusError(
+                        f"GitHub rate limit exceeded ({response.status_code}).{hint}",
+                        request=response.request,
+                        response=response,
+                    )
+            response.raise_for_status()
+            data = response.json()
+            return data.get("tree", []), data.get("sha", "")
+
+    return [], ""  # unreachable but satisfies type checker
+
+
+def should_skip_file(path: str) -> bool:
+    """Check if file should be skipped based on path patterns."""
+    normalized = path.replace("\\", "/")
+    for pattern in get_skip_patterns():
+        if pattern.endswith("/"):
+            # Directory pattern: match only complete path segments to avoid
+            # false positives on names like "rebuild/" or "proto-utils/"
+            if normalized.startswith(pattern) or ("/" + pattern) in normalized:
+                return True
+        else:
+            if pattern in normalized:
+                return True
+    return False
+
+
+def discover_source_files(
+    tree_entries: list[dict],
+    gitignore_content: Optional[str] = None,
+    max_files: Optional[int] = None,
+    max_size: int = 500 * 1024,  # 500KB
+    extra_ignore_patterns: Optional[list] = None,
+) -> tuple[list[str], dict[str, str], bool]:
+    """Discover source files from tree entries.
+
+    Applies filtering pipeline:
+    1. Type filter (blobs only)
+    2. Extension filter (supported languages)
+    3. Skip list patterns
+    4. Size limit
+    5. .gitignore matching
+    6. File count limit
+
+    Returns:
+        Tuple of (file_paths, blob_shas, truncated). blob_shas maps each
+        accepted path to its GitHub blob SHA for incremental diff.
+    """
+    import pathspec
+
+    max_files = get_max_index_files(max_files)
+
+    # Parse gitignore if provided
+    gitignore_spec = None
+    if gitignore_content:
+        try:
+            gitignore_spec = pathspec.PathSpec.from_lines(
+                "gitignore",
+                gitignore_content.split("\n")
+            )
+        except Exception:
+            pass
+
+    # Merge env-var global patterns with per-call patterns
+    effective_extra = get_extra_ignore_patterns(extra_ignore_patterns)
+    extra_spec = None
+    if effective_extra:
+        try:
+            extra_spec = pathspec.PathSpec.from_lines("gitignore", effective_extra)
+        except Exception:
+            pass
+
+    files = []
+    blob_shas: dict[str, str] = {}
+
+    for entry in tree_entries:
+        # Type filter - only blobs (files)
+        if entry.get("type") != "blob":
+            continue
+
+        path = entry.get("path", "")
+        size = entry.get("size", 0)
+
+        # Extension filter
+        _, ext = os.path.splitext(path)
+        if get_language_for_path(path) is None:
+            continue
+
+        # Skip list
+        if should_skip_file(path):
+            continue
+
+        # Secret detection
+        if is_secret_file(path):
+            continue
+
+        # Binary extension check
+        if is_binary_extension(path):
+            continue
+
+        # Size limit
+        if size > max_size:
+            continue
+
+        # Gitignore matching
+        if gitignore_spec and gitignore_spec.match_file(path):
+            continue
+
+        # Extra ignore patterns (env-var + per-call)
+        if extra_spec and extra_spec.match_file(path):
+            continue
+
+        files.append(path)
+        blob_shas[path] = entry.get("sha", "")
+
+    files_total = len(files)
+    truncated = files_total > max_files
+
+    # File count limit with prioritization
+    if truncated:
+        # Prioritize: src/, lib/, pkg/, cmd/, internal/ first
+        priority_dirs = ["src/", "lib/", "pkg/", "cmd/", "internal/"]
+
+        def priority_key(path):
+            # Check if in priority dir
+            for i, prefix in enumerate(priority_dirs):
+                if path.startswith(prefix):
+                    return (i, path.count("/"), path)
+            # Not in priority dir - sort after
+            return (len(priority_dirs), path.count("/"), path)
+
+        files.sort(key=priority_key)
+        files = files[:max_files]
+        blob_shas = {p: blob_shas[p] for p in files}
+
+    return files, blob_shas, truncated, files_total
+
+
+async def fetch_file_content(
+    owner: str,
+    repo: str,
+    path: str,
+    token: Optional[str] = None
+) -> str:
+    """Fetch raw file content from GitHub."""
+    url = f"https://api.github.com/repos/{owner}/{repo}/contents/{path}"
+    headers = {"Accept": "application/vnd.github.v3.raw"}
+    
+    if token:
+        headers["Authorization"] = f"token {token}"
+    
+    async with httpx.AsyncClient() as client:
+        response = await client.get(url, headers=headers)
+        response.raise_for_status()
+        return response.text
+
+
+async def fetch_gitignore(
+    owner: str,
+    repo: str,
+    token: Optional[str] = None
+) -> Optional[str]:
+    """Fetch .gitignore file if it exists."""
+    try:
+        return await fetch_file_content(owner, repo, ".gitignore", token)
+    except Exception:
+        return None
+
+
+async def index_repo(
+    url: str,
+    use_ai_summaries: bool = True,
+    github_token: Optional[str] = None,
+    storage_path: Optional[str] = None,
+    incremental: bool = True,
+    extra_ignore_patterns: Optional[list] = None,
+    progress_cb: "Optional[Callable[[int, int, str], None]]" = None,
+) -> dict:
+    """Index a GitHub repository.
+    
+    Args:
+        url: GitHub repository URL or owner/repo string
+        use_ai_summaries: Whether to use AI for symbol summaries
+        github_token: GitHub API token (optional, for private repos/higher rate limits)
+        storage_path: Custom storage path (default: ~/.code-index/)
+    
+    Returns:
+        Dict with indexing results
+    """
+    # Parse URL
+    try:
+        owner, repo = parse_github_url(url)
+    except ValueError as e:
+        return {"success": False, "error": str(e)}
+
+    logger.info("index_repo start — repo: %s/%s, incremental: %s", owner, repo, incremental)
+
+    # Get GitHub token from env if not provided
+    if not github_token:
+        github_token = os.environ.get("GITHUB_TOKEN")
+
+    warnings = []
+    max_files = get_max_index_files()
+
+    try:
+        t0 = time.monotonic()
+        # Fetch tree (also returns the tree SHA for lightweight staleness checks)
+        try:
+            tree_entries, current_tree_sha = await fetch_repo_tree(owner, repo, github_token)
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code == 404:
+                return {"success": False, "error": f"Repository not found: {owner}/{repo}"}
+            elif e.response.status_code == 403:
+                return {"success": False, "error": "GitHub API rate limit exceeded. Set GITHUB_TOKEN."}
+            raise
+
+        # Load existing index once — reused for both the fast-path SHA check
+        # and the full incremental change-detection path below.
+        store = IndexStore(base_path=storage_path)
+        existing_index = store.load_index(owner, repo)
+
+        # Fast-path incremental check: if the stored tree SHA matches the current
+        # one, no files have changed — skip all file downloads entirely.
+        if incremental and current_tree_sha and existing_index is not None:
+            if existing_index.git_head == current_tree_sha:
+                logger.info(
+                    "index_repo tree_sha_match — %s/%s: tree SHA unchanged (%s), skipping download",
+                    owner, repo, current_tree_sha[:12],
+                )
+                return {
+                    "success": True,
+                    "message": "No changes detected (tree SHA unchanged)",
+                    "repo": f"{owner}/{repo}",
+                    "git_head": current_tree_sha,
+                    "changed": 0, "new": 0, "deleted": 0,
+                    "duration_seconds": round(time.monotonic() - t0, 2),
+                }
+
+        # Fetch .gitignore
+        gitignore_content = await fetch_gitignore(owner, repo, github_token)
+
+        # Discover source files (also collects blob SHAs for incremental diff)
+        source_files, blob_shas, truncated, files_discovered = discover_source_files(
+            tree_entries,
+            gitignore_content,
+            max_files=max_files,
+            extra_ignore_patterns=extra_ignore_patterns,
+        )
+
+        logger.info("index_repo discovery — %d source files (truncated=%s)", len(source_files), truncated)
+
+        if not source_files:
+            return {"success": False, "error": "No source files found"}
+
+        # Blob-SHA incremental fast path: diff blob SHAs from tree against stored ones
+        # to determine exactly which files changed — without downloading anything first.
+        files_to_fetch: set[str] = set(source_files)
+        _blob_diff: Optional[tuple[list, list, list]] = None
+        if incremental and existing_index is not None and existing_index.file_blob_shas:
+            old_blob = existing_index.file_blob_shas
+            old_set, new_set = set(old_blob), set(blob_shas)
+            _deleted = sorted(old_set - new_set)
+            _new = sorted(new_set - old_set)
+            _changed = sorted(p for p in (old_set & new_set) if old_blob[p] != blob_shas[p])
+            if not _changed and not _new and not _deleted:
+                logger.info("index_repo blob_sha_diff — no changes, skipping")
+                return {
+                    "success": True,
+                    "message": "No changes detected",
+                    "repo": f"{owner}/{repo}",
+                    "git_head": current_tree_sha,
+                    "changed": 0, "new": 0, "deleted": 0,
+                    "duration_seconds": round(time.monotonic() - t0, 2),
+                }
+            files_to_fetch = set(_changed) | set(_new)
+            _blob_diff = (_changed, _new, _deleted)
+            logger.info(
+                "index_repo blob_sha_diff — changed: %d, new: %d, deleted: %d (fetching %d files)",
+                len(_changed), len(_new), len(_deleted), len(files_to_fetch),
+            )
+
+        # Fetch file contents concurrently (only files that need updating)
+        semaphore = asyncio.Semaphore(10)  # Limit concurrent requests
+        _fetch_total = len(files_to_fetch)
+        _fetch_done = 0
+
+        async def fetch_with_limit(path: str) -> tuple[str, str]:
+            nonlocal _fetch_done
+            async with semaphore:
+                try:
+                    content = await fetch_file_content(owner, repo, path, github_token)
+                    return path, content
+                except Exception:
+                    return path, ""
+                finally:
+                    _fetch_done += 1
+                    if progress_cb:
+                        progress_cb(_fetch_done, _fetch_total, path)
+
+        tasks = [fetch_with_limit(path) for path in files_to_fetch]
+        file_contents = await asyncio.gather(*tasks)
+
+        # Build current_files map from fetched content
+        current_files: dict[str, str] = {}
+        for path, content in file_contents:
+            if content:
+                current_files[path] = content
+
+        if existing_index is None and store.has_index(owner, repo):
+            logger.warning(
+                "index_repo version_mismatch — %s/%s: on-disk index is a newer version; full re-index required",
+                owner, repo,
+            )
+            warnings.append(
+                "Existing index was created by a newer version of jcodemunch-mcp "
+                "and cannot be read — performing a full re-index. "
+                "If you downgraded the package, delete ~/.code-index/ (or your "
+                "CODE_INDEX_PATH directory) to remove the stale index."
+            )
+
+        if incremental and existing_index is not None:
+            if _blob_diff is not None:
+                # Use pre-computed blob SHA diff (no need to hash all content)
+                changed, new, deleted = _blob_diff
+                logger.info(
+                    "index_repo incremental (blob SHA) — changed: %d, new: %d, deleted: %d",
+                    len(changed), len(new), len(deleted),
+                )
+            else:
+                changed, new, deleted = store.detect_changes(owner, repo, current_files)
+                logger.info(
+                    "index_repo incremental (content hash) — changed: %d, new: %d, deleted: %d",
+                    len(changed), len(new), len(deleted),
+                )
+
+            if not changed and not new and not deleted:
+                logger.info("index_repo incremental — no changes detected, skipping save")
+                return {
+                    "success": True,
+                    "message": "No changes detected",
+                    "repo": f"{owner}/{repo}",
+                    "changed": 0, "new": 0, "deleted": 0,
+                    "duration_seconds": round(time.monotonic() - t0, 2),
+                }
+
+            files_to_parse = set(changed) | set(new)
+            raw_files_subset = {p: current_files[p] for p in files_to_parse if p in current_files}
+
+            # Shared pipeline: parse, enrich, summarize, extract metadata
+            new_symbols, incr_file_summaries, incr_file_languages, incr_file_imports, incremental_no_symbols = (
+                parse_and_prepare_incremental(
+                    files_to_parse=files_to_parse,
+                    file_contents=raw_files_subset,
+                    use_ai_summaries=use_ai_summaries,
+                    warnings=warnings,
+                )
+            )
+
+            # Only record blob SHAs for files we successfully fetched
+            # (failed fetches keep their old SHA so they're retried next run)
+            incr_blob_shas = {p: blob_shas[p] for p in current_files if p in blob_shas}
+            updated = store.incremental_save(
+                owner=owner, name=repo,
+                changed_files=changed, new_files=new, deleted_files=deleted,
+                new_symbols=new_symbols,
+                raw_files=raw_files_subset,
+                file_summaries=incr_file_summaries,
+                file_languages=incr_file_languages,
+                git_head=current_tree_sha,
+                imports=incr_file_imports,
+                file_blob_shas=incr_blob_shas,
+            )
+
+            result = {
+                "success": True,
+                "repo": f"{owner}/{repo}",
+                "incremental": True,
+                "changed": len(changed), "new": len(new), "deleted": len(deleted),
+                "symbol_count": len(updated.symbols) if updated else 0,
+                "indexed_at": updated.indexed_at if updated else "",
+                "duration_seconds": round(time.monotonic() - t0, 2),
+                "no_symbols_count": len(incremental_no_symbols),
+                "no_symbols_files": incremental_no_symbols[:50],
+            }
+            if warnings:
+                result["warnings"] = warnings
+            return result
+
+        # Full index path
+        logger.info("index_repo full — parsing %d files", len(current_files))
+
+        # Compute file hashes up-front so we can compare against the existing index
+        # for summary preservation (unchanged files reuse existing AI summaries).
+        file_hashes = {
+            fp: hashlib.sha256(content.encode("utf-8")).hexdigest()
+            for fp, content in current_files.items()
+        }
+
+        # Build summary-preservation maps when a prior index exists
+        _existing_summaries: Optional[dict[tuple[str, str, str], str]] = None
+        _unchanged_files: Optional[set[str]] = None
+        if existing_index is not None and existing_index.file_hashes and existing_index.symbols:
+            _unchanged_files = {
+                f for f, h in file_hashes.items()
+                if existing_index.file_hashes.get(f) == h
+            }
+            if _unchanged_files:
+                _existing_summaries = {
+                    (s.file, s.name, s.kind): s.summary
+                    for s in existing_index.symbols
+                    if s.summary and s.file in _unchanged_files
+                }
+                logger.info(
+                    "index_repo full — %d/%d files unchanged, %d summaries preserved",
+                    len(_unchanged_files), len(file_hashes),
+                    len(_existing_summaries) if _existing_summaries else 0,
+                )
+
+        # Shared pipeline: parse all files, enrich, summarize, extract metadata
+        all_symbols, file_summaries, languages, file_languages, file_imports, no_symbols_files = (
+            parse_and_prepare_full(
+                file_contents=current_files,
+                use_ai_summaries=use_ai_summaries,
+                warnings=warnings,
+                existing_summaries=_existing_summaries,
+                unchanged_files=_unchanged_files,
+            )
+        )
+        source_file_list = sorted(current_files)
+        index = store.save_index(
+            owner=owner,
+            name=repo,
+            source_files=source_file_list,
+            symbols=all_symbols,
+            raw_files=current_files,
+            languages=languages,
+            file_hashes=file_hashes,
+            file_summaries=file_summaries,
+            source_root="",
+            file_languages=file_languages,
+            display_name=repo,
+            git_head=current_tree_sha,
+            imports=file_imports,
+            file_blob_shas=blob_shas,
+        )
+
+        result = {
+            "success": True,
+            "repo": index.repo,
+            "indexed_at": index.indexed_at,
+            "file_count": len(source_file_list),
+            "symbol_count": len(all_symbols),
+            "file_summary_count": sum(1 for v in file_summaries.values() if v),
+            "languages": languages,
+            "files": source_file_list[:20],  # Limit files in response
+            "duration_seconds": round(time.monotonic() - t0, 2),
+            "no_symbols_count": len(no_symbols_files),
+            "no_symbols_files": no_symbols_files[:50],
+        }
+
+        logger.info(
+            "index_repo complete — repo: %s/%s, files: %d, symbols: %d",
+            owner, repo, len(source_file_list), len(all_symbols),
+        )
+
+        if warnings:
+            result["warnings"] = warnings
+
+        if truncated:
+            files_skipped_cap = files_discovered - max_files
+            result["files_discovered"] = files_discovered
+            result["files_indexed"] = max_files
+            result["files_skipped_cap"] = files_skipped_cap
+            result["warnings"] = warnings + [
+                f"File cap reached: {files_discovered} files discovered, {max_files} indexed, "
+                f"{files_skipped_cap} dropped. Raise JCODEMUNCH_MAX_INDEX_FILES or narrow the path."
+            ]
+
+        return result
+
+    except Exception as e:
+        logger.error("index_repo failed — %s/%s: %s", owner, repo, e, exc_info=True)
+        return {"success": False, "error": f"Indexing failed: {str(e)}"}

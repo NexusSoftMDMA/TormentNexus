@@ -1,0 +1,324 @@
+// SPDX-FileCopyrightText: Copyright 2025 Stacklok, Inc.
+// SPDX-License-Identifier: Apache-2.0
+
+package controllers
+
+import (
+	"context"
+	"encoding/json"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+
+	mcpv1beta1 "github.com/stacklok/toolhive/cmd/thv-operator/api/v1beta1"
+	"github.com/stacklok/toolhive/cmd/thv-operator/api/v1beta1/v1beta1test"
+	"github.com/stacklok/toolhive/cmd/thv-operator/internal/testutil"
+	"github.com/stacklok/toolhive/cmd/thv-operator/pkg/runconfig/configmap/checksum"
+	"github.com/stacklok/toolhive/pkg/vmcp/workloads"
+)
+
+const (
+	testPodTemplateNamespace = "test-namespace"
+	testPodTemplateVmcpName  = "test-vmcp"
+	testPodTemplateGroupName = "test-group"
+)
+
+// TestVirtualMCPServerPodTemplateSpecDeterministic verifies that generating a deployment
+// twice with the same PodTemplateSpec produces identical results (no spurious updates)
+func TestVirtualMCPServerPodTemplateSpecDeterministic(t *testing.T) {
+	t.Parallel()
+	scheme := testutil.NewScheme(t)
+
+	namespace := testPodTemplateNamespace
+	vmcpName := testPodTemplateVmcpName
+	groupName := testPodTemplateGroupName
+
+	mcpGroup := &mcpv1beta1.MCPGroup{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      groupName,
+			Namespace: namespace,
+		},
+		Status: mcpv1beta1.MCPGroupStatus{
+			Phase: mcpv1beta1.MCPGroupPhaseReady,
+		},
+	}
+
+	podTemplate := &corev1.PodTemplateSpec{
+		Spec: corev1.PodSpec{
+			NodeSelector: map[string]string{"disktype": "ssd"},
+		},
+	}
+
+	vmcp := v1beta1test.NewVirtualMCPServer(vmcpName, namespace,
+		v1beta1test.WithVMCPGroupRef(groupName),
+		v1beta1test.WithVMCPPodTemplateSpec(podTemplateSpecToRawExtension(t, podTemplate)),
+	)
+
+	configMap := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      vmcpConfigMapName(vmcpName),
+			Namespace: namespace,
+		},
+	}
+
+	fakeClient := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(mcpGroup, vmcp, configMap).
+		Build()
+
+	reconciler := &VirtualMCPServerReconciler{
+		Client: fakeClient,
+		Scheme: scheme,
+	}
+
+	// Generate deployment twice with same input
+	dep1 := reconciler.deploymentForVirtualMCPServer(context.Background(), vmcp, "test-checksum", nil, []workloads.TypedWorkload{})
+	dep2 := reconciler.deploymentForVirtualMCPServer(context.Background(), vmcp, "test-checksum", nil, []workloads.TypedWorkload{})
+
+	// Both should be non-nil
+	assert.NotNil(t, dep1, "First deployment should not be nil")
+	assert.NotNil(t, dep2, "Second deployment should not be nil")
+
+	// Compare their PodTemplateSpecs
+	json1, err1 := json.Marshal(dep1.Spec.Template)
+	json2, err2 := json.Marshal(dep2.Spec.Template)
+
+	assert.NoError(t, err1, "Should marshal first deployment")
+	assert.NoError(t, err2, "Should marshal second deployment")
+
+	assert.Equal(t, string(json1), string(json2),
+		"Generating deployment twice with same PodTemplateSpec should produce identical results")
+}
+
+// TestVirtualMCPServerPodTemplateSpecPreservesContainer verifies that when a user provides
+// a PodTemplateSpec with only pod-level settings (like nodeSelector), the controller-generated
+// vmcp container is preserved and not wiped out by the strategic merge patch.
+// This is a regression test for the nil-slice-becomes-empty-array bug.
+func TestVirtualMCPServerPodTemplateSpecPreservesContainer(t *testing.T) {
+	t.Parallel()
+	scheme := testutil.NewScheme(t)
+
+	namespace := testPodTemplateNamespace
+	vmcpName := testPodTemplateVmcpName
+	groupName := testPodTemplateGroupName
+
+	mcpGroup := &mcpv1beta1.MCPGroup{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      groupName,
+			Namespace: namespace,
+		},
+		Status: mcpv1beta1.MCPGroupStatus{
+			Phase: mcpv1beta1.MCPGroupPhaseReady,
+		},
+	}
+
+	// Use raw JSON directly (simulating real user input) - only nodeSelector, no containers
+	// This is the exact scenario that triggered the original bug
+	vmcp := v1beta1test.NewVirtualMCPServer(vmcpName, namespace,
+		v1beta1test.WithVMCPGroupRef(groupName),
+		v1beta1test.WithVMCPPodTemplateSpec(&runtime.RawExtension{
+			Raw: []byte(`{"spec":{"nodeSelector":{"disktype":"ssd"}}}`),
+		}),
+	)
+
+	configMap := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      vmcpConfigMapName(vmcpName),
+			Namespace: namespace,
+		},
+	}
+
+	fakeClient := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(mcpGroup, vmcp, configMap).
+		Build()
+
+	reconciler := &VirtualMCPServerReconciler{
+		Client: fakeClient,
+		Scheme: scheme,
+	}
+
+	dep := reconciler.deploymentForVirtualMCPServer(context.Background(), vmcp, "test-checksum", nil, []workloads.TypedWorkload{})
+
+	// Verify deployment was created
+	assert.NotNil(t, dep, "Deployment should not be nil")
+
+	// Verify the vmcp container is preserved (not wiped out by strategic merge)
+	assert.Len(t, dep.Spec.Template.Spec.Containers, 1, "Should have exactly one container")
+	assert.Equal(t, "vmcp", dep.Spec.Template.Spec.Containers[0].Name, "Container should be named 'vmcp'")
+
+	// Verify the nodeSelector was applied
+	assert.Equal(t, "ssd", dep.Spec.Template.Spec.NodeSelector["disktype"],
+		"nodeSelector should be applied from PodTemplateSpec")
+}
+
+func TestVirtualMCPServerPodTemplateSpecNeedsUpdate(t *testing.T) {
+	t.Parallel()
+
+	ssdRaw := podTemplateSpecToRawExtension(t, &corev1.PodTemplateSpec{
+		Spec: corev1.PodSpec{NodeSelector: map[string]string{"disktype": "ssd"}},
+	})
+	nvmeRaw := podTemplateSpecToRawExtension(t, &corev1.PodTemplateSpec{
+		Spec: corev1.PodSpec{NodeSelector: map[string]string{"disktype": "nvme"}},
+	})
+	ssdWithPriorityRaw := podTemplateSpecToRawExtension(t, &corev1.PodTemplateSpec{
+		Spec: corev1.PodSpec{
+			NodeSelector:      map[string]string{"disktype": "ssd"},
+			PriorityClassName: "high-priority",
+		},
+	})
+
+	hashOf := func(t *testing.T, raw []byte) string {
+		t.Helper()
+		h, err := checksum.HashRawJSON(raw)
+		require.NoError(t, err)
+		return h
+	}
+
+	tests := []struct {
+		name               string
+		deployAnnotations  map[string]string
+		newPodTemplateSpec *runtime.RawExtension
+		expectUpdate       bool
+	}{
+		{
+			name:               "matching hash - no update needed",
+			deployAnnotations:  map[string]string{podTemplateSpecHashAnnotation: hashOf(t, ssdRaw.Raw)},
+			newPodTemplateSpec: ssdRaw,
+			expectUpdate:       false,
+		},
+		{
+			name:               "node selector changed - update needed",
+			deployAnnotations:  map[string]string{podTemplateSpecHashAnnotation: hashOf(t, ssdRaw.Raw)},
+			newPodTemplateSpec: nvmeRaw,
+			expectUpdate:       true,
+		},
+		{
+			name:               "priority class added - update needed",
+			deployAnnotations:  map[string]string{podTemplateSpecHashAnnotation: hashOf(t, ssdRaw.Raw)},
+			newPodTemplateSpec: ssdWithPriorityRaw,
+			expectUpdate:       true,
+		},
+		{
+			name:               "no PodTemplateSpec and no previous annotation - no update needed",
+			deployAnnotations:  map[string]string{},
+			newPodTemplateSpec: nil,
+			expectUpdate:       false,
+		},
+		{
+			name:               "PodTemplateSpec removed but annotation exists - update needed",
+			deployAnnotations:  map[string]string{podTemplateSpecHashAnnotation: hashOf(t, ssdRaw.Raw)},
+			newPodTemplateSpec: nil,
+			expectUpdate:       true,
+		},
+		{
+			name:               "PodTemplateSpec added but no previous annotation - update needed",
+			deployAnnotations:  map[string]string{},
+			newPodTemplateSpec: ssdRaw,
+			expectUpdate:       true,
+		},
+		{
+			name:               "nil deployment annotations - update needed",
+			deployAnnotations:  nil,
+			newPodTemplateSpec: ssdRaw,
+			expectUpdate:       true,
+		},
+		{
+			name:               "K8s defaults on deployment do not cause spurious update",
+			deployAnnotations:  map[string]string{podTemplateSpecHashAnnotation: hashOf(t, ssdRaw.Raw)},
+			newPodTemplateSpec: ssdRaw,
+			expectUpdate:       false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			deployment := &appsv1.Deployment{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:        testPodTemplateVmcpName,
+					Namespace:   testPodTemplateNamespace,
+					Annotations: tt.deployAnnotations,
+				},
+			}
+
+			vmcp := v1beta1test.NewVirtualMCPServer(testPodTemplateVmcpName, testPodTemplateNamespace,
+				v1beta1test.WithVMCPGroupRef(testPodTemplateGroupName),
+				v1beta1test.WithVMCPPodTemplateSpec(tt.newPodTemplateSpec),
+			)
+
+			reconciler := &VirtualMCPServerReconciler{}
+			needsUpdate := reconciler.podTemplateSpecNeedsUpdate(
+				context.Background(), deployment, vmcp, nil)
+			assert.Equal(t, tt.expectUpdate, needsUpdate)
+		})
+	}
+}
+
+// TestVirtualMCPServerPodTemplateSpecResourceOverride verifies that a user can override
+// the default resource requirements via PodTemplateSpec using strategic merge patch.
+func TestVirtualMCPServerPodTemplateSpecResourceOverride(t *testing.T) {
+	t.Parallel()
+	scheme := testutil.NewScheme(t)
+
+	namespace := testPodTemplateNamespace
+	vmcpName := testPodTemplateVmcpName
+	groupName := testPodTemplateGroupName
+
+	mcpGroup := &mcpv1beta1.MCPGroup{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      groupName,
+			Namespace: namespace,
+		},
+		Status: mcpv1beta1.MCPGroupStatus{
+			Phase: mcpv1beta1.MCPGroupPhaseReady,
+		},
+	}
+
+	// Provide custom resources for the vmcp container via PodTemplateSpec
+	vmcp := v1beta1test.NewVirtualMCPServer(vmcpName, namespace,
+		v1beta1test.WithVMCPGroupRef(groupName),
+		v1beta1test.WithVMCPPodTemplateSpec(&runtime.RawExtension{
+			Raw: []byte(`{"spec":{"containers":[{"name":"vmcp","resources":{"requests":{"cpu":"200m","memory":"256Mi"},"limits":{"cpu":"1","memory":"1Gi"}}}]}}`),
+		}),
+	)
+
+	configMap := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      vmcpConfigMapName(vmcpName),
+			Namespace: namespace,
+		},
+	}
+
+	fakeClient := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(mcpGroup, vmcp, configMap).
+		Build()
+
+	reconciler := &VirtualMCPServerReconciler{
+		Client: fakeClient,
+		Scheme: scheme,
+	}
+
+	dep := reconciler.deploymentForVirtualMCPServer(context.Background(), vmcp, "test-checksum", nil, []workloads.TypedWorkload{})
+
+	require.NotNil(t, dep, "Deployment should not be nil")
+	require.Len(t, dep.Spec.Template.Spec.Containers, 1, "Should have exactly one container")
+
+	container := dep.Spec.Template.Spec.Containers[0]
+	assert.Equal(t, "vmcp", container.Name)
+
+	// Verify user-specified resources override the defaults
+	assert.Equal(t, resource.MustParse("200m"), container.Resources.Requests[corev1.ResourceCPU])
+	assert.Equal(t, resource.MustParse("256Mi"), container.Resources.Requests[corev1.ResourceMemory])
+	assert.Equal(t, resource.MustParse("1"), container.Resources.Limits[corev1.ResourceCPU])
+	assert.Equal(t, resource.MustParse("1Gi"), container.Resources.Limits[corev1.ResourceMemory])
+}

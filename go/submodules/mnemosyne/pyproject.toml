@@ -1,0 +1,78 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mnemosyne-memory"
+dynamic = ["version"]
+description = "The Universal Memory Layer for Any AI Agent — Zero-Dependency, Sub-Millisecond, Fully Private"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.10"
+authors = [
+    {name = "Abdias J", email = "1641797+AxDSan@users.noreply.github.com"},
+]
+keywords = [
+    "ai",
+    "memory",
+    "sqlite",
+    "agent",
+    "llm",
+    "context",
+    "embeddings",
+    "vector-store",
+    "honcho",
+    "zep",
+    "mcp",
+    "openwebui",
+    "openclaw",
+    "cursor",
+    "claude-code",
+    "codex",
+    "hermes",
+    "model-context-protocol",
+    "sync",
+    "encryption",
+]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Operating System :: OS Independent",
+]
+
+[project.optional-dependencies]
+llm = ["ctransformers>=0.2.27", "llama-cpp-python>=0.2.0", "huggingface-hub>=0.20"]
+embeddings = ["fastembed>=0.3.0", "sqlite-vec>=0.1.0"]
+mcp = ["mcp>=1.0.0; python_version >= '3.10'", "anyio>=4.0; python_version >= '3.10'"]
+openclaw = ["openclaw>=0.1.0; python_version >= '3.10'"]
+sync = ["cryptography>=41.0"]
+test = ["pytest>=7.0"]
+all = ["ctransformers>=0.2.27", "llama-cpp-python>=0.2.0", "huggingface-hub>=0.20", "fastembed>=0.3.0", "sqlite-vec>=0.1.0", "mcp>=1.0.0; python_version >= '3.10'", "anyio>=4.0; python_version >= '3.10'"]
+dev = ["pytest>=7.0", "build", "twine"]
+
+[project.urls]
+Homepage = "https://github.com/AxDSan/mnemosyne"
+Repository = "https://github.com/AxDSan/mnemosyne"
+Issues = "https://github.com/AxDSan/mnemosyne/issues"
+Documentation = "https://github.com/AxDSan/mnemosyne/blob/main/docs/README.md"
+
+[project.scripts]
+mnemosyne-install = "mnemosyne.install:install"
+mnemosyne-uninstall = "mnemosyne.install:uninstall"
+mnemosyne = "mnemosyne.cli:run_cli"
+mnemosyne-browser = "mnemosyne.integrations.memory_browser:main"
+mnemosyne-auto-save = "mnemosyne.integrations.auto_save_openwebui:main"
+
+[tool.setuptools.packages.find]
+exclude = ["tests*", "benchmark*", "scripts*", "docs*", "assets*"]
+
+[tool.setuptools.dynamic]
+version = {attr = "mnemosyne.__version__"}

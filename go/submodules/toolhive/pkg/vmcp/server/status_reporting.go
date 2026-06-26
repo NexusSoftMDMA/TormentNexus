@@ -1,0 +1,148 @@
+// SPDX-FileCopyrightText: Copyright 2025 Stacklok, Inc.
+// SPDX-License-Identifier: Apache-2.0
+
+package server
+
+import (
+	"context"
+	"log/slog"
+	"time"
+
+	"github.com/stacklok/toolhive/pkg/vmcp"
+	vmcpstatus "github.com/stacklok/toolhive/pkg/vmcp/status"
+)
+
+// versionPollInterval is how often to check the registry version for changes.
+// Exposed as a package-level var so tests can set a shorter interval.
+var versionPollInterval = 2 * time.Second
+
+// StatusReportingConfig configures periodic status reporting.
+type StatusReportingConfig struct {
+	// Interval is how often to report status.
+	// Recommended: 30s.
+	Interval time.Duration
+
+	// Reporter is the status reporter to use.
+	Reporter vmcpstatus.Reporter
+}
+
+// DefaultStatusReportingConfig returns sensible defaults.
+func DefaultStatusReportingConfig() StatusReportingConfig {
+	return StatusReportingConfig{
+		Interval: 30 * time.Second,
+	}
+}
+
+// periodicStatusReporting runs in a background goroutine and periodically reports
+// vMCP runtime status to the configured reporter (K8s API or CLI logging).
+//
+// It pulls health information from the health monitor and converts it to vmcp.Status
+// format, then sends it to the reporter. Reporting errors are logged but do not stop
+// the goroutine - status reporting continues with a best-effort approach.
+//
+// The goroutine runs until the context is cancelled.
+func (s *Server) periodicStatusReporting(ctx context.Context, config StatusReportingConfig) {
+	if config.Reporter == nil {
+		slog.Debug("status reporting disabled (no reporter configured)")
+		return
+	}
+
+	// Validate interval to prevent panic from time.NewTicker
+	interval := config.Interval
+	if interval <= 0 {
+		slog.Warn("invalid status reporting interval, defaulting to 30s", "interval", interval)
+		interval = 30 * time.Second
+	}
+
+	slog.Info("starting periodic status reporting", "interval", interval)
+
+	// Wait for initial health checks to complete before first status report
+	// This ensures that the first status report has accurate health information
+	// rather than reporting with backendCount=0 before checks complete
+	if healthMon := s.backendHealth(); healthMon != nil {
+		slog.Debug("waiting for initial health checks to complete before first status report")
+		healthMon.WaitForInitialHealthChecks()
+		slog.Debug("initial health checks complete, proceeding with status reporting")
+	}
+
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	// Only start the version-polling ticker when the registry supports dynamic
+	// discovery. For static registries the ticker would fire every 2s only to
+	// type-assert and continue, wasting wakeups in the steady state.
+	dynamicReg, isDynamic := s.backendRegistry.(vmcp.DynamicRegistry)
+	var versionTickerC <-chan time.Time
+	var lastRegistryVersion uint64
+	if isDynamic {
+		versionTicker := time.NewTicker(versionPollInterval)
+		defer versionTicker.Stop()
+		versionTickerC = versionTicker.C
+	}
+
+	// Snapshot the version before reporting so that any mutation that races with
+	// reportStatus is visible to the version ticker on the next poll cycle, rather
+	// than being silently absorbed by a post-report version update.
+	if isDynamic {
+		lastRegistryVersion = dynamicReg.Version()
+	}
+	s.reportStatus(ctx, config.Reporter)
+
+	for {
+		select {
+		case <-ctx.Done():
+			slog.Debug("status reporting stopped (context cancelled)")
+			return
+
+		case <-ticker.C:
+			if isDynamic {
+				lastRegistryVersion = dynamicReg.Version()
+			}
+			s.reportStatus(ctx, config.Reporter)
+
+		case <-versionTickerC:
+			if v := dynamicReg.Version(); v != lastRegistryVersion {
+				slog.Debug("backend registry changed, triggering immediate status report",
+					"old_version", lastRegistryVersion, "new_version", v)
+				lastRegistryVersion = v
+				s.reportStatus(ctx, config.Reporter)
+			}
+		}
+	}
+}
+
+// reportStatus collects current runtime status and sends it to the reporter.
+func (s *Server) reportStatus(ctx context.Context, reporter vmcpstatus.Reporter) {
+	// Update health monitor with current backends from registry (for dynamic discovery)
+	if dynamicReg, ok := s.backendRegistry.(vmcp.DynamicRegistry); ok {
+		currentBackends := dynamicReg.List(ctx)
+		slog.Debug("refreshing backends from registry", "backends", len(currentBackends))
+		if healthMon := s.backendHealth(); healthMon != nil {
+			healthMon.UpdateBackends(currentBackends)
+		}
+	}
+
+	// Build status from the core-owned health monitor if available
+	var status *vmcp.Status
+	if healthMon := s.backendHealth(); healthMon != nil {
+		status = healthMon.BuildStatus()
+	} else {
+		// No health monitor - create minimal status
+		status = &vmcp.Status{
+			Phase:     vmcp.PhaseReady,
+			Message:   "Health monitoring disabled",
+			Timestamp: time.Now(),
+		}
+	}
+
+	// Log status at debug level
+	slog.Debug("reporting status",
+		"phase", status.Phase,
+		"backend_count", status.BackendCount,
+		"discovered_backends", len(status.DiscoveredBackends))
+
+	// Report status
+	if err := reporter.ReportStatus(ctx, status); err != nil {
+		slog.Error("failed to report status", "error", err)
+	}
+}

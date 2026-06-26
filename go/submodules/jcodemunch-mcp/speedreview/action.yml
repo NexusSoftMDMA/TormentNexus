@@ -1,0 +1,82 @@
+name: "speedreview"
+description: "AI code review in under 5 seconds — powered by jCodeMunch + Groq"
+author: "J. Gravelle"
+
+branding:
+  icon: "zap"
+  color: "orange"
+
+inputs:
+  groq_api_key:
+    description: "Groq API key (get one at https://console.groq.com)"
+    required: true
+  model:
+    description: "Groq model to use"
+    required: false
+    default: "llama-3.3-70b-versatile"
+  severity_threshold:
+    description: "Minimum severity to include in review (low, medium, high)"
+    required: false
+    default: "low"
+  max_comment_length:
+    description: "Maximum length of the PR comment in characters"
+    required: false
+    default: "4000"
+  token_budget:
+    description: "Token budget for jCodeMunch context retrieval"
+    required: false
+    default: "8000"
+  base_ref:
+    description: "Base ref to diff against (default: auto-detect from PR)"
+    required: false
+    default: ""
+  jcodemunch_version:
+    description: >-
+      Exact PyPI version specifier for jcodemunch-mcp (e.g. "==1.108.20" or
+      ">=1.108.20,<1.109"). Default pins to the version this action was tagged
+      against, which is the only version we've validated for this release.
+      Override only if you have a specific reason and have validated the
+      replacement against your workflow.
+    required: false
+    default: "==1.108.22"
+  openai_version:
+    description: >-
+      PyPI version specifier for the openai SDK. Constraint-form default
+      (>=1.50,<2) admits security patches within the 1.x line without picking
+      up breaking 2.x changes. Override with an exact pin for maximum
+      reproducibility.
+    required: false
+    default: ">=1.50,<2"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.12"
+
+    - name: Cache jCodeMunch index
+      uses: actions/cache@v4
+      with:
+        path: ~/.code-index
+        key: speedreview-index-${{ github.repository }}-${{ github.event.pull_request.base.sha }}
+        restore-keys: |
+          speedreview-index-${{ github.repository }}-
+
+    - name: Install dependencies
+      shell: bash
+      run: pip install --quiet "jcodemunch-mcp${{ inputs.jcodemunch_version }}" "openai${{ inputs.openai_version }}"
+
+    - name: Run speedreview
+      shell: bash
+      env:
+        GROQ_API_KEY: ${{ inputs.groq_api_key }}
+        SPEEDREVIEW_MODEL: ${{ inputs.model }}
+        SPEEDREVIEW_SEVERITY: ${{ inputs.severity_threshold }}
+        SPEEDREVIEW_MAX_LENGTH: ${{ inputs.max_comment_length }}
+        SPEEDREVIEW_TOKEN_BUDGET: ${{ inputs.token_budget }}
+        SPEEDREVIEW_BASE_REF: ${{ inputs.base_ref }}
+        GITHUB_TOKEN: ${{ github.token }}
+        PR_NUMBER: ${{ github.event.pull_request.number }}
+      run: python ${{ github.action_path }}/review.py

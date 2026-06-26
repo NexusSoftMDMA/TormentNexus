@@ -1,0 +1,160 @@
+import Foundation
+import ScarfCore
+import os
+
+/// Platform list/selection coordinator. Per-platform configuration now lives in
+/// dedicated `<Platform>SetupViewModel` classes under `ViewModels/PlatformSetup/`.
+/// This VM only manages the sidebar list, connectivity detection, and the
+/// "Restart Gateway" action.
+@Observable
+@MainActor
+final class PlatformsViewModel {
+    private let logger = Logger(subsystem: "com.scarf", category: "PlatformsViewModel")
+    let context: ServerContext
+    private let fileService: HermesFileService
+
+    init(context: ServerContext = .local) {
+        self.context = context
+        self.fileService = HermesFileService(context: context)
+    }
+
+
+    var gatewayState: GatewayState?
+    var selected: HermesToolPlatform = KnownPlatforms.cli
+    var message: String?
+    var restartInProgress: Bool = false
+
+    /// Per-platform "has config on disk" set, computed off-main in `load()`
+    /// (one config.yaml + one `.env` read, vs. the old per-platform-per-render
+    /// transport reads). `connectivity` / `hasConfigBlock` read this cache so a
+    /// body re-render never does synchronous scp/SSH on the main thread.
+    private(set) var configuredPlatforms: Set<String> = []
+
+    var platforms: [HermesToolPlatform] { KnownPlatforms.all }
+
+    /// Tracks the file-watcher change token this VM last loaded for, so a
+    /// plain section re-entry (same token) skips the remote re-read while a
+    /// real on-disk change (advanced token) or a `force` still reloads
+    /// (t-aud24). The VM instance is cached in `AppCoordinator`, so this
+    /// state persists across section switches.
+    @ObservationIgnored private var loadedChangeToken: Date?
+    @ObservationIgnored private var hasLoaded = false
+
+    @ObservationIgnored private var loadTask: Task<Void, Never>?
+
+    func load(changeToken: Date? = nil, force: Bool = false) {
+        if !force, hasLoaded, loadedChangeToken == changeToken { return }
+        hasLoaded = true
+        let svc = fileService
+        let ctx = context
+        loadTask?.cancel()
+        loadTask = Task { [weak self] in
+            // Gateway state, config.yaml and `.env` all read through the
+            // transport — synchronous scp/SSH round-trips on remote. Compute
+            // them ONCE off main so neither a file-watcher tick nor a body
+            // re-render stalls the main thread (gh#102 pattern). Cancel-prior
+            // + the is-cancelled guard so an older tick's slower read can't
+            // land after a newer one and latch stale data (the synchronous
+            // load this replaced couldn't interleave); advance the freshness
+            // token only on a committed read.
+            let result = await Task.detached {
+                (state: svc.loadGatewayState(), configured: Self.computeConfiguredPlatforms(context: ctx))
+            }.value
+            guard let self, !Task.isCancelled else { return }
+            self.gatewayState = result.state
+            self.configuredPlatforms = result.configured
+            self.loadedChangeToken = changeToken
+        }
+    }
+
+    func connectivity(for platform: HermesToolPlatform) -> PlatformConnectivity {
+        if let pState = gatewayState?.platforms?[platform.name] {
+            if let err = pState.error, !err.isEmpty { return .error(err) }
+            if pState.connected == true { return .connected }
+        }
+        return hasConfigBlock(for: platform) ? .configured : .notConfigured
+    }
+
+    /// Does the platform have any configuration on disk — either a top-level
+    /// `<platform>:` block in config.yaml, or an "identifying" env var in
+    /// `.env` (e.g. `TELEGRAM_BOT_TOKEN`, `DISCORD_BOT_TOKEN`)?
+    ///
+    /// We need the env-var check because the new per-platform setup forms
+    /// write credentials to `.env` primarily; most platforms don't create a
+    /// YAML block until the user saves a behavior toggle. Without this,
+    /// platforms configured via the new flow would display as "Not configured"
+    /// until the first YAML edit.
+    func hasConfigBlock(for platform: HermesToolPlatform) -> Bool {
+        if platform.name == "cli" { return true }
+        return configuredPlatforms.contains(platform.name)
+    }
+
+    /// Compute, off main, the set of platforms with configuration on disk —
+    /// a top-level `<platform>:` block in config.yaml OR an identifying env
+    /// var in `.env`. Reads each source ONCE (vs. the old per-platform read).
+    /// Detection mirrors the previous `hasConfigBlock` exactly.
+    nonisolated static func computeConfiguredPlatforms(context: ServerContext) -> Set<String> {
+        let yaml = context.readText(context.paths.configYAML) ?? ""
+        let topLevel = Set(
+            yaml.components(separatedBy: "\n")
+                .filter { !$0.hasPrefix(" ") && !$0.hasPrefix("\t") }
+                .compactMap { line -> String? in
+                    let trimmed = line.trimmingCharacters(in: .whitespaces)
+                    guard trimmed.hasSuffix(":") else { return nil }
+                    return String(trimmed.dropLast())
+                }
+        )
+        let env = HermesEnvService(context: context).load()
+        var configured: Set<String> = []
+        for platform in KnownPlatforms.all where platform.name != "cli" {
+            if topLevel.contains(platform.name) {
+                configured.insert(platform.name)
+            } else if let key = identifyingEnvVar(for: platform.name),
+                      let value = env[key], !value.isEmpty {
+                configured.insert(platform.name)
+            }
+        }
+        return configured
+    }
+
+    /// Primary credential env var for a platform — the one whose presence
+    /// signals that the user has started setup. Centralized here so both the
+    /// connectivity detector and future diagnostics agree on the check.
+    nonisolated private static func identifyingEnvVar(for platformName: String) -> String? {
+        switch platformName {
+        case "telegram": return "TELEGRAM_BOT_TOKEN"
+        case "discord": return "DISCORD_BOT_TOKEN"
+        case "slack": return "SLACK_BOT_TOKEN"
+        case "whatsapp": return "WHATSAPP_ENABLED"
+        case "signal": return "SIGNAL_ACCOUNT"
+        case "email": return "EMAIL_ADDRESS"
+        case "matrix": return "MATRIX_HOMESERVER"
+        case "mattermost": return "MATTERMOST_URL"
+        case "feishu": return "FEISHU_APP_ID"
+        case "imessage": return "BLUEBUBBLES_SERVER_URL"
+        case "homeassistant": return "HASS_TOKEN"
+        case "webhook": return "WEBHOOK_ENABLED"
+        default: return nil
+        }
+    }
+
+    /// Restart the hermes gateway so newly-saved config takes effect. Runs on a
+    /// background task so the UI stays responsive during the ~second or two
+    /// `hermes gateway restart` takes.
+    func restartGateway() {
+        restartInProgress = true
+        message = "Restarting gateway…"
+        Task.detached { [weak self, fileService] in
+            let result = fileService.runHermesCLI(args: ["gateway", "restart"], timeout: 30)
+            await MainActor.run { [weak self] in
+                guard let self else { return }
+                self.restartInProgress = false
+                self.message = result.exitCode == 0 ? "Gateway restarted" : "Restart failed"
+                self.load(force: true)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in
+                    self?.message = nil
+                }
+            }
+        }
+    }
+}

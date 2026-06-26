@@ -1,0 +1,52 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(go test:*)",
+      "Bash(task test)",
+      "Bash(task lint)",
+      "Bash(task lint-fix)",
+      "Bash(task license-fix)",
+      "Bash(golangci-lint run:*)",
+      "Bash(go doc:*)",
+      "WebFetch(domain:modelcontextprotocol.io)",
+      "Bash(pre-commit:*)",
+      "Bash(pre-commit run:*)",
+      "Bash(pre-commit install:*)",
+      "Bash(pre-commit autoupdate:*)",
+      "Bash(helm-docs:*)",
+      "Bash(codespell:*)",
+      "Bash(task operator-install-crds)",
+      "Bash(task operator-uninstall-crds)",
+      "Bash(task operator-deploy-latest)",
+      "Bash(task operator-deploy-local)",
+      "Bash(task operator-undeploy)",
+      "Bash(task operator-generate)",
+      "Bash(task operator-manifests)",
+      "Bash(task operator-test)",
+      "Bash(task operator-e2e-test)",
+      "Bash(task crdref-install)",
+      "Bash(task crdref-gen)",
+      "Bash(helm template:*)",
+      "Bash(git log:*)",
+      "Bash(ct lint:*)",
+      "Bash(helm-docs --dry-run)"
+    ],
+    "deny": []
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd \"$CLAUDE_PROJECT_DIR\" && changed_file=\"$CLAUDE_TOOL_ARG_file_path\"; if [ -n \"$changed_file\" ] && echo \"$changed_file\" | grep -q '\\.go$'; then task lint-fix 2>/dev/null; task license-fix 2>/dev/null; fi; exit 0"
+          }
+        ]
+      }
+    ]
+  },
+  "env": {
+    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
+  }
+}

@@ -1,0 +1,57 @@
+name: PR Validation
+
+on:
+  pull_request:
+    branches:
+      - master
+
+jobs:
+  validate-version:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout PR
+        uses: actions/checkout@v4
+        with:
+          path: pr-code
+
+      - name: Checkout Master
+        uses: actions/checkout@v4
+        with:
+          ref: master
+          path: master-code
+
+      - name: Compare Versions
+        shell: powershell
+        run: |
+          $prVersion = (Get-Content "pr-code/controller_mcp/version.txt" -Raw).Trim()
+          $masterVersion = (Get-Content "master-code/controller_mcp/version.txt" -Raw).Trim()
+          
+          Write-Host "PR Version: $prVersion"
+          Write-Host "Master Version: $masterVersion"
+          
+          $prVer = [System.Version]::Parse($prVersion)
+          $masterVer = [System.Version]::Parse($masterVersion)
+          
+          if ($prVer -le $masterVer) {
+              Write-Error "PR version ($prVersion) must be greater than master version ($masterVersion)!"
+              exit 1
+          } else {
+              Write-Host "Version check passed."
+          }
+
+  build-and-test:
+    needs: validate-version
+    runs-on: windows-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+          
+      - name: Run Build Matrix
+        shell: powershell
+        working-directory: controller_mcp
+        run: .\build_matrix.ps1
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: compiled-skus
+          path: controller_mcp/artifacts/

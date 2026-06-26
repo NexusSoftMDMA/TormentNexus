@@ -1,0 +1,186 @@
+// SPDX-FileCopyrightText: Copyright 2025 Stacklok, Inc.
+// SPDX-License-Identifier: Apache-2.0
+
+package controllers
+
+import (
+	"testing"
+	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/tools/events"
+	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/controller-runtime/pkg/log"
+
+	mcpv1beta1 "github.com/stacklok/toolhive/cmd/thv-operator/api/v1beta1"
+	"github.com/stacklok/toolhive/cmd/thv-operator/api/v1beta1/v1beta1test"
+	"github.com/stacklok/toolhive/cmd/thv-operator/internal/testutil"
+	ctrlutil "github.com/stacklok/toolhive/cmd/thv-operator/pkg/controllerutil"
+)
+
+func TestMCPServerReconciler_InvalidPodTemplateSpec(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name                  string
+		mcpServer             *mcpv1beta1.MCPServer
+		expectConditionStatus metav1.ConditionStatus
+		expectConditionReason string
+		expectEventReason     string
+	}{
+		{
+			name: "invalid_json_in_podtemplatespec",
+			// Valid JSON but invalid PodTemplateSpec structure
+			// (spec.containers should be an array, not a string)
+			mcpServer: v1beta1test.NewMCPServer("test-invalid-json", "default",
+				v1beta1test.WithPodTemplateSpec(&runtime.RawExtension{
+					Raw: []byte(`{"spec": {"containers": "invalid"}}`),
+				}),
+			),
+			expectConditionStatus: metav1.ConditionFalse,
+			expectConditionReason: mcpv1beta1.ConditionReasonPodTemplateInvalid,
+			expectEventReason:     "InvalidPodTemplateSpec",
+		},
+		{
+			name: "valid_podtemplatespec",
+			mcpServer: v1beta1test.NewMCPServer("test-valid", "default",
+				v1beta1test.WithPodTemplateSpec(&runtime.RawExtension{
+					Raw: []byte(`{"spec": {"containers": [{"name": "mcp"}]}}`),
+				}),
+			),
+			expectConditionStatus: metav1.ConditionTrue,
+			expectConditionReason: mcpv1beta1.ConditionReasonPodTemplateValid,
+			expectEventReason:     "", // No warning event for valid spec
+		},
+		{
+			name:                  "nil_podtemplatespec",
+			mcpServer:             v1beta1test.NewMCPServer("test-nil", "default"),
+			expectConditionStatus: "", // No condition set for nil spec
+			expectConditionReason: "", // No condition set for nil spec
+			expectEventReason:     "", // No warning event for nil spec
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := t.Context()
+
+			// Setup the test environment for each test to avoid race conditions
+			s := testutil.NewScheme(t)
+
+			// Create a fake event recorder for each test
+			eventRecorder := events.NewFakeRecorder(10)
+
+			// Create a fake client with the MCPServer
+			fakeClient := fake.NewClientBuilder().
+				WithScheme(s).
+				WithObjects(tt.mcpServer).
+				WithStatusSubresource(tt.mcpServer).
+				Build()
+
+			// Create the reconciler with the fake event recorder
+			r := &MCPServerReconciler{
+				Client:           fakeClient,
+				Scheme:           s,
+				Recorder:         eventRecorder,
+				PlatformDetector: ctrlutil.NewSharedPlatformDetector(),
+			}
+
+			// Run reconciliation
+			req := ctrl.Request{
+				NamespacedName: types.NamespacedName{
+					Name:      tt.mcpServer.Name,
+					Namespace: tt.mcpServer.Namespace,
+				},
+			}
+
+			// Set a logger for the context
+			ctx = log.IntoContext(ctx, log.Log)
+
+			// Reconcile
+			_, err := r.Reconcile(ctx, req)
+			// We expect the reconciliation to succeed (no error) even with invalid PodTemplateSpec
+			// to avoid infinite retries. The deployment should not be created though.
+			require.NoError(t, err)
+
+			// Check the MCPServer status conditions
+			var updatedMCPServer mcpv1beta1.MCPServer
+			err = fakeClient.Get(ctx, client.ObjectKeyFromObject(tt.mcpServer), &updatedMCPServer)
+			require.NoError(t, err)
+
+			// Find the PodTemplateValid condition
+			condition := meta.FindStatusCondition(updatedMCPServer.Status.Conditions, mcpv1beta1.ConditionPodTemplateValid)
+			if tt.expectConditionStatus != "" {
+				require.NotNil(t, condition, "PodTemplateValid condition should be set")
+				assert.Equal(t, tt.expectConditionStatus, condition.Status)
+				assert.Equal(t, tt.expectConditionReason, condition.Reason)
+
+				if tt.expectConditionStatus == metav1.ConditionFalse {
+					assert.Contains(t, condition.Message, "Failed to parse PodTemplateSpec")
+					assert.Contains(t, condition.Message, "Deployment blocked until fixed")
+				}
+			}
+
+			// Check for events
+			if tt.expectEventReason != "" {
+				// Give the event recorder a moment to process
+				time.Sleep(10 * time.Millisecond)
+
+				select {
+				case event := <-eventRecorder.Events:
+					assert.Contains(t, event, tt.expectEventReason)
+					assert.Contains(t, event, "Warning")
+					assert.Contains(t, event, "Failed to parse PodTemplateSpec")
+				case <-time.After(100 * time.Millisecond):
+					if tt.expectEventReason != "" {
+						t.Errorf("Expected event with reason %s but no event was recorded", tt.expectEventReason)
+					}
+				}
+			}
+		})
+	}
+}
+
+func TestDeploymentArgsWithInvalidPodTemplateSpec(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+	s := testutil.NewScheme(t)
+
+	// MCPServer with invalid PodTemplateSpec
+	mcpServer := v1beta1test.NewMCPServer("test-mcp", "default",
+		v1beta1test.WithPodTemplateSpec(&runtime.RawExtension{
+			Raw: []byte(`{invalid json`),
+		}),
+	)
+
+	fakeClient := fake.NewClientBuilder().
+		WithScheme(s).
+		WithObjects(mcpServer).
+		Build()
+
+	r := &MCPServerReconciler{
+		Client:           fakeClient,
+		Scheme:           s,
+		Recorder:         events.NewFakeRecorder(10),
+		PlatformDetector: ctrlutil.NewSharedPlatformDetector(),
+	}
+
+	// Set a logger for the context
+	ctx = log.IntoContext(ctx, log.Log)
+
+	// Invalid PodTemplateSpec should be surfaced to the reconcile loop instead of silently
+	// building a deployment without the requested pod customizations.
+	deployment, err := r.deploymentForMCPServer(ctx, mcpServer, "test-checksum")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to build PodTemplateSpec")
+	assert.Nil(t, deployment)
+}

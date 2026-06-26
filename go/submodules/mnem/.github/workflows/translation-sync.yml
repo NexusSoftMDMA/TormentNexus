@@ -1,0 +1,31 @@
+name: Translation Sync Check
+
+on:
+  pull_request:
+    paths:
+      - README.md
+      - README.zh-CN.md
+      - README.es.md
+  push:
+    branches: [main]
+    paths:
+      - README.md
+      - README.zh-CN.md
+      - README.es.md
+
+jobs:
+  check-translations:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Check translation sync
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: python .github/scripts/check_translations.py

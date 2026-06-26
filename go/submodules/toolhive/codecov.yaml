@@ -1,0 +1,22 @@
+coverage:
+  ignore:
+    - "cmd/help/"
+    - "cmd/thv/"
+    - "cmd/thv-proxyrunner/"
+    - "containers/egress-proxy"
+    - "docs/"
+    - "examples/"
+    - "hack"
+    - "test/e2e"
+    - "deploy"
+    - "**/mocks/**/*"
+    - "**/mock_*.go"
+    - "**/zz_generated.deepcopy.go"
+    - "**/*_test.go"
+    - "**/*_test_coverage.go"
+  status:
+    project:
+      default:
+        target: auto
+        threshold: 2%
+    patch: false

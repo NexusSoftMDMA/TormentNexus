@@ -1,0 +1,20 @@
+{
+  "missions": [
+    {
+      "missionId": "mission-20260430-154716",
+      "status": "started",
+      "createdAt": 1777578436143
+    },
+    {
+      "missionId": "mission-20260430-154742",
+      "status": "started",
+      "createdAt": 1777578462745
+    },
+    {
+      "missionId": "mission-20260430-154752",
+      "status": "started",
+      "createdAt": 1777578472515
+    }
+  ],
+  "updatedAt": 1777578472515
+}

@@ -1,0 +1,1568 @@
+// SPDX-FileCopyrightText: Copyright 2025 Stacklok, Inc.
+// SPDX-License-Identifier: Apache-2.0
+
+// Package kubernetes provides a client for the Kubernetes runtime
+// including creating, starting, stopping, and retrieving container information.
+package kubernetes
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"io"
+	"log/slog"
+	"os"
+	"sort"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/cenkalti/backoff/v5"
+	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/intstr"
+	apimwatch "k8s.io/apimachinery/pkg/watch"
+	appsv1apply "k8s.io/client-go/applyconfigurations/apps/v1"
+	corev1apply "k8s.io/client-go/applyconfigurations/core/v1"
+	metav1apply "k8s.io/client-go/applyconfigurations/meta/v1"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/remotecommand"
+	"k8s.io/client-go/tools/watch"
+	"k8s.io/utils/ptr"
+
+	"github.com/stacklok/toolhive-core/permissions"
+	"github.com/stacklok/toolhive/pkg/container/runtime"
+	"github.com/stacklok/toolhive/pkg/k8s"
+	transtypes "github.com/stacklok/toolhive/pkg/transport/types"
+)
+
+// Constants for container status
+const (
+	// UnknownStatus represents an unknown container status
+	UnknownStatus = "unknown"
+	// mcpContainerName is the name of the MCP container. This is a known constant.
+	mcpContainerName = "mcp"
+	// defaultNamespace is the default Kubernetes namespace
+	defaultNamespace = "default"
+	// serviceFieldManager is the field manager name for server-side apply operations
+	serviceFieldManager = "toolhive-container-manager"
+
+	// RunConfigMCPServerGenerationAnnotation carries the MCPServer .metadata.generation that
+	// produced the RunConfig applied to this StatefulSet. Used as a monotonic version stamp
+	// to prevent stale proxyrunner pods (from an old Deployment ReplicaSet) from clobbering
+	// a newer RunConfig's apply. The gate only becomes effective once proxyrunner is upgraded
+	// to a version that reads this annotation; operator-only upgrades leave the race window
+	// in place until proxyrunner is also rolled. Exported because it forms a wire contract
+	// that external readers (operator, diagnostic tooling) may consume.
+	//
+	// The operator also stamps this same annotation on the proxyrunner Deployment's
+	// pod template and projects it into the proxyrunner container as the env var
+	// EnvVarMCPServerGeneration via the downward API. That projection freezes the
+	// generation per pod at creation time, so two coexisting proxyrunner pods cannot
+	// converge on the same generation by re-reading the live-mounted RunConfig
+	// ConfigMap (issue #5360).
+	RunConfigMCPServerGenerationAnnotation = "toolhive.stacklok.dev/mcpserver-generation"
+
+	// EnvVarMCPServerGeneration is the env var name through which the proxyrunner
+	// container receives its frozen-per-pod MCPServer generation. Sourced via the
+	// downward API from the pod-template annotation RunConfigMCPServerGenerationAnnotation,
+	// it overrides the value read from /etc/runconfig/runconfig.json (which would
+	// otherwise live-update across all proxyrunner pods during a helm upgrade and
+	// defeat the apply-gate). See issue #5360.
+	EnvVarMCPServerGeneration = "THV_MCPSERVER_GENERATION"
+)
+
+// RuntimeName is the name identifier for the Kubernetes runtime
+const RuntimeName = "kubernetes"
+
+// Retry configuration for kubectl attach operations
+const (
+	// attachRetryTimeout is the maximum time to retry kubectl attach before giving up
+	// This accommodates typical pod restart times in both local and CI environments,
+	// including container image pulls and startup delays
+	attachRetryTimeout = 90 * time.Second
+
+	// attachMaxRetryInterval is the maximum delay between individual retry attempts
+	attachMaxRetryInterval = 15 * time.Second
+
+	// attachInitialRetryInterval is the initial delay before the first retry
+	attachInitialRetryInterval = 1 * time.Second
+)
+
+// Client implements the Deployer interface for container operations
+type Client struct {
+	runtimeType      runtime.Type
+	client           kubernetes.Interface
+	config           *rest.Config
+	platformDetector PlatformDetector
+	// waitForStatefulSetReadyFunc is used for testing to mock the waitForStatefulSetReady function
+	waitForStatefulSetReadyFunc func(
+		ctx context.Context,
+		clientset kubernetes.Interface,
+		namespace, name string,
+		desiredGeneration int64,
+	) error
+	// namespaceFunc is used for testing to override namespace detection
+	namespaceFunc func() string
+	// exitFunc is used for testing to override os.Exit behavior
+	exitFunc func(code int)
+}
+
+// NewClient creates a new container client
+func NewClient(_ context.Context) (*Client, error) {
+	// Get kubernetes client and config using the common package
+	clientset, config, err := k8s.NewClient()
+	if err != nil {
+		return nil, err
+	}
+
+	return NewClientWithConfig(clientset, config), nil
+}
+
+// NewClientWithConfig creates a new container client with a provided config
+// This is primarily used for testing with fake clients
+func NewClientWithConfig(clientset kubernetes.Interface, config *rest.Config) *Client {
+	return &Client{
+		runtimeType:      runtime.TypeKubernetes,
+		client:           clientset,
+		config:           config,
+		platformDetector: NewDefaultPlatformDetector(),
+	}
+}
+
+// NewClientWithConfigAndPlatformDetector creates a new container client with a provided config and platform detector
+// This is primarily used for testing with fake clients and mock platform detectors
+func NewClientWithConfigAndPlatformDetector(
+	clientset kubernetes.Interface,
+	config *rest.Config,
+	platformDetector PlatformDetector,
+) *Client {
+	return &Client{
+		runtimeType:      runtime.TypeKubernetes,
+		client:           clientset,
+		config:           config,
+		platformDetector: platformDetector,
+	}
+}
+
+// AttachToWorkload implements runtime.Runtime.
+// It establishes a kubectl attach connection to the MCP server pod.
+//
+// Connection Failure Handling:
+// If the connection fails permanently (after retries with exponential backoff),
+// this function causes the process to exit with code 1. This triggers a Kubernetes
+// restart, allowing the proxy to establish a fresh connection to the current pod.
+// This is critical for handling StatefulSet pod restarts - when the MCP pod restarts,
+// the old kubectl attach connection becomes stale and cannot be reused. Exiting allows
+// Kubernetes to restart the proxy, which then attaches to the new pod.
+//
+// The retry configuration (see attachRetryTimeout constant) accommodates typical pod
+// restart times in both local and CI environments, while still failing fast enough
+// for truly unavailable pods.
+func (c *Client) AttachToWorkload(ctx context.Context, workloadName string) (io.WriteCloser, io.ReadCloser, error) {
+	// AttachToWorkload attaches to a workload in Kubernetes
+	// This is a more complex operation in Kubernetes compared to Docker/Podman
+	// as it requires setting up an exec session to the pod
+
+	// First, we need to find the pod associated with the workloadID (which is actually the statefulset name)
+	namespace := c.getCurrentNamespace()
+	pods, err := c.client.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{
+		LabelSelector: fmt.Sprintf("app=%s", workloadName),
+	})
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to find pod for workload %s: %w", workloadName, err)
+	}
+
+	if len(pods.Items) == 0 {
+		return nil, nil, fmt.Errorf("%w: no pods found for workload %s", runtime.ErrWorkloadNotFound, workloadName)
+	}
+
+	// Use the first pod found
+	podName := pods.Items[0].Name
+
+	attachOpts := &corev1.PodAttachOptions{
+		Container: mcpContainerName,
+		Stdin:     true,
+		Stdout:    true,
+		Stderr:    true,
+		TTY:       false,
+	}
+
+	// Set up the attach request URL (used to create fresh SPDY executors for each retry)
+	req := c.client.CoreV1().RESTClient().Post().
+		Resource("pods").
+		Name(podName).
+		Namespace(c.getCurrentNamespace()).
+		SubResource("attach").
+		VersionedParams(attachOpts, scheme.ParameterCodec)
+	attachURL := req.URL()
+
+	slog.Info("attaching to pod", "pod", podName, "workload", workloadName)
+
+	stdinReader, stdinWriter := io.Pipe()
+	stdoutReader, stdoutWriter := io.Pipe()
+	go func() {
+		// Close pipes when this goroutine exits to signal the transport layer.
+		// This ensures processStdout() sees EOF and can attempt re-attachment or exit.
+		defer func() {
+			if err := stdoutWriter.Close(); err != nil {
+				slog.Debug("error closing stdout writer", "error", err)
+			}
+			if err := stdinReader.Close(); err != nil {
+				slog.Debug("error closing stdin reader", "error", err)
+			}
+		}()
+
+		// Create exponential backoff with extended retry window to handle pod restarts
+		// in both local and CI environments.
+		expBackoff := backoff.NewExponentialBackOff()
+		expBackoff.MaxInterval = attachMaxRetryInterval
+		expBackoff.InitialInterval = attachInitialRetryInterval
+
+		_, err := backoff.Retry(ctx, func() (any, error) {
+			// Create a fresh SPDY executor for each retry attempt.
+			// This is critical because the SPDY connection state becomes corrupted
+			// after certain failures (e.g., EOF from idle timeout), and reusing
+			// a stale executor prevents recovery.
+			exec, execErr := remotecommand.NewSPDYExecutor(c.config, "POST", attachURL)
+			if execErr != nil {
+				return nil, fmt.Errorf("failed to create SPDY executor: %w", execErr)
+			}
+
+			return nil, exec.StreamWithContext(ctx, remotecommand.StreamOptions{
+				Stdin:  stdinReader,
+				Stdout: stdoutWriter,
+				Stderr: stdoutWriter,
+				Tty:    false,
+			})
+		},
+			backoff.WithBackOff(expBackoff),
+			backoff.WithMaxElapsedTime(attachRetryTimeout),
+			backoff.WithNotify(func(err error, duration time.Duration) {
+				slog.Error("error attaching to workload, retrying", "workload", workloadName, "error", err, "retry_in", duration)
+			}),
+		)
+		if err != nil {
+			if statusErr, ok := err.(*errors.StatusError); ok {
+				slog.Error("kubernetes API error",
+					"status", statusErr.ErrStatus.Status,
+					"message", statusErr.ErrStatus.Message,
+					"reason", statusErr.ErrStatus.Reason,
+					"code", statusErr.ErrStatus.Code)
+
+				// Note: statuscode 0 with empty message indicates the connection was closed
+				// unexpectedly (e.g., container terminated or doesn't read from stdin)
+				if statusErr.ErrStatus.Code == 0 && statusErr.ErrStatus.Message == "" {
+					slog.Error("connection closed unexpectedly, pod likely terminated or restarted", "workload", workloadName)
+				}
+			} else {
+				slog.Error("non-status error", "error", err)
+			}
+
+			// Exit the process to trigger a restart by Kubernetes.
+			// This allows the proxy to establish a fresh connection to the current pod
+			// after a pod restart, rather than maintaining a stale connection.
+			//
+			// Note: We call os.Exit(1) directly (bypassing deferred cleanup) because:
+			// 1. The proxy is in a permanently broken state with stale stdin/stdout pipes
+			// 2. Any cleanup of these broken resources would likely fail or hang
+			// 3. We want Kubernetes to perform a complete container restart with fresh state
+			// 4. Deferred cleanup is designed for graceful shutdown, not recovery from broken state
+			slog.Error("kubectl attach failed after all retries, exiting to allow restart", "workload", workloadName)
+			exitFunc := c.exitFunc
+			if exitFunc == nil {
+				exitFunc = os.Exit
+			}
+			exitFunc(1)
+		}
+	}()
+
+	return stdinWriter, stdoutReader, nil
+}
+
+// GetWorkloadLogs implements runtime.Runtime.
+func (c *Client) GetWorkloadLogs(ctx context.Context, workloadName string, follow bool, lines int) (string, error) {
+	// follow=true means infinite streaming, lines>0 means finite limit - these are contradictory
+	if follow && lines > 0 {
+		return "", fmt.Errorf(
+			"cannot use both follow and line limit: follow mode streams logs indefinitely, " +
+				"which conflicts with line limiting",
+		)
+	}
+
+	// In Kubernetes, workloadID is the statefulset name
+	namespace := c.getCurrentNamespace()
+
+	// Get the pods associated with this statefulset
+	pods, err := c.client.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{
+		LabelSelector: "toolhive=true",
+		FieldSelector: fmt.Sprintf("metadata.name=%s", workloadName),
+	})
+	if err != nil {
+		return "", fmt.Errorf("failed to list pods for statefulset %s: %w", workloadName, err)
+	}
+
+	if len(pods.Items) == 0 {
+		return "", fmt.Errorf("%w: no pods found for statefulset %s", runtime.ErrWorkloadNotFound, workloadName)
+	}
+
+	// Use the first pod
+	podName := pods.Items[0].Name
+
+	// Configure tail lines based on lines parameter
+	var tailLines *int64
+	if lines > 0 {
+		tailLinesVal := int64(lines)
+		tailLines = &tailLinesVal
+	}
+
+	// Get logs from the pod
+	logOptions := &corev1.PodLogOptions{
+		Container:  mcpContainerName,
+		Follow:     follow,
+		Previous:   false,
+		Timestamps: true,
+		TailLines:  tailLines,
+	}
+
+	req := c.client.CoreV1().Pods(namespace).GetLogs(podName, logOptions)
+	podLogs, err := req.Stream(ctx)
+	if err != nil {
+		return "", fmt.Errorf("failed to get logs for pod %s: %w", podName, err)
+	}
+	defer func() {
+		if err := podLogs.Close(); err != nil {
+			// Non-fatal: pod logs cleanup failure
+			slog.Debug("failed to close pod logs", "error", err)
+		}
+	}()
+
+	// Read logs
+	logBytes, err := io.ReadAll(podLogs)
+	if err != nil {
+		return "", fmt.Errorf("failed to read logs for pod %s: %w", podName, err)
+	}
+
+	return string(logBytes), nil
+}
+
+// DeployWorkload implements runtime.Runtime.
+func (c *Client) DeployWorkload(ctx context.Context,
+	image string,
+	containerName string,
+	command []string,
+	envVars map[string]string,
+	containerLabels map[string]string,
+	_ *permissions.Profile, // TODO: Implement permission profile support for Kubernetes
+	transportType string,
+	options *runtime.DeployWorkloadOptions,
+	_ bool,
+) (int, error) {
+	namespace := c.getCurrentNamespace()
+	containerLabels["app"] = containerName
+	containerLabels["toolhive"] = "true"
+
+	attachStdio := options == nil || options.AttachStdio
+
+	envVarList := buildSortedEnvVarList(envVars)
+
+	// Create a pod template spec
+	podTemplateSpec := ensureObjectMetaApplyConfigurationExists(corev1apply.PodTemplateSpec())
+
+	// Apply the patch if provided
+	if options != nil && options.K8sPodTemplatePatch != "" {
+		var err error
+		podTemplateSpec, err = applyPodTemplatePatch(podTemplateSpec, options.K8sPodTemplatePatch)
+		if err != nil {
+			return 0, fmt.Errorf("failed to apply pod template patch: %w", err)
+		}
+	}
+
+	// Ensure the pod template has required configuration (labels, etc.)
+	// Get a config to talk to the apiserver
+	cfg := c.config
+
+	// Detect platform type
+	platformDetector := c.platformDetector
+	if platformDetector == nil {
+		platformDetector = NewDefaultPlatformDetector()
+	}
+	platform, err := platformDetector.DetectPlatform(cfg)
+	if err != nil {
+		return 0, fmt.Errorf("can't determine api server type: %w", err)
+	}
+
+	podTemplateSpec = ensurePodTemplateConfig(podTemplateSpec, containerLabels, platform)
+
+	// Configure the MCP container
+	err = configureMCPContainer(
+		podTemplateSpec,
+		image,
+		command,
+		attachStdio,
+		envVarList,
+		transportType,
+		options,
+		platform,
+	)
+	if err != nil {
+		return 0, err
+	}
+
+	ourGen := runConfigGeneration(options)
+	skip, err := c.shouldSkipStatefulSetApply(ctx, namespace, containerName, ourGen)
+	if err != nil {
+		return 0, err
+	}
+	if skip {
+		// Intentionally skip ensureBackendServices in the gated path: this pod's RunConfig
+		// is stale, so reconciling services here would clobber port/config fields set by
+		// the newer-generation pod under the same field manager + Force: true — the same
+		// race this gate prevents for the StatefulSet. The newer pod already reconciled
+		// services; if that failed, it returns an error and retries on its own.
+		return 0, nil
+	}
+
+	createdStatefulSet, err := c.applyStatefulSet(
+		ctx, namespace, containerName, containerLabels, podTemplateSpec, options, ourGen,
+	)
+	if err != nil {
+		return 0, err
+	}
+
+	err = c.ensureBackendServices(
+		ctx, containerName, namespace, containerLabels, transportType, options, createdStatefulSet)
+	if err != nil {
+		return 0, err
+	}
+
+	// Wait for the statefulset to be ready
+	// Pass the generation from the Apply call to ensure we wait for the controller
+	// to process this specific spec version
+	waitFunc := waitForStatefulSetReady
+	if c.waitForStatefulSetReadyFunc != nil {
+		waitFunc = c.waitForStatefulSetReadyFunc
+	}
+	err = waitFunc(ctx, c.client, namespace, createdStatefulSet.Name, createdStatefulSet.Generation)
+	if err != nil {
+		return 0, fmt.Errorf("statefulset applied but failed to become ready: %w", err)
+	}
+
+	return 0, nil
+}
+
+// buildSortedEnvVarList converts an env var map to Kubernetes apply configurations
+// with deterministically ordered keys. Go map iteration is randomized, and any
+// ordering shift changes the pod template hash and triggers an unnecessary
+// StatefulSet rollout (#5063).
+func buildSortedEnvVarList(envVars map[string]string) []*corev1apply.EnvVarApplyConfiguration {
+	envKeys := make([]string, 0, len(envVars))
+	for k := range envVars {
+		envKeys = append(envKeys, k)
+	}
+	sort.Strings(envKeys)
+	envVarList := make([]*corev1apply.EnvVarApplyConfiguration, 0, len(envKeys))
+	for _, k := range envKeys {
+		envVarList = append(envVarList, corev1apply.EnvVar().WithName(k).WithValue(envVars[k]))
+	}
+	return envVarList
+}
+
+// runConfigGeneration extracts the RunConfig MCPServer generation from options,
+// returning 0 when options is nil (backward-compat / non-operator callers).
+func runConfigGeneration(options *runtime.DeployWorkloadOptions) int64 {
+	if options == nil {
+		return 0
+	}
+	return options.RunConfigMCPServerGeneration
+}
+
+// applyStatefulSet stamps the MCPServer generation annotation when non-zero,
+// builds the StatefulSet apply configuration, and performs the server-side apply.
+func (c *Client) applyStatefulSet(
+	ctx context.Context,
+	namespace, containerName string,
+	containerLabels map[string]string,
+	podTemplateSpec *corev1apply.PodTemplateSpecApplyConfiguration,
+	options *runtime.DeployWorkloadOptions,
+	ourGen int64,
+) (*appsv1.StatefulSet, error) {
+	if ourGen > 0 {
+		podTemplateSpec = podTemplateSpec.WithAnnotations(map[string]string{
+			RunConfigMCPServerGenerationAnnotation: strconv.FormatInt(ourGen, 10),
+		})
+	}
+	statefulSetApply := appsv1apply.StatefulSet(containerName, namespace).
+		WithLabels(containerLabels).
+		WithSpec(buildStatefulSetSpec(containerName, podTemplateSpec, options))
+	createdStatefulSet, err := c.client.AppsV1().StatefulSets(namespace).
+		Apply(ctx, statefulSetApply, metav1.ApplyOptions{
+			FieldManager: serviceFieldManager,
+			Force:        true,
+		})
+	if err != nil {
+		return nil, fmt.Errorf("failed to apply statefulset: %w", err)
+	}
+	slog.Debug("applied statefulset", "name", createdStatefulSet.Name)
+	return createdStatefulSet, nil
+}
+
+// shouldSkipStatefulSetApply returns true when the existing StatefulSet is already
+// stamped with a strictly greater MCPServer generation than ours, meaning a newer
+// proxyrunner pod has already reconciled the workload and ours would be a regression.
+// Returns false (apply as normal) when ourGen is zero or negative, when the StatefulSet
+// does not yet exist, when the annotation is absent, or when the annotation is unparsable.
+func (c *Client) shouldSkipStatefulSetApply(
+	ctx context.Context, namespace, name string, ourGen int64,
+) (bool, error) {
+	if ourGen <= 0 {
+		return false, nil
+	}
+	existing, err := c.client.AppsV1().StatefulSets(namespace).Get(ctx, name, metav1.GetOptions{})
+	if err != nil {
+		if errors.IsNotFound(err) {
+			return false, nil
+		}
+		return false, fmt.Errorf("failed to get existing statefulset: %w", err)
+	}
+	if existing.Spec.Template.Annotations == nil {
+		return false, nil
+	}
+	theirs := existing.Spec.Template.Annotations[RunConfigMCPServerGenerationAnnotation]
+	if theirs == "" {
+		return false, nil
+	}
+	theirsGen, parseErr := strconv.ParseInt(theirs, 10, 64)
+	if parseErr != nil {
+		slog.Warn("unparsable mcpserver-generation annotation; proceeding with apply",
+			"sts", name, "value", theirs, "err", parseErr)
+		return false, nil
+	}
+	if theirsGen > ourGen {
+		slog.Debug("skipping StatefulSet apply; newer MCPServer generation already applied",
+			"sts", name, "ours", ourGen, "theirs", theirsGen)
+		return true, nil
+	}
+	return false, nil
+}
+
+// buildStatefulSetSpec constructs the StatefulSet spec apply configuration.
+// WithReplicas is only included when BackendReplicas is explicitly set; omitting
+// the field lets the existing field manager (e.g. HPA or kubectl) retain control
+// of scaling, satisfying the nil-omission invariant from RC-11.
+func buildStatefulSetSpec(
+	containerName string,
+	podTemplateSpec *corev1apply.PodTemplateSpecApplyConfiguration,
+	options *runtime.DeployWorkloadOptions,
+) *appsv1apply.StatefulSetSpecApplyConfiguration {
+	spec := appsv1apply.StatefulSetSpec().
+		WithSelector(metav1apply.LabelSelector().
+			WithMatchLabels(map[string]string{"app": containerName})).
+		WithServiceName(containerName).
+		WithTemplate(podTemplateSpec)
+	if options != nil && options.ScalingConfig != nil && options.ScalingConfig.BackendReplicas != nil {
+		spec = spec.WithReplicas(*options.ScalingConfig.BackendReplicas)
+	}
+	return spec
+}
+
+// ensureBackendServices creates the headless and ClusterIP services needed by
+// HTTP-based transports (SSE, streamable-http). Both services are owned by the
+// StatefulSet so Kubernetes GC can clean them up automatically.
+func (c *Client) ensureBackendServices(
+	ctx context.Context,
+	containerName, namespace string,
+	containerLabels map[string]string,
+	transportType string,
+	options *runtime.DeployWorkloadOptions,
+	sts *appsv1.StatefulSet,
+) error {
+	if !transportTypeRequiresBackendServices(transportType) || options == nil {
+		return nil
+	}
+
+	stsOwner := &metav1.OwnerReference{
+		APIVersion:         appsv1.SchemeGroupVersion.String(),
+		Kind:               "StatefulSet",
+		Name:               sts.Name,
+		UID:                sts.UID,
+		BlockOwnerDeletion: ptr.To(true),
+		Controller:         ptr.To(true),
+	}
+
+	// Create a headless service for DNS discovery
+	if err := c.createHeadlessService(ctx, containerName, namespace, containerLabels, options, stsOwner); err != nil {
+		return fmt.Errorf("failed to create headless service: %w", err)
+	}
+
+	// Create a regular ClusterIP service with session affinity for the proxy-runner target
+	if err := c.createMCPService(ctx, containerName, namespace, containerLabels, options, stsOwner); err != nil {
+		return fmt.Errorf("failed to create MCP service: %w", err)
+	}
+
+	return nil
+}
+
+// GetWorkloadInfo implements runtime.Runtime.
+func (c *Client) GetWorkloadInfo(ctx context.Context, workloadName string) (runtime.ContainerInfo, error) {
+	// In Kubernetes, workloadID is the statefulset name
+	namespace := c.getCurrentNamespace()
+
+	// Get the statefulset
+	statefulset, err := c.client.AppsV1().StatefulSets(namespace).Get(ctx, workloadName, metav1.GetOptions{})
+	if err != nil {
+		if errors.IsNotFound(err) {
+			return runtime.ContainerInfo{}, fmt.Errorf("%w: statefulset %s not found", runtime.ErrWorkloadNotFound, workloadName)
+		}
+		return runtime.ContainerInfo{}, fmt.Errorf("failed to get statefulset %s: %w", workloadName, err)
+	}
+
+	// Get the pods associated with this workload.
+	pods, err := c.client.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{
+		LabelSelector: "toolhive=true",
+		FieldSelector: fmt.Sprintf("metadata.name=%s", workloadName),
+	})
+	if err != nil {
+		return runtime.ContainerInfo{}, fmt.Errorf("failed to list pods for statefulset %s: %w", workloadName, err)
+	}
+
+	// Extract port mappings from pods
+	ports := make([]runtime.PortMapping, 0)
+	if len(pods.Items) > 0 {
+		ports = extractPortMappingsFromPod(&pods.Items[0])
+	}
+
+	// Get ports from associated service (for SSE transport)
+	service, err := c.client.CoreV1().Services(namespace).Get(ctx, workloadName, metav1.GetOptions{})
+	if err == nil {
+		// Service exists, add its ports
+		ports = extractPortMappingsFromService(service, ports)
+	}
+
+	// Determine status and state
+	var status string
+	var state runtime.WorkloadStatus
+	if statefulset.Status.ReadyReplicas > 0 {
+		status = "Running"
+		state = runtime.WorkloadStatusRunning
+	} else if statefulset.Status.Replicas > 0 {
+		status = "Pending"
+		state = runtime.WorkloadStatusStarting
+	} else {
+		// NOTE: Not clear if this is correct since the stop operation is a no-op.
+		status = "Stopped"
+		state = runtime.WorkloadStatusStopped
+	}
+
+	// Get the image from the pod template
+	image := ""
+	if len(statefulset.Spec.Template.Spec.Containers) > 0 {
+		image = statefulset.Spec.Template.Spec.Containers[0].Image
+	}
+
+	return runtime.ContainerInfo{
+		Name:    statefulset.Name,
+		Image:   image,
+		Status:  status,
+		State:   state,
+		Created: statefulset.CreationTimestamp.Time,
+		Labels:  statefulset.Labels,
+		Ports:   ports,
+	}, nil
+}
+
+// IsWorkloadRunning implements runtime.Runtime.
+func (c *Client) IsWorkloadRunning(ctx context.Context, workloadName string) (bool, error) {
+	// In Kubernetes, workloadID is the statefulset name
+	namespace := c.getCurrentNamespace()
+
+	// Get the statefulset
+	statefulset, err := c.client.AppsV1().StatefulSets(namespace).Get(ctx, workloadName, metav1.GetOptions{})
+	if err != nil {
+		if errors.IsNotFound(err) {
+			return false, fmt.Errorf("%w: statefulset %s not found", runtime.ErrWorkloadNotFound, workloadName)
+		}
+		return false, fmt.Errorf("failed to get statefulset %s: %w", workloadName, err)
+	}
+
+	// Check if the statefulset has at least one ready replica
+	return statefulset.Status.ReadyReplicas > 0, nil
+}
+
+// ListWorkloads implements runtime.Runtime.
+func (c *Client) ListWorkloads(ctx context.Context) ([]runtime.ContainerInfo, error) {
+	// Create label selector for toolhive containers
+	// Only show main MCP server pods (not proxy pods) by requiring toolhive-tool-type label
+	labelSelector := "toolhive=true,toolhive-tool-type"
+
+	// Determine namespace to search in
+	var namespace string
+	if strings.TrimSpace(os.Getenv("TOOLHIVE_KUBERNETES_ALL_NAMESPACES")) != "" {
+		// Search in all namespaces
+		namespace = ""
+	} else {
+		// Search in current namespace only
+		namespace = c.getCurrentNamespace()
+	}
+
+	// List pods with the toolhive label
+	pods, err := c.client.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{
+		LabelSelector: labelSelector,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list pods: %w", err)
+	}
+
+	// Convert to our ContainerInfo format
+	result := make([]runtime.ContainerInfo, 0, len(pods.Items))
+	for _, pod := range pods.Items {
+		// Extract port mappings from pod
+		ports := extractPortMappingsFromPod(&pod)
+
+		// Get ports from associated service (for SSE transport)
+		service, err := c.client.CoreV1().Services(namespace).Get(ctx, pod.Name, metav1.GetOptions{})
+		if err == nil {
+			// Service exists, add its ports
+			ports = extractPortMappingsFromService(service, ports)
+		}
+
+		// Get container status
+		status := UnknownStatus
+		state := runtime.WorkloadStatusUnknown
+		if len(pod.Status.ContainerStatuses) > 0 {
+			containerStatus := pod.Status.ContainerStatuses[0]
+			if containerStatus.State.Running != nil {
+				state = runtime.WorkloadStatusRunning
+				status = "Running"
+			} else if containerStatus.State.Waiting != nil {
+				state = runtime.WorkloadStatusStarting
+				status = containerStatus.State.Waiting.Reason
+			} else if containerStatus.State.Terminated != nil {
+				state = runtime.WorkloadStatusRemoving
+				status = containerStatus.State.Terminated.Reason
+			}
+		}
+
+		result = append(result, runtime.ContainerInfo{
+			Name:    pod.Name,
+			Image:   pod.Spec.Containers[0].Image,
+			Status:  status,
+			State:   state,
+			Created: pod.CreationTimestamp.Time,
+			Labels:  pod.Labels,
+			Ports:   ports,
+		})
+	}
+
+	return result, nil
+}
+
+// RemoveWorkload implements runtime.Runtime.
+func (c *Client) RemoveWorkload(ctx context.Context, workloadName string) error {
+	// In Kubernetes, we remove a workload by deleting the statefulset
+	namespace := c.getCurrentNamespace()
+
+	// Delete the statefulset
+	deleteOptions := metav1.DeleteOptions{}
+	err := c.client.AppsV1().StatefulSets(namespace).Delete(ctx, workloadName, deleteOptions)
+	if err != nil {
+		if errors.IsNotFound(err) {
+			// If the statefulset doesn't exist, that's fine
+			slog.Info("statefulset not found, nothing to remove", "name", workloadName)
+			return nil
+		}
+		return fmt.Errorf("failed to delete statefulset %s: %w", workloadName, err)
+	}
+
+	slog.Info("deleted statefulset", "name", workloadName)
+	return nil
+}
+
+// StopWorkload implements runtime.Runtime.
+func (*Client) StopWorkload(_ context.Context, _ string) error {
+	return nil
+}
+
+// IsRunning checks the health of the container runtime.
+// This is used to verify that the runtime is operational and can manage workloads.
+func (c *Client) IsRunning(ctx context.Context) error {
+	// Use /readyz endpoint to check if the Kubernetes API server is ready.
+	var status int
+	result := c.client.Discovery().RESTClient().Get().AbsPath("/readyz").Do(ctx)
+	if result.StatusCode(&status); status != 200 {
+		return fmt.Errorf("kubernetes API server is not ready, status code: %d", status)
+	}
+
+	return nil
+}
+
+// isStatefulSetReady checks if a StatefulSet is ready after an update.
+// It requires the desiredGeneration from the Apply call to ensure
+// the controller has processed our spec before considering it ready.
+//
+// The check requires all three conditions to be true:
+// 1. ObservedGeneration >= desiredGeneration (controller has processed our spec)
+// 2. UpdatedReplicas == Replicas (all pods are on the new spec)
+// 3. ReadyReplicas == Replicas (all pods are ready)
+func isStatefulSetReady(desiredGeneration int64, currentSts *appsv1.StatefulSet) bool {
+	if currentSts == nil || currentSts.Spec.Replicas == nil {
+		return false
+	}
+
+	return currentSts.Status.ObservedGeneration >= desiredGeneration &&
+		currentSts.Status.UpdatedReplicas == *currentSts.Spec.Replicas &&
+		currentSts.Status.ReadyReplicas == *currentSts.Spec.Replicas
+}
+
+// waitForStatefulSetReady waits for a statefulset to be ready using the watch API.
+// The desiredGeneration parameter is the generation from the Apply call (createdStatefulSet.Generation)
+// which is used to ensure the controller has processed our specific spec version.
+func waitForStatefulSetReady(
+	ctx context.Context,
+	clientset kubernetes.Interface,
+	namespace, name string,
+	desiredGeneration int64,
+) error {
+	// Create a field selector to watch only this specific statefulset
+	fieldSelector := fmt.Sprintf("metadata.name=%s", name)
+
+	// Set up the watch
+	watcher, err := clientset.AppsV1().StatefulSets(namespace).Watch(ctx, metav1.ListOptions{
+		FieldSelector: fieldSelector,
+		Watch:         true,
+	})
+	if err != nil {
+		return fmt.Errorf("error watching statefulset: %w", err)
+	}
+
+	// Define the condition function that checks if the statefulset is ready
+	isStatefulSetReady := func(event apimwatch.Event) (bool, error) {
+		// Check if the event is a statefulset
+		statefulSet, ok := event.Object.(*appsv1.StatefulSet)
+		if !ok {
+			return false, fmt.Errorf("unexpected object type: %T", event.Object)
+		}
+
+		if isStatefulSetReady(desiredGeneration, statefulSet) {
+			return true, nil
+		}
+
+		slog.Info("waiting for statefulset to be ready",
+			"name", name,
+			"ready_replicas", statefulSet.Status.ReadyReplicas,
+			"desired_replicas", *statefulSet.Spec.Replicas,
+			"observed_generation", statefulSet.Status.ObservedGeneration,
+			"desired_generation", desiredGeneration)
+		return false, nil
+	}
+
+	// Create a context with timeout
+	timeoutCtx, cancel := context.WithTimeout(ctx, 2*time.Minute)
+	defer cancel()
+
+	// Wait for the statefulset to be ready
+	_, err = watch.UntilWithoutRetry(timeoutCtx, watcher, isStatefulSetReady)
+	if err != nil {
+		return fmt.Errorf("error waiting for statefulset to be ready: %w", err)
+	}
+
+	return nil
+}
+
+// parsePortString parses a port string in the format "port/protocol" and returns the port number
+func parsePortString(portStr string) (int, error) {
+	// Split the port string to get just the port number
+	port := strings.Split(portStr, "/")[0]
+	portNum, err := strconv.Atoi(port)
+	if err != nil {
+		return 0, fmt.Errorf("failed to parse port %s: %w", port, err)
+	}
+	return portNum, nil
+}
+
+// configureContainerPorts adds port configurations to a container for SSE transport
+func configureContainerPorts(
+	containerConfig *corev1apply.ContainerApplyConfiguration,
+	options *runtime.DeployWorkloadOptions,
+) (*corev1apply.ContainerApplyConfiguration, error) {
+	if options == nil {
+		return containerConfig, nil
+	}
+
+	// Use a map to track which ports have been added
+	portMap := make(map[int32]bool)
+	var containerPorts []*corev1apply.ContainerPortApplyConfiguration
+
+	// Process exposed ports
+	for portStr := range options.ExposedPorts {
+		portNum, err := parsePortString(portStr)
+		if err != nil {
+			return nil, err
+		}
+
+		// Check for integer overflow
+		if portNum < 0 || portNum > 65535 {
+			return nil, fmt.Errorf("port number %d is out of valid range (0-65535)", portNum)
+		}
+
+		// Add port if not already in the map
+		portInt32 := int32(portNum)
+		if !portMap[portInt32] {
+			containerPorts = append(containerPorts, corev1apply.ContainerPort().
+				WithContainerPort(portInt32).
+				WithProtocol(corev1.ProtocolTCP))
+			portMap[portInt32] = true
+		}
+	}
+
+	// Process port bindings
+	for portStr := range options.PortBindings {
+		portNum, err := parsePortString(portStr)
+		if err != nil {
+			return nil, err
+		}
+
+		// Check for integer overflow
+		if portNum < 0 || portNum > 65535 {
+			return nil, fmt.Errorf("port number %d is out of valid range (0-65535)", portNum)
+		}
+
+		// Add port if not already in the map
+		portInt32 := int32(portNum)
+		if !portMap[portInt32] {
+			containerPorts = append(containerPorts, corev1apply.ContainerPort().
+				WithContainerPort(portInt32).
+				WithProtocol(corev1.ProtocolTCP))
+			portMap[portInt32] = true
+		}
+	}
+
+	// Add ports to container config
+	if len(containerPorts) > 0 {
+		containerConfig = containerConfig.WithPorts(containerPorts...)
+	}
+
+	return containerConfig, nil
+}
+
+// validatePortNumber checks if a port number is within the valid range
+func validatePortNumber(portNum int) error {
+	if portNum < 0 || portNum > 65535 {
+		return fmt.Errorf("port number %d is out of valid range (0-65535)", portNum)
+	}
+	return nil
+}
+
+// createServicePortConfig creates a service port configuration for a given port number
+func createServicePortConfig(portNum int) *corev1apply.ServicePortApplyConfiguration {
+	//nolint:gosec // G115: Safe int->int32 conversion, range is checked in validatePortNumber
+	portInt32 := int32(portNum)
+	return corev1apply.ServicePort().
+		WithName(fmt.Sprintf("port-%d", portInt32)).
+		WithPort(portInt32).
+		WithTargetPort(intstr.FromInt32(portInt32)).
+		WithProtocol(corev1.ProtocolTCP)
+}
+
+// processExposedPorts processes exposed ports and adds them to the port map
+func processExposedPorts(
+	options *runtime.DeployWorkloadOptions,
+	portMap map[int32]*corev1apply.ServicePortApplyConfiguration,
+) error {
+	for portStr := range options.ExposedPorts {
+		portNum, err := parsePortString(portStr)
+		if err != nil {
+			return err
+		}
+
+		if err := validatePortNumber(portNum); err != nil {
+			return err
+		}
+
+		//nolint:gosec // G115: Safe int->int32 conversion, range is checked in validatePortNumber
+		portInt32 := int32(portNum)
+		// Add port if not already in the map
+		if _, exists := portMap[portInt32]; !exists {
+			portMap[portInt32] = createServicePortConfig(portNum)
+		}
+	}
+	return nil
+}
+
+// createServicePorts creates service port configurations from container options
+func createServicePorts(options *runtime.DeployWorkloadOptions) ([]*corev1apply.ServicePortApplyConfiguration, error) {
+	if options == nil {
+		return nil, nil
+	}
+
+	// Use a map to track which ports have been added
+	portMap := make(map[int32]*corev1apply.ServicePortApplyConfiguration)
+
+	// Process exposed ports
+	if err := processExposedPorts(options, portMap); err != nil {
+		return nil, err
+	}
+
+	// Process port bindings
+	for portStr, bindings := range options.PortBindings {
+		portNum, err := parsePortString(portStr)
+		if err != nil {
+			return nil, err
+		}
+
+		if err := validatePortNumber(portNum); err != nil {
+			return nil, err
+		}
+
+		//nolint:gosec // G115: Safe int->int32 conversion, range is checked in validatePortNumber
+		portInt32 := int32(portNum)
+		servicePort := portMap[portInt32]
+		if servicePort == nil {
+			// Create new service port if not in map
+			servicePort = createServicePortConfig(portNum)
+		}
+
+		// If there are bindings with a host port, use the first one as node port
+		if len(bindings) > 0 && bindings[0].HostPort != "" {
+			hostPort, err := strconv.Atoi(bindings[0].HostPort)
+			if err == nil && hostPort >= 30000 && hostPort <= 32767 {
+				// NodePort must be in range 30000-32767
+				// Safe to convert to int32 since we've verified the range (30000-32767)
+				// which is well within int32 range (-2,147,483,648 to 2,147,483,647)
+				//nolint:gosec // G109: Safe int->int32 conversion, range is checked above
+				nodePort := int32(hostPort)
+				servicePort = servicePort.WithNodePort(nodePort)
+			}
+		}
+
+		//nolint:gosec // G115: Safe int->int32 conversion, range is checked above
+		portMap[int32(portNum)] = servicePort
+	}
+
+	// Convert map to slice
+	var servicePorts []*corev1apply.ServicePortApplyConfiguration
+	for _, port := range portMap {
+		servicePorts = append(servicePorts, port)
+	}
+
+	return servicePorts, nil
+}
+
+// serviceConfig holds the configuration for creating a Kubernetes service via applyService.
+type serviceConfig struct {
+	// nameSuffix is appended to "mcp-<containerName>" to form the service name.
+	// Use "-headless" for the headless service or "" for the MCP service.
+	nameSuffix string
+	// headless makes the service a headless service (ClusterIP: None).
+	headless bool
+	// sessionAffinity enables ClientIP session affinity with the given timeout.
+	sessionAffinity bool
+	// sessionAffinityTimeoutSeconds sets the timeout for ClientIP session affinity.
+	// Only used when sessionAffinity is true. Kubernetes defaults to 10800s (3h) if unset.
+	sessionAffinityTimeoutSeconds int32
+}
+
+// applyService creates or updates a Kubernetes service using server-side apply.
+// If owner is non-nil, it is set as an owner reference so Kubernetes garbage-collects
+// the service when the owner is deleted.
+func (c *Client) applyService(
+	ctx context.Context,
+	containerName string,
+	namespace string,
+	labels map[string]string,
+	options *runtime.DeployWorkloadOptions,
+	cfg serviceConfig,
+	owner *metav1.OwnerReference,
+) (string, error) {
+	servicePorts, err := createServicePorts(options)
+	if err != nil {
+		return "", err
+	}
+
+	if len(servicePorts) == 0 {
+		slog.Debug("no ports configured, skipping service creation")
+		return "", nil
+	}
+
+	svcName := fmt.Sprintf("mcp-%s%s", containerName, cfg.nameSuffix)
+
+	// Determine service type based on whether any ports have NodePort set.
+	// Headless services (ClusterIP: None) cannot be NodePort, so skip the
+	// promotion for those — Kubernetes rejects clusterIP=None + type=NodePort.
+	serviceType := corev1.ServiceTypeClusterIP
+	if !cfg.headless {
+		for _, sp := range servicePorts {
+			if sp.NodePort != nil {
+				serviceType = corev1.ServiceTypeNodePort
+				break
+			}
+		}
+	}
+
+	spec := corev1apply.ServiceSpec().
+		WithSelector(map[string]string{
+			"app": containerName,
+		}).
+		WithPorts(servicePorts...).
+		WithType(serviceType)
+
+	if cfg.headless {
+		spec = spec.WithClusterIP("None")
+	}
+
+	if cfg.sessionAffinity {
+		spec = spec.
+			WithSessionAffinity(corev1.ServiceAffinityClientIP).
+			WithSessionAffinityConfig(corev1apply.SessionAffinityConfig().
+				WithClientIP(corev1apply.ClientIPConfig().
+					WithTimeoutSeconds(cfg.sessionAffinityTimeoutSeconds)))
+	}
+
+	serviceApply := corev1apply.Service(svcName, namespace).
+		WithLabels(labels).
+		WithSpec(spec)
+
+	if owner != nil {
+		serviceApply = serviceApply.WithOwnerReferences(metav1apply.OwnerReference().
+			WithAPIVersion(owner.APIVersion).
+			WithKind(owner.Kind).
+			WithName(owner.Name).
+			WithUID(owner.UID).
+			WithBlockOwnerDeletion(true).
+			WithController(true))
+	}
+
+	_, err = c.client.CoreV1().Services(namespace).
+		Apply(ctx, serviceApply, metav1.ApplyOptions{
+			FieldManager: serviceFieldManager,
+			Force:        true,
+		})
+	if err != nil {
+		return "", fmt.Errorf("failed to apply service %s: %w", svcName, err)
+	}
+
+	slog.Debug("applied service", "name", svcName)
+	return svcName, nil
+}
+
+// createHeadlessService creates a headless Kubernetes service for the StatefulSet
+func (c *Client) createHeadlessService(
+	ctx context.Context,
+	containerName string,
+	namespace string,
+	labels map[string]string,
+	options *runtime.DeployWorkloadOptions,
+	owner *metav1.OwnerReference,
+) error {
+	_, err := c.applyService(ctx, containerName, namespace, labels, options, serviceConfig{
+		nameSuffix: "-headless",
+		headless:   true,
+	}, owner)
+	return err
+}
+
+// mcpServiceSessionAffinityTimeout is the timeout in seconds for ClientIP session affinity
+// on the MCP service. This controls how long kube-proxy pins a client IP to the same backend pod.
+// Note: this provides proxy-runner-level stickiness (L4), not per-MCP-session stickiness (L7).
+// True per-session routing would require Mcp-Session-Id-based routing at the proxy layer.
+const mcpServiceSessionAffinityTimeout int32 = 1800
+
+// createMCPService creates a regular ClusterIP service with SessionAffinity for the MCP server StatefulSet.
+// This service provides load balancing with client-IP-based session stickiness, which the proxy-runner
+// uses as its target host. The headless service is retained for DNS discovery purposes.
+func (c *Client) createMCPService(
+	ctx context.Context,
+	containerName string,
+	namespace string,
+	labels map[string]string,
+	options *runtime.DeployWorkloadOptions,
+	owner *metav1.OwnerReference,
+) error {
+	svcName, err := c.applyService(ctx, containerName, namespace, labels, options, serviceConfig{
+		sessionAffinity:               true,
+		sessionAffinityTimeoutSeconds: mcpServiceSessionAffinityTimeout,
+	}, owner)
+	if err != nil {
+		return err
+	}
+	options.MCPServiceName = svcName
+	return nil
+}
+
+// extractPortMappingsFromPod extracts port mappings from a pod's containers
+func extractPortMappingsFromPod(pod *corev1.Pod) []runtime.PortMapping {
+	ports := make([]runtime.PortMapping, 0)
+
+	for _, container := range pod.Spec.Containers {
+		for _, port := range container.Ports {
+			ports = append(ports, runtime.PortMapping{
+				ContainerPort: int(port.ContainerPort),
+				HostPort:      int(port.HostPort),
+				Protocol:      string(port.Protocol),
+			})
+		}
+	}
+
+	return ports
+}
+
+// transportTypeRequiresBackendServices returns true if the transport type requires backend services
+func transportTypeRequiresBackendServices(transportType string) bool {
+	return transportType == string(transtypes.TransportTypeSSE) || transportType == string(transtypes.TransportTypeStreamableHTTP)
+}
+
+// extractPortMappingsFromService extracts port mappings from a Kubernetes service
+func extractPortMappingsFromService(service *corev1.Service, existingPorts []runtime.PortMapping) []runtime.PortMapping {
+	// Create a map of existing ports for easy lookup and updating
+	portMap := make(map[int]runtime.PortMapping)
+	for _, p := range existingPorts {
+		portMap[p.ContainerPort] = p
+	}
+
+	// Update or add ports from the service
+	for _, port := range service.Spec.Ports {
+		containerPort := int(port.Port)
+		hostPort := 0
+		if port.NodePort > 0 {
+			hostPort = int(port.NodePort)
+		}
+
+		// Update existing port or add new one
+		portMap[containerPort] = runtime.PortMapping{
+			ContainerPort: containerPort,
+			HostPort:      hostPort,
+			Protocol:      string(port.Protocol),
+		}
+	}
+
+	// Convert map back to slice
+	result := make([]runtime.PortMapping, 0, len(portMap))
+	for _, p := range portMap {
+		result = append(result, p)
+	}
+
+	return result
+}
+
+// applyPodTemplatePatch applies a JSON patch to a pod template spec
+func applyPodTemplatePatch(
+	baseTemplate *corev1apply.PodTemplateSpecApplyConfiguration,
+	patchJSON string,
+) (*corev1apply.PodTemplateSpecApplyConfiguration, error) {
+	// Check if the base template is nil
+	if baseTemplate == nil {
+		return nil, fmt.Errorf("base template is nil")
+	}
+
+	// Parse the patch JSON
+	patchedSpec, err := createPodTemplateFromPatch(patchJSON)
+	if err != nil {
+		return nil, err
+	}
+
+	// Check if the patched spec is nil
+	if patchedSpec == nil {
+		return baseTemplate, nil
+	}
+
+	// Copy fields from the patched spec to our template
+	if patchedSpec.ObjectMetaApplyConfiguration != nil && len(patchedSpec.Labels) > 0 {
+		baseTemplate = baseTemplate.WithLabels(patchedSpec.Labels)
+	}
+
+	// Copy annotations from the patched spec to our template
+	if patchedSpec.ObjectMetaApplyConfiguration != nil && len(patchedSpec.Annotations) > 0 {
+		baseTemplate = baseTemplate.WithAnnotations(patchedSpec.Annotations)
+	}
+
+	if patchedSpec.Spec != nil {
+		// Ensure baseTemplate.Spec is not nil
+		if baseTemplate.Spec == nil {
+			baseTemplate = baseTemplate.WithSpec(corev1apply.PodSpec())
+		}
+		// Copy the spec
+		baseTemplate = baseTemplate.WithSpec(patchedSpec.Spec)
+	}
+
+	return baseTemplate, nil
+}
+
+// createPodTemplateFromPatch creates a pod template spec from a JSON string
+func createPodTemplateFromPatch(patchJSON string) (*corev1apply.PodTemplateSpecApplyConfiguration, error) {
+	// Ensure the patch is valid JSON
+	var patchMap map[string]interface{}
+	if err := json.Unmarshal([]byte(patchJSON), &patchMap); err != nil {
+		return nil, fmt.Errorf("invalid JSON patch: %w", err)
+	}
+
+	var podTemplateSpec corev1apply.PodTemplateSpecApplyConfiguration
+	if err := json.Unmarshal([]byte(patchJSON), &podTemplateSpec); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal patch into pod template spec: %w", err)
+	}
+
+	// Ensure the pod template spec is not nil
+	return ensureObjectMetaApplyConfigurationExists(&podTemplateSpec), nil
+}
+
+// ensurePodTemplateConfig ensures the pod template has required configuration
+//
+//nolint:gocyclo // Complex but necessary for platform-aware security context configuration
+func ensurePodTemplateConfig(
+	podTemplateSpec *corev1apply.PodTemplateSpecApplyConfiguration,
+	containerLabels map[string]string,
+	platform Platform,
+) *corev1apply.PodTemplateSpecApplyConfiguration {
+	podTemplateSpec = ensureObjectMetaApplyConfigurationExists(podTemplateSpec)
+	// Ensure the pod template has labels
+	if podTemplateSpec.Labels == nil {
+		podTemplateSpec = podTemplateSpec.WithLabels(containerLabels)
+	} else {
+		// Merge with required labels
+		for k, v := range containerLabels {
+			podTemplateSpec.Labels[k] = v
+		}
+	}
+
+	// Ensure the pod template has a spec
+	if podTemplateSpec.Spec == nil {
+		podTemplateSpec = podTemplateSpec.WithSpec(corev1apply.PodSpec())
+	}
+
+	// Ensure the pod template has a restart policy
+	if podTemplateSpec.Spec.RestartPolicy == nil {
+		podTemplateSpec.Spec = podTemplateSpec.Spec.WithRestartPolicy(corev1.RestartPolicyAlways)
+	}
+
+	// Add pod-level security context using SecurityContextBuilder
+	if podTemplateSpec.Spec.SecurityContext == nil {
+		securityBuilder := NewSecurityContextBuilder(platform)
+		podTemplateSpec.Spec = podTemplateSpec.Spec.WithSecurityContext(
+			securityBuilder.BuildPodSecurityContextApplyConfiguration(),
+		)
+	} else {
+		// If the pod-level security context already exists, merge with platform-aware defaults
+		securityBuilder := NewSecurityContextBuilder(platform)
+		platformContext := securityBuilder.BuildPodSecurityContextApplyConfiguration()
+
+		// Merge existing context with platform-aware settings
+		if podTemplateSpec.Spec.SecurityContext.RunAsNonRoot == nil && platformContext.RunAsNonRoot != nil {
+			podTemplateSpec.Spec.SecurityContext = podTemplateSpec.Spec.SecurityContext.WithRunAsNonRoot(*platformContext.RunAsNonRoot)
+		}
+
+		if podTemplateSpec.Spec.SecurityContext.RunAsUser == nil && platformContext.RunAsUser != nil {
+			podTemplateSpec.Spec.SecurityContext = podTemplateSpec.Spec.SecurityContext.WithRunAsUser(*platformContext.RunAsUser)
+		}
+
+		if podTemplateSpec.Spec.SecurityContext.RunAsGroup == nil && platformContext.RunAsGroup != nil {
+			podTemplateSpec.Spec.SecurityContext = podTemplateSpec.Spec.SecurityContext.WithRunAsGroup(*platformContext.RunAsGroup)
+		}
+
+		if podTemplateSpec.Spec.SecurityContext.FSGroup == nil && platformContext.FSGroup != nil {
+			podTemplateSpec.Spec.SecurityContext = podTemplateSpec.Spec.SecurityContext.WithFSGroup(*platformContext.FSGroup)
+		}
+
+		if podTemplateSpec.Spec.SecurityContext.SeccompProfile == nil && platformContext.SeccompProfile != nil {
+			podTemplateSpec.Spec.SecurityContext = podTemplateSpec.Spec.SecurityContext.WithSeccompProfile(platformContext.SeccompProfile)
+		}
+
+		// For OpenShift, override certain fields even if they exist
+		if platform == PlatformOpenShift {
+			if podTemplateSpec.Spec.SecurityContext.RunAsUser != nil {
+				podTemplateSpec.Spec.SecurityContext.RunAsUser = nil
+			}
+			if podTemplateSpec.Spec.SecurityContext.RunAsGroup != nil {
+				podTemplateSpec.Spec.SecurityContext.RunAsGroup = nil
+			}
+			if podTemplateSpec.Spec.SecurityContext.FSGroup != nil {
+				podTemplateSpec.Spec.SecurityContext.FSGroup = nil
+			}
+		}
+	}
+
+	return podTemplateSpec
+}
+
+// getMCPContainer finds the "mcp" container in the pod template if it exists.
+// Returns nil if the container doesn't exist.
+func getMCPContainer(
+	podTemplateSpec *corev1apply.PodTemplateSpecApplyConfiguration,
+) *corev1apply.ContainerApplyConfiguration {
+	// Ensure the pod template has a spec
+	if podTemplateSpec.Spec == nil {
+		podTemplateSpec = podTemplateSpec.WithSpec(corev1apply.PodSpec())
+	}
+
+	// Check if the container already exists
+	if podTemplateSpec.Spec.Containers != nil {
+		for i := range podTemplateSpec.Spec.Containers {
+			// Get a pointer to the container in the slice
+			container := &podTemplateSpec.Spec.Containers[i]
+			if container.Name != nil && *container.Name == "mcp" {
+				return container
+			}
+		}
+	}
+
+	// Container doesn't exist
+	return nil
+}
+
+func ensureObjectMetaApplyConfigurationExists(
+	podTemplateSpec *corev1apply.PodTemplateSpecApplyConfiguration,
+) *corev1apply.PodTemplateSpecApplyConfiguration {
+	if podTemplateSpec.ObjectMetaApplyConfiguration == nil {
+		podTemplateSpec.ObjectMetaApplyConfiguration = &metav1apply.ObjectMetaApplyConfiguration{}
+	}
+
+	return podTemplateSpec
+}
+
+// configureContainer configures a container with the given settings
+//
+//nolint:gocyclo // Complex but necessary for platform-aware security context configuration
+func configureContainer(
+	container *corev1apply.ContainerApplyConfiguration,
+	image string,
+	command []string,
+	attachStdio bool,
+	envVars []*corev1apply.EnvVarApplyConfiguration,
+	platform Platform,
+) {
+	//nolint:gosec // G706: container name and image from config
+	slog.Debug("configuring container", "name", *container.Name, "image", image)
+	//nolint:gosec // G706: command args from config
+	slog.Debug("container command", "args", command)
+	slog.Debug("container stdio", "attach_stdio", attachStdio)
+	for _, envVar := range envVars {
+		//nolint:gosec // G706: env var names from config
+		slog.Debug("container env var", "name", *envVar.Name, "value", *envVar.Value)
+	}
+
+	container.WithImage(image).
+		WithArgs(command...).
+		WithStdin(attachStdio).
+		WithTTY(false).
+		WithEnv(envVars...)
+
+	// Add container security context using SecurityContextBuilder
+	securityBuilder := NewSecurityContextBuilder(platform)
+	if container.SecurityContext == nil {
+		container.WithSecurityContext(securityBuilder.BuildContainerSecurityContextApplyConfiguration())
+	} else {
+		// If the container security context already exists, merge with platform-aware defaults
+		platformContext := securityBuilder.BuildContainerSecurityContextApplyConfiguration()
+
+		// Merge existing context with platform-aware settings
+		if container.SecurityContext.Privileged == nil && platformContext.Privileged != nil {
+			container.SecurityContext = container.SecurityContext.WithPrivileged(*platformContext.Privileged)
+		}
+
+		if container.SecurityContext.RunAsNonRoot == nil && platformContext.RunAsNonRoot != nil {
+			container.SecurityContext = container.SecurityContext.WithRunAsNonRoot(*platformContext.RunAsNonRoot)
+		}
+
+		if container.SecurityContext.RunAsUser == nil && platformContext.RunAsUser != nil {
+			container.SecurityContext = container.SecurityContext.WithRunAsUser(*platformContext.RunAsUser)
+		}
+
+		if container.SecurityContext.RunAsGroup == nil && platformContext.RunAsGroup != nil {
+			container.SecurityContext = container.SecurityContext.WithRunAsGroup(*platformContext.RunAsGroup)
+		}
+
+		if container.SecurityContext.AllowPrivilegeEscalation == nil && platformContext.AllowPrivilegeEscalation != nil {
+			container.SecurityContext = container.SecurityContext.WithAllowPrivilegeEscalation(*platformContext.AllowPrivilegeEscalation)
+		}
+
+		if container.SecurityContext.ReadOnlyRootFilesystem == nil && platformContext.ReadOnlyRootFilesystem != nil {
+			container.SecurityContext = container.SecurityContext.WithReadOnlyRootFilesystem(*platformContext.ReadOnlyRootFilesystem)
+		}
+
+		if container.SecurityContext.SeccompProfile == nil && platformContext.SeccompProfile != nil {
+			container.SecurityContext = container.SecurityContext.WithSeccompProfile(platformContext.SeccompProfile)
+		}
+
+		if container.SecurityContext.Capabilities == nil && platformContext.Capabilities != nil {
+			container.SecurityContext = container.SecurityContext.WithCapabilities(platformContext.Capabilities)
+		}
+
+		// For OpenShift, override certain fields even if they exist
+		if platform == PlatformOpenShift {
+			slog.Info("setting OpenShift security context requirements", "container", *container.Name)
+
+			if container.SecurityContext.RunAsUser != nil {
+				container.SecurityContext.RunAsUser = nil
+			}
+			if container.SecurityContext.RunAsGroup != nil {
+				container.SecurityContext.RunAsGroup = nil
+			}
+		}
+	}
+}
+
+// configureMCPContainer configures the MCP container in the pod template
+func configureMCPContainer(
+	podTemplateSpec *corev1apply.PodTemplateSpecApplyConfiguration,
+	image string,
+	command []string,
+	attachStdio bool,
+	envVarList []*corev1apply.EnvVarApplyConfiguration,
+	transportType string,
+	options *runtime.DeployWorkloadOptions,
+	platform Platform,
+) error {
+	// Get the "mcp" container if it exists
+	mcpContainer := getMCPContainer(podTemplateSpec)
+
+	// If the container doesn't exist, create a new one
+	if mcpContainer == nil {
+		mcpContainer = corev1apply.Container().WithName("mcp")
+
+		// Configure the container
+		configureContainer(mcpContainer, image, command, attachStdio, envVarList, platform)
+
+		// Configure ports if needed
+		if options != nil && transportType == string(transtypes.TransportTypeSSE) {
+			var err error
+			mcpContainer, err = configureContainerPorts(mcpContainer, options)
+			if err != nil {
+				return err
+			}
+		}
+
+		// Add the fully configured container to the pod template
+		podTemplateSpec.Spec.WithContainers(mcpContainer)
+	} else {
+		// Configure the existing container
+		configureContainer(mcpContainer, image, command, attachStdio, envVarList, platform)
+
+		// Configure ports if needed
+		if options != nil && transportType == string(transtypes.TransportTypeSSE) {
+			var err error
+			_, err = configureContainerPorts(mcpContainer, options)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+// getCurrentNamespace returns the namespace the pod is running in.
+// It tries multiple methods in order:
+// 1. Reading from the service account token file (when running inside a pod)
+// 2. Getting the namespace from environment variables
+// 3. Getting the namespace from the current kubectl context
+// 4. Falling back to "default" if all methods fail
+func (c *Client) getCurrentNamespace() string {
+	// If a custom namespace function is set (for testing), use it
+	if c.namespaceFunc != nil {
+		return c.namespaceFunc()
+	}
+
+	return k8s.GetCurrentNamespace()
+}

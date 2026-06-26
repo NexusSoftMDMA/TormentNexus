@@ -1,0 +1,53 @@
+# Dogfood the in-repo health-radar action on jcodemunch-mcp's own PRs.
+# Posts a sticky PR comment with six-axis radar deltas vs the base branch.
+
+name: Health Radar
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  pull-requests: write
+  contents: read
+
+jobs:
+  radar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Need enough history to checkout the base branch in the action.
+          fetch-depth: 0
+
+      - name: Run health-radar
+        uses: ./.github/actions/health-radar
+        with:
+          # Pin to the version we're shipping the action with so PRs
+          # don't accidentally regress against a never-released local
+          # change. Override per-PR if testing the action itself.
+          jcodemunch-version: '1.88.0'
+
+      # Fork PRs cannot post comments from `pull_request` context
+      # (read-only GITHUB_TOKEN). Stage the rendered comment + PR number
+      # as a workflow artifact; the companion `health-radar-comment.yml`
+      # workflow runs on `workflow_run` (trusted secret context) and
+      # posts the sticky comment on behalf of the fork PR.
+      - name: Stage comment payload (fork PRs)
+        if: always() && github.event.pull_request.head.repo.fork == true
+        shell: bash
+        run: |
+          mkdir -p "${{ runner.temp }}/radar-payload"
+          if [ -f "${{ runner.temp }}/comment.md" ]; then
+            cp "${{ runner.temp }}/comment.md" "${{ runner.temp }}/radar-payload/comment.md"
+          fi
+          echo "${{ github.event.pull_request.number }}" > "${{ runner.temp }}/radar-payload/pr_number.txt"
+
+      - name: Upload comment payload (fork PRs)
+        if: always() && github.event.pull_request.head.repo.fork == true
+        uses: actions/upload-artifact@v4
+        with:
+          name: health-radar-payload
+          path: ${{ runner.temp }}/radar-payload/
+          if-no-files-found: warn
+          retention-days: 1

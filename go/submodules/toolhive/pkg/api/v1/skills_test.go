@@ -1,0 +1,649 @@
+// SPDX-FileCopyrightText: Copyright 2025 Stacklok, Inc.
+// SPDX-License-Identifier: Apache-2.0
+
+package v1
+
+import (
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/go-chi/chi/v5"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+
+	"github.com/stacklok/toolhive-core/httperr"
+	"github.com/stacklok/toolhive/pkg/skills"
+	skillsmocks "github.com/stacklok/toolhive/pkg/skills/mocks"
+	"github.com/stacklok/toolhive/pkg/storage"
+)
+
+func makeProjectRoot(t *testing.T) string {
+	t.Helper()
+	projectRoot := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(projectRoot, ".git"), 0o755))
+	return projectRoot
+}
+
+func TestSkillsRouter(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name           string
+		method         string
+		path           string
+		body           string
+		setupMock      func(*skillsmocks.MockSkillService, string)
+		expectedStatus int
+		expectedBody   string
+	}{
+		// listSkills
+		{
+			name:   "list skills success empty",
+			method: "GET",
+			path:   "/",
+			setupMock: func(svc *skillsmocks.MockSkillService, _ string) {
+				svc.EXPECT().List(gomock.Any(), skills.ListOptions{}).
+					Return([]skills.InstalledSkill{}, nil)
+			},
+			expectedStatus: http.StatusOK,
+			expectedBody:   `{"skills":[]}`,
+		},
+		{
+			name:   "list skills success with results",
+			method: "GET",
+			path:   "/",
+			setupMock: func(svc *skillsmocks.MockSkillService, _ string) {
+				svc.EXPECT().List(gomock.Any(), skills.ListOptions{}).
+					Return([]skills.InstalledSkill{
+						{
+							Metadata:    skills.SkillMetadata{Name: "my-skill"},
+							Scope:       skills.ScopeUser,
+							Status:      skills.InstallStatusInstalled,
+							InstalledAt: time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
+						},
+					}, nil)
+			},
+			expectedStatus: http.StatusOK,
+			expectedBody:   `"my-skill"`,
+		},
+		{
+			name:   "list skills project scope missing project root",
+			method: "GET",
+			path:   "/?scope=project",
+			setupMock: func(svc *skillsmocks.MockSkillService, _ string) {
+				svc.EXPECT().List(gomock.Any(), skills.ListOptions{
+					Scope: skills.ScopeProject,
+				}).Return(nil, httperr.WithCode(
+					fmt.Errorf("project_root is required for project scope"),
+					http.StatusBadRequest,
+				))
+			},
+			expectedStatus: http.StatusBadRequest,
+			expectedBody:   "project_root is required",
+		},
+		{
+			name:   "list skills with project root filter",
+			method: "GET",
+			path:   "/?scope=project&project_root={{project_root}}",
+			setupMock: func(svc *skillsmocks.MockSkillService, projectRoot string) {
+				svc.EXPECT().List(gomock.Any(), skills.ListOptions{
+					Scope:       skills.ScopeProject,
+					ProjectRoot: projectRoot,
+				}).Return([]skills.InstalledSkill{}, nil)
+			},
+			expectedStatus: http.StatusOK,
+			expectedBody:   `{"skills":[]}`,
+		},
+		{
+			name:   "list skills with client filter",
+			method: "GET",
+			path:   "/?client=claude-code",
+			setupMock: func(svc *skillsmocks.MockSkillService, _ string) {
+				svc.EXPECT().List(gomock.Any(), skills.ListOptions{ClientApp: "claude-code"}).
+					Return([]skills.InstalledSkill{}, nil)
+			},
+			expectedStatus: http.StatusOK,
+			expectedBody:   `{"skills":[]}`,
+		},
+		{
+			name:   "list skills error",
+			method: "GET",
+			path:   "/",
+			setupMock: func(svc *skillsmocks.MockSkillService, _ string) {
+				svc.EXPECT().List(gomock.Any(), gomock.Any()).
+					Return(nil, fmt.Errorf("database error"))
+			},
+			expectedStatus: http.StatusInternalServerError,
+			expectedBody:   "Internal Server Error",
+		},
+		// installSkill
+		{
+			name:   "install skill success",
+			method: "POST",
+			path:   "/",
+			body:   `{"name":"my-skill"}`,
+			setupMock: func(svc *skillsmocks.MockSkillService, _ string) {
+				svc.EXPECT().Install(gomock.Any(), skills.InstallOptions{Name: "my-skill"}).
+					Return(&skills.InstallResult{
+						Skill: skills.InstalledSkill{
+							Metadata:    skills.SkillMetadata{Name: "my-skill"},
+							Scope:       skills.ScopeUser,
+							Status:      skills.InstallStatusPending,
+							InstalledAt: time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
+						},
+					}, nil)
+			},
+			expectedStatus: http.StatusCreated,
+			expectedBody:   `"my-skill"`,
+		},
+		{
+			name:   "install skill empty name",
+			method: "POST",
+			path:   "/",
+			body:   `{"name":""}`,
+			setupMock: func(svc *skillsmocks.MockSkillService, _ string) {
+				svc.EXPECT().Install(gomock.Any(), skills.InstallOptions{Name: ""}).
+					Return(nil, httperr.WithCode(fmt.Errorf("invalid skill name: must not be empty"), http.StatusBadRequest))
+			},
+			expectedStatus: http.StatusBadRequest,
+			expectedBody:   "invalid skill name",
+		},
+		{
+			name:   "install skill missing name field",
+			method: "POST",
+			path:   "/",
+			body:   `{}`,
+			setupMock: func(svc *skillsmocks.MockSkillService, _ string) {
+				svc.EXPECT().Install(gomock.Any(), skills.InstallOptions{Name: ""}).
+					Return(nil, httperr.WithCode(fmt.Errorf("invalid skill name: must not be empty"), http.StatusBadRequest))
+			},
+			expectedStatus: http.StatusBadRequest,
+			expectedBody:   "invalid skill name",
+		},
+		{
+			name:           "install skill malformed json",
+			method:         "POST",
+			path:           "/",
+			body:           `{invalid`,
+			setupMock:      func(_ *skillsmocks.MockSkillService, _ string) {},
+			expectedStatus: http.StatusBadRequest,
+			expectedBody:   "invalid request body",
+		},
+		{
+			name:   "install skill already exists",
+			method: "POST",
+			path:   "/",
+			body:   `{"name":"my-skill"}`,
+			setupMock: func(svc *skillsmocks.MockSkillService, _ string) {
+				svc.EXPECT().Install(gomock.Any(), gomock.Any()).
+					Return(nil, storage.ErrAlreadyExists)
+			},
+			expectedStatus: http.StatusConflict,
+			expectedBody:   "resource already exists",
+		},
+		{
+			name:   "install skill invalid name from service",
+			method: "POST",
+			path:   "/",
+			body:   `{"name":"A"}`,
+			setupMock: func(svc *skillsmocks.MockSkillService, _ string) {
+				svc.EXPECT().Install(gomock.Any(), gomock.Any()).
+					Return(nil, httperr.WithCode(fmt.Errorf("invalid skill name"), http.StatusBadRequest))
+			},
+			expectedStatus: http.StatusBadRequest,
+			expectedBody:   "invalid skill name",
+		},
+		// uninstallSkill
+		{
+			name:   "uninstall skill success",
+			method: "DELETE",
+			path:   "/my-skill",
+			setupMock: func(svc *skillsmocks.MockSkillService, _ string) {
+				svc.EXPECT().Uninstall(gomock.Any(), skills.UninstallOptions{Name: "my-skill"}).
+					Return(nil)
+			},
+			expectedStatus: http.StatusNoContent,
+		},
+		{
+			name:           "uninstall skill invalid name",
+			method:         "DELETE",
+			path:           "/A",
+			setupMock:      func(_ *skillsmocks.MockSkillService, _ string) {},
+			expectedStatus: http.StatusBadRequest,
+			expectedBody:   "invalid skill name",
+		},
+		{
+			name:   "uninstall skill invalid scope",
+			method: "DELETE",
+			path:   "/my-skill?scope=invalid",
+			setupMock: func(svc *skillsmocks.MockSkillService, _ string) {
+				svc.EXPECT().Uninstall(gomock.Any(), skills.UninstallOptions{
+					Name:  "my-skill",
+					Scope: skills.Scope("invalid"),
+				}).Return(httperr.WithCode(
+					fmt.Errorf("invalid scope"),
+					http.StatusBadRequest,
+				))
+			},
+			expectedStatus: http.StatusBadRequest,
+			expectedBody:   "invalid scope",
+		},
+		{
+			name:   "uninstall skill not found",
+			method: "DELETE",
+			path:   "/my-skill",
+			setupMock: func(svc *skillsmocks.MockSkillService, _ string) {
+				svc.EXPECT().Uninstall(gomock.Any(), gomock.Any()).
+					Return(storage.ErrNotFound)
+			},
+			expectedStatus: http.StatusNotFound,
+			expectedBody:   "resource not found",
+		},
+		// getSkillInfo
+		{
+			name:   "get skill info found",
+			method: "GET",
+			path:   "/my-skill",
+			setupMock: func(svc *skillsmocks.MockSkillService, _ string) {
+				svc.EXPECT().Info(gomock.Any(), skills.InfoOptions{Name: "my-skill"}).
+					Return(&skills.SkillInfo{
+						Metadata: skills.SkillMetadata{Name: "my-skill"},
+						InstalledSkill: &skills.InstalledSkill{
+							Metadata: skills.SkillMetadata{Name: "my-skill"},
+							Scope:    skills.ScopeUser,
+							Status:   skills.InstallStatusInstalled,
+						},
+					}, nil)
+			},
+			expectedStatus: http.StatusOK,
+			expectedBody:   `"installed_skill"`,
+		},
+		{
+			name:   "get skill info not found",
+			method: "GET",
+			path:   "/my-skill",
+			setupMock: func(svc *skillsmocks.MockSkillService, _ string) {
+				svc.EXPECT().Info(gomock.Any(), skills.InfoOptions{Name: "my-skill"}).
+					Return(nil, storage.ErrNotFound)
+			},
+			expectedStatus: http.StatusNotFound,
+			expectedBody:   "resource not found",
+		},
+		{
+			name:           "get skill info invalid name",
+			method:         "GET",
+			path:           "/A",
+			setupMock:      func(_ *skillsmocks.MockSkillService, _ string) {},
+			expectedStatus: http.StatusBadRequest,
+			expectedBody:   "invalid skill name",
+		},
+		// getSkillInfo service error
+		{
+			name:   "get skill info service error",
+			method: "GET",
+			path:   "/my-skill",
+			setupMock: func(svc *skillsmocks.MockSkillService, _ string) {
+				svc.EXPECT().Info(gomock.Any(), skills.InfoOptions{Name: "my-skill"}).
+					Return(nil, fmt.Errorf("database error"))
+			},
+			expectedStatus: http.StatusInternalServerError,
+			expectedBody:   "Internal Server Error",
+		},
+		{
+			name:   "install skill with clients",
+			method: "POST",
+			path:   "/",
+			body:   `{"name":"my-skill","clients":["claude-code","opencode"]}`,
+			setupMock: func(svc *skillsmocks.MockSkillService, _ string) {
+				svc.EXPECT().Install(gomock.Any(), skills.InstallOptions{
+					Name:    "my-skill",
+					Clients: []string{"claude-code", "opencode"},
+				}).Return(&skills.InstallResult{
+					Skill: skills.InstalledSkill{
+						Metadata: skills.SkillMetadata{Name: "my-skill"},
+						Status:   skills.InstallStatusInstalled,
+						Clients:  []string{"claude-code", "opencode"},
+					},
+				}, nil)
+			},
+			expectedStatus: http.StatusCreated,
+			expectedBody:   `"my-skill"`,
+		},
+		// install with version and scope
+		{
+			name:   "install skill with version and scope",
+			method: "POST",
+			path:   "/",
+			body:   `{"name":"my-skill","version":"1.2.0","scope":"project","project_root":"{{project_root}}"}`,
+			setupMock: func(svc *skillsmocks.MockSkillService, projectRoot string) {
+				svc.EXPECT().Install(gomock.Any(), skills.InstallOptions{
+					Name:        "my-skill",
+					Version:     "1.2.0",
+					Scope:       skills.ScopeProject,
+					ProjectRoot: projectRoot,
+				}).Return(&skills.InstallResult{
+					Skill: skills.InstalledSkill{
+						Metadata: skills.SkillMetadata{Name: "my-skill", Version: "1.2.0"},
+						Scope:    skills.ScopeProject,
+						Status:   skills.InstallStatusPending,
+					},
+				}, nil)
+			},
+			expectedStatus: http.StatusCreated,
+			expectedBody:   `"my-skill"`,
+		},
+		{
+			name:   "install skill project scope missing project root",
+			method: "POST",
+			path:   "/",
+			body:   `{"name":"my-skill","scope":"project"}`,
+			setupMock: func(svc *skillsmocks.MockSkillService, _ string) {
+				svc.EXPECT().Install(gomock.Any(), skills.InstallOptions{
+					Name:        "my-skill",
+					Scope:       skills.ScopeProject,
+					ProjectRoot: "",
+				}).Return(nil, httperr.WithCode(
+					fmt.Errorf("project_root is required for project scope"),
+					http.StatusBadRequest,
+				))
+			},
+			expectedStatus: http.StatusBadRequest,
+			expectedBody:   "project_root is required",
+		},
+		{
+			name:   "install skill project root not git repo",
+			method: "POST",
+			path:   "/",
+			body:   `{"name":"my-skill","scope":"project","project_root":"{{non_git_project_root}}"}`,
+			setupMock: func(svc *skillsmocks.MockSkillService, projectRoot string) {
+				svc.EXPECT().Install(gomock.Any(), skills.InstallOptions{
+					Name:        "my-skill",
+					Scope:       skills.ScopeProject,
+					ProjectRoot: projectRoot,
+				}).Return(nil, httperr.WithCode(
+					fmt.Errorf("project_root must be a git repository"),
+					http.StatusBadRequest,
+				))
+			},
+			expectedStatus: http.StatusBadRequest,
+			expectedBody:   "project_root must be a git repository",
+		},
+		// uninstall with scope
+		{
+			name:   "uninstall skill with scope",
+			method: "DELETE",
+			path:   "/my-skill?scope=project&project_root={{project_root}}",
+			setupMock: func(svc *skillsmocks.MockSkillService, projectRoot string) {
+				svc.EXPECT().Uninstall(gomock.Any(), skills.UninstallOptions{
+					Name:        "my-skill",
+					Scope:       skills.ScopeProject,
+					ProjectRoot: projectRoot,
+				}).Return(nil)
+			},
+			expectedStatus: http.StatusNoContent,
+		},
+		{
+			name:   "uninstall skill project scope missing project root",
+			method: "DELETE",
+			path:   "/my-skill?scope=project",
+			setupMock: func(svc *skillsmocks.MockSkillService, _ string) {
+				svc.EXPECT().Uninstall(gomock.Any(), skills.UninstallOptions{
+					Name:        "my-skill",
+					Scope:       skills.ScopeProject,
+					ProjectRoot: "",
+				}).Return(httperr.WithCode(
+					fmt.Errorf("project_root is required for project scope"),
+					http.StatusBadRequest,
+				))
+			},
+			expectedStatus: http.StatusBadRequest,
+			expectedBody:   "project_root is required",
+		},
+		// validateSkill
+		{
+			name:   "validate skill success",
+			method: "POST",
+			path:   "/validate",
+			body:   `{"path":"/tmp/skill"}`,
+			setupMock: func(svc *skillsmocks.MockSkillService, _ string) {
+				svc.EXPECT().Validate(gomock.Any(), "/tmp/skill").
+					Return(&skills.ValidationResult{Valid: true}, nil)
+			},
+			expectedStatus: http.StatusOK,
+			expectedBody:   `"valid":true`,
+		},
+		{
+			name:           "validate skill bad request",
+			method:         "POST",
+			path:           "/validate",
+			body:           `{invalid`,
+			setupMock:      func(_ *skillsmocks.MockSkillService, _ string) {},
+			expectedStatus: http.StatusBadRequest,
+			expectedBody:   "invalid request body",
+		},
+		{
+			name:   "validate skill service error",
+			method: "POST",
+			path:   "/validate",
+			body:   `{"path":"/tmp/skill"}`,
+			setupMock: func(svc *skillsmocks.MockSkillService, _ string) {
+				svc.EXPECT().Validate(gomock.Any(), "/tmp/skill").
+					Return(nil, fmt.Errorf("validation failed"))
+			},
+			expectedStatus: http.StatusInternalServerError,
+			expectedBody:   "Internal Server Error",
+		},
+		// buildSkill
+		{
+			name:   "build skill success",
+			method: "POST",
+			path:   "/build",
+			body:   `{"path":"/tmp/skill","tag":"v1.0.0"}`,
+			setupMock: func(svc *skillsmocks.MockSkillService, _ string) {
+				svc.EXPECT().Build(gomock.Any(), skills.BuildOptions{Path: "/tmp/skill", Tag: "v1.0.0"}).
+					Return(&skills.BuildResult{Reference: "v1.0.0"}, nil)
+			},
+			expectedStatus: http.StatusOK,
+			expectedBody:   `"reference":"v1.0.0"`,
+		},
+		{
+			name:           "build skill bad request",
+			method:         "POST",
+			path:           "/build",
+			body:           `{invalid`,
+			setupMock:      func(_ *skillsmocks.MockSkillService, _ string) {},
+			expectedStatus: http.StatusBadRequest,
+			expectedBody:   "invalid request body",
+		},
+		{
+			name:   "build skill service error",
+			method: "POST",
+			path:   "/build",
+			body:   `{"path":"/tmp/skill"}`,
+			setupMock: func(svc *skillsmocks.MockSkillService, _ string) {
+				svc.EXPECT().Build(gomock.Any(), skills.BuildOptions{Path: "/tmp/skill"}).
+					Return(nil, httperr.WithCode(fmt.Errorf("path is required"), http.StatusBadRequest))
+			},
+			expectedStatus: http.StatusBadRequest,
+			expectedBody:   "path is required",
+		},
+		// pushSkill
+		{
+			name:   "push skill success",
+			method: "POST",
+			path:   "/push",
+			body:   `{"reference":"ghcr.io/test/skill:v1"}`,
+			setupMock: func(svc *skillsmocks.MockSkillService, _ string) {
+				svc.EXPECT().Push(gomock.Any(), skills.PushOptions{Reference: "ghcr.io/test/skill:v1"}).
+					Return(nil)
+			},
+			expectedStatus: http.StatusNoContent,
+		},
+		{
+			name:           "push skill bad request",
+			method:         "POST",
+			path:           "/push",
+			body:           `{invalid`,
+			setupMock:      func(_ *skillsmocks.MockSkillService, _ string) {},
+			expectedStatus: http.StatusBadRequest,
+			expectedBody:   "invalid request body",
+		},
+		{
+			name:   "push skill service error",
+			method: "POST",
+			path:   "/push",
+			body:   `{"reference":"ghcr.io/test/skill:v1"}`,
+			setupMock: func(svc *skillsmocks.MockSkillService, _ string) {
+				svc.EXPECT().Push(gomock.Any(), skills.PushOptions{Reference: "ghcr.io/test/skill:v1"}).
+					Return(fmt.Errorf("push failed"))
+			},
+			expectedStatus: http.StatusInternalServerError,
+			expectedBody:   "Internal Server Error",
+		},
+		// listBuilds
+		{
+			name:   "list builds success empty",
+			method: "GET",
+			path:   "/builds",
+			setupMock: func(svc *skillsmocks.MockSkillService, _ string) {
+				svc.EXPECT().ListBuilds(gomock.Any()).
+					Return([]skills.LocalBuild{}, nil)
+			},
+			expectedStatus: http.StatusOK,
+			expectedBody:   `{"builds":[]}`,
+		},
+		{
+			name:   "list builds success with results",
+			method: "GET",
+			path:   "/builds",
+			setupMock: func(svc *skillsmocks.MockSkillService, _ string) {
+				svc.EXPECT().ListBuilds(gomock.Any()).
+					Return([]skills.LocalBuild{
+						{Tag: "my-skill", Digest: "sha256:abc123", Name: "my-skill", Version: "1.0.0"},
+					}, nil)
+			},
+			expectedStatus: http.StatusOK,
+			expectedBody:   `"tag":"my-skill"`,
+		},
+		{
+			name:   "list builds service error",
+			method: "GET",
+			path:   "/builds",
+			setupMock: func(svc *skillsmocks.MockSkillService, _ string) {
+				svc.EXPECT().ListBuilds(gomock.Any()).
+					Return(nil, httperr.WithCode(fmt.Errorf("oci store not configured"), http.StatusInternalServerError))
+			},
+			expectedStatus: http.StatusInternalServerError,
+			expectedBody:   "Internal Server Error",
+		},
+		{
+			name:   "delete build success",
+			method: "DELETE",
+			path:   "/builds/my-skill",
+			setupMock: func(svc *skillsmocks.MockSkillService, _ string) {
+				svc.EXPECT().DeleteBuild(gomock.Any(), "my-skill").Return(nil)
+			},
+			expectedStatus: http.StatusNoContent,
+		},
+		{
+			name:   "delete build not found",
+			method: "DELETE",
+			path:   "/builds/missing",
+			setupMock: func(svc *skillsmocks.MockSkillService, _ string) {
+				svc.EXPECT().DeleteBuild(gomock.Any(), "missing").
+					Return(httperr.WithCode(fmt.Errorf("tag not found"), http.StatusNotFound))
+			},
+			expectedStatus: http.StatusNotFound,
+		},
+		{
+			name:   "delete build service error",
+			method: "DELETE",
+			path:   "/builds/my-skill",
+			setupMock: func(svc *skillsmocks.MockSkillService, _ string) {
+				svc.EXPECT().DeleteBuild(gomock.Any(), "my-skill").
+					Return(httperr.WithCode(fmt.Errorf("oci store not configured"), http.StatusInternalServerError))
+			},
+			expectedStatus: http.StatusInternalServerError,
+			expectedBody:   "Internal Server Error",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			path := tt.path
+			body := tt.body
+			projectRoot := ""
+			if strings.Contains(path, "{{project_root}}") || strings.Contains(body, "{{project_root}}") {
+				projectRoot = makeProjectRoot(t)
+				path = strings.ReplaceAll(path, "{{project_root}}", url.QueryEscape(projectRoot))
+				body = strings.ReplaceAll(body, "{{project_root}}", projectRoot)
+			}
+			if strings.Contains(path, "{{non_git_project_root}}") || strings.Contains(body, "{{non_git_project_root}}") {
+				projectRoot = t.TempDir()
+				path = strings.ReplaceAll(path, "{{non_git_project_root}}", url.QueryEscape(projectRoot))
+				body = strings.ReplaceAll(body, "{{non_git_project_root}}", projectRoot)
+			}
+
+			ctrl := gomock.NewController(t)
+			mockSvc := skillsmocks.NewMockSkillService(ctrl)
+			tt.setupMock(mockSvc, projectRoot)
+
+			router := chi.NewRouter()
+			router.Mount("/", SkillsRouter(mockSvc))
+
+			req := httptest.NewRequest(tt.method, path, strings.NewReader(body))
+			req.Header.Set("Content-Type", "application/json")
+			rec := httptest.NewRecorder()
+
+			router.ServeHTTP(rec, req)
+
+			assert.Equal(t, tt.expectedStatus, rec.Code)
+			if tt.expectedBody != "" {
+				assert.Contains(t, rec.Body.String(), tt.expectedBody)
+			}
+		})
+	}
+}
+
+func TestListSkillsResponseFormat(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	mockSvc := skillsmocks.NewMockSkillService(ctrl)
+
+	mockSvc.EXPECT().List(gomock.Any(), gomock.Any()).
+		Return([]skills.InstalledSkill{
+			{
+				Metadata:    skills.SkillMetadata{Name: "skill-one", Version: "1.0.0"},
+				Scope:       skills.ScopeUser,
+				Status:      skills.InstallStatusInstalled,
+				InstalledAt: time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
+			},
+		}, nil)
+
+	router := chi.NewRouter()
+	router.Mount("/", SkillsRouter(mockSvc))
+
+	req := httptest.NewRequest("GET", "/", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	var resp skillListResponse
+	require.NoError(t, json.NewDecoder(rec.Body).Decode(&resp))
+	require.Len(t, resp.Skills, 1)
+	assert.Equal(t, "skill-one", resp.Skills[0].Metadata.Name)
+	assert.Equal(t, skills.InstallStatusInstalled, resp.Skills[0].Status)
+}

@@ -1,0 +1,30 @@
+{
+  "name": "@tormentnexus/mcp-router-cli",
+  "version": "1.0.0-alpha.160",
+  "description": "TormentNexus MCP Router CLI - Manage MCP servers, configurations, and sessions",
+  "type": "module",
+  "bin": {
+    "mcp-router": "./dist/mcp-router-cli.js"
+  },
+  "exports": {
+    ".": "./dist/mcp-router-cli.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "bun dist/mcp-router-cli.js",
+    "dev": "bun --watch mcp-router-cli.ts",
+    "lint": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@tormentnexus/core": "workspace:*",
+    "commander": "^12.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "typescript": "^5.9.3"
+  },
+  "engines": {
+    "bun": ">=1.0.0",
+    "node": ">=18.0.0"
+  }
+}

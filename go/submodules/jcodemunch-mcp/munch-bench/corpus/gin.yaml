@@ -1,0 +1,81 @@
+repo: gin-gonic/gin
+questions:
+  - id: gin-001
+    question: "How does Gin implement its radix tree router for URL matching?"
+    ground_truth_answer: "Gin uses a radix tree (prefix tree) per HTTP method. Each node stores a path segment, handlers, and children. insertChild splits nodes on common prefixes. getValue traverses the tree matching path segments, extracting wildcards and parameters along the way."
+    ground_truth_symbols: ["node", "insertChild", "getValue"]
+    difficulty: hard
+    category: architecture
+    tags: [routing, radix-tree]
+
+  - id: gin-002
+    question: "How does Gin's Context implement request handling and response writing?"
+    ground_truth_answer: "Context wraps http.Request and ResponseWriter. It carries Params, handlers chain, and an index for chain traversal. c.Next() increments index and calls the next handler. c.JSON(), c.String(), c.HTML() write responses. c.Abort() sets index past handlers to stop the chain."
+    ground_truth_symbols: ["Context", "Next", "Abort", "JSON"]
+    difficulty: medium
+    category: api
+    tags: [context, response]
+
+  - id: gin-003
+    question: "How does Gin implement middleware chaining?"
+    ground_truth_answer: "Middleware are HandleFunc functions added via Use(). They're stored in a Handlers slice on the RouterGroup. When a route is registered, the group's middleware is combined with route-specific handlers into a single chain. Context.Next() walks the chain by incrementing the index."
+    ground_truth_symbols: ["Use", "HandlersChain", "Next"]
+    difficulty: medium
+    category: architecture
+    tags: [middleware, chain]
+
+  - id: gin-004
+    question: "How does Gin handle request body binding and validation?"
+    ground_truth_answer: "c.Bind() and c.ShouldBind() detect Content-Type and delegate to the appropriate binding (JSON, XML, Form, etc.). Each binding implements the Binding interface with Bind(req, obj) method. Validation uses go-playground/validator tags on struct fields."
+    ground_truth_symbols: ["Bind", "ShouldBind", "Binding", "JSON"]
+    difficulty: medium
+    category: api
+    tags: [binding, validation]
+
+  - id: gin-005
+    question: "How does Gin implement its recovery middleware?"
+    ground_truth_answer: "Recovery() returns middleware that defers a recover() call. On panic, it checks if the connection is broken (net.OpError), logs the stack trace, and returns 500 InternalServerError. CustomRecovery allows a custom handler function for the recovered value."
+    ground_truth_symbols: ["Recovery", "CustomRecovery", "RecoveryFunc"]
+    difficulty: easy
+    category: api
+    tags: [recovery, error-handling]
+
+  - id: gin-006
+    question: "How does Gin implement route groups with shared middleware?"
+    ground_truth_answer: "RouterGroup holds a base path and handler chain. Group() creates a new RouterGroup with the parent's handlers copied. Routes registered on the group inherit the group's path prefix and middleware. This allows nested groups with cumulative middleware stacks."
+    ground_truth_symbols: ["RouterGroup", "Group"]
+    difficulty: easy
+    category: api
+    tags: [routing, groups]
+
+  - id: gin-007
+    question: "How does Gin handle concurrent requests safely?"
+    ground_truth_answer: "Gin uses a sync.Pool to recycle Context objects between requests. Engine.ServeHTTP gets a Context from the pool, resets it with the current request/response, runs the handler chain, then returns it to the pool. The radix tree is read-only after startup so no locking is needed."
+    ground_truth_symbols: ["ServeHTTP", "pool"]
+    difficulty: medium
+    category: architecture
+    tags: [concurrency, performance]
+
+  - id: gin-008
+    question: "How does Gin implement HTML template rendering?"
+    ground_truth_answer: "Engine.LoadHTMLGlob() or LoadHTMLFiles() parses templates into html/template instances stored on Engine.HTMLRender. c.HTML() looks up the template by name, executes it with the provided data, and writes the result with text/html Content-Type."
+    ground_truth_symbols: ["LoadHTMLGlob", "HTMLRender", "HTML"]
+    difficulty: easy
+    category: api
+    tags: [templates, rendering]
+
+  - id: gin-009
+    question: "How does Gin handle file serving and static assets?"
+    ground_truth_answer: "gin.Static() registers a GET and HEAD route that serves files from a directory using http.FileServer. StaticFS accepts an http.FileSystem for custom file systems. StaticFile serves a single file. The routes strip the URL prefix before serving."
+    ground_truth_symbols: ["Static", "StaticFS", "StaticFile"]
+    difficulty: easy
+    category: api
+    tags: [static, files]
+
+  - id: gin-010
+    question: "How does Gin implement trusted proxy configuration?"
+    ground_truth_answer: "Engine.SetTrustedProxies() configures which IPs are trusted for X-Forwarded-For parsing. trustedCIDRs stores parsed CIDR ranges. RemoteIP() validates the remote address against trusted CIDRs and walks X-Forwarded-For from right to left to find the client IP."
+    ground_truth_symbols: ["SetTrustedProxies", "RemoteIP", "trustedCIDRs"]
+    difficulty: medium
+    category: debugging
+    tags: [proxy, security]

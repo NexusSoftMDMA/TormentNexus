@@ -1,0 +1,224 @@
+name: Operator CI
+
+on:
+  workflow_call:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  operator-tests:
+    name: Operator Tests
+    runs-on: ubuntu-8cores-32gb
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+
+      - name: Set up Go
+        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6
+        with:
+          go-version: 'stable'
+          cache: true
+
+      - name: Install Task
+        uses: arduino/setup-task@v2
+        with:
+          version: 3.44.1
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run tests
+        run: task operator-test
+
+  operator-tests-integration:
+    name: Operator Tests Integration
+    runs-on: ubuntu-8cores-32gb
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+
+      - name: Set up Go
+        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6
+        with:
+          go-version: 'stable'
+          cache: true
+
+      - name: Install Task
+        uses: arduino/setup-task@v2
+        with:
+          version: 3.44.1
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run tests
+        run: task operator-test-integration
+
+  build-operator:
+    name: Build Operator
+    runs-on: ubuntu-8cores-32gb
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+
+      - name: Set up Go
+        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6
+        with:
+          go-version: 'stable'
+          cache: true
+
+      - name: Install Task
+        uses: arduino/setup-task@v2
+        with:
+          version: 3.44.1
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build operator
+        run: task build-operator
+
+  generate-crds:
+    name: Generate CRDs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+
+      - name: Set up Go
+        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6
+        with:
+          go-version: 'stable'
+          cache: true
+
+      - name: Install Task
+        uses: arduino/setup-task@v2
+        with:
+          version: 3.44.1
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Generate CRDs
+        run: task operator-manifests
+
+      - name: Check for changes
+        id: git-check
+        run: |
+          git diff --exit-code deploy/charts/operator-crds/templates || echo "crd-changes=true" >> $GITHUB_OUTPUT
+          git diff --exit-code deploy/charts/operator/templates || echo "operator-changes=true" >> $GITHUB_OUTPUT
+
+      - name: Fail if CRDs are not up to date
+        if: steps.git-check.outputs.crd-changes == 'true' || steps.git-check.outputs.operator-changes == 'true'
+        run: |
+          echo "CRDs are not up to date. Please run 'task operator-manifests' and commit the changes."
+          exit 1
+
+  generate-crd-docs:
+    name: Generate CRD Docs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+
+      - name: Set up Go
+        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6
+        with:
+          go-version: 'stable'
+          cache: true
+
+      - name: Install Task
+        uses: arduino/setup-task@v2
+        with:
+          version: 3.44.1
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Generate CRD Docs
+        run: task crdref-gen
+
+      - name: Check for changes
+        id: git-docs-check
+        run: |
+          git diff --exit-code -- docs/operator/crd-api.md || echo "crd-changes=true" >> $GITHUB_OUTPUT
+
+      - name: Fail if CRDs are not up to date
+        if: steps.git-docs-check.outputs.crd-changes == 'true'
+        run: |
+          echo "Docs for CRDs are not up to date. Please run 'task crdref-gen' and commit the changes."
+          exit 1
+
+  e2e-tests-operator:
+    name: E2E Tests Operator
+    runs-on: ubuntu-8cores-32gb
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+    strategy:
+      fail-fast: false
+      matrix:
+        # Before someone says it, yes we could just put the number here and not the full image name,
+        # but we want to make sure renovate bumps the versions when new ones are released. Doing that with
+        # just the number is a bit more difficult and i like simple things.
+        version: [
+          "kindest/node:v1.33.7",
+          "kindest/node:v1.34.3",
+          "kindest/node:v1.35.1"
+        ]
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      
+    - name: Set up Helm
+      uses: azure/setup-helm@dda3372f752e03dde6b3237bc9431cdc2f7a02a2 # v5.0.0
+
+    - name: Setup Ko
+      uses: ko-build/setup-ko@d006021bd0c28d1ce33a07e7943d48b079944c8d # v0.9
+
+    - name: Set up Go
+      uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6
+      with:
+        go-version: 'stable'
+        cache: true
+        
+    - name: Install Task
+      uses: arduino/setup-task@v2
+      with:
+        version: 3.44.1
+        repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Install yardstick client
+      run: |
+        go install github.com/stackloklabs/yardstick/cmd/yardstick-client@v0.0.2
+        
+    - name: Install Chainsaw
+      uses: kyverno/action-install-chainsaw@1223ef75bedeb59c4e7b5455463d4316e76dff01 # v0.2.15
+      with:
+        release: v0.2.15 # chainsaw
+
+    - name: Disable containerd image store
+      # Workaround for https://github.com/kubernetes-sigs/kind/issues/3795
+      # Docker 29+ defaults to containerd image store, which causes
+      # `kind load docker-image` to fail for multi-arch images because
+      # `docker save` preserves the OCI index referencing all platforms
+      # even when only the host platform layers were pulled.
+      # --platform on docker pull is not sufficient; the image store
+      # itself must be switched back to the classic overlay2 driver.
+      run: |
+        sudo mkdir -p /etc/docker
+        echo '{"features":{"containerd-snapshotter": false}}' | sudo tee /etc/docker/daemon.json
+        sudo systemctl restart docker
+
+    - name: Create KIND Cluster
+      uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # pin@v1.12.0
+      with:
+        cluster_name: toolhive
+        version: v0.31.0 # kind
+        cloud_provider: true
+        node_image: ${{ matrix.version }}
+
+    - name: Pre-load test images
+      run: |
+        docker pull ghcr.io/stackloklabs/yardstick/yardstick-server:1.1.1
+        kind load docker-image --name toolhive ghcr.io/stackloklabs/yardstick/yardstick-server:1.1.1
+
+    - name: Run Chainsaw tests
+      run: |
+        kind get kubeconfig --name toolhive > kconfig.yaml
+        export KUBECONFIG=kconfig.yaml
+        chainsaw test --test-dir test/e2e/chainsaw/operator/multi-tenancy/setup --config .chainsaw.yaml
+        chainsaw test --test-dir test/e2e/chainsaw/operator/multi-tenancy/test-scenarios --config .chainsaw.yaml
+        chainsaw test --test-dir test/e2e/chainsaw/operator/multi-tenancy/cleanup --config .chainsaw.yaml
+        chainsaw test --test-dir test/e2e/chainsaw/operator/single-tenancy/setup --config .chainsaw.yaml
+        chainsaw test --test-dir test/e2e/chainsaw/operator/single-tenancy/test-scenarios --parallel 10 --config .chainsaw.yaml
+        chainsaw test --test-dir test/e2e/chainsaw/operator/single-tenancy/cleanup --config .chainsaw.yaml

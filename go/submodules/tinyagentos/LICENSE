@@ -1,0 +1,86 @@
+taOS Sustainable Use License, Version 0.1
+
+Copyright (c) 2026 jaylfc. All rights reserved.
+
+This license governs use of the accompanying software, "taOS" (the "Software").
+By using the Software you agree to these terms. The Software is source-available,
+not open source.
+
+1. Grant
+
+Subject to the conditions below, jaylfc grants you a non-exclusive,
+worldwide, royalty-free license to use, copy, and modify the Software, and to
+distribute your copies and modifications, free of charge.
+
+2. Permitted use
+
+You may use and modify the Software only:
+
+  (a) for your own or your organisation's internal business purposes; or
+
+  (b) for personal, hobby, academic, research, or evaluation purposes.
+
+You may distribute the Software, or any modified version, to others only free of
+charge and only for the purposes in (a) or (b), and you must include a copy of
+this license with every copy you distribute.
+
+3. Commercial use requires a separate license
+
+You may not, without a separate commercial license granted in writing by
+jaylfc, use the Software (in whole or in part, modified or not) for a
+Commercial Purpose.
+
+A "Commercial Purpose" means using the Software in, or to provide, any product or
+service that you or anyone else makes available to a third party for a fee or
+other commercial consideration, including without limitation:
+
+  (i)   hosting or operating the Software, or a modified version, as a service
+        for others;
+
+  (ii)  incorporating or building the Software into any product or service that
+        is sold, licensed, subscribed to, or otherwise commercially distributed;
+        or
+
+  (iii) any other use that provides the Software's functionality to third parties
+        for a fee or commercial consideration.
+
+For the avoidance of doubt, internal business use under Section 2(a) is permitted
+free of charge and is not a Commercial Purpose, provided the Software (and
+anything built on it) is not offered, sold, hosted, or otherwise made available
+to any third party.
+
+To obtain a commercial license, contact jaylfc at info@taos.my.
+
+4. Trademarks
+
+This license grants no rights to the "taOS" name, logo, or trademarks.
+
+5. Contributions
+
+Unless agreed otherwise in writing, any contribution you submit for inclusion in
+the Software is provided under this license, and you grant jaylfc a
+perpetual, irrevocable, worldwide right to use, modify, sublicense, and relicense
+that contribution on any terms.
+
+6. No warranty
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+FOR A PARTICULAR PURPOSE, AND NONINFRINGEMENT.
+
+7. Limitation of liability
+
+TO THE MAXIMUM EXTENT PERMITTED BY LAW, IN NO EVENT SHALL jaylfc BE LIABLE
+FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+TORT, OR OTHERWISE, ARISING FROM, OUT OF, OR IN CONNECTION WITH THE SOFTWARE OR
+THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+8. Termination
+
+Any use of the Software in breach of this license automatically and immediately
+terminates the rights granted to you under it.
+
+---
+
+Note on prior releases: releases of taOS previously tagged under AGPL-3.0 remain
+available under AGPL-3.0; this license applies to the Software going forward.

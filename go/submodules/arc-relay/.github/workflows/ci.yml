@@ -1,0 +1,111 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-server:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+
+      - name: Install SQLite dev headers
+        run: sudo apt-get update && sudo apt-get install -y libsqlite3-dev
+
+      - name: Build server
+        run: CGO_ENABLED=1 go build ./cmd/arc-relay
+
+      - name: Test server packages
+        run: CGO_ENABLED=1 go test -race -count=1 ./internal/catalog/... ./internal/config/... ./internal/docker/... ./internal/mcp/... ./internal/middleware/... ./internal/oauth/... ./internal/proxy/... ./internal/server/... ./internal/store/... ./internal/testutil/... ./internal/web/...
+
+  build-cli:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+
+      - name: Build CLI
+        run: go build ./cmd/arc-sync
+        env:
+          CGO_ENABLED: "0"
+
+      - name: Test CLI packages
+        run: go test -count=1 ./internal/cli/... ./cmd/arc-sync/...
+        env:
+          CGO_ENABLED: "0"
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+
+      - name: Install SQLite dev headers
+        run: sudo apt-get update && sudo apt-get install -y libsqlite3-dev
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Install staticcheck
+        run: go install honnef.co/go/tools/cmd/staticcheck@latest
+
+      - name: Staticcheck
+        run: staticcheck ./...
+
+      - name: Gofmt check
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "::error::The following files are not gofmt'd:"
+            echo "$unformatted"
+            echo ""
+            gofmt -d .
+            exit 1
+          fi
+
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v7
+        with:
+          version: v2.12.2
+        env:
+          CGO_ENABLED: "1"
+
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+
+      - name: Install SQLite dev headers
+        run: sudo apt-get update && sudo apt-get install -y libsqlite3-dev
+
+      - name: Install gosec
+        run: go install github.com/securego/gosec/v2/cmd/gosec@latest
+
+      - name: Run gosec
+        run: CGO_ENABLED=1 gosec -exclude=G104,G107,G117,G301,G304,G306,G704,G706 ./...
+
+      - name: Install govulncheck
+        run: go install golang.org/x/vuln/cmd/govulncheck@latest
+
+      - name: Run govulncheck (advisory)
+        run: CGO_ENABLED=1 govulncheck ./... || echo "::warning::govulncheck found vulnerabilities (see above)"

@@ -1,0 +1,156 @@
+name: E2E Tests
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  build-binary:
+    name: Build ToolHive Binary
+    runs-on: ubuntu-8cores-32gb
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+
+      - name: Set up Go
+        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6
+        with:
+          go-version: 'stable'
+          cache: true
+
+      - name: Install Task
+        uses: arduino/setup-task@b91d5d2c96a56797b48ac1e0e89220bf64044611 # v2
+        with:
+          version: 3.44.1
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build ToolHive binary
+        run: |
+          task build
+          # Verify the binary was created and is executable
+          ls -la ./bin/
+          chmod +x ./bin/thv
+
+      - name: Upload ToolHive binary
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: toolhive-binary
+          path: ./bin/thv
+          retention-days: 1
+
+  e2e-tests-core:
+    name: E2E Tests Core (${{ matrix.title }})
+    runs-on: ubuntu-8cores-32gb
+    needs: build-binary
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - title: core
+            label_filter: core
+            artifact: e2e-test-results-core
+          - title: mcp-run
+            label_filter: mcp-run
+            artifact: e2e-test-results-mcp-run
+          - title: mcp-protocol
+            label_filter: mcp-protocol
+            artifact: e2e-test-results-mcp-protocol
+          - title: proxy
+            label_filter: proxy
+            artifact: e2e-test-results-proxy
+          - title: middleware
+            label_filter: 'middleware || stability'
+            artifact: e2e-test-results-middleware
+          - title: api-registry
+            label_filter: api-registry
+            artifact: e2e-test-results-api-registry
+          - title: api-workloads
+            label_filter: "api-workloads && !lifecycle"
+            artifact: e2e-test-results-api-workloads
+            test_timeout: 25m
+          - title: api-workloads-lifecycle
+            label_filter: "api-workloads && lifecycle"
+            artifact: e2e-test-results-api-workloads-lifecycle
+            test_timeout: 25m
+          - title: api-clients
+            label_filter: api-clients
+            artifact: e2e-test-results-api-clients
+          - title: api-misc
+            label_filter: api-misc
+            artifact: e2e-test-results-api-misc
+          - title: vmcp
+            label_filter: vmcp
+            artifact: e2e-test-results-vmcp
+          - title: llm
+            label_filter: llm
+            artifact: e2e-test-results-llm
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+
+      - name: Set up Go
+        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6
+        with:
+          go-version: 'stable'
+          cache: true
+
+      - name: Install dependencies
+        run: |
+          go mod download
+      - name: Install Ginkgo CLI
+        run: |
+          go install github.com/onsi/ginkgo/v2/ginkgo@latest
+
+      - name: Download ToolHive binary
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: toolhive-binary
+          path: ./bin/
+
+      - name: Set binary permissions
+        run: |
+          chmod +x ./bin/thv
+          ls -la ./bin/
+
+      - name: Set up container runtime (Docker)
+        run: |
+          # Docker is already installed on ubuntu-8cores-32gb
+          docker --version
+          # Start Docker daemon if not running
+          sudo systemctl start docker
+
+      - name: Pre-pull container images
+        run: |
+          # Pre-pull images used by E2E tests so that workload creation
+          # does not pay the image-pull cost inside the 60s API timeout.
+          docker pull ghcr.io/stackloklabs/osv-mcp/server:0.1.0 &
+          docker pull ghcr.io/stackloklabs/gofetch/server:1.0.2 &
+          docker pull ghcr.io/stacklok/toolhive/egress-proxy:latest &
+          # yardstick is only needed for the vmcp test suite
+          if [ "${{ matrix.label_filter }}" = "vmcp" ]; then
+            docker pull ghcr.io/stackloklabs/yardstick/yardstick-server:1.1.1 &
+          fi
+          # the time server is only used by the proxy (streamable-http) test suite
+          if [ "${{ matrix.label_filter }}" = "proxy" ]; then
+            docker pull ghcr.io/stacklok/dockyard/uvx/mcp-server-time:2026.1.26 &
+          fi
+          wait
+          echo "Pre-pulled images:"
+          docker images --format '{{.Repository}}:{{.Tag}}' | grep -E 'osv-mcp|gofetch|egress-proxy|yardstick|mcp-server-time'
+
+      - name: Run E2E tests (${{ matrix.title }})
+        env:
+          THV_BINARY: ${{ github.workspace }}/bin/thv
+          TOOLHIVE_EGRESS_IMAGE: ghcr.io/stacklok/toolhive/egress-proxy:latest
+          TEST_TIMEOUT: ${{ matrix.test_timeout || '15m' }}
+          LABEL_FILTER: ${{ matrix.label_filter }}
+        run: ./test/e2e/run_tests.sh
+
+      - name: Upload test results (${{ matrix.title }})
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: ${{ matrix.artifact }}
+          path: |
+            test/e2e/junit-report.xml
+          retention-days: 7

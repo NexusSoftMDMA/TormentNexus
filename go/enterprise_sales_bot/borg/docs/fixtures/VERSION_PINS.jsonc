@@ -1,0 +1,319 @@
+// VERSION_PINS.jsonc
+// Purpose: Capture and validate version pins for all built-in tool platforms
+// Last updated: 2026-03-19
+// Phase: 1 (Version Pinning Infrastructure)
+
+{
+  // ===== METADATA =====
+  
+  "metadata": {
+    "purpose": "Central registry for platform version pins used in evidence lock validation",
+    "lastUpdated": "2026-03-19T00:00:00Z",
+    "ciValidationActive": true,
+    "driftDetectionEnabled": true,
+    "releaseCheckCadence": "weekly"
+  },
+
+  // ===== L3 BASELINE =====
+
+  "platforms": {
+    "opencode": {
+      "level": "L3",
+      "name": "OpenCode",
+      "versionPin": {
+        "type": "repository-snapshot",
+        "source": "archive/docs/RESEARCH_COMPETITORS.md",
+        "snapshotDate": "2026-02-01",
+        "captureMethod": "in-repo canonical evidence"
+      },
+      "validationRule": "revalidate-quarterly-against-upstream"
+    },
+
+    // ===== L2 PLATFORMS HIGH PRIORITY FOR L3 =====
+
+    "copilot-cli": {
+      "level": "L2",
+      "name": "GitHub Copilot CLI",
+      "versionPin": {
+        "type": "semantic-version",
+        "captureCommand": "copilot version --json",
+        "expectedFields": ["version", "buildDate", "commit"],
+        "lastCaptured": null,
+        "capturedVersion": null,
+        "driftThreshold": "minor"
+      },
+      "releaseSource": {
+        "url": "https://github.com/github/cli",
+        "channel": "copilot-releases",
+        "checkMethod": "gh release list --repo github/cli --json=tagName,createdAt"
+      },
+      "fixtureRequirements": [
+        "bash-success-response",
+        "bash-error-response",
+        "edit-conflict-response",
+        "view-encoding-response",
+        "powershell-response",
+        "hook-preToolUse-contract"
+      ]
+    },
+
+    "codex-cli": {
+      "level": "L2",
+      "name": "Codex CLI",
+      "versionPin": {
+        "type": "semantic-version",
+        "captureCommand": "codex features --json",
+        "expectedFields": ["version", "releaseDate"],
+        "lastCaptured": null,
+        "capturedVersion": null,
+        "driftThreshold": "minor"
+      },
+      "releaseSource": {
+        "url": "https://developers.openai.com/codex/changelog",
+        "channel": "codex-releases",
+        "checkMethod": "fetch + parse CHANGELOG for version entries"
+      },
+      "fixtureRequirements": [
+        "sandbox-transition-response",
+        "approval-decision-contract",
+        "tool-execution-response",
+        "permissions-interactive-response"
+      ]
+    },
+
+    "claude-code": {
+      "level": "L2",
+      "name": "Claude Code",
+      "versionPin": {
+        "type": "extension-version",
+        "captureSource": "VS Code extension version (via Extension API) or package.json",
+        "expectedFormat": "semantic-version (x.y.z)",
+        "lastCaptured": null,
+        "capturedVersion": null,
+        "driftThreshold": "minor"
+      },
+      "releaseSource": {
+        "url": "https://marketplace.visualstudio.com/items?itemName=Anthropic.claude-dev",
+        "channel": "vs-code-marketplace",
+        "checkMethod": "fetch + parse Version field"
+      },
+      "fixtureRequirements": [
+        "pretooluse-hook-contract",
+        "permission-rule-evaluation",
+        "bash-execution-response",
+        "mcp-tool-invocation-response"
+      ]
+    },
+
+    "cursor": {
+      "level": "L2",
+      "name": "Cursor",
+      "versionPin": {
+        "type": "application-version",
+        "captureCommand": "cursor --version or check About > Version in UI",
+        "expectedFormat": "semantic-version (x.y.z)",
+        "lastCaptured": null,
+        "capturedVersion": null,
+        "driftThreshold": "minor"
+      },
+      "releaseSource": {
+        "url": "https://cursor.com/changelog",
+        "channel": "cursor-releases",
+        "checkMethod": "fetch + parse Changelog for version entries"
+      },
+      "fixtureRequirements": [
+        "hook-event-payload-shell",
+        "hook-event-payload-read",
+        "hook-event-payload-write",
+        "permission-decision-response",
+        "mcp-tool-invocation"
+      ]
+    },
+
+    "gemini-cli": {
+      "level": "L2",
+      "name": "Gemini CLI",
+      "versionPin": {
+        "type": "semantic-version",
+        "captureCommand": "gemini --version",
+        "expectedFormat": "semantic-version (x.y.z)",
+        "lastCaptured": null,
+        "capturedVersion": null,
+        "driftThreshold": "minor"
+      },
+      "releaseSource": {
+        "url": "https://github.com/google/gcloud-cli",  // or Gemini-specific binary repo
+        "channel": "gemini-releases",
+        "checkMethod": "official release channel check"
+      },
+      "fixtureRequirements": [
+        "slash-command-responses",
+        "tool-mutation-confirmation",
+        "context-switching-response",
+        "tool-execution-output"
+      ]
+    },
+
+    "kiro": {
+      "level": "L2",
+      "name": "Kiro",
+      "versionPin": {
+        "type": "semantic-version",
+        "captureCommand": "kiro --version or from hooks.json schema version",
+        "expectedFormat": "semantic-version (x.y.z)",
+        "lastCaptured": null,
+        "capturedVersion": null,
+        "driftThreshold": "minor"
+      },
+      "releaseSource": {
+        "url": "https://github.com/kiro-ml/kiro",  // or official repo
+        "channel": "kiro-releases",
+        "checkMethod": "NPM registry or GitHub releases"
+      },
+      "fixtureRequirements": [
+        "hook-event-contracts",
+        "tool-execution-response",
+        "mcp-server-response",
+        "permission-decision-semantics"
+      ]
+    },
+
+    // ===== L1 PLATFORMS (INTEGRATION-LEVEL) =====
+
+    "windsurf": {
+      "level": "L1",
+      "name": "Windsurf",
+      "versionPin": {
+        "type": "not-yet-captured",
+        "status": "awaiting-first-party-manifest"
+      },
+      "blockers": [
+        "No first-party built-in tool manifest available",
+        "Version capture mechanism undefined",
+        "Permission model not yet extracted from docs"
+      ],
+      "nextSteps": "Locate official Windsurf tool reference docs"
+    },
+
+    "antigravity": {
+      "level": "L1",
+      "name": "Antigravity",
+      "versionPin": {
+        "type": "not-yet-captured",
+        "status": "awaiting-first-party-manifest"
+      },
+      "blockers": [
+        "Archive-only evidence currently available",
+        "No official API documentation located",
+        "Version/release strategy unclear"
+      ],
+      "nextSteps": "Request official Antigravity tool docs or API reference"
+    },
+
+    // ===== L0 PLATFORMS (UNLOCKED) =====
+
+    "vscode-copilot-ide": {
+      "level": "L0",
+      "name": "VS Code + Copilot IDE Agent",
+      "versionPin": {
+        "type": "not-yet-defined",
+        "status": "research-phase"
+      },
+      "blockers": [
+        "No official tool contract documentation yet sourced",
+        "IDE tool surface differs from CLI structure",
+        "Permissions model not yet captured"
+      ],
+      "nextSteps": "Begin research on VS Code extension tool API + Copilot IDE tool contract"
+    }
+  },
+
+  // ===== CI VALIDATION RULES =====
+
+  "ciValidation": {
+    "rules": [
+      {
+        "id": "version-pin-completeness",
+        "description": "All L2+ platforms must have non-null capturedVersion",
+        "severity": "error",
+        "platforms": ["copilot-cli", "codex-cli", "claude-code", "cursor", "gemini-cli", "kiro"]
+      },
+      {
+        "id": "version-drift-detection",
+        "description": "Alert if any platform version drifts beyond driftThreshold",
+        "severity": "warning",
+        "action": "notify-team-slack"
+      },
+      {
+        "id": "fixture-completeness",
+        "description": "All fixtureRequirements must have corresponding .yaml file in docs/fixtures/",
+        "severity": "error",
+        "checkOn": "PR-merge"
+      },
+      {
+        "id": "evidence-lock-sync",
+        "description": "VERSION_PINS.jsonc must be in sync with BUILTIN_TOOLS_EVIDENCE_LOCK.md levels",
+        "severity": "error",
+        "checkOn": "every-commit"
+      }
+    ],
+    "schedule": {
+      "version-drift-check": "weekly",
+      "fixture-validation": "on-every-pr",
+      "lock-sync-check": "on-every-commit",
+      "full-audit": "monthly"
+    }
+  },
+
+  // ===== CAPTURE PROCEDURES =====
+
+  "captureProcedures": {
+    "copilot-cli": {
+      "step1": "Run: copilot version --json",
+      "step2": "Parse version, buildDate, commit fields",
+      "step3": "Update this file with capturedVersion",
+      "step4": "Commit with message: 'chore: pin copilot-cli to <version>'",
+      "frequency": "weekly or on release notification"
+    },
+    "codex-cli": {
+      "step1": "Run: codex features --json",
+      "step2": "Extract version field",
+      "step3": "Verify against https://developers.openai.com/codex/changelog",
+      "step4": "Update VERSION_PINS.jsonc",
+      "frequency": "weekly"
+    },
+    "claude-code": {
+      "step1": "Check VS Code Extension: Anthropic.claude-dev version",
+      "step2": "Or check: npm info @anthropic-ai/claude-dev version",
+      "step3": "Verify matches VS Code Marketplace latest",
+      "step4": "Update VERSION_PINS.jsonc",
+      "frequency": "weekly"
+    },
+    "cursor": {
+      "step1": "Run: cursor --version",
+      "step2": "Or check: Cursor > About > Version",
+      "step3": "Compare with https://cursor.com/changelog latest",
+      "step4": "Update VERSION_PINS.jsonc",
+      "frequency": "weekly"
+    },
+    "gemini-cli": {
+      "step1": "Run: gemini --version",
+      "step2": "Verify against official Gemini release channel",
+      "step3": "Update VERSION_PINS.jsonc",
+      "frequency": "weekly"
+    },
+    "kiro": {
+      "step1": "Run: kiro --version OR check hooks.json schema version",
+      "step2": "Verify against official Kiro registry/releases",
+      "step3": "Update VERSION_PINS.jsonc",
+      "frequency": "weekly"
+    }
+  },
+
+  // ===== NEXT PHASE: AUTOMATED VERSION CAPTURE =====
+
+  "future": {
+    "automation": "GitHub Actions workflow will run capture procedures weekly and open automated PRs",
+    "timeline": "After Phase 2: Golden Fixtures complete"
+  }
+}

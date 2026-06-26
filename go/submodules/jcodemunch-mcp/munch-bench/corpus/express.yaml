@@ -1,0 +1,81 @@
+repo: expressjs/express
+questions:
+  - id: express-001
+    question: "How does Express implement its middleware pipeline?"
+    ground_truth_answer: "Express uses a stack of Layer objects in the Router. Each Layer wraps a middleware function and a path regex. Router.handle() iterates the stack, matching layers against the request path, calling next() to advance. Error-handling middleware has 4 parameters (err, req, res, next)."
+    ground_truth_symbols: ["Router", "Layer", "handle", "Route"]
+    difficulty: medium
+    category: architecture
+    tags: [middleware, routing]
+
+  - id: express-002
+    question: "How does Express handle route parameter extraction?"
+    ground_truth_answer: "Route paths with :param syntax are compiled into regex by path-to-regexp. Layer.match() executes the regex and populates req.params from named capture groups. app.param() registers per-parameter middleware that fires before the route handler."
+    ground_truth_symbols: ["Layer", "match", "param"]
+    difficulty: medium
+    category: api
+    tags: [routing, params]
+
+  - id: express-003
+    question: "How does Express implement response methods like res.json() and res.send()?"
+    ground_truth_answer: "res.send() handles Buffer, string, and object types. For objects, it calls JSON.stringify. It sets Content-Type, Content-Length, ETag headers automatically. res.json() calls JSON.stringify with the app's json replacer/spaces settings, then calls res.send()."
+    ground_truth_symbols: ["send", "json", "response"]
+    difficulty: easy
+    category: api
+    tags: [response, json]
+
+  - id: express-004
+    question: "How does Express implement the app.use() method?"
+    ground_truth_answer: "app.use() delegates to router.use() which creates a new Layer with the given path and middleware function. The layer is pushed onto the router's stack. When path is omitted, it defaults to '/' matching all routes. Multiple middleware functions can be passed."
+    ground_truth_symbols: ["use", "Router"]
+    difficulty: easy
+    category: api
+    tags: [middleware, registration]
+
+  - id: express-005
+    question: "How does Express implement the sub-application (mounting) pattern?"
+    ground_truth_answer: "When an Express app is passed to app.use(), it's treated as middleware. The mounted app receives a 'mount' event with the parent. req.app points to the handling app, while req.baseUrl reflects the mount path. Settings can inherit from parent to child."
+    ground_truth_symbols: ["use", "mountpath"]
+    difficulty: medium
+    category: architecture
+    tags: [mounting, modularity]
+
+  - id: express-006
+    question: "How does Express implement view rendering with res.render()?"
+    ground_truth_answer: "res.render() looks up the view by name using the configured view engine. The View class resolves the template file path using the views directory setting. It calls the engine's __express method to render the template with locals, then sends the result."
+    ground_truth_symbols: ["render", "View"]
+    difficulty: medium
+    category: api
+    tags: [views, templates]
+
+  - id: express-007
+    question: "How does Express handle static file serving?"
+    ground_truth_answer: "express.static() is a wrapper around the serve-static package, which uses send. It resolves the file path, checks if-none-match/if-modified-since headers, sets cache-control and content-type, and streams the file. It calls next() if the file doesn't exist."
+    ground_truth_symbols: ["static", "serveStatic"]
+    difficulty: easy
+    category: api
+    tags: [static, files]
+
+  - id: express-008
+    question: "How does Express handle error propagation through the middleware stack?"
+    ground_truth_answer: "When next(err) is called or a middleware throws, Express skips regular middleware (3-param) and finds the next error-handling middleware (4-param: err, req, res, next). If no error handler catches it, the default error handler sends a 500 with the error stack in development."
+    ground_truth_symbols: ["handle", "Layer", "handle_error"]
+    difficulty: medium
+    category: debugging
+    tags: [errors, middleware]
+
+  - id: express-009
+    question: "How does Express implement content negotiation with res.format()?"
+    ground_truth_answer: "res.format() uses req.accepts() (from the accepts package) to determine which response format the client prefers. It takes an object mapping MIME types to handler functions. If no match is found, it calls the default handler or sends 406 Not Acceptable."
+    ground_truth_symbols: ["format", "accepts"]
+    difficulty: medium
+    category: api
+    tags: [content-negotiation, response]
+
+  - id: express-010
+    question: "How does Express implement trust proxy and req.ip?"
+    ground_truth_answer: "The 'trust proxy' setting controls how X-Forwarded-For headers are parsed. req.ip uses proxyaddr to determine the client IP based on the trust configuration. It can be a boolean, number (hops), string (subnet), or function. req.ips returns the full chain."
+    ground_truth_symbols: ["ip", "trust"]
+    difficulty: hard
+    category: debugging
+    tags: [proxy, security]

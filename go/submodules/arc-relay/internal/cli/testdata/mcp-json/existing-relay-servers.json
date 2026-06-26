@@ -1,0 +1,18 @@
+{
+  "mcpServers": {
+    "sentry": {
+      "type": "http",
+      "url": "http://127.0.0.1:8080/mcp/sentry",
+      "headers": {
+        "Authorization": "Bearer test-key"
+      }
+    },
+    "pfsense": {
+      "type": "http",
+      "url": "http://127.0.0.1:8080/mcp/pfsense",
+      "headers": {
+        "Authorization": "Bearer test-key"
+      }
+    }
+  }
+}

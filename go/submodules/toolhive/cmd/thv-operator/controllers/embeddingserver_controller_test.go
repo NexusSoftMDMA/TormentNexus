@@ -1,0 +1,1163 @@
+// SPDX-License-Identifier: Apache-2.0
+
+package controllers
+
+import (
+	"context"
+	"fmt"
+	"testing"
+	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/tools/events"
+	"k8s.io/utils/ptr"
+	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+
+	mcpv1beta1 "github.com/stacklok/toolhive/cmd/thv-operator/api/v1beta1"
+	"github.com/stacklok/toolhive/cmd/thv-operator/api/v1beta1/v1beta1test"
+	"github.com/stacklok/toolhive/cmd/thv-operator/internal/testutil"
+	ctrlutil "github.com/stacklok/toolhive/cmd/thv-operator/pkg/controllerutil"
+)
+
+const testNamespaceDefault = "default"
+
+func TestEmbeddingServer_GetPort(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		port     int32
+		expected int32
+	}{
+		{
+			name:     "default port",
+			port:     0,
+			expected: 8080,
+		},
+		{
+			name:     "custom port",
+			port:     9000,
+			expected: 9000,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			embedding := &mcpv1beta1.EmbeddingServer{
+				Spec: mcpv1beta1.EmbeddingServerSpec{
+					Port: tt.port,
+				},
+			}
+
+			assert.Equal(t, tt.expected, embedding.GetPort())
+		})
+	}
+}
+
+func TestEmbeddingServer_GetReplicas(t *testing.T) {
+	t.Parallel()
+
+	replicas2 := int32(2)
+	tests := []struct {
+		name     string
+		replicas *int32
+		expected int32
+	}{
+		{
+			name:     "default replicas",
+			replicas: nil,
+			expected: 1,
+		},
+		{
+			name:     "custom replicas",
+			replicas: &replicas2,
+			expected: 2,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			embedding := &mcpv1beta1.EmbeddingServer{
+				Spec: mcpv1beta1.EmbeddingServerSpec{
+					Replicas: tt.replicas,
+				},
+			}
+
+			assert.Equal(t, tt.expected, embedding.GetReplicas())
+		})
+	}
+}
+
+func TestEmbeddingServer_IsModelCacheEnabled(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		modelCache *mcpv1beta1.ModelCacheConfig
+		expected   bool
+	}{
+		{
+			name:       "nil model cache",
+			modelCache: nil,
+			expected:   false,
+		},
+		{
+			name: "model cache disabled",
+			modelCache: &mcpv1beta1.ModelCacheConfig{
+				Enabled: false,
+			},
+			expected: false,
+		},
+		{
+			name: "model cache enabled",
+			modelCache: &mcpv1beta1.ModelCacheConfig{
+				Enabled: true,
+			},
+			expected: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			embedding := &mcpv1beta1.EmbeddingServer{
+				Spec: mcpv1beta1.EmbeddingServerSpec{
+					ModelCache: tt.modelCache,
+				},
+			}
+
+			assert.Equal(t, tt.expected, embedding.IsModelCacheEnabled())
+		})
+	}
+}
+
+func TestEmbeddingServer_GetImagePullPolicy(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name            string
+		imagePullPolicy corev1.PullPolicy
+		expected        corev1.PullPolicy
+	}{
+		{
+			name:            "default pull policy",
+			imagePullPolicy: "",
+			expected:        corev1.PullIfNotPresent,
+		},
+		{
+			name:            "Never pull policy",
+			imagePullPolicy: corev1.PullNever,
+			expected:        corev1.PullNever,
+		},
+		{
+			name:            "Always pull policy",
+			imagePullPolicy: corev1.PullAlways,
+			expected:        corev1.PullAlways,
+		},
+		{
+			name:            "IfNotPresent pull policy",
+			imagePullPolicy: corev1.PullIfNotPresent,
+			expected:        corev1.PullIfNotPresent,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			embedding := &mcpv1beta1.EmbeddingServer{
+				Spec: mcpv1beta1.EmbeddingServerSpec{
+					ImagePullPolicy: tt.imagePullPolicy,
+				},
+			}
+
+			assert.Equal(t, tt.expected, embedding.GetImagePullPolicy())
+		})
+	}
+}
+
+func TestEmbeddingServerPodTemplateSpecValidation(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name            string
+		podTemplateSpec *runtime.RawExtension
+		expectValid     bool
+	}{
+		{
+			name:            "no PodTemplateSpec provided",
+			podTemplateSpec: nil,
+			expectValid:     true,
+		},
+		{
+			name: "valid PodTemplateSpec",
+			podTemplateSpec: &runtime.RawExtension{
+				Raw: []byte(`{"spec":{"nodeSelector":{"disktype":"ssd"}}}`),
+			},
+			expectValid: true,
+		},
+		{
+			name: "invalid PodTemplateSpec",
+			podTemplateSpec: &runtime.RawExtension{
+				Raw: []byte(`{invalid json`),
+			},
+			expectValid: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			if tt.podTemplateSpec == nil {
+				// nil is always valid
+				assert.True(t, tt.expectValid)
+				return
+			}
+
+			_, err := ctrlutil.NewPodTemplateSpecBuilder(tt.podTemplateSpec, embeddingContainerName)
+
+			if tt.expectValid {
+				assert.NoError(t, err)
+			} else {
+				assert.Error(t, err)
+			}
+		})
+	}
+}
+
+func TestEmbeddingServer_Labels(t *testing.T) {
+	t.Parallel()
+
+	embedding := &mcpv1beta1.EmbeddingServer{
+		Spec: mcpv1beta1.EmbeddingServerSpec{
+			Model: "test-model",
+		},
+	}
+	embedding.Name = "test-embedding"
+
+	reconciler := &EmbeddingServerReconciler{}
+	labels := reconciler.labelsForEmbedding(embedding)
+
+	// Check required labels
+	assert.Equal(t, "embeddingserver", labels["app.kubernetes.io/name"])
+	assert.Equal(t, "test-embedding", labels["app.kubernetes.io/instance"])
+	assert.Equal(t, "embedding-server", labels["app.kubernetes.io/component"])
+	assert.Equal(t, "toolhive-operator", labels["app.kubernetes.io/managed-by"])
+
+}
+
+func TestEmbeddingServer_ModelCacheConfig(t *testing.T) {
+	t.Parallel()
+
+	storageClassName := "fast-ssd"
+	tests := []struct {
+		name           string
+		modelCache     *mcpv1beta1.ModelCacheConfig
+		expectedSize   string
+		expectedAccess string
+	}{
+		{
+			name: "default values",
+			modelCache: &mcpv1beta1.ModelCacheConfig{
+				Enabled: true,
+			},
+			expectedSize:   "10Gi",
+			expectedAccess: "ReadWriteOnce",
+		},
+		{
+			name: "custom values",
+			modelCache: &mcpv1beta1.ModelCacheConfig{
+				Enabled:          true,
+				Size:             "20Gi",
+				AccessMode:       "ReadWriteMany",
+				StorageClassName: &storageClassName,
+			},
+			expectedSize:   "20Gi",
+			expectedAccess: "ReadWriteMany",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			embedding := &mcpv1beta1.EmbeddingServer{
+				Spec: mcpv1beta1.EmbeddingServerSpec{
+					Model:      "test-model",
+					ModelCache: tt.modelCache,
+				},
+			}
+			embedding.Name = "test-embedding"
+			embedding.Namespace = testNamespaceDefault
+
+			// Note: We're testing the PVC structure creation, not SetControllerReference
+			// which requires a Scheme. In actual reconciliation, the Scheme is set.
+			// For this unit test, we test just the PVC structure without owner references.
+			pvcName := fmt.Sprintf("%s-model-cache", embedding.Name)
+
+			size := tt.modelCache.Size
+			if size == "" {
+				size = "10Gi"
+			}
+
+			accessMode := corev1.ReadWriteOnce
+			if tt.modelCache.AccessMode != "" {
+				accessMode = corev1.PersistentVolumeAccessMode(tt.modelCache.AccessMode)
+			}
+
+			// Verify expected values
+			assert.Equal(t, "test-embedding-model-cache", pvcName)
+			assert.Equal(t, tt.expectedSize, size)
+			assert.Equal(t, tt.expectedAccess, string(accessMode))
+
+			// Verify storage class name if provided
+			if tt.modelCache.StorageClassName != nil {
+				assert.Equal(t, storageClassName, *tt.modelCache.StorageClassName)
+			}
+		})
+	}
+}
+
+// Test helpers
+
+func createTestEmbeddingServer(name, namespace, image, model string) *mcpv1beta1.EmbeddingServer {
+	return v1beta1test.NewEmbeddingServer(name, namespace,
+		v1beta1test.WithEmbeddingImage(image),
+		v1beta1test.WithEmbeddingModel(model),
+		v1beta1test.MutateEmbedding(func(e *mcpv1beta1.EmbeddingServer) {
+			e.Generation = 1
+		}),
+	)
+}
+
+// TestReconcile_NotFound tests reconciliation when resource is not found
+func TestReconcile_NotFound(t *testing.T) {
+	t.Parallel()
+
+	scheme := testutil.NewScheme(t)
+	fakeClient := fake.NewClientBuilder().
+		WithScheme(scheme).
+		Build()
+
+	reconciler := &EmbeddingServerReconciler{
+		Client:   fakeClient,
+		Scheme:   scheme,
+		Recorder: events.NewFakeRecorder(10),
+	}
+
+	req := ctrl.Request{
+		NamespacedName: types.NamespacedName{
+			Name:      "non-existent",
+			Namespace: testNamespaceDefault,
+		},
+	}
+
+	result, err := reconciler.Reconcile(context.TODO(), req)
+	assert.NoError(t, err)
+	assert.Equal(t, ctrl.Result{}, result)
+}
+
+// TestReconcile_CreateResources tests the reconciliation creates all necessary resources
+func TestReconcile_CreateResources(t *testing.T) {
+	t.Parallel()
+
+	embedding := createTestEmbeddingServer("test-embedding", "test-ns", "test-image:latest", "test-model")
+
+	scheme := testutil.NewScheme(t)
+	fakeClient := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithRuntimeObjects(embedding).
+		WithStatusSubresource(embedding).
+		Build()
+
+	reconciler := &EmbeddingServerReconciler{
+		Client:           fakeClient,
+		Scheme:           scheme,
+		Recorder:         events.NewFakeRecorder(10),
+		PlatformDetector: ctrlutil.NewSharedPlatformDetector(),
+	}
+
+	ctx := context.TODO()
+	req := ctrl.Request{
+		NamespacedName: types.NamespacedName{
+			Name:      embedding.Name,
+			Namespace: embedding.Namespace,
+		},
+	}
+
+	// First reconcile should create resources
+	result, err := reconciler.Reconcile(ctx, req)
+	require.NoError(t, err)
+	assert.Equal(t, ctrl.Result{}, result)
+
+	// Verify finalizer was added
+	updatedEmbedding := &mcpv1beta1.EmbeddingServer{}
+	err = fakeClient.Get(ctx, types.NamespacedName{
+		Name:      embedding.Name,
+		Namespace: embedding.Namespace,
+	}, updatedEmbedding)
+	require.NoError(t, err)
+	assert.Contains(t, updatedEmbedding.Finalizers, embeddingFinalizerName)
+
+	// Verify StatefulSet was created
+	sts := &appsv1.StatefulSet{}
+	err = fakeClient.Get(ctx, types.NamespacedName{
+		Name:      embedding.Name,
+		Namespace: embedding.Namespace,
+	}, sts)
+	assert.NoError(t, err, "StatefulSet should be created")
+	assert.Equal(t, embedding.Name, sts.Name)
+	assert.Equal(t, int32(1), *sts.Spec.Replicas)
+
+	// Verify Service was created
+	svc := &corev1.Service{}
+	err = fakeClient.Get(ctx, types.NamespacedName{
+		Name:      embedding.Name,
+		Namespace: embedding.Namespace,
+	}, svc)
+	assert.NoError(t, err, "Service should be created")
+	assert.Equal(t, embedding.Name, svc.Name)
+}
+
+// TestStatefulSetNeedsUpdate tests drift detection logic
+func TestStatefulSetNeedsUpdate(t *testing.T) {
+	t.Parallel()
+
+	scheme := testutil.NewScheme(t)
+	reconciler := &EmbeddingServerReconciler{
+		Scheme:           scheme,
+		PlatformDetector: ctrlutil.NewSharedPlatformDetector(),
+	}
+
+	// Helper to generate a StatefulSet from an embedding using the reconciler
+	generateSts := func(e *mcpv1beta1.EmbeddingServer) *appsv1.StatefulSet {
+		return reconciler.statefulSetForEmbedding(context.TODO(), e)
+	}
+
+	tests := []struct {
+		name           string
+		embedding      *mcpv1beta1.EmbeddingServer
+		existingSts    *appsv1.StatefulSet
+		expectedUpdate bool
+		updateReason   string
+	}{
+		{
+			name:           "no update needed - identical",
+			embedding:      createTestEmbeddingServer("test", testNamespaceDefault, "image:v1", "model1"),
+			existingSts:    generateSts(createTestEmbeddingServer("test", testNamespaceDefault, "image:v1", "model1")),
+			expectedUpdate: false,
+		},
+		{
+			name:           "update needed - image changed",
+			embedding:      createTestEmbeddingServer("test", testNamespaceDefault, "image:v2", "model1"),
+			existingSts:    generateSts(createTestEmbeddingServer("test", testNamespaceDefault, "image:v1", "model1")),
+			expectedUpdate: true,
+			updateReason:   "image changed",
+		},
+		{
+			name:           "update needed - model changed",
+			embedding:      createTestEmbeddingServer("test", testNamespaceDefault, "image:v1", "model2"),
+			existingSts:    generateSts(createTestEmbeddingServer("test", testNamespaceDefault, "image:v1", "model1")),
+			expectedUpdate: true,
+			updateReason:   "model changed",
+		},
+		{
+			name: "update needed - port changed",
+			embedding: v1beta1test.NewEmbeddingServer("test", testNamespaceDefault,
+				v1beta1test.WithEmbeddingImage("image:v1"),
+				v1beta1test.WithEmbeddingModel("model1"),
+				v1beta1test.WithEmbeddingPort(9090),
+				v1beta1test.MutateEmbedding(func(e *mcpv1beta1.EmbeddingServer) {
+					e.Generation = 1
+				}),
+			),
+			existingSts:    generateSts(createTestEmbeddingServer("test", testNamespaceDefault, "image:v1", "model1")),
+			expectedUpdate: true,
+			updateReason:   "port changed",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			needsUpdate := reconciler.statefulSetNeedsUpdate(context.TODO(), tt.existingSts, tt.embedding)
+
+			assert.Equal(t, tt.expectedUpdate, needsUpdate, tt.updateReason)
+		})
+	}
+}
+
+// TestHandleDeletion tests finalizer cleanup
+func TestHandleDeletion(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name            string
+		embedding       *mcpv1beta1.EmbeddingServer
+		expectDone      bool
+		expectError     bool
+		expectFinalizer bool
+	}{
+		{
+			name: "not being deleted",
+			embedding: v1beta1test.NewEmbeddingServer("test", testNamespaceDefault,
+				v1beta1test.WithEmbeddingImage("test:latest"),
+				v1beta1test.WithEmbeddingModel("test-model"),
+				v1beta1test.MutateEmbedding(func(e *mcpv1beta1.EmbeddingServer) {
+					e.Finalizers = []string{embeddingFinalizerName}
+				}),
+			),
+			expectDone:      false,
+			expectError:     false,
+			expectFinalizer: true,
+		},
+		{
+			name: "being deleted with finalizer",
+			embedding: v1beta1test.NewEmbeddingServer("test", testNamespaceDefault,
+				v1beta1test.WithEmbeddingImage("test:latest"),
+				v1beta1test.WithEmbeddingModel("test-model"),
+				v1beta1test.WithEmbeddingDeletionTimestamp(metav1.Time{Time: time.Now()}, embeddingFinalizerName),
+			),
+			expectDone:      true,
+			expectError:     false,
+			expectFinalizer: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			scheme := testutil.NewScheme(t)
+			fakeClient := fake.NewClientBuilder().
+				WithScheme(scheme).
+				WithRuntimeObjects(tt.embedding).
+				WithStatusSubresource(tt.embedding).
+				Build()
+
+			reconciler := &EmbeddingServerReconciler{
+				Client:   fakeClient,
+				Scheme:   scheme,
+				Recorder: events.NewFakeRecorder(10),
+			}
+
+			result, done, err := reconciler.handleDeletion(context.TODO(), tt.embedding)
+
+			assert.Equal(t, tt.expectDone, done)
+			if tt.expectError {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+
+			if done {
+				assert.Equal(t, ctrl.Result{}, result)
+			}
+
+			// Verify finalizer state if not being deleted
+			if tt.embedding.DeletionTimestamp == nil {
+				updatedEmbedding := &mcpv1beta1.EmbeddingServer{}
+				err := fakeClient.Get(context.TODO(), types.NamespacedName{
+					Name:      tt.embedding.Name,
+					Namespace: tt.embedding.Namespace,
+				}, updatedEmbedding)
+				require.NoError(t, err)
+
+				hasFinalizer := false
+				for _, f := range updatedEmbedding.Finalizers {
+					if f == embeddingFinalizerName {
+						hasFinalizer = true
+						break
+					}
+				}
+				assert.Equal(t, tt.expectFinalizer, hasFinalizer)
+			}
+		})
+	}
+}
+
+// TestEnsureStatefulSet tests statefulset creation and updates
+func TestEnsureStatefulSet(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		embedding    *mcpv1beta1.EmbeddingServer
+		existingSts  *appsv1.StatefulSet
+		expectCreate bool
+		expectUpdate bool
+		expectDone   bool
+	}{
+		{
+			name:         "create new statefulset",
+			embedding:    createTestEmbeddingServer("test", testNamespaceDefault, "image:v1", "model1"),
+			existingSts:  nil,
+			expectCreate: true,
+			expectDone:   false,
+		},
+		{
+			name: "update replicas",
+			embedding: v1beta1test.NewEmbeddingServer("test", testNamespaceDefault,
+				v1beta1test.WithEmbeddingImage("image:v1"),
+				v1beta1test.WithEmbeddingModel("model1"),
+				v1beta1test.WithEmbeddingReplicas(3),
+				v1beta1test.MutateEmbedding(func(e *mcpv1beta1.EmbeddingServer) {
+					e.Generation = 1
+				}),
+			),
+			existingSts: &appsv1.StatefulSet{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test",
+					Namespace: testNamespaceDefault,
+				},
+				Spec: appsv1.StatefulSetSpec{
+					Replicas: ptr.To(int32(1)),
+					Template: corev1.PodTemplateSpec{
+						Spec: corev1.PodSpec{
+							Containers: []corev1.Container{
+								{
+									Name:  embeddingContainerName,
+									Image: "image:v1",
+									Args:  []string{"--model-id", "model1", "--port", "8080"},
+									Env: []corev1.EnvVar{
+										{Name: "MODEL_ID", Value: "model1"},
+									},
+									Ports: []corev1.ContainerPort{
+										{ContainerPort: 8080},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectUpdate: true,
+			expectDone:   true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			scheme := testutil.NewScheme(t)
+			objects := []runtime.Object{tt.embedding}
+			if tt.existingSts != nil {
+				objects = append(objects, tt.existingSts)
+			}
+
+			fakeClient := fake.NewClientBuilder().
+				WithScheme(scheme).
+				WithRuntimeObjects(objects...).
+				Build()
+
+			reconciler := &EmbeddingServerReconciler{
+				Client:           fakeClient,
+				Scheme:           scheme,
+				PlatformDetector: ctrlutil.NewSharedPlatformDetector(),
+			}
+
+			result, err := reconciler.ensureStatefulSet(context.TODO(), tt.embedding)
+			require.NoError(t, err)
+			// expectDone is now represented by whether we need to requeue
+			if tt.expectDone {
+				assert.True(t, result.RequeueAfter > 0)
+			}
+
+			// Verify statefulset exists
+			sts := &appsv1.StatefulSet{}
+			err = fakeClient.Get(context.TODO(), types.NamespacedName{
+				Name:      tt.embedding.Name,
+				Namespace: tt.embedding.Namespace,
+			}, sts)
+			assert.NoError(t, err)
+
+			if tt.expectUpdate {
+				assert.Greater(t, result.RequeueAfter, time.Duration(0))
+			}
+		})
+	}
+}
+
+// TestUpdateEmbeddingServerStatus tests status updates
+func TestUpdateEmbeddingServerStatus(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name          string
+		embedding     *mcpv1beta1.EmbeddingServer
+		statefulSet   *appsv1.StatefulSet
+		expectedPhase mcpv1beta1.EmbeddingServerPhase
+		expectedURL   string
+	}{
+		{
+			name:          "no statefulset - pending",
+			embedding:     createTestEmbeddingServer("test", testNamespaceDefault, "image:v1", "model1"),
+			statefulSet:   nil,
+			expectedPhase: mcpv1beta1.EmbeddingServerPhasePending,
+			expectedURL:   "http://test.default.svc.cluster.local:8080",
+		},
+		{
+			name:      "statefulset ready",
+			embedding: createTestEmbeddingServer("test", testNamespaceDefault, "image:v1", "model1"),
+			statefulSet: &appsv1.StatefulSet{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test",
+					Namespace: testNamespaceDefault,
+				},
+				Status: appsv1.StatefulSetStatus{
+					Replicas:      1,
+					ReadyReplicas: 1,
+				},
+			},
+			expectedPhase: mcpv1beta1.EmbeddingServerPhaseReady,
+			expectedURL:   "http://test.default.svc.cluster.local:8080",
+		},
+		{
+			name:      "statefulset downloading",
+			embedding: createTestEmbeddingServer("test", testNamespaceDefault, "image:v1", "model1"),
+			statefulSet: &appsv1.StatefulSet{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test",
+					Namespace: testNamespaceDefault,
+				},
+				Status: appsv1.StatefulSetStatus{
+					Replicas:      1,
+					ReadyReplicas: 0,
+				},
+			},
+			expectedPhase: mcpv1beta1.EmbeddingServerPhaseDownloading,
+			expectedURL:   "http://test.default.svc.cluster.local:8080",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			scheme := testutil.NewScheme(t)
+			objects := []runtime.Object{tt.embedding}
+			if tt.statefulSet != nil {
+				objects = append(objects, tt.statefulSet)
+			}
+
+			fakeClient := fake.NewClientBuilder().
+				WithScheme(scheme).
+				WithRuntimeObjects(objects...).
+				WithStatusSubresource(tt.embedding).
+				Build()
+
+			reconciler := &EmbeddingServerReconciler{
+				Client: fakeClient,
+				Scheme: scheme,
+			}
+
+			err := reconciler.updateEmbeddingServerStatus(context.TODO(), tt.embedding)
+			assert.NoError(t, err)
+
+			// Verify status was updated
+			updatedEmbedding := &mcpv1beta1.EmbeddingServer{}
+			err = fakeClient.Get(context.TODO(), types.NamespacedName{
+				Name:      tt.embedding.Name,
+				Namespace: tt.embedding.Namespace,
+			}, updatedEmbedding)
+			require.NoError(t, err)
+
+			assert.Equal(t, tt.expectedPhase, updatedEmbedding.Status.Phase)
+			assert.Equal(t, tt.expectedURL, updatedEmbedding.Status.URL)
+		})
+	}
+}
+
+// TestEmbeddingServer_PodTemplateSpec_PreservesUserFields is a regression test for
+// https://github.com/stacklok/toolhive/issues/5100. The previous merge implementation
+// only copied an enumerated subset of PodSpec fields (NodeSelector, Affinity,
+// Tolerations, SecurityContext, ServiceAccountName, and the embedding container's
+// SecurityContext) and silently dropped everything else the user provided —
+// including imagePullSecrets, additional volumes, priorityClassName,
+// topologySpreadConstraints, runtimeClassName, init containers, and sidecars.
+//
+// This test reconciles an EmbeddingServer with a variety of previously-dropped
+// fields set on spec.podTemplateSpec.spec and asserts that they appear on the
+// resulting StatefulSet's Pod template.
+func TestEmbeddingServer_PodTemplateSpec_PreservesUserFields(t *testing.T) {
+	t.Parallel()
+
+	runtimeClassName := "kata"
+
+	tests := []struct {
+		name string
+		// userPTS is the user-provided pod template spec.
+		userPTS *corev1.PodTemplateSpec
+		// assertPodSpec runs after reconciliation against the resulting pod spec.
+		assertPodSpec func(t *testing.T, podSpec corev1.PodSpec)
+	}{
+		{
+			name: "imagePullSecrets are preserved",
+			userPTS: &corev1.PodTemplateSpec{
+				Spec: corev1.PodSpec{
+					ImagePullSecrets: []corev1.LocalObjectReference{
+						{Name: "my-registry-creds"},
+						{Name: "second-registry"},
+					},
+				},
+			},
+			assertPodSpec: func(t *testing.T, podSpec corev1.PodSpec) {
+				t.Helper()
+				assert.ElementsMatch(t,
+					[]corev1.LocalObjectReference{
+						{Name: "my-registry-creds"},
+						{Name: "second-registry"},
+					},
+					podSpec.ImagePullSecrets,
+				)
+			},
+		},
+		{
+			name: "priorityClassName is preserved",
+			userPTS: &corev1.PodTemplateSpec{
+				Spec: corev1.PodSpec{
+					PriorityClassName: "high-priority",
+				},
+			},
+			assertPodSpec: func(t *testing.T, podSpec corev1.PodSpec) {
+				t.Helper()
+				assert.Equal(t, "high-priority", podSpec.PriorityClassName)
+			},
+		},
+		{
+			name: "additional volumes are preserved alongside controller volumes",
+			userPTS: &corev1.PodTemplateSpec{
+				Spec: corev1.PodSpec{
+					Volumes: []corev1.Volume{
+						{
+							Name: "extra-config",
+							VolumeSource: corev1.VolumeSource{
+								ConfigMap: &corev1.ConfigMapVolumeSource{
+									LocalObjectReference: corev1.LocalObjectReference{Name: "extra-cm"},
+								},
+							},
+						},
+					},
+				},
+			},
+			assertPodSpec: func(t *testing.T, podSpec corev1.PodSpec) {
+				t.Helper()
+				var found bool
+				for _, v := range podSpec.Volumes {
+					if v.Name == "extra-config" {
+						found = true
+						require.NotNil(t, v.ConfigMap)
+						assert.Equal(t, "extra-cm", v.ConfigMap.Name)
+					}
+				}
+				assert.True(t, found, "user-provided volume should be present")
+			},
+		},
+		{
+			name: "runtimeClassName is preserved",
+			userPTS: &corev1.PodTemplateSpec{
+				Spec: corev1.PodSpec{
+					RuntimeClassName: &runtimeClassName,
+				},
+			},
+			assertPodSpec: func(t *testing.T, podSpec corev1.PodSpec) {
+				t.Helper()
+				require.NotNil(t, podSpec.RuntimeClassName)
+				assert.Equal(t, "kata", *podSpec.RuntimeClassName)
+			},
+		},
+		{
+			name: "topologySpreadConstraints are preserved",
+			userPTS: &corev1.PodTemplateSpec{
+				Spec: corev1.PodSpec{
+					TopologySpreadConstraints: []corev1.TopologySpreadConstraint{
+						{
+							MaxSkew:           1,
+							TopologyKey:       "topology.kubernetes.io/zone",
+							WhenUnsatisfiable: corev1.DoNotSchedule,
+							LabelSelector: &metav1.LabelSelector{
+								MatchLabels: map[string]string{"app": "embedding"},
+							},
+						},
+					},
+				},
+			},
+			assertPodSpec: func(t *testing.T, podSpec corev1.PodSpec) {
+				t.Helper()
+				require.Len(t, podSpec.TopologySpreadConstraints, 1)
+				assert.Equal(t, int32(1), podSpec.TopologySpreadConstraints[0].MaxSkew)
+				assert.Equal(t, "topology.kubernetes.io/zone", podSpec.TopologySpreadConstraints[0].TopologyKey)
+			},
+		},
+		{
+			name: "sidecar container is preserved while embedding container keeps controller defaults",
+			userPTS: &corev1.PodTemplateSpec{
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{
+						{
+							Name:  "log-shipper",
+							Image: "fluentd:latest",
+						},
+					},
+				},
+			},
+			assertPodSpec: func(t *testing.T, podSpec corev1.PodSpec) {
+				t.Helper()
+				var hasEmbedding, hasSidecar bool
+				for _, c := range podSpec.Containers {
+					switch c.Name {
+					case embeddingContainerName:
+						hasEmbedding = true
+						assert.Equal(t, "test-image:latest", c.Image,
+							"controller-generated embedding container must keep its image")
+					case "log-shipper":
+						hasSidecar = true
+						assert.Equal(t, "fluentd:latest", c.Image)
+					}
+				}
+				assert.True(t, hasEmbedding, "embedding container should still be present")
+				assert.True(t, hasSidecar, "user-provided sidecar should be present")
+			},
+		},
+		{
+			// Strategic merge patch merges container arrays by name. A user-supplied
+			// container called `embedding` is a separate code path from a sidecar with a
+			// different name: env and volumeMounts get merged *into* the controller's
+			// container rather than appended as a new entry. This test pins that path so
+			// future changes can't silently break it.
+			name: "extra env vars and volumeMounts on the embedding container are merged in by name",
+			userPTS: &corev1.PodTemplateSpec{
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{
+						{
+							Name: embeddingContainerName,
+							Env: []corev1.EnvVar{
+								{Name: "EXTRA_ENV", Value: "user-set"},
+							},
+							VolumeMounts: []corev1.VolumeMount{
+								{Name: "extra-config", MountPath: "/etc/extra"},
+							},
+						},
+					},
+					Volumes: []corev1.Volume{
+						{
+							Name: "extra-config",
+							VolumeSource: corev1.VolumeSource{
+								ConfigMap: &corev1.ConfigMapVolumeSource{
+									LocalObjectReference: corev1.LocalObjectReference{Name: "extra-cm"},
+								},
+							},
+						},
+					},
+				},
+			},
+			assertPodSpec: func(t *testing.T, podSpec corev1.PodSpec) {
+				t.Helper()
+				require.Len(t, podSpec.Containers, 1, "no new container should have been appended")
+				c := podSpec.Containers[0]
+				assert.Equal(t, embeddingContainerName, c.Name)
+				assert.Equal(t, "test-image:latest", c.Image,
+					"controller-set image must survive the by-name merge")
+
+				// User env var was merged in.
+				var foundEnv bool
+				for _, e := range c.Env {
+					if e.Name == "EXTRA_ENV" {
+						foundEnv = true
+						assert.Equal(t, "user-set", e.Value)
+					}
+				}
+				assert.True(t, foundEnv, "user-provided env var should be present on embedding container")
+
+				// User volumeMount was merged in.
+				var foundMount bool
+				for _, m := range c.VolumeMounts {
+					if m.Name == "extra-config" {
+						foundMount = true
+						assert.Equal(t, "/etc/extra", m.MountPath)
+					}
+				}
+				assert.True(t, foundMount, "user-provided volumeMount should be present on embedding container")
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			embedding := createTestEmbeddingServer("test", testNamespaceDefault, "test-image:latest", "test-model")
+			embedding.Spec.PodTemplateSpec = podTemplateSpecToRawExtension(t, tt.userPTS)
+
+			scheme := testutil.NewScheme(t)
+			fakeClient := fake.NewClientBuilder().
+				WithScheme(scheme).
+				WithRuntimeObjects(embedding).
+				WithStatusSubresource(embedding).
+				Build()
+
+			reconciler := &EmbeddingServerReconciler{
+				Client:           fakeClient,
+				Scheme:           scheme,
+				Recorder:         events.NewFakeRecorder(10),
+				PlatformDetector: ctrlutil.NewSharedPlatformDetector(),
+			}
+
+			ctx := t.Context()
+			req := ctrl.Request{
+				NamespacedName: types.NamespacedName{
+					Name:      embedding.Name,
+					Namespace: embedding.Namespace,
+				},
+			}
+
+			_, err := reconciler.Reconcile(ctx, req)
+			require.NoError(t, err)
+
+			sts := &appsv1.StatefulSet{}
+			err = fakeClient.Get(ctx, types.NamespacedName{
+				Name:      embedding.Name,
+				Namespace: embedding.Namespace,
+			}, sts)
+			require.NoError(t, err, "StatefulSet should be created")
+
+			tt.assertPodSpec(t, sts.Spec.Template.Spec)
+		})
+	}
+}
+
+// TestEmbeddingServer_PodTemplateSpec_SoftFailFallback verifies that when the
+// user-provided PodTemplateSpec passes validation (its JSON unmarshals into
+// corev1.PodTemplateSpec) but causes StrategicMergePatch to fail, the
+// reconciler does not surface an error — it logs and falls back to a
+// StatefulSet built entirely from controller defaults. This is the
+// EmbeddingServer caller's documented "soft-fail" policy on the otherwise
+// policy-neutral ctrlutil.ApplyPodTemplateSpecPatch helper.
+//
+// The payload below uses an unknown `$patch` directive nested inside a
+// container. Strategic merge patch rejects unknown directives at apply time,
+// while json.Unmarshal silently drops the unknown field when targeting
+// corev1.Container — so the validation pass accepts it and only the merge
+// fails.
+func TestEmbeddingServer_PodTemplateSpec_SoftFailFallback(t *testing.T) {
+	t.Parallel()
+
+	embedding := createTestEmbeddingServer("test", testNamespaceDefault, "test-image:latest", "test-model")
+	embedding.Spec.PodTemplateSpec = &runtime.RawExtension{
+		Raw: []byte(`{"spec":{"containers":[{"name":"embedding","$patch":"invalid"}]}}`),
+	}
+
+	scheme := testutil.NewScheme(t)
+	fakeClient := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithRuntimeObjects(embedding).
+		WithStatusSubresource(embedding).
+		Build()
+
+	reconciler := &EmbeddingServerReconciler{
+		Client:           fakeClient,
+		Scheme:           scheme,
+		Recorder:         events.NewFakeRecorder(10),
+		PlatformDetector: ctrlutil.NewSharedPlatformDetector(),
+	}
+
+	ctx := t.Context()
+	req := ctrl.Request{
+		NamespacedName: types.NamespacedName{
+			Name:      embedding.Name,
+			Namespace: embedding.Namespace,
+		},
+	}
+
+	_, err := reconciler.Reconcile(ctx, req)
+	require.NoError(t, err, "soft-fail: reconcile must not surface a strategic-merge-patch error")
+
+	sts := &appsv1.StatefulSet{}
+	err = fakeClient.Get(ctx, types.NamespacedName{
+		Name:      embedding.Name,
+		Namespace: embedding.Namespace,
+	}, sts)
+	require.NoError(t, err, "StatefulSet should be created with controller defaults")
+
+	// Controller defaults must survive: a single embedding container with the
+	// configured image, our health probes, and the http port.
+	require.Len(t, sts.Spec.Template.Spec.Containers, 1)
+	c := sts.Spec.Template.Spec.Containers[0]
+	assert.Equal(t, embeddingContainerName, c.Name)
+	assert.Equal(t, "test-image:latest", c.Image)
+	require.NotNil(t, c.LivenessProbe, "controller-generated liveness probe should be present")
+	require.NotNil(t, c.ReadinessProbe, "controller-generated readiness probe should be present")
+	require.Len(t, c.Ports, 1)
+	assert.Equal(t, "http", c.Ports[0].Name)
+}
+
+// TestEmbeddingServer_PodTemplateSpec_EmptyObjectIsNoOp verifies that a
+// PodTemplateSpec of `{}` is treated as a no-op: the StatefulSet is built
+// entirely from controller defaults, with nothing clobbered. This guards
+// against the regression where strategic merge patch on `{}` would replace
+// controller-generated arrays with empty slices.
+func TestEmbeddingServer_PodTemplateSpec_EmptyObjectIsNoOp(t *testing.T) {
+	t.Parallel()
+
+	embedding := createTestEmbeddingServer("test", testNamespaceDefault, "test-image:latest", "test-model")
+	embedding.Spec.PodTemplateSpec = &runtime.RawExtension{Raw: []byte(`{}`)}
+
+	scheme := testutil.NewScheme(t)
+	fakeClient := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithRuntimeObjects(embedding).
+		WithStatusSubresource(embedding).
+		Build()
+
+	reconciler := &EmbeddingServerReconciler{
+		Client:           fakeClient,
+		Scheme:           scheme,
+		Recorder:         events.NewFakeRecorder(10),
+		PlatformDetector: ctrlutil.NewSharedPlatformDetector(),
+	}
+
+	ctx := t.Context()
+	req := ctrl.Request{
+		NamespacedName: types.NamespacedName{
+			Name:      embedding.Name,
+			Namespace: embedding.Namespace,
+		},
+	}
+
+	_, err := reconciler.Reconcile(ctx, req)
+	require.NoError(t, err)
+
+	sts := &appsv1.StatefulSet{}
+	err = fakeClient.Get(ctx, types.NamespacedName{
+		Name:      embedding.Name,
+		Namespace: embedding.Namespace,
+	}, sts)
+	require.NoError(t, err, "StatefulSet should be created")
+
+	// Every controller-generated field must survive an empty patch.
+	require.Len(t, sts.Spec.Template.Spec.Containers, 1)
+	c := sts.Spec.Template.Spec.Containers[0]
+	assert.Equal(t, embeddingContainerName, c.Name)
+	assert.Equal(t, "test-image:latest", c.Image)
+	require.NotNil(t, c.LivenessProbe)
+	require.NotNil(t, c.ReadinessProbe)
+	require.Len(t, c.Ports, 1)
+	assert.Equal(t, "http", c.Ports[0].Name)
+	assert.Contains(t, c.Args, "--model-id")
+	assert.Contains(t, c.Args, "test-model")
+}

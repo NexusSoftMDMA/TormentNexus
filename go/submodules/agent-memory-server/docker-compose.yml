@@ -1,0 +1,213 @@
+volumes:
+  redis_data:
+    driver: local
+  redisinsight_data:
+    driver: local
+
+networks:
+  server-network:
+    driver: bridge
+
+services:
+  # =============================================================================
+  # STANDARD (OpenAI/Anthropic only)
+  # Usage: docker-compose up
+  # =============================================================================
+  api:
+    profiles: ["standard", ""]
+    build:
+      context: .
+      target: standard
+    image: redislabs/agent-memory-server:${REDIS_AGENT_MEMORY_VERSION:-latest}
+    ports:
+      - "8000:8000"
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - PORT=8000
+      - GENERATION_MODEL=gpt-4o-mini
+      - EMBEDDING_MODEL=text-embedding-3-small
+      - LONG_TERM_MEMORY=True
+      - ENABLE_TOPIC_EXTRACTION=True
+      - ENABLE_NER=True
+      - DISABLE_AUTH=true # For local development only
+    depends_on:
+      - redis
+    volumes:
+      - ./agent_memory_server:/app/agent_memory_server
+    networks:
+      - server-network
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8000/v1/health" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  mcp:
+    profiles: ["standard", ""]
+    build:
+      context: .
+      target: standard
+    image: redislabs/agent-memory-server:${REDIS_AGENT_MEMORY_VERSION:-latest}
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - PORT=9050
+      - GENERATION_MODEL=gpt-4o-mini
+      - EMBEDDING_MODEL=text-embedding-3-small
+      - LONG_TERM_MEMORY=True
+      - ENABLE_TOPIC_EXTRACTION=True
+      - ENABLE_NER=True
+      - DISABLE_AUTH=true # For local development only
+    ports:
+      - "9050:9000"
+    depends_on:
+      - redis
+    command: ["agent-memory", "mcp", "--mode", "sse"]
+    networks:
+      - server-network
+
+  task-worker:
+    profiles: ["standard", ""]
+    build:
+      context: .
+      target: standard
+    image: redislabs/agent-memory-server:${REDIS_AGENT_MEMORY_VERSION:-latest}
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - GENERATION_MODEL=gpt-4o-mini
+      - EMBEDDING_MODEL=text-embedding-3-small
+      - LONG_TERM_MEMORY=True
+      - ENABLE_TOPIC_EXTRACTION=True
+      - ENABLE_NER=True
+      - DISABLE_AUTH=true # For local development only
+    depends_on:
+      - redis
+    command: ["agent-memory", "task-worker"]
+    volumes:
+      - ./agent_memory_server:/app/agent_memory_server
+    restart: unless-stopped
+    networks:
+      - server-network
+
+  # =============================================================================
+  # AWS SERVICES
+  # Usage: docker-compose --profile aws up
+  # =============================================================================
+  api-aws:
+    profiles: ["aws"]
+    image: redislabs/agent-memory-server-aws:${REDIS_AGENT_MEMORY_AWS_VERSION:-latest}
+    ports:
+      - "8000:8000"
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - PORT=8000
+      - GENERATION_MODEL=anthropic.claude-haiku-4-5-20251001-v1:0
+      - EMBEDDING_MODEL=amazon.titan-embed-text-v2:0
+      - LONG_TERM_MEMORY=True
+      - ENABLE_TOPIC_EXTRACTION=True
+      - ENABLE_NER=True
+      - DISABLE_AUTH=true # For local development only
+    depends_on:
+      - redis
+    volumes:
+      - ./agent_memory_server:/app/agent_memory_server
+    networks:
+      - server-network
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8000/v1/health" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  mcp-aws:
+    profiles: ["aws"]
+    image: redislabs/agent-memory-server-aws:${REDIS_AGENT_MEMORY_AWS_VERSION:-latest}
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - PORT=9050
+      - GENERATION_MODEL=anthropic.claude-haiku-4-5-20251001-v1:0
+      - EMBEDDING_MODEL=amazon.titan-embed-text-v2:0
+      - LONG_TERM_MEMORY=True
+      - ENABLE_TOPIC_EXTRACTION=True
+      - ENABLE_NER=True
+      - DISABLE_AUTH=true # For local development only
+    ports:
+      - "9050:9000"
+    depends_on:
+      - redis
+    command: ["agent-memory", "mcp", "--mode", "sse"]
+    networks:
+      - server-network
+
+  task-worker-aws:
+    profiles: ["aws"]
+    image: redislabs/agent-memory-server-aws:${REDIS_AGENT_MEMORY_AWS_VERSION:-latest}
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - GENERATION_MODEL=anthropic.claude-haiku-4-5-20251001-v1:0
+      - EMBEDDING_MODEL=amazon.titan-embed-text-v2:0
+      - LONG_TERM_MEMORY=True
+      - ENABLE_TOPIC_EXTRACTION=True
+      - ENABLE_NER=True
+      - DISABLE_AUTH=true # For local development only
+    depends_on:
+      - redis
+    command: ["agent-memory", "task-worker"]
+    volumes:
+      - ./agent_memory_server:/app/agent_memory_server
+    restart: unless-stopped
+    networks:
+      - server-network
+
+  # =============================================================================
+  # SHARED SERVICES
+  # =============================================================================
+
+  redis:
+    image: redis/redis-stack-server:${REDIS_VERSION:-latest}
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    environment:
+      - REDIS_ARGS=--appendonly yes
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - server-network
+
+  # =============================================================================
+  # DEBUG SERVICES
+  # =============================================================================
+
+  redis-insight:
+    profiles: ["debug"]
+    image: redis/redisinsight:${REDISINSIGHT_VERSION:-latest}
+    ports:
+      - "16381:5540"
+    volumes:
+      - redisinsight_data:/db
+    depends_on:
+      - redis
+    networks:
+      - server-network

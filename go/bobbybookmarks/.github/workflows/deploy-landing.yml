@@ -1,0 +1,39 @@
+name: Deploy Landing Pages
+
+on:
+  push:
+    paths:
+      - 'landing/**'
+    branches:
+      - main
+
+jobs:
+  deploy-tormentnexus:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy tormentnexus.site to Cloudflare Pages
+        uses: cloudflare/pages-action@v1
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          projectName: tormentnexus-site
+          directory: landing/tormentnexus.site
+          gitHubToken: ${{ secrets.GITHUB_TOKEN }}
+
+  deploy-hypernexus:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy hypernexus.site to Cloudflare Pages
+        uses: cloudflare/pages-action@v1
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          projectName: hypernexus-site
+          directory: landing/hypernexus.site
+          gitHubToken: ${{ secrets.GITHUB_TOKEN }}

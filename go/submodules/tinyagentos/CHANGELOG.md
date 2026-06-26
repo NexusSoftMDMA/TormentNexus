@@ -1,0 +1,124 @@
+# Changelog
+
+All notable changes to taOS are documented in this file.
+
+Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
+Versions follow semver beta: `1.0.0-beta.N`, bumped on each dev->master promotion.
+
+## [Unreleased]
+
+## [1.0.0-beta.11] - 2026-06-21
+
+### Fixed
+- Agent deploy: framework agents (Hermes, OpenClaw, etc.) failed to deploy on hosts that cannot mint per-agent LiteLLM virtual keys (ARM / Pi where prisma cannot start, and any install without Postgres). The deployer now falls back to the shared LiteLLM master key in genuine routing-only mode (single-user instances, with a loud warning; opt out via `TAOS_DISABLE_AGENT_MASTER_KEY_FALLBACK=1`). A DB-configured-but-broken mint still fails loudly so a real fault is never masked.
+- Agent deploy: containers in a restricted multi-user incus project (e.g. `user-999`) failed at creation because proxy devices were forbidden. `add_proxy_device` now self-heals by allowing proxy devices on the named project and retrying once.
+- Provider model picker: a newly-added cloud provider (e.g. DeepSeek) whose `/models` probe needs a key now surfaces its seeded models, and the taOS agent model chooser lists the same models as the agent deploy picker.
+- Activity NPU card hidden on hardware with no NPU; desktop widgets default off until redesigned.
+
+### Added
+- Cluster: free-tier manual worker pairing. A worker prints its LAN address and a PIN; the user adds it from Cluster > Add worker with no network discovery (taOSgo remains the automated path).
+
+### Changed
+- Hermes is the recommended default agent framework (shown first and pre-selected in the deploy wizard); OpenClaw second.
+- Dev/master version reconciled (beta.6 drift fixed) and bumped to `1.0.0-beta.11`.
+
+## [1.0.0-beta.9] - 2026-06-21
+
+### Fixed
+- Install: a re-install over an existing virtualenv built with an unsupported Python (e.g. a 3.14 venv from an attempt before beta.8) reused that venv and failed with "requires a different Python: 3.14.x not in <3.14,>=3.11". The installer now detects an out-of-range venv interpreter and recreates the venv with a supported 3.11 to 3.13 Python.
+
+## [1.0.0-beta.8] - 2026-06-21
+
+### Fixed
+- Install: the controller venv now uses a litellm-compatible Python (3.11 to 3.13). A fresh distro that defaults python3 to 3.14 (e.g. WSL on Ubuntu 26.04) previously aborted with "No matching distribution found for litellm>=1.89.3", because litellm supports only >=3.10,<3.14. The installer now picks a supported interpreter, installs python3.13 if none is present, and fails with a clear message otherwise; requires-python is capped at <3.14 to match.
+
+## [1.0.0-beta.7] - 2026-06-21
+
+### Fixed
+- Install: libtorrent is no longer a core dependency, so a fresh install no longer aborts with "No matching distribution found for libtorrent>=2.0.9" on platforms without a libtorrent wheel (e.g. WSL). It is now an optional `torrent` extra; the model torrent mesh is enabled only where the OS-level package is present, and hosts without it fall back to a direct download.
+
+## [1.0.0-beta.6] - 2026-06-21
+
+### Added
+- Coding Studio gains a model-agnostic tool-calling loop: agents read, edit, and verify files inside a workspace-jailed sandbox using filesystem tool primitives, driven by a LiteLLM-backed model step.
+- Cluster capability map: worker registration and heartbeats populate a per-node capability and hardware map with admin endpoints, plus a non-destructive stale-node offline sweep.
+- Append-only board audit log: every task transition is recorded, with a project-scoped activity feed and a task audit endpoint, indexed for unbounded growth.
+- `taos rollback`: a CLI recovery path that restores the previous branch and version, so a broken update can be recovered even when the dashboard is unreachable.
+
+### Changed
+- One Browser app: the separate streamed-browser app is gone. The Browser app attaches a Neko streamed session through a toggle, and a RAM-capable Pi host can serve the session itself instead of reporting that it is not capable.
+- The default store no longer seeds the X, Reddit, YouTube, and GitHub apps; they are optional installs.
+
+### Fixed
+- Browser sessions resolve the target worker before creating the session row, so a failed placement no longer leaves an orphaned session.
+- Auto-expiring notification toasts no longer archive themselves into the History view.
+- Dependabot majors updated: actions/checkout v7, dependabot/fetch-metadata v3, and the dev Python dependency group.
+
+## [1.0.0-beta.5] - 2026-06-20
+
+### Added
+- Browser app redesigned to the current design bar with a collapsible sidebar.
+- Coding Studio: workspace-scoped agent file edits with a build loop and inline diff review.
+
+### Changed
+- CI runs the test matrix on GitHub-hosted runners, cancels superseded runs per ref, and auto-merges low-risk Dependabot patch and minor updates on green.
+
+### Fixed
+- Streamed browser now connects over Tailscale and other non-LAN addresses: WebRTC advertises the single connecting-host IP, fixing the white screen the previous comma-separated NAT mapping caused.
+- The "connecting" overlay can no longer hang over a session that is already live.
+- Hardened the streamed-browser iframe sandbox and several store and coding-studio endpoints: IDOR guard on submission reads, symlink-safe workspace writes, and an admin gate on install-registry mutations.
+- Store submissions return 400 on invalid input instead of 500.
+- Security: dompurify updated to 3.4.11; cryptography and pydantic-settings advisories cleared.
+- Install: the core install no longer aborts when optional components fail, and drops to the service user without assuming sudo (WSL robustness).
+
+## [1.0.0-beta.4.1] - 2026-06-20
+
+### Changed
+- Installs and in-app updates verify the prebuilt bundle's SHA256 before extracting; a corrupted or tampered bundle is rejected and falls back to a local build.
+- Re-installs update the existing install in place instead of forking a second copy.
+
+### Fixed
+- Symlink-safe staging (no fixed /tmp paths as root), atomic-rename swap, and a fix so the bundle is no longer treated as perpetually stale.
+- README corrected (installs download a prebuilt bundle, no local build) and links rebranded to jaylfc/taOS.
+
+## [1.0.0-beta.4] - 2026-06-20
+
+### Added
+- "Reduce effects" toggle (Settings, Accessibility) for low-end devices: disables background blur, heavy shadows, and continuous animations for a smoother UI on older hardware.
+
+### Changed
+- The installer and in-app update download a prebuilt UI bundle instead of building it locally, so installs and upgrades are faster and no longer fail or silently stay on the old version on low-memory machines including WSL. A local build, when still needed, now fails with a clear message instead of half-updating.
+- CI runs on self-hosted runners and gates the desktop test suite.
+
+## [1.0.0-beta.3] - 2026-06-16
+
+### Added
+- Mobile Store redesigned into an Apple App Store-style layout: bottom tab bar (Discover/Apps/Agents/Search/Updates), a featured hero, horizontal app carousels with Get pills and star counts, full-screen search, and a device filter.
+- Real cover banners and icons across the Store: OpenClaw, Hermes, Ollama, ComfyUI, n8n, and the self-hosted apps, plus a shared Stable Diffusion banner (the AUTOMATIC1111 build shown in grayscale to distinguish it). A shared AppIcon component falls back to a branded monogram when no logo exists, so no tile renders blank.
+
+### Fixed
+- Installed apps in the mobile Store no longer show a non-interactive "Open" control; they show an honest installed status.
+- Failed Store installs now surface a Retry action instead of failing silently.
+- Store icons and cover images reset correctly when a reused tile switches to a different app.
+
+## [1.0.0-beta.2] - 2026-06-16
+
+### Added
+- Mail app with IMAP/SMTP account setup, message list, read, and send.
+- Reddit, YouTube, GitHub, and X apps available as optional Store installs.
+- Agent-callable screenshot endpoint for desktop-control workflows.
+
+### Changed
+- Browser app redesigned with the Store/Images design bar and taos.my set as the default homepage, with automatic dark/light scheme applied to proxied sites.
+- Projects app shell redesigned with a Workspace hero tab.
+- Notification bell wired to the backend feed with actionable click routing to the originating app or agent.
+- Updates panel now shows version numbers (e.g. 1.0.0-beta.2) as the primary display, with commit SHAs as a secondary detail.
+
+### Fixed
+- Controller restart time reduced from ~46 s to ~7 s by eliminating the graceful-stop hang.
+- Projects canvas crash caused by malformed element payloads written by agents.
+- Window move and resize jitter under rapid pointer events.
+
+## [1.0.0-beta.1] - 2026-06-09
+
+Initial source-available public beta release under the taOS Sustainable Use License v0.1.

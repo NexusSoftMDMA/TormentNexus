@@ -1,0 +1,342 @@
+version: '3'
+
+vars:
+  CRD_DIR: config/crd/bases
+  DOCS_OUT: '{{.ROOT_DIR}}/docs/operator/crd-api.md'
+  CRDREF_CONFIG: '{{.ROOT_DIR}}/docs/operator/crd-ref-config.yaml'
+  CONTAINER_RUNTIME:
+    sh: |
+      if command -v podman >/dev/null 2>&1; then
+        echo "podman"
+      elif command -v docker >/dev/null 2>&1; then
+        echo "docker"
+      else
+        echo "docker"
+      fi
+  KEYCLOAK_VERSION: '26.3.2'
+
+
+tasks:
+  kind-setup:
+    desc: Setup a local Kind cluster
+    cmds:
+      - kind create cluster --name toolhive
+      - kind get kubeconfig --name toolhive > kconfig.yaml
+
+  kind-setup-e2e:
+    desc: Setup a local Kind cluster with port mappings for e2e testing (allows accessing NodePort services on localhost)
+    cmds:
+      - kind create cluster --name toolhive --config {{.ROOT_DIR}}/test/e2e/thv-operator/kind-config.yaml
+      - kind get kubeconfig --name toolhive > kconfig.yaml
+
+  kind-destroy:
+    desc: Destroy a local Kind cluster
+    cmds:
+      - kind delete cluster --name toolhive
+      - cmd: rm kconfig.yaml
+        platforms: [linux, darwin]
+      - cmd: cmd.exe /c "del kconfig.yaml"
+        platforms: [windows]
+
+  kind-ingress-setup:
+    desc: Setup Nginx Ingress Controller in a local Kind cluster
+    cmds:
+      - echo "Applying Kubernetes Ingress manifest..."
+      - kubectl apply -f https://kind.sigs.k8s.io/examples/ingress/deploy-ingress-nginx.yaml --kubeconfig kconfig.yaml
+      - echo "Waiting for Ingress Nginx Controller to be created and ready..."
+      - cmd: |
+          while ! kubectl wait --namespace=ingress-nginx --for=condition=Ready pod --selector=app.kubernetes.io/instance=ingress-nginx,app.kubernetes.io/component=controller --timeout=120s --kubeconfig kconfig.yaml &>/dev/null; do sleep 2; done
+        ignore_error: true
+      # We do the below commands because of some inconsistency between the secret and webhook caBundle. ref: https://github.com/kubernetes/ingress-nginx/issues/5968#issuecomment-849772666
+      - echo "Patching Ingress Nginx Admission Webhook CA Bundle..."
+      - |
+        CA=$(kubectl -n ingress-nginx get secret ingress-nginx-admission -ojsonpath='{.data.ca}' --kubeconfig kconfig.yaml)
+        kubectl patch validatingwebhookconfigurations ingress-nginx-admission --type='json' --patch='[{"op":"add","path":"/webhooks/0/clientConfig/caBundle","value":"'$CA'"}]' --kubeconfig kconfig.yaml
+
+  kind-with-toolhive-operator*:
+    desc: |
+      Setup a local Kind cluster with the ToolHive Operator installed. You can choose to deploy a locally built Operator image or the latest Operator image from Github.
+      To deploy a locally built Operator image, run `task kind-with-toolhive-operator-local`.
+      To deploy the latest Operator image from Github, run `task kind-with-toolhive-operator-latest`.
+      By default, you can run `task kind-with-toolhive-operator` to deploy the latest Operator image from Github.
+    vars:
+      OPERATOR_DEPLOYMENT: '{{index .MATCH 0 | trimPrefix "-" | default "latest"}}'
+    cmds:
+      - task: kind-setup
+      - task: kind-ingress-setup
+      - task: operator-install-crds
+      - task: operator-deploy-{{.OPERATOR_DEPLOYMENT}}
+
+  # Operator tasks
+  build-operator:
+    desc: Build the operator binary
+    vars:
+      VERSION:
+        sh: git describe --tags --always --dirty || echo "dev"
+      COMMIT:
+        sh: git rev-parse --short HEAD || echo "unknown"
+      BUILD_DATE: '{{dateInZone "2006-01-02T15:04:05Z" (now) "UTC"}}'
+    cmds:
+      - cmd: mkdir -p bin
+        platforms: [linux, darwin]
+      - cmd: go build -ldflags "-s -w -X github.com/stacklok/toolhive/pkg/versions.Version={{.VERSION}} -X github.com/stacklok/toolhive/pkg/versions.Commit={{.COMMIT}} -X github.com/stacklok/toolhive/pkg/versions.BuildDate={{.BUILD_DATE}}" -o bin/thv-operator ./cmd/thv-operator
+        platforms: [linux, darwin]
+      - cmd: cmd.exe /c mkdir bin
+        platforms: [windows]
+        ignore_error: true   # Windows has no mkdir -p, so just ignore error if it exists
+      - cmd: go build -ldflags "-s -w -X github.com/stacklok/toolhive/pkg/versions.Version={{.VERSION}} -X github.com/stacklok/toolhive/pkg/versions.Commit={{.COMMIT}} -X github.com/stacklok/toolhive/pkg/versions.BuildDate={{.BUILD_DATE}}" -o bin/thv-operator.exe ./cmd/thv-operator
+        platforms: [windows]
+
+  install-operator:
+    desc: Install the thv-operator binary to GOPATH/bin
+    vars:
+      VERSION:
+        sh: git describe --tags --always --dirty || echo "dev"
+      COMMIT:
+        sh: git rev-parse --short HEAD || echo "unknown"
+      BUILD_DATE: '{{dateInZone "2006-01-02T15:04:05Z" (now) "UTC"}}'
+    cmds:
+      - go install -ldflags "-s -w -X github.com/stacklok/toolhive/pkg/versions.Version={{.VERSION}} -X github.com/stacklok/toolhive/pkg/versions.Commit={{.COMMIT}} -X github.com/stacklok/toolhive/pkg/versions.BuildDate={{.BUILD_DATE}}" -v ./cmd/thv-operator
+
+  build-operator-image:
+    desc: Build the operator image with ko
+    cmds:
+      - ko build --local -B ./cmd/thv-operator
+
+  operator-install-crds:
+    desc: Install CRDs into the K8s cluster
+    cmds:
+      - helm upgrade --install toolhive-operator-crds deploy/charts/operator-crds --kubeconfig kconfig.yaml
+
+  operator-uninstall-crds:
+    desc: Uninstall CRDs from the K8s cluster
+    cmds:
+      - helm uninstall toolhive-operator-crds --kubeconfig kconfig.yaml
+
+  operator-deploy-latest:
+    desc: Deploy latest built Operator image from Github to the K8s cluster
+    cmds:
+      - helm upgrade --install toolhive-operator deploy/charts/operator --namespace toolhive-system --create-namespace --kubeconfig kconfig.yaml
+
+  operator-deploy-local:
+    desc: |
+      Build the ToolHive runtime and Operator image locally and deploy it to the K8s cluster.
+      Set ENABLE_EXPERIMENTAL_FEATURES=true to enable experimental features in the operator.
+      Registry API image is pulled from ghcr.io/stacklok/thv-registry-api:latest
+      Example: task operator-deploy-local ENABLE_EXPERIMENTAL_FEATURES=true
+    platforms: [linux, darwin]
+    vars:
+      ENABLE_EXPERIMENTAL_FEATURES: '{{.ENABLE_EXPERIMENTAL_FEATURES | default "false"}}'
+      REGISTRY_API_IMAGE: '{{.REGISTRY_API_IMAGE | default "ghcr.io/stacklok/thv-registry-api:latest"}}'
+      OPERATOR_IMAGE:
+        sh: KO_DOCKER_REPO=kind.local ko build --local -B ./cmd/thv-operator | tail -n 1
+      TOOLHIVE_IMAGE:
+        sh: KO_DOCKER_REPO=kind.local ko build --local -B ./cmd/thv-proxyrunner | tail -n 1
+      VMCP_IMAGE:
+        sh: KO_DOCKER_REPO=kind.local ko build --local -B ./cmd/vmcp | tail -n 1
+    cmds:
+      - echo "Loading toolhive operator image {{.OPERATOR_IMAGE}} into kind..."
+      - kind load docker-image --name toolhive {{.OPERATOR_IMAGE}}
+      - echo "Loading toolhive image {{.TOOLHIVE_IMAGE}} into kind..."
+      - kind load docker-image --name toolhive {{.TOOLHIVE_IMAGE}}
+      - echo "Loading vmcp image {{.VMCP_IMAGE}} into kind..."
+      - kind load docker-image --name toolhive {{.VMCP_IMAGE}}
+      - |
+        helm upgrade --install toolhive-operator deploy/charts/operator \
+        --set operator.image={{.OPERATOR_IMAGE}} \
+        --set operator.toolhiveRunnerImage={{.TOOLHIVE_IMAGE}} \
+        --set operator.vmcpImage={{.VMCP_IMAGE}} \
+        --set operator.features.experimental={{.ENABLE_EXPERIMENTAL_FEATURES}} \
+        --set registryAPI.image={{.REGISTRY_API_IMAGE}} \
+        --namespace toolhive-system \
+        --create-namespace \
+        --kubeconfig kconfig.yaml \
+        {{ .CLI_ARGS }}
+
+  operator-undeploy:
+    desc: Undeploy operator from the K8s cluster
+    cmds:
+      - helm uninstall toolhive-operator --kubeconfig kconfig.yaml --namespace toolhive-system
+
+  # Kubebuilder tasks
+  operator-generate:
+    desc: Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations
+    cmds:
+      - cmd: mkdir -p bin
+        platforms: [linux, darwin]
+      - cmd: cmd.exe /c mkdir bin
+        platforms: [windows]
+        ignore_error: true   # Windows has no mkdir -p, so just ignore error if it exists
+      - go install sigs.k8s.io/controller-tools/cmd/controller-gen@v0.17.3
+      - $(go env GOPATH)/bin/controller-gen object:headerFile="hack/boilerplate.go.txt" paths="./cmd/thv-operator/..." paths="./pkg/json/..." paths="./pkg/ratelimit/types/..." paths="./pkg/vmcp/config/..." paths="./pkg/vmcp/auth/types/..." paths="./pkg/telemetry/..." paths="./pkg/audit/..."
+
+  operator-manifests:
+    desc: Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects
+    vars:
+      PROJECT_ROOT:
+        sh: git rev-parse --show-toplevel || pwd
+      CONTROLLER_GEN_PATHS:
+        sh: |
+          if [[ "$PWD" == *"/cmd/thv-operator"* ]]; then
+            echo "./..."
+          else
+            echo "./cmd/thv-operator/..."
+          fi
+    cmds:
+      - cmd: mkdir -p {{.PROJECT_ROOT}}/cmd/thv-operator/bin
+        platforms: [linux, darwin]
+      - cmd: cmd.exe /c mkdir {{.PROJECT_ROOT}}/cmd/thv-operator/bin
+        platforms: [windows]
+        ignore_error: true   # Windows has no mkdir -p, so just ignore error if it exists
+      - go install sigs.k8s.io/controller-tools/cmd/controller-gen@v0.17.3
+      - $(go env GOPATH)/bin/controller-gen rbac:roleName=toolhive-operator-manager-role paths="{{.CONTROLLER_GEN_PATHS}}" output:rbac:artifacts:config={{.PROJECT_ROOT}}/deploy/charts/operator/templates/clusterrole
+      - $(go env GOPATH)/bin/controller-gen crd webhook paths="{{.CONTROLLER_GEN_PATHS}}" output:crd:artifacts:config={{.PROJECT_ROOT}}/deploy/charts/operator-crds/files/crds
+      # Wrap CRDs with Helm templates for conditional installation.
+      - go install github.com/stacklok/helm-crd-wrapper@v0.0.1
+      - $(go env GOPATH)/bin/helm-crd-wrapper -source {{.PROJECT_ROOT}}/deploy/charts/operator-crds/files/crds -target {{.PROJECT_ROOT}}/deploy/charts/operator-crds/templates
+
+  operator-test:
+    desc: Run tests for the operator
+    cmds:
+      - go install github.com/gotesttools/gotestfmt/v2/cmd/gotestfmt@latest
+      # we have to use ldflags to avoid the LC_DYSYMTAB linker error. 
+      # https://github.com/stacklok/toolhive/issues/1687
+      - go test -ldflags=-extldflags=-Wl,-w -v -json -race $(go list ./cmd/thv-operator/... | grep -v '/test-integration') | gotestfmt -hide "all"
+
+  operator-test-integration:
+    desc: Run integration tests for the operator using envtest
+    cmds:
+      - go install sigs.k8s.io/controller-runtime/tools/setup-envtest@release-0.22
+      - go install github.com/onsi/ginkgo/v2/ginkgo@latest
+      # Run tests in parallel using ginkgo -p flag (uses number of CPU cores by default)
+      - KUBEBUILDER_ASSETS="$($(go env GOPATH)/bin/setup-envtest use 1.31.0 -p path)" $(go env GOPATH)/bin/ginkgo --succinct -v -p ./cmd/thv-operator/test-integration/...
+
+  # Backwards compatibility
+  operator-e2e-test:
+    deps: [operator-e2e-test-chainsaw]
+
+  operator-e2e-test-chainsaw:
+    desc: Run E2E tests for the operator
+    cmds:
+      - |
+        if [ -z "$CI" ]; then
+          if ! command -v chainsaw >/dev/null 2>&1; then
+            echo "Chainsaw not found, installing..."
+            go install github.com/kyverno/chainsaw@latest
+          fi
+        fi
+      - chainsaw test --test-dir test/e2e/chainsaw/operator/multi-tenancy/setup
+      - chainsaw test --test-dir test/e2e/chainsaw/operator/multi-tenancy/test-scenarios
+      - chainsaw test --test-dir test/e2e/chainsaw/operator/multi-tenancy/cleanup
+      - chainsaw test --test-dir test/e2e/chainsaw/operator/single-tenancy/setup
+      - chainsaw test --test-dir test/e2e/chainsaw/operator/single-tenancy/test-scenarios
+      - chainsaw test --test-dir test/e2e/chainsaw/operator/single-tenancy/cleanup
+
+  thv-operator-e2e-test:
+    desc: |
+      Full E2E test workflow: setup cluster, deploy operator, run tests, and cleanup.
+      For manual testing:
+        1. task kind-setup-e2e
+        2. task operator-install-crds
+        3. task operator-deploy-local
+        4. task thv-operator-e2e-test-run (can run multiple times)
+        5. task kind-destroy
+    platforms: [linux, darwin]
+    cmds:
+      - defer: task kind-destroy
+      - task: kind-setup-e2e
+      - task: operator-install-crds
+      - task: operator-deploy-local
+      - task: thv-operator-e2e-test-run
+
+  thv-operator-e2e-test-run:
+    desc: |
+      Run only the Ginkgo E2E tests against an existing cluster.
+      This task assumes:
+      - A Kind cluster named 'toolhive' exists
+      - CRDs are installed
+      - Operator is deployed
+      - kconfig.yaml exists in project root
+      Use this to re-run tests without recreating the cluster.
+    platforms: [linux, darwin]
+    cmds:
+      - echo "Running Ginkgo E2E tests..."
+      - go install github.com/onsi/ginkgo/v2/ginkgo@latest
+      - |
+        KUBECONFIG="{{.ROOT_DIR}}/kconfig.yaml" $(go env GOPATH)/bin/ginkgo -v --fail-fast \
+          --procs=8 \
+          {{.ROOT_DIR}}/test/e2e/thv-operator/...
+
+  operator-run:
+    desc: Run the operator controller locally
+    cmds:
+      - go run ./cmd/thv-operator
+
+  crdref-install:
+    desc: Install elastic/crd-ref-docs
+    cmds:
+      - go install github.com/elastic/crd-ref-docs@latest
+
+  crdref-gen:
+    desc: Generate CRD API docs via crd-ref-docs
+    deps: [crdref-install]
+    cmds:
+      # Run from repo root to include types from pkg/vmcp/config, pkg/telemetry, pkg/audit
+      - crd-ref-docs --source-path={{.ROOT_DIR}} --config={{.CRDREF_CONFIG}} --renderer markdown --templates-dir={{.ROOT_DIR}}/docs/operator/templates/markdown --output-path {{.DOCS_OUT}}
+    sources:
+      - '{{.ROOT_DIR}}/cmd/thv-operator/config/crd/bases/**/*.yaml'
+      - '{{.ROOT_DIR}}/cmd/thv-operator/api/**/*.go'
+      - '{{.ROOT_DIR}}/pkg/ratelimit/types/*.go'
+      - '{{.ROOT_DIR}}/pkg/vmcp/config/*.go'
+      - '{{.ROOT_DIR}}/pkg/vmcp/auth/types/*.go'
+      - '{{.ROOT_DIR}}/pkg/telemetry/*.go'
+      - '{{.ROOT_DIR}}/pkg/audit/*.go'
+      - '{{.ROOT_DIR}}/docs/operator/templates/markdown/*.tpl'
+    generates:
+      - '{{.DOCS_OUT}}'
+
+  # Keycloak tasks
+  keycloak:install-operator:
+    desc: Install Keycloak Operator using official manifests (v{{.KEYCLOAK_VERSION}})
+    cmds:
+      - echo "Creating keycloak namespace..."
+      - kubectl create namespace keycloak --dry-run=client -o yaml --kubeconfig kconfig.yaml | kubectl apply -f - --kubeconfig kconfig.yaml
+      - echo "Installing Keycloak CRDs and Operator (version {{.KEYCLOAK_VERSION}})..."
+      - kubectl apply -f https://raw.githubusercontent.com/keycloak/keycloak-k8s-resources/{{.KEYCLOAK_VERSION}}/kubernetes/keycloaks.k8s.keycloak.org-v1.yml --kubeconfig kconfig.yaml
+      - kubectl apply -f https://raw.githubusercontent.com/keycloak/keycloak-k8s-resources/{{.KEYCLOAK_VERSION}}/kubernetes/keycloakrealmimports.k8s.keycloak.org-v1.yml --kubeconfig kconfig.yaml
+      - kubectl apply -f https://raw.githubusercontent.com/keycloak/keycloak-k8s-resources/{{.KEYCLOAK_VERSION}}/kubernetes/kubernetes.yml -n keycloak --kubeconfig kconfig.yaml
+      - echo "Waiting for Keycloak Operator to be ready..."
+      - kubectl wait --for=condition=ready --timeout=300s pod -l app.kubernetes.io/name=keycloak-operator -n keycloak --kubeconfig kconfig.yaml
+
+  keycloak:deploy-dev:
+    desc: Deploy Keycloak for development and setup ToolHive realm
+    deps: [keycloak:install-operator]
+    cmds:
+      - echo "Deploying Keycloak for development..."
+      - kubectl apply -f deploy/keycloak/keycloak-dev.yaml --kubeconfig kconfig.yaml
+      - echo "Waiting for Keycloak to be ready..."
+      - kubectl wait --for=condition=Ready --timeout=600s keycloaks.k8s.keycloak.org/keycloak-dev -n keycloak --kubeconfig kconfig.yaml
+      # Using REST API instead of KeycloakRealmImport because with embedded H2 database,
+      # KeycloakRealmImport creates a separate temporary database that doesn't persist
+      # to the main running Keycloak instance
+      - echo "Starting port-forward for realm setup..."
+      - kubectl port-forward service/keycloak-dev-service -n keycloak 8080:8080 --kubeconfig kconfig.yaml &
+      - sleep 5  # Wait for port-forward to be ready
+      - echo "Setting up ToolHive realm via REST API..."
+      - deploy/keycloak/setup-realm.sh
+      - echo "Stopping port-forward..."
+      - pkill -f "kubectl port-forward.*keycloak-dev-service" || true
+      - echo "Keycloak is ready with ToolHive realm! Use 'task keycloak:port-forward' to access it."
+
+  keycloak:get-admin-creds:
+    desc: Get Keycloak admin credentials
+    cmds:
+      - echo "Username:" && kubectl get secret keycloak-dev-initial-admin -n keycloak -o jsonpath='{.data.username}' --kubeconfig kconfig.yaml | base64 --decode
+      - echo "Password:" && kubectl get secret keycloak-dev-initial-admin -n keycloak -o jsonpath='{.data.password}' --kubeconfig kconfig.yaml | base64 --decode
+
+  keycloak:port-forward:
+    desc: Port forward to Keycloak service (http://localhost:8080)
+    cmds:
+      - echo "Keycloak will be available at http://localhost:8080"
+      - echo "Use 'task keycloak:get-admin-creds' to get login credentials"
+      - kubectl port-forward service/keycloak-dev-service -n keycloak 8080:8080 --kubeconfig kconfig.yaml

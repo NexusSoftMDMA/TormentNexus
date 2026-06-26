@@ -1,0 +1,31 @@
+id: bug-diagnose
+name: Bug Diagnosis
+description: Adversarial diagnosis. Anthropic produces a hypothesis; Gemini independently challenges it. Good for complex bugs where multiple perspectives uncover the root cause.
+author: chorus
+agreementThreshold: 0.5
+onThresholdMet: ask
+maxRounds: 2
+yoloDefault: false
+# 1 doer + 1 reviewer; multi-phase reasoning. Cockpit-side floor.
+estimatedBaselineTokens: 700
+
+phases:
+  - id: diagnose
+    kind: plan
+    title: Diagnose Bug
+    description: Anthropic (Opus) produces a hypothesis about what's broken and why. Gemini independently challenges it.
+    doer:
+      lineage: anthropic
+      models: []
+    reviewer:
+      require: 1
+      crossLineage: true
+      candidates:
+        - lineage: google
+          models: []
+    inputs:
+      include: []
+      exclude: []
+    iterate:
+      maxRounds: 2
+      onDisagreement: continue

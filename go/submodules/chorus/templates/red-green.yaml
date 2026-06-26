@@ -1,0 +1,169 @@
+id: red-green
+name: Red / Green (Adversarial)
+description: TheDailyClaude's 7-phase flow. Cross-lineage doer/reviewer pairs at every phase; implementer blind to tests; deterministic verify loop. Catches subtle bugs that self-review misses.
+author: '@TheDailyClaude (reddit)'
+agreementThreshold: 0.66
+onThresholdMet: ask
+maxRounds: 3
+yoloDefault: false
+# 7-phase TheDailyClaude flow; densest scaffolding. Cockpit-side floor.
+estimatedBaselineTokens: 1100
+
+# Ship phase: same shape as code-review. Auto-skipped when chat has no
+# repoPath (e.g. a paste-a-snippet quick check). v0.5 stops at `gh pr create`
+# — no auto-merge regardless of how comprehensive red-green's verification
+# was. Human gate at the merge button is intentional.
+ship:
+  enabled: true
+  branchPattern: "chorus/{chatId}"
+  titleTemplate: "chorus: red-green via #{chatId}"
+
+phases:
+  - id: plan
+    kind: plan
+    title: Plan
+    description: Anthropic drafts the implementation approach; OpenAI reviews.
+    doer:
+      lineage: anthropic
+      models:
+        - claude-opus-4-7
+    reviewer:
+      require: 1
+      crossLineage: true
+      candidates:
+        - lineage: openai
+    inputs:
+      include: []
+      exclude: []
+    iterate:
+      maxRounds: 2
+      onDisagreement: continue
+
+  - id: spec
+    kind: spec
+    title: API Specification
+    description: OpenAI derives the API contract and specification from the plan; Anthropic reviews.
+    doer:
+      lineage: openai
+      models: []
+    reviewer:
+      require: 1
+      crossLineage: true
+      candidates:
+        - lineage: anthropic
+    inputs:
+      include:
+        - plan
+      exclude: []
+    iterate:
+      maxRounds: 2
+      onDisagreement: continue
+
+  - id: tests
+    kind: tests
+    title: Test Suite
+    description: Anthropic writes failing tests against the specification; OpenAI reviews.
+    doer:
+      lineage: anthropic
+      models:
+        - claude-opus-4-7
+    reviewer:
+      require: 1
+      crossLineage: true
+      candidates:
+        - lineage: openai
+    inputs:
+      include:
+        - spec
+      exclude: []
+    iterate:
+      maxRounds: 2
+      onDisagreement: continue
+
+  - id: implement
+    kind: implement
+    title: Implementation
+    description: OpenCode (or fallback) implements based ONLY on spec—cannot see tests. This info asymmetry prevents overfitting to test literals.
+    doer:
+      lineage: opencode
+      models: []
+    reviewer:
+      require: 1
+      crossLineage: true
+      candidates:
+        - lineage: anthropic
+    inputs:
+      include:
+        - spec
+      exclude:
+        - tests
+    iterate:
+      maxRounds: 3
+      onDisagreement: continue
+
+  - id: verify
+    kind: verify
+    title: Verification
+    description: Run tests against implementation. Feed back failing test names only (no bodies/expected results) to preserve spec-driven discipline.
+    doer:
+      lineage: any
+      models: []
+    reviewer:
+      require: 0
+      crossLineage: false
+      candidates: []
+    inputs:
+      include:
+        - implement
+        - tests
+      exclude: []
+    iterate:
+      maxRounds: 3
+      onDisagreement: continue
+
+  - id: final-review
+    kind: review
+    title: Final Review
+    description: OpenAI reviews the complete implementation against plan, spec, tests, and code; Anthropic arbitrates.
+    doer:
+      lineage: openai
+      models: []
+    reviewer:
+      require: 1
+      crossLineage: true
+      candidates:
+        - lineage: anthropic
+    inputs:
+      include:
+        - plan
+        - spec
+        - tests
+        - implement
+      exclude: []
+    iterate:
+      maxRounds: 2
+      onDisagreement: continue
+
+  - id: divergence
+    kind: divergence
+    title: Divergence Check
+    description: If implementation diverges from spec, flag it. Optionally loop back to spec for refinement.
+    doer:
+      lineage: anthropic
+      models:
+        - claude-opus-4-7
+    reviewer:
+      require: 1
+      crossLineage: true
+      candidates:
+        - lineage: openai
+    inputs:
+      include:
+        - plan
+        - spec
+        - tests
+        - implement
+      exclude: []
+    iterate:
+      maxRounds: 1
+      onDisagreement: continue

@@ -1,0 +1,18 @@
+# Benchmark-only dependencies for `tools/evaluate_beam_end_to_end.py`.
+#
+# These are NOT required for normal Mnemosyne use -- install them only when
+# running BEAM benchmarks or comparing recall configurations. The package
+# proper declares `embeddings`, `llm`, `mcp`, `all`, and `dev` extras in
+# pyproject.toml; the harness needs `numpy` + `datasets` + `sqlite-vec` on
+# top of those.
+#
+# Install: pip install -r requirements-benchmark.txt
+# See docs/benchmarking.md for the full benchmark setup guide.
+
+datasets>=2.0      # HuggingFace BEAM dataset loader
+numpy>=1.20        # Required unconditionally by the harness
+sqlite-vec>=0.1    # ANN backend for vec_episodes virtual table
+
+# Plus the package's own extras -- install separately:
+#   pip install 'mnemosyne-memory[embeddings,llm]'
+# (fastembed for the vector voice + optional llama-cpp for sleep summarization)

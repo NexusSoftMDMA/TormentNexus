@@ -1,0 +1,7 @@
+# -- CRD installation configuration
+crds:
+  # -- Whether to add the "helm.sh/resource-policy: keep" annotation to CRDs
+  # When true, CRDs will not be deleted when the Helm release is uninstalled
+  keep: true
+  # -- Whether to install the CRDs in this chart
+  install: true

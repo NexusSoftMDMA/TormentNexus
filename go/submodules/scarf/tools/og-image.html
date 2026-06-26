@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Scarf — OG image source</title>
+  <!--
+    Render to PNG via headless Chromium:
+
+      google-chrome --headless --no-sandbox --hide-scrollbars \
+        --window-size=1200,630 --screenshot=og-image.png \
+        --default-background-color=00000000 \
+        file://$PWD/og-image.html
+
+    Then 1200x600 for Twitter:
+
+      google-chrome --headless --no-sandbox --hide-scrollbars \
+        --window-size=1200,600 --screenshot=twitter-card.png \
+        --default-background-color=00000000 \
+        file://$PWD/og-image.html
+
+    Move outputs to site/landing/assets/og-image.png and twitter-card.png.
+    Note: change `body { width: 1200px; height: 630px; }` to 600 for Twitter.
+  -->
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      width: 1200px;
+      height: 630px;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, sans-serif;
+      background:
+        radial-gradient(ellipse at top right, rgba(232, 149, 128, 0.45) 0%, transparent 55%),
+        radial-gradient(ellipse at bottom left, rgba(168, 72, 47, 0.35) 0%, transparent 60%),
+        linear-gradient(135deg, #C2563D 0%, #8E3B26 100%);
+      color: #FAF7F2;
+      overflow: hidden;
+      position: relative;
+    }
+
+    /* Subtle texture — paper-like grain via repeating gradient */
+    body::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background-image:
+        repeating-linear-gradient(45deg,
+          rgba(255, 255, 255, 0.015) 0,
+          rgba(255, 255, 255, 0.015) 1px,
+          transparent 1px,
+          transparent 4px);
+      pointer-events: none;
+    }
+
+    .frame {
+      position: relative;
+      height: 100%;
+      padding: 56px 72px;
+      display: flex;
+      flex-direction: column;
+      gap: 36px;
+    }
+
+    .top {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+    }
+
+    .logo {
+      width: 72px;
+      height: 72px;
+      border-radius: 16px;
+      background: #FAF7F2;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: Georgia, serif;
+      font-size: 48px;
+      font-weight: 600;
+      font-style: italic;
+      color: #C2563D;
+      box-shadow: 0 6px 18px rgba(0, 0, 0, 0.22);
+    }
+
+    .wordmark {
+      font-size: 44px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      line-height: 1;
+    }
+
+    .pill {
+      margin-left: auto;
+      font-size: 15px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 8px 16px;
+      border-radius: 999px;
+      background: rgba(250, 247, 242, 0.18);
+      border: 1px solid rgba(250, 247, 242, 0.32);
+    }
+
+    .headline {
+      font-size: 68px;
+      font-weight: 700;
+      letter-spacing: -0.03em;
+      line-height: 1.05;
+      max-width: 980px;
+    }
+    .headline em {
+      font-style: normal;
+      color: #FAF7F2;
+      text-decoration: underline;
+      text-decoration-color: rgba(250, 247, 242, 0.55);
+      text-underline-offset: 6px;
+      text-decoration-thickness: 5px;
+    }
+
+    .bottom {
+      margin-top: auto;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      gap: 24px;
+    }
+
+    .tagline {
+      font-size: 20px;
+      font-weight: 500;
+      color: rgba(250, 247, 242, 0.85);
+      max-width: 720px;
+      line-height: 1.4;
+    }
+
+    .url {
+      font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+      font-size: 16px;
+      color: rgba(250, 247, 242, 0.72);
+      letter-spacing: 0.02em;
+      flex-shrink: 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="frame">
+    <div class="top">
+      <div class="logo">S</div>
+      <div class="wordmark">Scarf</div>
+      <div class="pill">macOS · iOS</div>
+    </div>
+
+    <div class="headline">
+      Native Mac &amp; iOS app<br>
+      for your <em>Hermes AI agent</em>.
+    </div>
+
+    <div class="bottom">
+      <div class="tagline">
+        Sessions, projects, memory, skills, cron.<br>
+        Multi-server SSH. Free and open source.
+      </div>
+      <div class="url">awizemann.github.io/scarf</div>
+    </div>
+  </div>
+</body>
+</html>

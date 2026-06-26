@@ -1,0 +1,75 @@
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          # Pin uv to skip the version-manifest fetch from
+          # raw.githubusercontent.com that intermittently fails and takes
+          # down the whole matrix (see run 25292200582). Bump as needed.
+          version: "0.6.5"
+
+      - name: Set up Python ${{ matrix.python-version }}
+        run: uv python install ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: uv sync --group dev --extra watch
+
+      - name: Run tests
+        run: uv run pytest tests/ -v --tb=short --cov=src --cov-report=term-missing --cov-fail-under=74
+
+      - name: Verify sdist contains no sensitive paths
+        if: runner.os == 'Linux'
+        run: |
+          uv build --sdist
+          SDIST=$(ls dist/*.tar.gz | head -1)
+          echo "Checking $SDIST for sensitive paths..."
+          # Match common credential FILE shapes only, not any path that happens
+          # to contain the substring "credentials" (e.g., our legitimate source
+          # module src/jcodemunch_mcp/credentials.py and tests/test_credentials.py).
+          FOUND=$(tar -tzf "$SDIST" | grep -E '(/\.claude/|/\.env(\.|$)|/\.pypirc|/\.aws/|/\.ssh/|/id_rsa|/id_ed25519|\.pem$|\.key$|/credentials\.(json|yaml|yml|conf|cfg|ini|env)$|/aws_?credentials$|/google[-_]credentials)' || true)
+          if [ -n "$FOUND" ]; then
+            echo "ERROR: Sensitive paths found in sdist:"
+            echo "$FOUND"
+            exit 1
+          fi
+          echo "OK: No sensitive paths found in sdist."
+
+  lint:
+    # Platform-independent, so run once rather than across the test matrix.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          version: "0.6.5"
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Install dependencies
+        run: uv sync --group dev
+
+      - name: Ruff lint (src/)
+        # Rule selection + grandfathered ignores live in [tool.ruff.lint] in
+        # pyproject.toml. Keep the gate green: fix the finding, or justify a new
+        # ignore in the same PR.
+        run: uv run ruff check src/

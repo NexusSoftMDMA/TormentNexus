@@ -1,0 +1,81 @@
+repo: vercel/next.js
+questions:
+  - id: nextjs-001
+    question: "How does Next.js implement server-side rendering for a page?"
+    ground_truth_answer: "Next.js calls getServerSideProps (or the App Router's async component) on each request. The result is passed as props to the page component. renderToReadableStream renders the React tree to HTML. The HTML is streamed to the client with embedded __NEXT_DATA__ for hydration."
+    ground_truth_symbols: ["getServerSideProps", "renderToReadableStream"]
+    difficulty: medium
+    category: architecture
+    tags: [ssr, rendering]
+
+  - id: nextjs-002
+    question: "How does Next.js implement file-system based routing?"
+    ground_truth_answer: "Next.js scans pages/ (or app/) directory at build time. Each file becomes a route — the file path maps to the URL path. Dynamic segments use [param] syntax. The route manifest maps URL patterns to page components. The router matches incoming requests against this manifest."
+    ground_truth_symbols: ["buildManifest", "PagesManifest"]
+    difficulty: easy
+    category: architecture
+    tags: [routing, filesystem]
+
+  - id: nextjs-003
+    question: "How does Next.js implement API routes?"
+    ground_truth_answer: "Files in pages/api/ export a default handler function(req, res). In App Router, route.ts exports named functions (GET, POST, etc.) returning NextResponse. The server matches API routes before page routes. API handlers receive enhanced request/response objects with helpers like req.query, res.json()."
+    ground_truth_symbols: ["apiResolver", "NextApiRequest", "NextApiResponse"]
+    difficulty: easy
+    category: api
+    tags: [api-routes, handlers]
+
+  - id: nextjs-004
+    question: "How does Next.js implement incremental static regeneration (ISR)?"
+    ground_truth_answer: "Pages with getStaticProps and a revalidate value are served from cache. When the revalidate period expires, the next request triggers background regeneration. The stale page is served immediately while Next.js rebuilds it. The cache is updated atomically when the new page is ready."
+    ground_truth_symbols: ["getStaticProps", "revalidate"]
+    difficulty: medium
+    category: architecture
+    tags: [isr, caching]
+
+  - id: nextjs-005
+    question: "How does Next.js implement middleware?"
+    ground_truth_answer: "middleware.ts at the project root exports a middleware function that receives NextRequest and returns NextResponse. It runs at the edge before routing. It can rewrite URLs, redirect, set headers, or return responses. The matcher config controls which paths trigger the middleware."
+    ground_truth_symbols: ["NextMiddleware", "NextRequest", "NextResponse"]
+    difficulty: medium
+    category: api
+    tags: [middleware, edge]
+
+  - id: nextjs-006
+    question: "How does Next.js implement image optimization with next/image?"
+    ground_truth_answer: "The Image component generates an img tag with srcSet for responsive sizes. At request time, the image optimization API resizes and converts images on-demand, caching results. It supports remote images via domains/remotePatterns config. AVIF and WebP formats are preferred."
+    ground_truth_symbols: ["Image", "imageOptimizer"]
+    difficulty: medium
+    category: api
+    tags: [images, optimization]
+
+  - id: nextjs-007
+    question: "How does Next.js implement code splitting and lazy loading?"
+    ground_truth_answer: "Next.js automatically code-splits at the page level — each page is a separate webpack chunk. dynamic() (next/dynamic) enables component-level code splitting using React.lazy and Suspense. Prefetching via next/link loads page chunks in the background on link visibility."
+    ground_truth_symbols: ["dynamic", "loadableReady"]
+    difficulty: medium
+    category: architecture
+    tags: [code-splitting, performance]
+
+  - id: nextjs-008
+    question: "How does Next.js implement the App Router's server components?"
+    ground_truth_answer: "Server Components render on the server and send a serialized React tree (RSC payload) to the client, not raw HTML. The payload includes references to Client Components. The client reconstructs the tree, hydrating only Client Components. 'use client' directive marks the boundary."
+    ground_truth_symbols: ["ServerComponent", "ClientComponent"]
+    difficulty: hard
+    category: architecture
+    tags: [rsc, server-components]
+
+  - id: nextjs-009
+    question: "How does Next.js implement client-side navigation?"
+    ground_truth_answer: "next/link's Link component intercepts clicks and uses the Router to navigate client-side. The router fetches the page's JS chunk and data (via __NEXT_DATA__ or RSC payload). It updates the URL with pushState and renders the new page component without a full page reload."
+    ground_truth_symbols: ["Link", "Router", "push"]
+    difficulty: easy
+    category: api
+    tags: [navigation, client-side]
+
+  - id: nextjs-010
+    question: "How does Next.js implement its build process?"
+    ground_truth_answer: "next build runs webpack/turbopack to compile pages, generates static pages via getStaticProps, creates the build manifest mapping routes to chunks, optimizes with SWC, and outputs to .next/. The trace file records file dependencies for minimal deployment."
+    ground_truth_symbols: ["build", "buildManifest"]
+    difficulty: hard
+    category: architecture
+    tags: [build, compilation]

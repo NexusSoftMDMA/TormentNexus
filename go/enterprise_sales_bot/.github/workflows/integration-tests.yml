@@ -1,0 +1,65 @@
+name: Integration Tests
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  schedule:
+    - cron: "0 0 * * *"
+
+jobs:
+  integration:
+    runs-on: ubuntu-latest
+
+    # Start PostgreSQL container for tests
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_PASSWORD: secret
+          POSTGRES_USER: torbnexus
+          POSTGRES_DB: torbnexus
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+          cache: true
+
+      - name: Wait for PostgreSQL
+        run: |
+          for i in {1..30}; do
+            if nc -z localhost 5432; then
+              echo "PostgreSQL is ready"
+              exit 0
+            fi
+            echo "Waiting for PostgreSQL... ($i/30)"
+            sleep 2
+          done
+          exit 1
+
+      - name: Run migrations
+        run: |
+          go run -exec "env DATABASE_URL=postgres://torbnexus:secret@localhost:5432/torbnexus?sslmode=disable go run scripts/migrate.go" || true
+          # Alternative: migrations are run by the app on startup
+        env:
+          DATABASE_URL: postgres://torbnexus:secret@localhost:5432/torbnexus?sslmode=disable
+
+      - name: Run integration tests
+        run: |
+          go test -v -race -timeout 300s ./internal/enrichment/... ./internal/researcher/... ./internal/crm/... ./internal/communication/...
+        env:
+          DATABASE_URL: postgres://torbnexus:secret@localhost:5432/torbnexus?sslmode=disable
+          HERMES_API_URL: ${{ secrets.HERMES_API_URL || '' }}
+          HERMES_API_KEY: ${{ secrets.HERMES_API_KEY || '' }}

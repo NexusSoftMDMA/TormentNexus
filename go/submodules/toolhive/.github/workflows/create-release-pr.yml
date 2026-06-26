@@ -1,0 +1,112 @@
+# Create Release PR workflow using releaseo
+#
+# This workflow automates release PR creation by:
+# 1. Bumping the version (major/minor/patch)
+# 2. Updating VERSION, Chart.yaml, and values.yaml
+# 3. Creating a PR via GitHub API
+#
+# Usage: Trigger manually from Actions tab or via `gh workflow run create-release-pr.yml`
+
+name: Create Release PR
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump_type:
+        description: 'Version bump type'
+        required: true
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release:
+    name: Create Release PR
+    runs-on: ubuntu-latest
+    steps:
+      - name: Generate release app token
+        id: app-token
+        uses: actions/create-github-app-token@1b10c78c7865c340bc4f6099eb2f838309f1e8c3 # v3.1.1
+        with:
+          client-id: ${{ vars.RELEASE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+
+      - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6
+        with:
+          go-version: 'stable'
+
+      - name: Setup helm-docs
+        run: go install github.com/norwoodj/helm-docs/cmd/helm-docs@latest
+
+      # Remove stale release branch from a previous failed run to avoid
+      # "Reference already exists" when releaseo tries to create the branch.
+      # Only deletes if the branch exists with no open PR (stale from failed run).
+      - name: Clean up stale release branch from previous failed run
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BUMP_TYPE: ${{ inputs.bump_type }}
+        run: |
+          CURRENT=$(cat VERSION | tr -d 'v')
+          IFS='.' read -r x y z <<< "$CURRENT"
+          case "$BUMP_TYPE" in
+            patch) z=$((z+1));;
+            minor) y=$((y+1)); z=0;;
+            major) x=$((x+1)); y=0; z=0;;
+            *) echo "Unknown bump type: $BUMP_TYPE"; exit 1;;
+          esac
+          NEW_VERSION="${x}.${y}.${z}"
+          BRANCH="release/v${NEW_VERSION}"
+          OPEN_PR=$(gh pr list --head "$BRANCH" --state open --json number -q 'length' 2>/dev/null || echo "0")
+          if [ "$OPEN_PR" = "0" ] || [ -z "$OPEN_PR" ]; then
+            echo "Deleting stale branch $BRANCH if it exists (from previous failed run)..."
+            gh api -X DELETE "/repos/${{ github.repository }}/git/refs/heads/${BRANCH}" 2>/dev/null || true
+          else
+            echo "Branch $BRANCH has an open PR - skipping cleanup. Close or merge the existing PR first."
+            exit 1
+          fi
+
+      - name: Create Release PR
+        id: release
+        uses: stacklok/releaseo@80e8d8131d41cf8763254d02360f2c5ce9b7c0df # v0.0.4
+        with:
+          releaseo_version: v0.0.4
+          bump_type: ${{ inputs.bump_type }}
+          token: ${{ steps.app-token.outputs.token }}
+          version_files: |
+            - file: deploy/charts/operator-crds/Chart.yaml
+              path: version
+            - file: deploy/charts/operator-crds/Chart.yaml
+              path: appVersion
+              prefix: v
+            - file: deploy/charts/operator/Chart.yaml
+              path: version
+            - file: deploy/charts/operator/Chart.yaml
+              path: appVersion
+              prefix: v
+            - file: deploy/charts/operator/values.yaml
+              path: operator.image
+              prefix: v
+            - file: deploy/charts/operator/values.yaml
+              path: operator.toolhiveRunnerImage
+              prefix: v
+            - file: deploy/charts/operator/values.yaml
+              path: operator.vmcpImage
+              prefix: v
+          helm_docs_args: --chart-search-root=deploy/charts
+
+      - name: Summary
+        run: |
+          echo "## Release PR Created" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Version**: ${{ steps.release.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **PR**: #${{ steps.release.outputs.pr_number }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **URL**: ${{ steps.release.outputs.pr_url }}" >> $GITHUB_STEP_SUMMARY

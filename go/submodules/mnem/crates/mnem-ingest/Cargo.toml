@@ -1,0 +1,122 @@
+[package]
+name = "mnem-ingest"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "Ingest pipeline for mnem: source parsing (Markdown/text/code), chunking, and extraction into content-addressed memory graphs."
+readme = "README.md"
+documentation = "https://docs.rs/mnem-ingest"
+categories = ["database", "text-processing"]
+keywords = ["knowledge-graph", "ingest", "markdown", "chunking", "mnem"]
+publish = true
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
+[lints]
+workspace = true
+
+[features]
+default = []
+# Opt-in advanced PDF backend via pdfium; default path uses pure-Rust
+# `pdf-extract`. Enabling this feature does NOT disable pdf-extract, it
+# layers pdfium on top as a fallback, wired in Phase-B5d.
+pdfium = ["dep:pdfium-render"]
+# Optional KeyBERT-style statistical extractor adapter (E3 exp track).
+# Pulls `mnem-extract` + `mnem-embed-providers` so the adapter has a
+# live Embedder trait object to drive; zero cost when off.
+keybert = ["dep:mnem-extract", "dep:mnem-embed-providers"]
+# Optional LLM-backed extractor that talks to a local Ollama server
+# (Phase-B5e). OFF by default: the rule-based baseline must always work
+# without any network round-trip or external process. Enabling this
+# feature pulls reqwest (blocking) + serde_json (already present).
+ollama = ["dep:reqwest"]
+# Optional sidecar escalation via external `docling` CLI (Phase-B5e).
+# Shells out via `std::process::Command`; gated behind `which` so an
+# absent binary is a typed error, not a panic.
+sidecar-docling = ["dep:which", "dep:tempfile"]
+# Optional sidecar escalation via external `unstructured-ingest` CLI.
+# Same shape as `sidecar-docling`; the two are independently opt-in
+# so operators can pick whichever tool they already deploy.
+sidecar-unstructured = ["dep:which", "dep:tempfile"]
+
+[dependencies]
+mnem-core            = { workspace = true }
+# NER provider trait + label constants + RuleNer/NullNer implementations.
+# Always present (zero-dep crate); the ner field on IngestConfig selects
+# which provider runs at pipeline construction time.
+mnem-ner-providers   = { workspace = true }
+# SHA-256 content hashing for Doc node content-skip (workspace dep).
+sha2                 = { workspace = true }
+# Tree-sitter code parsing - always on, ships 8 language grammars.
+# Grammar crates may lag the main crate by a minor version; each still
+# exports the LANGUAGE constant (introduced in 0.22) which tree-sitter 0.24
+# accepts via `Into<Language>`.
+# tree-sitter 0.24: QueryMatches implements StreamingIterator (not Iterator).
+streaming-iterator   = "0.1"
+tree-sitter          = "0.26"
+tree-sitter-rust     = "0.24"
+tree-sitter-python   = "0.25"
+tree-sitter-javascript = "0.25"
+tree-sitter-typescript = "0.23"
+tree-sitter-go       = "0.25"
+tree-sitter-java     = "0.23"
+tree-sitter-c        = "0.23"
+tree-sitter-cpp      = "0.23"
+tree-sitter-ruby     = "0.23"
+tree-sitter-c-sharp  = "0.23"
+# Optional KeyBERT extractor adapter dep (E3). Off by default so the
+# default binary footprint is unchanged from Phase-B5c.
+mnem-extract         = { workspace = true, optional = true }
+# Optional embedder trait dep, only brought in by the `keybert`
+# feature so the non-keybert build stays provider-free. Default
+# features (openai + ollama) are enabled so upstream dead-code lints
+# don't fire when downstream binaries pick `keybert` without another
+# provider-flavoured feature also selected.
+mnem-embed-providers = { workspace = true, optional = true }
+serde                = { workspace = true, features = ["derive"] }
+thiserror            = { workspace = true }
+tracing              = { workspace = true }
+# Needed for Node.props (Ipld values) and Node.content (Bytes) assembly
+# inside the Phase-B5c pipeline. Both already live in the workspace
+# dependency set; pulling them in here is net-negative zero.
+ipld-core            = { workspace = true }
+bytes                = { workspace = true }
+serde_json           = "1"
+pulldown-cmark       = { version = "0.12", default-features = false }
+unicode-segmentation = "1.12"
+# Pure-Rust PDF text extraction; no C deps, always on.
+pdf-extract          = "0.7"
+# Advanced PDF fallback (optional, feature-gated).
+pdfium-render        = { version = "0.9", optional = true }
+# Verb-window regex for proximity-relation promotion (acts_on detection).
+regex                = "1.10"
+# Optional HTTP client for the Ollama extractor (Phase-B5e, feature `ollama`).
+# `blocking` keeps the ingest pipeline sync (mnem-core and every
+# downstream crate is tokio-free); `rustls-tls` avoids the native OpenSSL
+# dep on Windows / musl / docs.rs builders.
+reqwest              = { version = "0.12", optional = true, default-features = false, features = ["blocking", "json", "rustls-tls"] }
+# Optional `which`-based binary discovery for sidecar escalation (Phase-B5e,
+# features `sidecar-docling` / `sidecar-unstructured`). Tiny crate (<5 KLoC);
+# the shell-out itself uses `std::process::Command` with zero extra deps.
+which                = { version = "6", optional = true }
+# Optional tempfile dep used to hand PDF bytes to the sidecar CLI via a
+# filesystem path (both docling and unstructured-ingest accept only
+# paths, not stdin). Also a dev-dep below, the Cargo resolver unifies
+# the two feature sets to a single crate graph entry.
+tempfile             = { version = "3", optional = true }
+
+[dev-dependencies]
+insta                = { version = "1", features = ["yaml"] }
+tempfile             = "3"
+# Shared in-workspace test helpers (currently unused; reserved for B5d+).
+mnem-core-testutils  = { workspace = true }
+# HTTP mock server used by the `ollama` feature tests to simulate a local
+# Ollama endpoint without a live process. `blocking` mirrors the reqwest
+# client feature set the crate uses in production.
+httpmock             = "0.8"

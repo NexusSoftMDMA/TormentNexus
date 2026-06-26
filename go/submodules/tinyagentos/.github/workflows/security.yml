@@ -1,0 +1,36 @@
+name: Security
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+  schedule:
+    - cron: "0 6 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  dependency-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -e ".[dev]"
+
+      - name: Check for known vulnerabilities
+        # CVE-2026-3219 affects pip itself with no fix released yet; revisit once
+        # a patched pip is available on PyPI.
+        # CVE-2026-6357 is fixed in pip 26.1 — upgrade before auditing so the
+        # runner's bundled pip 26.0.1 doesn't trip the check.
+        run: |
+          python -m pip install --upgrade "pip>=26.1"
+          pip install pip-audit
+          pip-audit --ignore-vuln CVE-2026-3219

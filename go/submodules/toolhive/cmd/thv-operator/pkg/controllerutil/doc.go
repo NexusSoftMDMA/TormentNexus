@@ -1,0 +1,24 @@
+// SPDX-FileCopyrightText: Copyright 2025 Stacklok, Inc.
+// SPDX-License-Identifier: Apache-2.0
+
+// Package controllerutil provides shared utility functions for ToolHive Kubernetes controllers.
+//
+// This package contains helper functions extracted from the controllers package to improve
+// code organization and reusability. Functions are organized by domain:
+//
+//   - platform.go: Platform detection and shared detector management
+//   - rbac.go: RBAC (Role-Based Access Control) configuration helpers
+//   - resources.go: Resource limit and request calculation utilities
+//   - authz.go: Authorization (Cedar policy) configuration helpers
+//   - oidc.go: OIDC (OpenID Connect) configuration helpers
+//   - oidc_volumes.go: OIDC CA bundle volume and mount helpers
+//   - tokenexchange.go: Token exchange configuration for external auth
+//   - config.go: General configuration merging and validation utilities
+//   - podtemplatespec_builder.go: PodTemplateSpec builder for constructing pod template patches
+//   - maps.go: Map comparison utilities (e.g. subset checks for annotations)
+//   - status.go: Status-subresource merge-patch helper (MutateAndPatchStatus)
+//   - patch.go: Spec/metadata optimistic-lock merge-patch helper (MutateAndPatchSpec)
+//
+// These utilities are used by multiple controllers including MCPServer, MCPRemoteProxy,
+// and ToolConfig controllers to maintain consistent behavior across the operator.
+package controllerutil

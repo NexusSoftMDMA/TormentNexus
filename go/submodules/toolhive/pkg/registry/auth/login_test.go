@@ -1,0 +1,819 @@
+// SPDX-FileCopyrightText: Copyright 2025 Stacklok, Inc.
+// SPDX-License-Identifier: Apache-2.0
+
+package auth
+
+import (
+	"context"
+	"errors"
+	"path/filepath"
+	"testing"
+	"time"
+
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+
+	"github.com/stacklok/toolhive/pkg/auth/remote"
+	"github.com/stacklok/toolhive/pkg/config"
+	configmocks "github.com/stacklok/toolhive/pkg/config/mocks"
+	"github.com/stacklok/toolhive/pkg/secrets"
+	secretsmocks "github.com/stacklok/toolhive/pkg/secrets/mocks"
+)
+
+// --- helpers ---
+
+// oauthConfig returns a minimal valid OAuth config for tests.
+func oauthConfig() *config.RegistryOAuthConfig {
+	return &config.RegistryOAuthConfig{
+		Issuer:   "https://auth.example.com",
+		ClientID: "test-client",
+	}
+}
+
+// configWithOAuth returns a Config that has OAuth fully configured.
+func configWithOAuth() *config.Config {
+	return &config.Config{
+		RegistryApiUrl: "https://api.registry.example.com",
+		RegistryAuth: config.RegistryAuth{
+			Type:  config.RegistryAuthTypeOAuth,
+			OAuth: oauthConfig(),
+		},
+	}
+}
+
+// --- validateOAuthConfig ---
+
+func TestValidateOAuthConfig(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		cfg     *config.Config
+		wantErr bool
+	}{
+		{
+			name:    "valid oauth config",
+			cfg:     configWithOAuth(),
+			wantErr: false,
+		},
+		{
+			name: "wrong auth type",
+			cfg: &config.Config{
+				RegistryAuth: config.RegistryAuth{
+					Type:  "basic",
+					OAuth: oauthConfig(),
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "nil oauth pointer",
+			cfg: &config.Config{
+				RegistryAuth: config.RegistryAuth{
+					Type:  config.RegistryAuthTypeOAuth,
+					OAuth: nil,
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name:    "empty auth type and nil oauth",
+			cfg:     &config.Config{},
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := validateOAuthConfig(tt.cfg)
+			if tt.wantErr {
+				require.Error(t, err)
+				require.ErrorIs(t, err, ErrRegistryAuthRequired)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
+// --- registryURLFromConfig ---
+
+func TestRegistryURLFromConfig(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		cfg  *config.Config
+		want string
+	}{
+		{
+			name: "prefers RegistryApiUrl",
+			cfg: &config.Config{
+				RegistryApiUrl: "https://api.example.com",
+				RegistryUrl:    "https://static.example.com",
+			},
+			want: "https://api.example.com",
+		},
+		{
+			name: "falls back to RegistryUrl",
+			cfg: &config.Config{
+				RegistryUrl: "https://static.example.com",
+			},
+			want: "https://static.example.com",
+		},
+		{
+			name: "both empty returns empty string",
+			cfg:  &config.Config{},
+			want: "",
+		},
+		{
+			name: "only RegistryApiUrl set",
+			cfg: &config.Config{
+				RegistryApiUrl: "https://api-only.example.com",
+			},
+			want: "https://api-only.example.com",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := registryURLFromConfig(tt.cfg)
+			require.Equal(t, tt.want, got)
+		})
+	}
+}
+
+// --- checkMissingLoginConfig ---
+
+func TestCheckMissingLoginConfig(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		cfg     *config.Config
+		opts    LoginOptions
+		wantErr bool
+		// If wantErr is true, wantMsgs lists substrings that must appear in the error.
+		wantMsgs []string
+	}{
+		{
+			name: "all config present - no error",
+			cfg: &config.Config{
+				RegistryApiUrl: "https://api.example.com",
+				RegistryAuth: config.RegistryAuth{
+					Type:  config.RegistryAuthTypeOAuth,
+					OAuth: oauthConfig(),
+				},
+			},
+			opts:    LoginOptions{},
+			wantErr: false,
+		},
+		{
+			name: "all opts provided when config empty - no error",
+			cfg:  &config.Config{},
+			opts: LoginOptions{
+				RegistryURL: "https://api.example.com",
+				Issuer:      "https://auth.example.com",
+				ClientID:    "my-client",
+			},
+			wantErr: false,
+		},
+		{
+			name:    "nothing configured and no opts - all three missing",
+			cfg:     &config.Config{},
+			opts:    LoginOptions{},
+			wantErr: true,
+			wantMsgs: []string{
+				"--registry",
+				"--issuer",
+				"--client-id",
+			},
+		},
+		{
+			name: "registry configured but no oauth and no opts",
+			cfg: &config.Config{
+				RegistryApiUrl: "https://api.example.com",
+			},
+			opts:    LoginOptions{},
+			wantErr: true,
+			wantMsgs: []string{
+				"--issuer",
+				"--client-id",
+			},
+		},
+		{
+			name:    "opts supply registry but not oauth",
+			cfg:     &config.Config{},
+			opts:    LoginOptions{RegistryURL: "https://r.example.com"},
+			wantErr: true,
+			wantMsgs: []string{
+				"--issuer",
+				"--client-id",
+			},
+		},
+		{
+			name:    "opts supply issuer only - missing registry and client-id",
+			cfg:     &config.Config{},
+			opts:    LoginOptions{Issuer: "https://auth.example.com"},
+			wantErr: true,
+			wantMsgs: []string{
+				"--registry",
+				"--client-id",
+			},
+		},
+		{
+			name: "RegistryUrl satisfies registry requirement",
+			cfg: &config.Config{
+				RegistryUrl: "https://static.example.com",
+				RegistryAuth: config.RegistryAuth{
+					Type:  config.RegistryAuthTypeOAuth,
+					OAuth: oauthConfig(),
+				},
+			},
+			opts:    LoginOptions{},
+			wantErr: false,
+		},
+		{
+			name: "LocalRegistryPath satisfies registry requirement",
+			cfg: &config.Config{
+				LocalRegistryPath: "/tmp/registry.json",
+				RegistryAuth: config.RegistryAuth{
+					Type:  config.RegistryAuthTypeOAuth,
+					OAuth: oauthConfig(),
+				},
+			},
+			opts:    LoginOptions{},
+			wantErr: false,
+		},
+		{
+			name: "oauth type set but OAuth pointer nil counts as missing",
+			cfg: &config.Config{
+				RegistryApiUrl: "https://api.example.com",
+				RegistryAuth: config.RegistryAuth{
+					Type:  config.RegistryAuthTypeOAuth,
+					OAuth: nil,
+				},
+			},
+			opts:    LoginOptions{},
+			wantErr: true,
+			wantMsgs: []string{
+				"--issuer",
+				"--client-id",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := checkMissingLoginConfig(tt.cfg, tt.opts)
+			if !tt.wantErr {
+				require.NoError(t, err)
+				return
+			}
+			require.Error(t, err)
+			require.ErrorIs(t, err, ErrRegistryAuthRequired)
+			for _, msg := range tt.wantMsgs {
+				require.Contains(t, err.Error(), msg)
+			}
+		})
+	}
+}
+
+// --- ensureRegistryURL ---
+
+func TestEnsureRegistryURL(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		cfg       *config.Config
+		opts      LoginOptions
+		setupMock func(m *configmocks.MockProvider)
+		wantErr   bool
+		errMsg    string
+	}{
+		{
+			name: "already has RegistryApiUrl - noop",
+			cfg: &config.Config{
+				RegistryApiUrl: "https://api.example.com",
+			},
+			opts:      LoginOptions{},
+			setupMock: func(_ *configmocks.MockProvider) {},
+			wantErr:   false,
+		},
+		{
+			name: "already has RegistryUrl - noop",
+			cfg: &config.Config{
+				RegistryUrl: "https://static.example.com",
+			},
+			opts:      LoginOptions{},
+			setupMock: func(_ *configmocks.MockProvider) {},
+			wantErr:   false,
+		},
+		{
+			name: "already has LocalRegistryPath - noop",
+			cfg: &config.Config{
+				LocalRegistryPath: "/path/to/registry.json",
+			},
+			opts:      LoginOptions{},
+			setupMock: func(_ *configmocks.MockProvider) {},
+			wantErr:   false,
+		},
+		{
+			name: "opts supply JSON URL - clears auth then calls SetRegistryURL",
+			cfg:  &config.Config{},
+			opts: LoginOptions{RegistryURL: "https://registry.example.com/mcp.json"},
+			setupMock: func(m *configmocks.MockProvider) {
+				m.EXPECT().UpdateConfig(gomock.Any()).Return(nil)
+				m.EXPECT().SetRegistryURL(gomock.Any(), false).Return(nil)
+			},
+			wantErr: false,
+		},
+		{
+			name: "AllowPrivateIP propagates to SetRegistryURL",
+			cfg:  &config.Config{},
+			opts: LoginOptions{
+				RegistryURL:    "https://registry.example.com/mcp.json",
+				AllowPrivateIP: true,
+			},
+			setupMock: func(m *configmocks.MockProvider) {
+				m.EXPECT().UpdateConfig(gomock.Any()).Return(nil)
+				m.EXPECT().SetRegistryURL(gomock.Any(), true).Return(nil)
+			},
+			wantErr: false,
+		},
+		{
+			name: "opts supply file path - clears auth then calls SetRegistryFile",
+			cfg:  &config.Config{},
+			opts: LoginOptions{RegistryURL: "file:///tmp/registry.json"},
+			setupMock: func(m *configmocks.MockProvider) {
+				m.EXPECT().UpdateConfig(gomock.Any()).Return(nil)
+				m.EXPECT().SetRegistryFile("/tmp/registry.json").Return(nil)
+			},
+			wantErr: false,
+		},
+		{
+			name: "SetRegistryURL returns error",
+			cfg:  &config.Config{},
+			opts: LoginOptions{RegistryURL: "https://registry.example.com/mcp.json"},
+			setupMock: func(m *configmocks.MockProvider) {
+				m.EXPECT().UpdateConfig(gomock.Any()).Return(nil)
+				m.EXPECT().SetRegistryURL(gomock.Any(), false).Return(errors.New("disk full"))
+			},
+			wantErr: true,
+			errMsg:  "saving registry URL",
+		},
+		{
+			name: "SetRegistryFile returns error",
+			cfg:  &config.Config{},
+			opts: LoginOptions{RegistryURL: "file:///tmp/registry.json"},
+			setupMock: func(m *configmocks.MockProvider) {
+				m.EXPECT().UpdateConfig(gomock.Any()).Return(nil)
+				m.EXPECT().SetRegistryFile("/tmp/registry.json").Return(errors.New("permission denied"))
+			},
+			wantErr: true,
+			errMsg:  "saving registry file",
+		},
+		{
+			name: "UpdateConfig error when clearing auth",
+			cfg:  &config.Config{},
+			opts: LoginOptions{RegistryURL: "https://registry.example.com/mcp.json"},
+			setupMock: func(m *configmocks.MockProvider) {
+				m.EXPECT().UpdateConfig(gomock.Any()).Return(errors.New("disk full"))
+			},
+			wantErr: true,
+			errMsg:  "clearing stale auth config",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctrl := gomock.NewController(t)
+			mockCfg := configmocks.NewMockProvider(ctrl)
+			tt.setupMock(mockCfg)
+
+			err := ensureRegistryURL(mockCfg, tt.opts)
+			if !tt.wantErr {
+				require.NoError(t, err)
+				return
+			}
+			require.Error(t, err)
+			if tt.errMsg != "" {
+				require.Contains(t, err.Error(), tt.errMsg)
+			}
+		})
+	}
+}
+
+// --- ensureOAuthConfig ---
+
+func TestEnsureOAuthConfig(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name             string
+		cfg              *config.Config
+		opts             LoginOptions
+		setupMock        func(m *configmocks.MockProvider)
+		useOIDC          bool // whether to start the test OIDC server
+		overrideScopes   []string
+		overrideAudience string
+		wantErr          bool
+		errMsg           string
+	}{
+		{
+			name:      "already configured - noop",
+			cfg:       configWithOAuth(),
+			opts:      LoginOptions{},
+			setupMock: func(_ *configmocks.MockProvider) {},
+			wantErr:   false,
+		},
+		{
+			name:      "no oauth and no issuer in opts",
+			cfg:       &config.Config{},
+			opts:      LoginOptions{ClientID: "my-client"},
+			setupMock: func(_ *configmocks.MockProvider) {},
+			wantErr:   true,
+			errMsg:    "OAuth config missing",
+		},
+		{
+			name:      "no oauth and no client-id in opts",
+			cfg:       &config.Config{},
+			opts:      LoginOptions{Issuer: "https://auth.example.com"},
+			setupMock: func(_ *configmocks.MockProvider) {},
+			wantErr:   true,
+			errMsg:    "OAuth config missing",
+		},
+		{
+			name: "OIDC discovery fails for bad issuer",
+			cfg:  &config.Config{},
+			opts: LoginOptions{
+				Issuer:   "https://this-does-not-exist.invalid",
+				ClientID: "my-client",
+			},
+			setupMock: func(_ *configmocks.MockProvider) {},
+			wantErr:   true,
+			errMsg:    "OIDC discovery failed",
+		},
+		{
+			name:    "valid opts with OIDC server - saves config",
+			cfg:     &config.Config{},
+			useOIDC: true,
+			setupMock: func(m *configmocks.MockProvider) {
+				m.EXPECT().UpdateConfig(gomock.Any()).DoAndReturn(func(fn func(*config.Config) error) error {
+					c := &config.Config{}
+					require.NoError(t, fn(c))
+					// Verify the update function sets expected values.
+					require.Equal(t, config.RegistryAuthTypeOAuth, c.RegistryAuth.Type)
+					require.NotNil(t, c.RegistryAuth.OAuth)
+					require.Equal(t, "my-client", c.RegistryAuth.OAuth.ClientID)
+					require.Equal(t, []string{"openid", "offline_access"}, c.RegistryAuth.OAuth.Scopes)
+					require.Equal(t, remote.DefaultCallbackPort, c.RegistryAuth.OAuth.CallbackPort)
+					return nil
+				})
+			},
+			wantErr: false,
+		},
+		{
+			name:           "custom scopes override defaults",
+			cfg:            &config.Config{},
+			useOIDC:        true,
+			overrideScopes: []string{"openid", "email"},
+			setupMock: func(m *configmocks.MockProvider) {
+				m.EXPECT().UpdateConfig(gomock.Any()).DoAndReturn(func(fn func(*config.Config) error) error {
+					c := &config.Config{}
+					require.NoError(t, fn(c))
+					require.Equal(t, []string{"openid", "email"}, c.RegistryAuth.OAuth.Scopes)
+					return nil
+				})
+			},
+			wantErr: false,
+		},
+		{
+			name:             "audience is passed through",
+			cfg:              &config.Config{},
+			useOIDC:          true,
+			overrideAudience: "api://my-api",
+			setupMock: func(m *configmocks.MockProvider) {
+				m.EXPECT().UpdateConfig(gomock.Any()).DoAndReturn(func(fn func(*config.Config) error) error {
+					c := &config.Config{}
+					require.NoError(t, fn(c))
+					require.Equal(t, "api://my-api", c.RegistryAuth.OAuth.Audience)
+					return nil
+				})
+			},
+			wantErr: false,
+		},
+		{
+			name:    "UpdateConfig returns error",
+			cfg:     &config.Config{},
+			useOIDC: true,
+			setupMock: func(m *configmocks.MockProvider) {
+				m.EXPECT().UpdateConfig(gomock.Any()).Return(errors.New("permission denied"))
+			},
+			wantErr: true,
+			errMsg:  "permission denied",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctrl := gomock.NewController(t)
+			mockCfg := configmocks.NewMockProvider(ctrl)
+			tt.setupMock(mockCfg)
+
+			opts := tt.opts
+			if tt.useOIDC {
+				srv := newOIDCTestServer(t)
+				if opts.Issuer == "" {
+					opts.Issuer = srv.URL
+				}
+				if opts.ClientID == "" {
+					opts.ClientID = "my-client"
+				}
+				if len(tt.overrideScopes) > 0 {
+					opts.Scopes = tt.overrideScopes
+				}
+				if tt.overrideAudience != "" {
+					opts.Audience = tt.overrideAudience
+				}
+			}
+
+			err := ensureOAuthConfig(context.Background(), tt.cfg, mockCfg, opts)
+			if !tt.wantErr {
+				require.NoError(t, err)
+				return
+			}
+			require.Error(t, err)
+			if tt.errMsg != "" {
+				require.Contains(t, err.Error(), tt.errMsg)
+			}
+		})
+	}
+}
+
+// --- clearRegistryCache ---
+
+func TestClearRegistryCache(t *testing.T) {
+	t.Parallel()
+
+	t.Run("empty URL is a noop", func(t *testing.T) {
+		t.Parallel()
+		require.NoError(t, clearRegistryCache(""))
+	})
+
+	t.Run("no error when cache file does not exist", func(t *testing.T) {
+		t.Parallel()
+		// Use a URL that will not have a matching cache file.
+		require.NoError(t, clearRegistryCache("https://no-cache-ever.test.example.com"))
+	})
+}
+
+// --- Login error paths ---
+
+func TestLogin_ConfigLoadError(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	mockCfg := configmocks.NewMockProvider(ctrl)
+	mockCfg.EXPECT().LoadOrCreateConfig().Return(nil, errors.New("corrupt config"))
+
+	err := Login(context.Background(), mockCfg, nil, LoginOptions{})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "loading config")
+}
+
+func TestLogin_RejectsLocalRegistryPath(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	mockCfg := configmocks.NewMockProvider(ctrl)
+	mockCfg.EXPECT().LoadOrCreateConfig().Return(&config.Config{
+		LocalRegistryPath: "/tmp/registry.json",
+	}, nil)
+
+	err := Login(context.Background(), mockCfg, nil, LoginOptions{})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "not supported for local file registries")
+}
+
+func TestLogin_MissingConfig(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	mockCfg := configmocks.NewMockProvider(ctrl)
+	mockCfg.EXPECT().LoadOrCreateConfig().Return(&config.Config{}, nil)
+
+	err := Login(context.Background(), mockCfg, nil, LoginOptions{})
+	require.Error(t, err)
+	require.ErrorIs(t, err, ErrRegistryAuthRequired)
+}
+
+// --- Logout ---
+
+func TestLogout(t *testing.T) {
+	t.Parallel()
+
+	t.Run("config load error", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		mockCfg := configmocks.NewMockProvider(ctrl)
+		mockCfg.EXPECT().LoadOrCreateConfig().Return(nil, errors.New("read error"))
+
+		err := Logout(context.Background(), mockCfg, nil)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "loading config")
+	})
+
+	t.Run("no oauth configured", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		mockCfg := configmocks.NewMockProvider(ctrl)
+		mockCfg.EXPECT().LoadOrCreateConfig().Return(&config.Config{}, nil)
+
+		err := Logout(context.Background(), mockCfg, nil)
+		require.Error(t, err)
+		require.ErrorIs(t, err, ErrRegistryAuthRequired)
+	})
+}
+
+// fullCaps is the set of capabilities a real keyring/encrypted provider exposes:
+// every operation is supported, so Logout takes the list-and-delete fast path.
+var fullCaps = secrets.ProviderCapabilities{CanRead: true, CanWrite: true, CanDelete: true, CanList: true}
+
+// TestLogout_DeletesAllScopedSecrets cannot be parallel because it uses t.Setenv.
+//
+// Verifies that Logout wipes every secret the (already scope-restricted)
+// provider can see — both the refresh token and the access-token cache entry
+// stored under "<key>_AT" by the token source. The original bug (#5373) was
+// that the "_AT" entry survived logout and let the next login short-circuit
+// through the access-token cache without a browser flow.
+func TestLogout_DeletesAllScopedSecrets(t *testing.T) {
+	tmpDir := resolvedTempDir(t)
+	t.Setenv("XDG_CACHE_HOME", tmpDir)
+
+	cfg := configWithOAuth()
+	cfg.RegistryAuth.OAuth.CachedRefreshTokenRef = "REGISTRY_OAUTH_abc"
+	cfg.RegistryAuth.OAuth.CachedTokenExpiry = time.Now().Add(time.Hour)
+
+	ctrl := gomock.NewController(t)
+	mockCfg := configmocks.NewMockProvider(ctrl)
+	mockCfg.EXPECT().LoadOrCreateConfig().Return(cfg, nil)
+
+	mockSecrets := secretsmocks.NewMockProvider(ctrl)
+	mockSecrets.EXPECT().Capabilities().Return(fullCaps)
+	// A scoped provider strips the "__thv_registry_" prefix from listed keys;
+	// the bug surfaces when the "_AT" entry is present alongside the refresh token.
+	mockSecrets.EXPECT().ListSecrets(gomock.Any()).Return([]secrets.SecretDescription{
+		{Key: "REGISTRY_OAUTH_abc"},
+		{Key: "REGISTRY_OAUTH_abc_AT"},
+		{Key: "REGISTRY_OAUTH_stale"}, // left over from an earlier issuer/registry config
+	}, nil)
+	mockSecrets.EXPECT().DeleteSecrets(gomock.Any(), gomock.InAnyOrder([]string{
+		"REGISTRY_OAUTH_abc",
+		"REGISTRY_OAUTH_abc_AT",
+		"REGISTRY_OAUTH_stale",
+	})).Return(nil)
+
+	mockCfg.EXPECT().UpdateConfig(gomock.Any()).DoAndReturn(func(fn func(*config.Config) error) error {
+		require.NoError(t, fn(cfg))
+		require.Empty(t, cfg.RegistryAuth.OAuth.CachedRefreshTokenRef)
+		require.True(t, cfg.RegistryAuth.OAuth.CachedTokenExpiry.IsZero())
+		return nil
+	})
+
+	require.NoError(t, Logout(context.Background(), mockCfg, mockSecrets))
+}
+
+// TestLogout_NoSecretsIsNoop cannot be parallel because it uses t.Setenv.
+func TestLogout_NoSecretsIsNoop(t *testing.T) {
+	tmpDir := resolvedTempDir(t)
+	t.Setenv("XDG_CACHE_HOME", tmpDir)
+
+	cfg := configWithOAuth()
+
+	ctrl := gomock.NewController(t)
+	mockCfg := configmocks.NewMockProvider(ctrl)
+	mockCfg.EXPECT().LoadOrCreateConfig().Return(cfg, nil)
+
+	mockSecrets := secretsmocks.NewMockProvider(ctrl)
+	mockSecrets.EXPECT().Capabilities().Return(fullCaps)
+	mockSecrets.EXPECT().ListSecrets(gomock.Any()).Return(nil, nil)
+	// DeleteSecrets is not expected — the list is empty, nothing to delete.
+
+	mockCfg.EXPECT().UpdateConfig(gomock.Any()).Return(nil)
+
+	require.NoError(t, Logout(context.Background(), mockCfg, mockSecrets))
+}
+
+// TestLogout_ReadOnlyProviderSkipsCleanup cannot be parallel because it uses t.Setenv.
+//
+// Providers like EnvironmentProvider cannot list or delete; they also cannot
+// hold cached tokens, so cleanup is a no-op rather than an error.
+func TestLogout_ReadOnlyProviderSkipsCleanup(t *testing.T) {
+	tmpDir := resolvedTempDir(t)
+	t.Setenv("XDG_CACHE_HOME", tmpDir)
+
+	cfg := configWithOAuth()
+
+	ctrl := gomock.NewController(t)
+	mockCfg := configmocks.NewMockProvider(ctrl)
+	mockCfg.EXPECT().LoadOrCreateConfig().Return(cfg, nil)
+
+	mockSecrets := secretsmocks.NewMockProvider(ctrl)
+	mockSecrets.EXPECT().Capabilities().Return(secrets.ProviderCapabilities{CanRead: true})
+	// ListSecrets / DeleteSecrets are not expected.
+
+	mockCfg.EXPECT().UpdateConfig(gomock.Any()).Return(nil)
+
+	require.NoError(t, Logout(context.Background(), mockCfg, mockSecrets))
+}
+
+// TestLogout_ListSecretsError cannot be parallel because it uses t.Setenv.
+func TestLogout_ListSecretsError(t *testing.T) {
+	tmpDir := resolvedTempDir(t)
+	t.Setenv("XDG_CACHE_HOME", tmpDir)
+
+	cfg := configWithOAuth()
+
+	ctrl := gomock.NewController(t)
+	mockCfg := configmocks.NewMockProvider(ctrl)
+	mockCfg.EXPECT().LoadOrCreateConfig().Return(cfg, nil)
+
+	mockSecrets := secretsmocks.NewMockProvider(ctrl)
+	mockSecrets.EXPECT().Capabilities().Return(fullCaps)
+	mockSecrets.EXPECT().ListSecrets(gomock.Any()).Return(nil, errors.New("vault locked"))
+
+	err := Logout(context.Background(), mockCfg, mockSecrets)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "deleting cached tokens")
+}
+
+// TestLogout_DeleteSecretsError cannot be parallel because it uses t.Setenv.
+func TestLogout_DeleteSecretsError(t *testing.T) {
+	tmpDir := resolvedTempDir(t)
+	t.Setenv("XDG_CACHE_HOME", tmpDir)
+
+	cfg := configWithOAuth()
+
+	ctrl := gomock.NewController(t)
+	mockCfg := configmocks.NewMockProvider(ctrl)
+	mockCfg.EXPECT().LoadOrCreateConfig().Return(cfg, nil)
+
+	mockSecrets := secretsmocks.NewMockProvider(ctrl)
+	mockSecrets.EXPECT().Capabilities().Return(fullCaps)
+	mockSecrets.EXPECT().ListSecrets(gomock.Any()).Return([]secrets.SecretDescription{
+		{Key: "REGISTRY_OAUTH_abc"},
+	}, nil)
+	mockSecrets.EXPECT().DeleteSecrets(gomock.Any(), gomock.Any()).Return(errors.New("vault locked"))
+
+	err := Logout(context.Background(), mockCfg, mockSecrets)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "deleting cached tokens")
+}
+
+// TestLogout_UpdateConfigError cannot be parallel because it uses t.Setenv.
+func TestLogout_UpdateConfigError(t *testing.T) {
+	tmpDir := resolvedTempDir(t)
+	t.Setenv("XDG_CACHE_HOME", tmpDir)
+
+	cfg := configWithOAuth()
+
+	ctrl := gomock.NewController(t)
+	mockCfg := configmocks.NewMockProvider(ctrl)
+	mockCfg.EXPECT().LoadOrCreateConfig().Return(cfg, nil)
+
+	mockSecrets := secretsmocks.NewMockProvider(ctrl)
+	mockSecrets.EXPECT().Capabilities().Return(fullCaps)
+	mockSecrets.EXPECT().ListSecrets(gomock.Any()).Return(nil, nil)
+
+	mockCfg.EXPECT().UpdateConfig(gomock.Any()).Return(errors.New("write failed"))
+
+	err := Logout(context.Background(), mockCfg, mockSecrets)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "write failed")
+}
+
+// --- resolvedTempDir helper ---
+
+// resolvedTempDir creates a temp directory and resolves any symlinks in the
+// path. On macOS, t.TempDir() often returns paths through /var which is a
+// symlink to /private/var, causing issues with validators that reject symlinks.
+func resolvedTempDir(t *testing.T) string {
+	t.Helper()
+	dir := t.TempDir()
+	resolved, err := filepath.EvalSymlinks(dir)
+	require.NoError(t, err)
+	return resolved
+}

@@ -1,0 +1,78 @@
+name: Bug report
+description: Something is broken or not behaving as expected
+labels: ["bug"]
+body:
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority
+      description: |
+        Your best guess. Maintainers may re-triage.
+        P0 = blocks shipping or breaks the install.
+        P1 = important, address soon.
+        P2 = nice to have.
+      options:
+        - P0
+        - P1
+        - P2
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: |
+        Describe the bug. What happened, what you expected, and steps to reproduce.
+      placeholder: |
+        Setup window stayed at "Step 5/6 — Wait for services" even after
+        the container booted. curl http://127.0.0.1:8787/health returned
+        {"status":"ok"} but the Electron app never closed the window.
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: |
+        Checklist of conditions that, when all true, mean this is fixed.
+        Optional but helpful — it pins down what "shipped" means.
+      placeholder: |
+        - [ ] Setup window closes within ~1s of /health returning 200
+        - [ ] Polling validates body contains `"status":"ok"`, not just status code
+    validations:
+      required: false
+
+  - type: input
+    id: version
+    attributes:
+      label: App version
+      description: |
+        Visible in the chat UI footer, or run `cat ~/.foxinthebox/data/version.txt`.
+      placeholder: e.g. 0.7.54
+    validations:
+      required: true
+
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      description: Where the issue surfaced.
+      options:
+        - Windows desktop app
+        - macOS desktop app (Apple Silicon)
+        - macOS desktop app (Intel)
+        - Linux (install script / .deb)
+        - Docker (manual)
+        - Not platform-specific
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Pre-submit checklist
+      options:
+        - label: I searched existing open and closed issues; this is not a duplicate
+          required: true

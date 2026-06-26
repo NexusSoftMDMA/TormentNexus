@@ -1,0 +1,96 @@
+{
+  "version": "1.75.0",
+  "fixture": "self_v1_75_0",
+  "fixture_path": "benchmarks\\replay\\fixtures\\self_v1_75_0.json",
+  "k": 10,
+  "captured_at": "2026-04-25T14:56:28+00:00",
+  "per_query": [
+    {
+      "query": "search_symbols",
+      "relevant_count": 1,
+      "predicted_count": 10,
+      "ndcg": 1.0,
+      "mrr": 1.0,
+      "recall": 1.0
+    },
+    {
+      "query": "compute_confidence",
+      "relevant_count": 1,
+      "predicted_count": 10,
+      "ndcg": 1.0,
+      "mrr": 1.0,
+      "recall": 1.0
+    },
+    {
+      "query": "attach_confidence",
+      "relevant_count": 1,
+      "predicted_count": 10,
+      "ndcg": 1.0,
+      "mrr": 1.0,
+      "recall": 1.0
+    },
+    {
+      "query": "record_tool_latency",
+      "relevant_count": 1,
+      "predicted_count": 10,
+      "ndcg": 1.0,
+      "mrr": 1.0,
+      "recall": 1.0
+    },
+    {
+      "query": "analyze_perf",
+      "relevant_count": 1,
+      "predicted_count": 10,
+      "ndcg": 1.0,
+      "mrr": 1.0,
+      "recall": 1.0
+    },
+    {
+      "query": "get_repo_health",
+      "relevant_count": 1,
+      "predicted_count": 10,
+      "ndcg": 1.0,
+      "mrr": 1.0,
+      "recall": 1.0
+    },
+    {
+      "query": "ndcg_at_k",
+      "relevant_count": 1,
+      "predicted_count": 10,
+      "ndcg": 1.0,
+      "mrr": 1.0,
+      "recall": 1.0
+    },
+    {
+      "query": "_State",
+      "relevant_count": 1,
+      "predicted_count": 10,
+      "ndcg": 1.0,
+      "mrr": 1.0,
+      "recall": 1.0
+    },
+    {
+      "query": "build_identity_channel",
+      "relevant_count": 1,
+      "predicted_count": 10,
+      "ndcg": 1.0,
+      "mrr": 1.0,
+      "recall": 1.0
+    },
+    {
+      "query": "ENTRY_POINT_DECORATOR_RE",
+      "relevant_count": 1,
+      "predicted_count": 10,
+      "ndcg": 1.0,
+      "mrr": 1.0,
+      "recall": 1.0
+    }
+  ],
+  "overall": {
+    "predicted_count": 10.0,
+    "relevant_count": 1.0,
+    "ndcg": 1.0,
+    "mrr": 1.0,
+    "recall": 1.0
+  }
+}

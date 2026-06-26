@@ -1,0 +1,1015 @@
+// SPDX-FileCopyrightText: Copyright 2025 Stacklok, Inc.
+// SPDX-License-Identifier: Apache-2.0
+
+// Package controllers contains integration tests for the RunConfig ConfigMap management
+package controllers
+
+import (
+	"encoding/json"
+	"fmt"
+	"time"
+
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
+	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
+
+	mcpv1beta1 "github.com/stacklok/toolhive/cmd/thv-operator/api/v1beta1"
+	ctrlutil "github.com/stacklok/toolhive/cmd/thv-operator/pkg/controllerutil"
+	"github.com/stacklok/toolhive/cmd/thv-operator/pkg/runconfig/configmap/checksum"
+	"github.com/stacklok/toolhive/pkg/auth"
+	"github.com/stacklok/toolhive/pkg/authz"
+	"github.com/stacklok/toolhive/pkg/authz/authorizers/cedar"
+	"github.com/stacklok/toolhive/pkg/runner"
+	transporttypes "github.com/stacklok/toolhive/pkg/transport/types"
+)
+
+var _ = Describe("RunConfig ConfigMap Integration Tests", func() {
+	const (
+		timeout  = time.Second * 30
+		interval = time.Millisecond * 250
+	)
+
+	Context("When creating an MCPServer with RunConfig ConfigMap", Ordered, func() {
+		var (
+			namespace        string
+			mcpServerName    string
+			mcpServer        *mcpv1beta1.MCPServer
+			createdMCPServer *mcpv1beta1.MCPServer
+			configMapName    string
+		)
+
+		BeforeAll(func() {
+			namespace = "runconfig-test-ns"
+			mcpServerName = "test-runconfig-server"
+			configMapName = mcpServerName + "-runconfig"
+
+			// Create namespace if it doesn't exist
+			ns := &corev1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: namespace,
+				},
+			}
+			_ = k8sClient.Create(ctx, ns)
+
+			// Define the MCPServer resource with comprehensive configuration
+			mcpServer = &mcpv1beta1.MCPServer{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      mcpServerName,
+					Namespace: namespace,
+				},
+				Spec: mcpv1beta1.MCPServerSpec{
+					Image:     "example/mcp-server:v1.0.0",
+					Transport: "stdio",
+					ProxyMode: "sse",
+					ProxyPort: 8080,
+					MCPPort:   8081,
+					Args:      []string{"--verbose", "--debug"},
+					Env: []mcpv1beta1.EnvVar{
+						{
+							Name:  "DEBUG",
+							Value: "true",
+						},
+						{
+							Name:  "LOG_LEVEL",
+							Value: "debug",
+						},
+					},
+					Volumes: []mcpv1beta1.Volume{
+						{
+							Name:      "config",
+							HostPath:  "/host/config",
+							MountPath: "/app/config",
+							ReadOnly:  true,
+						},
+					},
+					Resources: mcpv1beta1.ResourceRequirements{
+						Limits: mcpv1beta1.ResourceList{
+							CPU:    "500m",
+							Memory: "1Gi",
+						},
+						Requests: mcpv1beta1.ResourceList{
+							CPU:    "100m",
+							Memory: "128Mi",
+						},
+					},
+				},
+			}
+
+			// Create the MCPServer
+			Expect(k8sClient.Create(ctx, mcpServer)).Should(Succeed())
+
+			createdMCPServer = &mcpv1beta1.MCPServer{}
+			k8sClient.Get(ctx, types.NamespacedName{
+				Name:      mcpServerName,
+				Namespace: namespace,
+			}, createdMCPServer)
+		})
+
+		AfterAll(func() {
+			// Clean up the MCPServer (ConfigMap should be cleaned up by owner reference)
+			Expect(k8sClient.Delete(ctx, mcpServer)).Should(Succeed())
+
+			// Wait for ConfigMap to be deleted due to owner reference
+			Eventually(func() bool {
+				cm := &corev1.ConfigMap{}
+				err := k8sClient.Get(ctx, types.NamespacedName{
+					Name:      configMapName,
+					Namespace: namespace,
+				}, cm)
+				return err != nil // Should eventually return NotFound error
+			}, timeout, interval).Should(BeTrue())
+		})
+
+		It("Should create a RunConfig ConfigMap with correct content", func() {
+			// Wait for ConfigMap to be created
+			configMap := &corev1.ConfigMap{}
+			Eventually(func() error {
+				return k8sClient.Get(ctx, types.NamespacedName{
+					Name:      configMapName,
+					Namespace: namespace,
+				}, configMap)
+			}, timeout, interval).Should(Succeed())
+
+			// Verify ConfigMap metadata
+			Expect(configMap.Name).To(Equal(configMapName))
+			Expect(configMap.Namespace).To(Equal(namespace))
+
+			// Verify owner reference is set correctly
+			verifyOwnerReference(configMap.OwnerReferences, createdMCPServer, "RunConfig ConfigMap")
+
+			// Verify ConfigMap labels
+			expectedLabels := map[string]string{
+				"toolhive.stacklok.io/component":  "run-config",
+				"toolhive.stacklok.io/mcp-server": mcpServerName,
+				"toolhive.stacklok.io/managed-by": "toolhive-operator",
+			}
+			for key, value := range expectedLabels {
+				Expect(configMap.Labels).To(HaveKeyWithValue(key, value))
+			}
+
+			// Verify ConfigMap has checksum annotation
+			Expect(configMap.Annotations).To(HaveKey(checksum.ContentChecksumAnnotation))
+			initialChecksum := configMap.Annotations[checksum.ContentChecksumAnnotation]
+			Expect(initialChecksum).NotTo(BeEmpty())
+
+			// Verify ConfigMap data contains runconfig.json
+			Expect(configMap.Data).To(HaveKey("runconfig.json"))
+			runConfigJSON := configMap.Data["runconfig.json"]
+			Expect(runConfigJSON).NotTo(BeEmpty())
+
+			// Parse and verify RunConfig content
+			var runConfig runner.RunConfig
+			err := json.Unmarshal([]byte(runConfigJSON), &runConfig)
+			Expect(err).NotTo(HaveOccurred())
+
+			// Verify RunConfig fields match MCPServer spec
+			Expect(runConfig.Name).To(Equal(mcpServerName))
+			Expect(runConfig.Image).To(Equal("example/mcp-server:v1.0.0"))
+			Expect(runConfig.Transport).To(Equal(transporttypes.TransportTypeStdio))
+			Expect(runConfig.ProxyMode).To(Equal(transporttypes.ProxyModeSSE))
+			Expect(runConfig.Port).To(Equal(8080))
+			Expect(runConfig.TargetPort).To(Equal(8081))
+			Expect(runConfig.CmdArgs).To(Equal([]string{"--verbose", "--debug"}))
+
+			// Verify environment variables
+			Expect(runConfig.EnvVars).To(HaveKeyWithValue("DEBUG", "true"))
+			Expect(runConfig.EnvVars).To(HaveKeyWithValue("LOG_LEVEL", "debug"))
+			Expect(runConfig.EnvVars).To(HaveKeyWithValue("MCP_TRANSPORT", "stdio"))
+
+			// Verify volumes
+			Expect(runConfig.Volumes).To(HaveLen(1))
+			Expect(runConfig.Volumes[0]).To(Equal("/host/config:/app/config:ro"))
+
+			// Verify schema version
+			Expect(runConfig.SchemaVersion).To(Equal(runner.CurrentSchemaVersion))
+		})
+
+		It("Should create deployment with RunConfig volume mounts", func() {
+			// Wait for the deployment to be created
+			deployment := &appsv1.Deployment{}
+			Eventually(func() error {
+				return k8sClient.Get(ctx, types.NamespacedName{
+					Name:      mcpServerName,
+					Namespace: namespace,
+				}, deployment)
+			}, timeout, interval).Should(Succeed())
+
+			// Verify the deployment has the correct volume
+			var runconfigVolume *corev1.Volume
+			for i := range deployment.Spec.Template.Spec.Volumes {
+				vol := &deployment.Spec.Template.Spec.Volumes[i]
+				if vol.Name == "runconfig" {
+					runconfigVolume = vol
+					break
+				}
+			}
+			Expect(runconfigVolume).NotTo(BeNil(), "RunConfig volume should exist in deployment")
+
+			// Verify the volume references the correct ConfigMap
+			Expect(runconfigVolume.ConfigMap).NotTo(BeNil())
+			Expect(runconfigVolume.ConfigMap.LocalObjectReference.Name).To(Equal(configMapName))
+
+			// Find the toolhive container
+			var toolhiveContainer *corev1.Container
+			for i := range deployment.Spec.Template.Spec.Containers {
+				container := &deployment.Spec.Template.Spec.Containers[i]
+				if container.Name == "toolhive" {
+					toolhiveContainer = container
+					break
+				}
+			}
+			Expect(toolhiveContainer).NotTo(BeNil(), "Toolhive container should exist")
+
+			// Verify the volume mount exists in the toolhive container
+			var runconfigMount *corev1.VolumeMount
+			for i := range toolhiveContainer.VolumeMounts {
+				mount := &toolhiveContainer.VolumeMounts[i]
+				if mount.Name == "runconfig" {
+					runconfigMount = mount
+					break
+				}
+			}
+			Expect(runconfigMount).NotTo(BeNil(), "RunConfig volume mount should exist in toolhive container")
+			Expect(runconfigMount.MountPath).To(Equal("/etc/runconfig"))
+			Expect(runconfigMount.ReadOnly).To(BeTrue())
+		})
+
+		It("Should not update ConfigMap when MCPServer spec is unchanged", func() {
+			// Get initial ConfigMap state
+			initialConfigMap := &corev1.ConfigMap{}
+			Expect(k8sClient.Get(ctx, types.NamespacedName{
+				Name:      configMapName,
+				Namespace: namespace,
+			}, initialConfigMap)).To(Succeed())
+
+			initialChecksum := initialConfigMap.Annotations[checksum.ContentChecksumAnnotation]
+			initialResourceVersion := initialConfigMap.ResourceVersion
+
+			// Trigger a reconciliation by updating an annotation on MCPServer (not affecting RunConfig)
+			Eventually(func() error {
+				if err := k8sClient.Get(ctx, types.NamespacedName{
+					Name:      mcpServerName,
+					Namespace: namespace,
+				}, mcpServer); err != nil {
+					return err
+				}
+				if mcpServer.Annotations == nil {
+					mcpServer.Annotations = make(map[string]string)
+				}
+				mcpServer.Annotations["test-annotation"] = "test-value"
+				return k8sClient.Update(ctx, mcpServer)
+			}, timeout, interval).Should(Succeed())
+
+			// Give time for potential reconciliation
+			time.Sleep(2 * time.Second)
+
+			// Verify ConfigMap was not updated
+			unchangedConfigMap := &corev1.ConfigMap{}
+			Expect(k8sClient.Get(ctx, types.NamespacedName{
+				Name:      configMapName,
+				Namespace: namespace,
+			}, unchangedConfigMap)).To(Succeed())
+
+			// Checksum should remain the same
+			Expect(unchangedConfigMap.Annotations[checksum.ContentChecksumAnnotation]).To(Equal(initialChecksum))
+
+			// ResourceVersion should remain the same (no update occurred)
+			Expect(unchangedConfigMap.ResourceVersion).To(Equal(initialResourceVersion))
+		})
+
+		It("Should update ConfigMap when MCPServer spec changes", func() {
+			// Get initial ConfigMap state
+			initialConfigMap := &corev1.ConfigMap{}
+			Expect(k8sClient.Get(ctx, types.NamespacedName{
+				Name:      configMapName,
+				Namespace: namespace,
+			}, initialConfigMap)).To(Succeed())
+
+			initialChecksum := initialConfigMap.Annotations[checksum.ContentChecksumAnnotation]
+			initialResourceVersion := initialConfigMap.ResourceVersion
+
+			// Update MCPServer spec with changes that affect RunConfig
+			Eventually(func() error {
+				if err := k8sClient.Get(ctx, types.NamespacedName{
+					Name:      mcpServerName,
+					Namespace: namespace,
+				}, mcpServer); err != nil {
+					return err
+				}
+				// Update multiple fields
+				mcpServer.Spec.Image = "example/mcp-server:v2.0.0"
+				mcpServer.Spec.ProxyPort = 9090
+				mcpServer.Spec.Env = append(mcpServer.Spec.Env, mcpv1beta1.EnvVar{
+					Name:  "NEW_VAR",
+					Value: "new_value",
+				})
+				mcpServer.Spec.Args = []string{"--production"}
+				return k8sClient.Update(ctx, mcpServer)
+			}, timeout, interval).Should(Succeed())
+
+			// Wait for ConfigMap to be updated
+			Eventually(func() bool {
+				cm := &corev1.ConfigMap{}
+				if err := k8sClient.Get(ctx, types.NamespacedName{
+					Name:      configMapName,
+					Namespace: namespace,
+				}, cm); err != nil {
+					return false
+				}
+				// Check if checksum has changed
+				return cm.Annotations[checksum.ContentChecksumAnnotation] != initialChecksum
+			}, timeout, interval).Should(BeTrue())
+
+			// Get updated ConfigMap
+			updatedConfigMap := &corev1.ConfigMap{}
+			Expect(k8sClient.Get(ctx, types.NamespacedName{
+				Name:      configMapName,
+				Namespace: namespace,
+			}, updatedConfigMap)).To(Succeed())
+
+			// Verify checksum has changed
+			newChecksum := updatedConfigMap.Annotations[checksum.ContentChecksumAnnotation]
+			Expect(newChecksum).NotTo(Equal(initialChecksum))
+			Expect(newChecksum).NotTo(BeEmpty())
+
+			// Verify ResourceVersion has changed (update occurred)
+			Expect(updatedConfigMap.ResourceVersion).NotTo(Equal(initialResourceVersion))
+
+			// Parse and verify updated RunConfig content
+			var updatedRunConfig runner.RunConfig
+			err := json.Unmarshal([]byte(updatedConfigMap.Data["runconfig.json"]), &updatedRunConfig)
+			Expect(err).NotTo(HaveOccurred())
+
+			// Verify updated fields
+			Expect(updatedRunConfig.Image).To(Equal("example/mcp-server:v2.0.0"))
+			Expect(updatedRunConfig.Port).To(Equal(9090))
+			Expect(updatedRunConfig.CmdArgs).To(Equal([]string{"--production"}))
+			Expect(updatedRunConfig.EnvVars).To(HaveKeyWithValue("NEW_VAR", "new_value"))
+			Expect(updatedRunConfig.EnvVars).To(HaveKeyWithValue("DEBUG", "true"))
+			Expect(updatedRunConfig.EnvVars).To(HaveKeyWithValue("LOG_LEVEL", "debug"))
+
+			// Owner reference should still be set
+			verifyOwnerReference(updatedConfigMap.OwnerReferences, createdMCPServer, "Updated RunConfig ConfigMap")
+		})
+	})
+
+	Context("When creating an MCPServer with scaling configuration", func() {
+		It("Should populate ScalingConfig in RunConfig when backendReplicas and Redis session storage are set", func() {
+			namespace := "scaling-runconfig-ns"
+			mcpServerName := "scaling-runconfig-server"
+			configMapName := mcpServerName + "-runconfig"
+
+			ns := &corev1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{Name: namespace},
+			}
+			_ = k8sClient.Create(ctx, ns)
+
+			backendReplicas := int32(3)
+			mcpServer := &mcpv1beta1.MCPServer{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      mcpServerName,
+					Namespace: namespace,
+				},
+				Spec: mcpv1beta1.MCPServerSpec{
+					Image:           "example/mcp-server:latest",
+					Transport:       "stdio",
+					ProxyPort:       8080,
+					BackendReplicas: &backendReplicas,
+					SessionStorage: &mcpv1beta1.SessionStorageConfig{
+						Provider:  mcpv1beta1.SessionStorageProviderRedis,
+						Address:   "redis:6379",
+						DB:        1,
+						KeyPrefix: "thv:",
+					},
+				},
+			}
+
+			Expect(k8sClient.Create(ctx, mcpServer)).Should(Succeed())
+			defer k8sClient.Delete(ctx, mcpServer) //nolint:errcheck
+
+			configMap := &corev1.ConfigMap{}
+			Eventually(func() error {
+				return k8sClient.Get(ctx, types.NamespacedName{
+					Name:      configMapName,
+					Namespace: namespace,
+				}, configMap)
+			}, timeout, interval).Should(Succeed())
+
+			Expect(configMap.Data).To(HaveKey("runconfig.json"))
+
+			var runConfig runner.RunConfig
+			Expect(json.Unmarshal([]byte(configMap.Data["runconfig.json"]), &runConfig)).To(Succeed())
+
+			Expect(runConfig.ScalingConfig).NotTo(BeNil())
+			Expect(runConfig.ScalingConfig.BackendReplicas).NotTo(BeNil())
+			Expect(*runConfig.ScalingConfig.BackendReplicas).To(Equal(int32(3)))
+			Expect(runConfig.ScalingConfig.SessionRedis).NotTo(BeNil())
+			Expect(runConfig.ScalingConfig.SessionRedis.Address).To(Equal("redis:6379"))
+			Expect(runConfig.ScalingConfig.SessionRedis.DB).To(Equal(int32(1)))
+			Expect(runConfig.ScalingConfig.SessionRedis.KeyPrefix).To(Equal("thv:"))
+		})
+
+		It("Should omit ScalingConfig from RunConfig when no scaling fields are set", func() {
+			namespace := "scaling-absent-ns"
+			mcpServerName := "scaling-absent-server"
+			configMapName := mcpServerName + "-runconfig"
+
+			ns := &corev1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{Name: namespace},
+			}
+			_ = k8sClient.Create(ctx, ns)
+
+			mcpServer := &mcpv1beta1.MCPServer{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      mcpServerName,
+					Namespace: namespace,
+				},
+				Spec: mcpv1beta1.MCPServerSpec{
+					Image:     "example/mcp-server:latest",
+					Transport: "stdio",
+					ProxyPort: 8080,
+				},
+			}
+
+			Expect(k8sClient.Create(ctx, mcpServer)).Should(Succeed())
+			defer k8sClient.Delete(ctx, mcpServer) //nolint:errcheck
+
+			configMap := &corev1.ConfigMap{}
+			Eventually(func() error {
+				return k8sClient.Get(ctx, types.NamespacedName{
+					Name:      configMapName,
+					Namespace: namespace,
+				}, configMap)
+			}, timeout, interval).Should(Succeed())
+
+			Expect(configMap.Data).To(HaveKey("runconfig.json"))
+
+			var runConfig runner.RunConfig
+			Expect(json.Unmarshal([]byte(configMap.Data["runconfig.json"]), &runConfig)).To(Succeed())
+
+			Expect(runConfig.ScalingConfig).To(BeNil())
+		})
+	})
+
+	Context("When creating MCPServer with complex configurations", func() {
+		It("Should handle MCPServer with telemetryConfigRef", func() {
+			namespace := "telemetry-ref-test-ns"
+			mcpServerName := "telemetry-ref-server"
+			configMapName := mcpServerName + "-runconfig"
+
+			// Create namespace
+			ns := &corev1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: namespace,
+				},
+			}
+			_ = k8sClient.Create(ctx, ns)
+
+			// Create the MCPTelemetryConfig resource
+			telCfg := &mcpv1beta1.MCPTelemetryConfig{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "shared-otel-config",
+					Namespace: namespace,
+				},
+			}
+			telCfg.Spec.OpenTelemetry = &mcpv1beta1.MCPTelemetryOTelConfig{
+				Enabled:  true,
+				Endpoint: "otel-collector:4317",
+				Insecure: true,
+				Tracing:  &mcpv1beta1.OpenTelemetryTracingConfig{Enabled: true, SamplingRate: "0.1"},
+				Metrics:  &mcpv1beta1.OpenTelemetryMetricsConfig{Enabled: true},
+			}
+			telCfg.Spec.Prometheus = &mcpv1beta1.PrometheusConfig{Enabled: true}
+
+			Expect(k8sClient.Create(ctx, telCfg)).To(Succeed())
+			defer k8sClient.Delete(ctx, telCfg) //nolint:errcheck
+
+			// Wait for the MCPTelemetryConfig to be reconciled (hash set)
+			Eventually(func() bool {
+				fetched := &mcpv1beta1.MCPTelemetryConfig{}
+				err := k8sClient.Get(ctx, types.NamespacedName{
+					Name:      telCfg.Name,
+					Namespace: telCfg.Namespace,
+				}, fetched)
+				return err == nil && fetched.Status.ConfigHash != ""
+			}, timeout, interval).Should(BeTrue())
+
+			// Create MCPServer with telemetryConfigRef
+			mcpServer := &mcpv1beta1.MCPServer{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      mcpServerName,
+					Namespace: namespace,
+				},
+				Spec: mcpv1beta1.MCPServerSpec{
+					Image:     "telemetry/mcp-server:latest",
+					Transport: "stdio",
+					ProxyPort: 8080,
+					TelemetryConfigRef: &mcpv1beta1.MCPTelemetryConfigReference{
+						Name:        "shared-otel-config",
+						ServiceName: "test-service",
+					},
+				},
+			}
+
+			Expect(k8sClient.Create(ctx, mcpServer)).Should(Succeed())
+			defer k8sClient.Delete(ctx, mcpServer) //nolint:errcheck
+
+			// Wait for RunConfig ConfigMap to be created
+			configMap := &corev1.ConfigMap{}
+			Eventually(func() error {
+				return k8sClient.Get(ctx, types.NamespacedName{
+					Name:      configMapName,
+					Namespace: namespace,
+				}, configMap)
+			}, timeout, interval).Should(Succeed())
+
+			// Parse RunConfig and verify telemetry configuration
+			var runConfig runner.RunConfig
+			err := json.Unmarshal([]byte(configMap.Data["runconfig.json"]), &runConfig)
+			Expect(err).NotTo(HaveOccurred())
+
+			Expect(runConfig.TelemetryConfig).NotTo(BeNil())
+			// Endpoint should have http:// stripped (same normalization as inline path)
+			Expect(runConfig.TelemetryConfig.Endpoint).To(Equal("otel-collector:4317"))
+			// ServiceName comes from the ref override
+			Expect(runConfig.TelemetryConfig.ServiceName).To(Equal("test-service"))
+			Expect(runConfig.TelemetryConfig.Insecure).To(BeTrue())
+			Expect(runConfig.TelemetryConfig.TracingEnabled).To(BeTrue())
+			Expect(runConfig.TelemetryConfig.MetricsEnabled).To(BeTrue())
+			Expect(runConfig.TelemetryConfig.SamplingRate).To(Equal("0.1"))
+			Expect(runConfig.TelemetryConfig.EnablePrometheusMetricsPath).To(BeTrue())
+		})
+
+		It("Should handle MCPServer with oidcConfigRef", func() {
+			namespace := "oidc-ref-runconfig-ns"
+			mcpServerName := "oidc-ref-runconfig-server"
+			configMapName := mcpServerName + "-runconfig"
+
+			ns := &corev1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: namespace,
+				},
+			}
+			_ = k8sClient.Create(ctx, ns)
+
+			oidcConfig := &mcpv1beta1.MCPOIDCConfig{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "shared-oidc-config",
+					Namespace: namespace,
+				},
+				Spec: mcpv1beta1.MCPOIDCConfigSpec{
+					Type: mcpv1beta1.MCPOIDCConfigTypeInline,
+					Inline: &mcpv1beta1.InlineOIDCSharedConfig{
+						Issuer:  "https://issuer.example.com",
+						JWKSURL: "https://issuer.example.com/.well-known/jwks.json",
+					},
+				},
+			}
+			Expect(k8sClient.Create(ctx, oidcConfig)).To(Succeed())
+			defer k8sClient.Delete(ctx, oidcConfig) //nolint:errcheck
+
+			Eventually(func() bool {
+				fetched := &mcpv1beta1.MCPOIDCConfig{}
+				err := k8sClient.Get(ctx, types.NamespacedName{
+					Name:      oidcConfig.Name,
+					Namespace: oidcConfig.Namespace,
+				}, fetched)
+				return err == nil && fetched.Status.ConfigHash != ""
+			}, timeout, interval).Should(BeTrue())
+
+			resourceURL := "https://mcp.example.com/oauth/resource"
+			mcpServer := &mcpv1beta1.MCPServer{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      mcpServerName,
+					Namespace: namespace,
+				},
+				Spec: mcpv1beta1.MCPServerSpec{
+					Image:     "oidc/mcp-server:latest",
+					Transport: "stdio",
+					ProxyPort: 8080,
+					OIDCConfigRef: &mcpv1beta1.MCPOIDCConfigReference{
+						Name:        oidcConfig.Name,
+						Audience:    "test-audience",
+						Scopes:      []string{"openid", "profile"},
+						ResourceURL: resourceURL,
+					},
+				},
+			}
+
+			Expect(k8sClient.Create(ctx, mcpServer)).Should(Succeed())
+			defer k8sClient.Delete(ctx, mcpServer) //nolint:errcheck
+
+			configMap := &corev1.ConfigMap{}
+			Eventually(func() error {
+				return k8sClient.Get(ctx, types.NamespacedName{
+					Name:      configMapName,
+					Namespace: namespace,
+				}, configMap)
+			}, timeout, interval).Should(Succeed())
+
+			Expect(configMap.Data).To(HaveKey("runconfig.json"))
+
+			var runConfig runner.RunConfig
+			err := json.Unmarshal([]byte(configMap.Data["runconfig.json"]), &runConfig)
+			Expect(err).NotTo(HaveOccurred())
+
+			Expect(runConfig.OIDCConfig).NotTo(BeNil())
+			Expect(runConfig.OIDCConfig.Issuer).To(Equal("https://issuer.example.com"))
+			Expect(runConfig.OIDCConfig.Audience).To(Equal("test-audience"))
+			Expect(runConfig.OIDCConfig.JWKSURL).To(Equal("https://issuer.example.com/.well-known/jwks.json"))
+			Expect(runConfig.OIDCConfig.ResourceURL).To(Equal(resourceURL))
+			Expect(runConfig.OIDCConfig.Scopes).To(Equal([]string{"openid", "profile"}))
+
+			var authConfig *transporttypes.MiddlewareConfig
+			for i := range runConfig.MiddlewareConfigs {
+				if runConfig.MiddlewareConfigs[i].Type == auth.MiddlewareType {
+					authConfig = &runConfig.MiddlewareConfigs[i]
+					break
+				}
+			}
+			Expect(authConfig).NotTo(BeNil())
+
+			var authParams auth.MiddlewareParams
+			Expect(json.Unmarshal(authConfig.Parameters, &authParams)).To(Succeed())
+			Expect(authParams.OIDCConfig).NotTo(BeNil())
+			Expect(authParams.OIDCConfig.Issuer).To(Equal(runConfig.OIDCConfig.Issuer))
+			Expect(authParams.OIDCConfig.Audience).To(Equal(runConfig.OIDCConfig.Audience))
+			Expect(authParams.OIDCConfig.JWKSURL).To(Equal(runConfig.OIDCConfig.JWKSURL))
+		})
+
+		It("Should use server name as default service name when telemetryConfigRef has no override", func() {
+			namespace := "telemetry-default-svc-ns"
+			mcpServerName := "telemetry-default-svc-server"
+			configMapName := mcpServerName + "-runconfig"
+
+			ns := &corev1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{Name: namespace},
+			}
+			_ = k8sClient.Create(ctx, ns)
+
+			telCfg := &mcpv1beta1.MCPTelemetryConfig{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "no-svcname-config",
+					Namespace: namespace,
+				},
+			}
+			telCfg.Spec.OpenTelemetry = &mcpv1beta1.MCPTelemetryOTelConfig{
+				Enabled:  true,
+				Endpoint: "otel-collector:4317",
+				Tracing:  &mcpv1beta1.OpenTelemetryTracingConfig{Enabled: true},
+			}
+
+			Expect(k8sClient.Create(ctx, telCfg)).To(Succeed())
+			defer k8sClient.Delete(ctx, telCfg) //nolint:errcheck
+
+			Eventually(func() bool {
+				fetched := &mcpv1beta1.MCPTelemetryConfig{}
+				err := k8sClient.Get(ctx, types.NamespacedName{
+					Name:      telCfg.Name,
+					Namespace: telCfg.Namespace,
+				}, fetched)
+				return err == nil && fetched.Status.ConfigHash != ""
+			}, timeout, interval).Should(BeTrue())
+
+			mcpServer := &mcpv1beta1.MCPServer{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      mcpServerName,
+					Namespace: namespace,
+				},
+				Spec: mcpv1beta1.MCPServerSpec{
+					Image:     "telemetry/mcp-server:latest",
+					Transport: "stdio",
+					ProxyPort: 8080,
+					TelemetryConfigRef: &mcpv1beta1.MCPTelemetryConfigReference{
+						Name: "no-svcname-config",
+						// ServiceName intentionally omitted — should default to server name
+					},
+				},
+			}
+
+			Expect(k8sClient.Create(ctx, mcpServer)).Should(Succeed())
+			defer k8sClient.Delete(ctx, mcpServer) //nolint:errcheck
+
+			configMap := &corev1.ConfigMap{}
+			Eventually(func() error {
+				return k8sClient.Get(ctx, types.NamespacedName{
+					Name:      configMapName,
+					Namespace: namespace,
+				}, configMap)
+			}, timeout, interval).Should(Succeed())
+
+			var runConfig runner.RunConfig
+			err := json.Unmarshal([]byte(configMap.Data["runconfig.json"]), &runConfig)
+			Expect(err).NotTo(HaveOccurred())
+
+			Expect(runConfig.TelemetryConfig).NotTo(BeNil())
+			// ServiceName should fall back to the MCPServer name
+			Expect(runConfig.TelemetryConfig.ServiceName).To(Equal(mcpServerName))
+		})
+
+		It("Should handle MCPServer with inline authorization configuration", func() {
+			namespace := "authz-test-ns"
+			mcpServerName := "authz-server"
+			configMapName := mcpServerName + "-runconfig"
+
+			// Create namespace
+			ns := &corev1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: namespace,
+				},
+			}
+			_ = k8sClient.Create(ctx, ns)
+
+			// Create MCPServer with inline authorization
+			mcpServer := &mcpv1beta1.MCPServer{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      mcpServerName,
+					Namespace: namespace,
+				},
+				Spec: mcpv1beta1.MCPServerSpec{
+					Image:     "authz/mcp-server:latest",
+					Transport: "stdio",
+					ProxyPort: 8080,
+					AuthzConfig: &mcpv1beta1.AuthzConfigRef{
+						Type: mcpv1beta1.AuthzConfigTypeInline,
+						Inline: &mcpv1beta1.InlineAuthzConfig{
+							Policies: []string{
+								`permit(principal, action == Action::"call_tool", resource == Tool::"weather");`,
+								`permit(principal, action == Action::"get_prompt", resource == Prompt::"greeting");`,
+							},
+							EntitiesJSON: `[{"uid": {"type": "User", "id": "user1"}, "attrs": {}}]`,
+						},
+					},
+				},
+			}
+
+			Expect(k8sClient.Create(ctx, mcpServer)).Should(Succeed())
+			defer k8sClient.Delete(ctx, mcpServer)
+
+			// Wait for ConfigMap to be created
+			configMap := &corev1.ConfigMap{}
+			Eventually(func() error {
+				return k8sClient.Get(ctx, types.NamespacedName{
+					Name:      configMapName,
+					Namespace: namespace,
+				}, configMap)
+			}, timeout, interval).Should(Succeed())
+
+			// Parse RunConfig and verify authorization configuration
+			var runConfig runner.RunConfig
+			err := json.Unmarshal([]byte(configMap.Data["runconfig.json"]), &runConfig)
+			Expect(err).NotTo(HaveOccurred())
+
+			// Verify authorization configuration
+			Expect(runConfig.AuthzConfig).NotTo(BeNil())
+			Expect(runConfig.AuthzConfig.Version).To(Equal(ctrlutil.AuthzConfigVersion))
+			Expect(runConfig.AuthzConfig.Type).To(Equal(authz.ConfigType(cedar.ConfigType)))
+
+			cedarCfg, err := cedar.ExtractConfig(runConfig.AuthzConfig)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(cedarCfg.Options.Policies).To(HaveLen(2))
+			Expect(cedarCfg.Options.Policies[0]).To(ContainSubstring("call_tool"))
+			Expect(cedarCfg.Options.Policies[1]).To(ContainSubstring("get_prompt"))
+			Expect(cedarCfg.Options.EntitiesJSON).To(ContainSubstring("user1"))
+		})
+
+		It("Should handle deterministic ConfigMap generation", func() {
+			namespace := "deterministic-test-ns"
+			mcpServerName := "deterministic-server"
+			configMapName := mcpServerName + "-runconfig"
+
+			// Create namespace
+			ns := &corev1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: namespace,
+				},
+			}
+			_ = k8sClient.Create(ctx, ns)
+
+			// Create MCPServer with comprehensive configuration
+			mcpServer := &mcpv1beta1.MCPServer{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      mcpServerName,
+					Namespace: namespace,
+				},
+				Spec: mcpv1beta1.MCPServerSpec{
+					Image:     "deterministic/mcp-server:v1.0.0",
+					Transport: "sse",
+					ProxyPort: 9090,
+					MCPPort:   8080,
+					Args:      []string{"--arg1", "--arg2", "--arg3"},
+					Env: []mcpv1beta1.EnvVar{
+						{Name: "VAR_C", Value: "value_c"},
+						{Name: "VAR_A", Value: "value_a"},
+						{Name: "VAR_B", Value: "value_b"},
+					},
+					Volumes: []mcpv1beta1.Volume{
+						{Name: "vol2", HostPath: "/host2", MountPath: "/mount2", ReadOnly: true},
+						{Name: "vol1", HostPath: "/host1", MountPath: "/mount1", ReadOnly: false},
+					},
+				},
+			}
+
+			Expect(k8sClient.Create(ctx, mcpServer)).Should(Succeed())
+			defer k8sClient.Delete(ctx, mcpServer)
+
+			// Wait for ConfigMap to be created
+			configMap := &corev1.ConfigMap{}
+			Eventually(func() error {
+				return k8sClient.Get(ctx, types.NamespacedName{
+					Name:      configMapName,
+					Namespace: namespace,
+				}, configMap)
+			}, timeout, interval).Should(Succeed())
+
+			// Store initial checksum
+			initialChecksum := configMap.Annotations[checksum.ContentChecksumAnnotation]
+			Expect(initialChecksum).NotTo(BeEmpty())
+
+			// Delete the ConfigMap
+			Expect(k8sClient.Delete(ctx, configMap)).Should(Succeed())
+
+			// Wait for ConfigMap to be deleted
+			Eventually(func() bool {
+				cm := &corev1.ConfigMap{}
+				err := k8sClient.Get(ctx, types.NamespacedName{
+					Name:      configMapName,
+					Namespace: namespace,
+				}, cm)
+				return err != nil
+			}, timeout, interval).Should(BeTrue())
+
+			// Trigger reconciliation by updating MCPServer annotation
+			Eventually(func() error {
+				if err := k8sClient.Get(ctx, types.NamespacedName{
+					Name:      mcpServerName,
+					Namespace: namespace,
+				}, mcpServer); err != nil {
+					return err
+				}
+				if mcpServer.Annotations == nil {
+					mcpServer.Annotations = make(map[string]string)
+				}
+				mcpServer.Annotations["trigger-recreate"] = fmt.Sprint(time.Now().Unix())
+				return k8sClient.Update(ctx, mcpServer)
+			}, timeout, interval).Should(Succeed())
+
+			// Wait for ConfigMap to be recreated
+			recreatedConfigMap := &corev1.ConfigMap{}
+			Eventually(func() error {
+				return k8sClient.Get(ctx, types.NamespacedName{
+					Name:      configMapName,
+					Namespace: namespace,
+				}, recreatedConfigMap)
+			}, timeout, interval).Should(Succeed())
+
+			// Verify checksum is identical (deterministic generation)
+			recreatedChecksum := recreatedConfigMap.Annotations[checksum.ContentChecksumAnnotation]
+			Expect(recreatedChecksum).To(Equal(initialChecksum), "Checksum should be identical for same configuration")
+
+			// Parse and verify content structure is consistent
+			var runConfig runner.RunConfig
+			err := json.Unmarshal([]byte(recreatedConfigMap.Data["runconfig.json"]), &runConfig)
+			Expect(err).NotTo(HaveOccurred())
+
+			// Verify fields maintain their values
+			Expect(runConfig.Name).To(Equal(mcpServerName))
+			Expect(runConfig.Image).To(Equal("deterministic/mcp-server:v1.0.0"))
+			Expect(runConfig.Transport).To(Equal(transporttypes.TransportTypeSSE))
+			Expect(runConfig.Port).To(Equal(9090))
+			Expect(runConfig.TargetPort).To(Equal(8080))
+			Expect(runConfig.CmdArgs).To(Equal([]string{"--arg1", "--arg2", "--arg3"}))
+		})
+
+		It("Should handle MCPServer with authorization ConfigMap reference", func() {
+			namespace := "authz-configmap-ns"
+			mcpServerName := "authz-configmap-server"
+			configMapName := mcpServerName + "-runconfig"
+			externalAuthzConfigMapName := "external-authz-config"
+
+			// Create namespace
+			ns := &corev1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: namespace,
+				},
+			}
+			_ = k8sClient.Create(ctx, ns)
+
+			// Create external authorization ConfigMap
+			authzConfigMap := &corev1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      externalAuthzConfigMapName,
+					Namespace: namespace,
+				},
+				Data: map[string]string{
+					"authz.json": `{
+						"version": "1.0",
+						"type": "cedarv1",
+						"cedar": {
+							"policies": [
+								"permit(principal, action == Action::\"call_tool\", resource == Tool::\"weather\");",
+								"permit(principal, action == Action::\"get_prompt\", resource == Prompt::\"greeting\");",
+								"forbid(principal, action == Action::\"call_tool\", resource == Tool::\"sensitive_data\");"
+							],
+							"entities_json": "[{\"uid\": {\"type\": \"User\", \"id\": \"user1\"}, \"attrs\": {\"name\": \"Alice\", \"role\": \"developer\"}},{\"uid\": {\"type\": \"User\", \"id\": \"admin\"}, \"attrs\": {\"name\": \"Bob\", \"role\": \"admin\"}}]"
+						}
+					}`,
+				},
+			}
+			Expect(k8sClient.Create(ctx, authzConfigMap)).Should(Succeed())
+			defer k8sClient.Delete(ctx, authzConfigMap)
+
+			// Create MCPServer with ConfigMap authorization reference
+			mcpServer := &mcpv1beta1.MCPServer{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      mcpServerName,
+					Namespace: namespace,
+				},
+				Spec: mcpv1beta1.MCPServerSpec{
+					Image:     "authz/mcp-server:latest",
+					Transport: "stdio",
+					ProxyPort: 8080,
+					AuthzConfig: &mcpv1beta1.AuthzConfigRef{
+						Type: mcpv1beta1.AuthzConfigTypeConfigMap,
+						ConfigMap: &mcpv1beta1.ConfigMapAuthzRef{
+							Name: externalAuthzConfigMapName,
+							Key:  "authz.json",
+						},
+					},
+				},
+			}
+
+			Expect(k8sClient.Create(ctx, mcpServer)).Should(Succeed())
+			defer k8sClient.Delete(ctx, mcpServer)
+
+			// Wait for RunConfig ConfigMap to be created
+			configMap := &corev1.ConfigMap{}
+			Eventually(func() error {
+				return k8sClient.Get(ctx, types.NamespacedName{
+					Name:      configMapName,
+					Namespace: namespace,
+				}, configMap)
+			}, timeout, interval).Should(Succeed())
+
+			// Verify ConfigMap has the expected label
+			Expect(configMap.Labels).To(HaveKeyWithValue("toolhive.stacklok.io/mcp-server", mcpServerName))
+
+			// Verify ConfigMap data contains runconfig.json
+			Expect(configMap.Data).To(HaveKey("runconfig.json"))
+			runConfigJSON := configMap.Data["runconfig.json"]
+			Expect(runConfigJSON).NotTo(BeEmpty())
+
+			// Parse and verify RunConfig content
+			var runConfig runner.RunConfig
+			err := json.Unmarshal([]byte(runConfigJSON), &runConfig)
+			Expect(err).NotTo(HaveOccurred())
+
+			// Verify authorization configuration was embedded from external ConfigMap
+			Expect(runConfig.AuthzConfig).NotTo(BeNil())
+			Expect(runConfig.AuthzConfig.Version).To(Equal(ctrlutil.AuthzConfigVersion))
+			Expect(runConfig.AuthzConfig.Type).To(Equal(authz.ConfigType(cedar.ConfigType)))
+
+			// Verify Cedar configuration
+			cedarCfg, err := cedar.ExtractConfig(runConfig.AuthzConfig)
+			Expect(err).NotTo(HaveOccurred())
+
+			// Check policies are present
+			Expect(cedarCfg.Options.Policies).To(HaveLen(3))
+			Expect(cedarCfg.Options.Policies[0]).To(ContainSubstring("call_tool"))
+			Expect(cedarCfg.Options.Policies[0]).To(ContainSubstring("weather"))
+			Expect(cedarCfg.Options.Policies[1]).To(ContainSubstring("get_prompt"))
+			Expect(cedarCfg.Options.Policies[1]).To(ContainSubstring("greeting"))
+			Expect(cedarCfg.Options.Policies[2]).To(ContainSubstring("forbid"))
+			Expect(cedarCfg.Options.Policies[2]).To(ContainSubstring("sensitive_data"))
+
+			// Verify entities are embedded
+			Expect(cedarCfg.Options.EntitiesJSON).NotTo(BeEmpty())
+
+			// Parse entities to verify they're correctly embedded
+			var entities []interface{}
+			err = json.Unmarshal([]byte(cedarCfg.Options.EntitiesJSON), &entities)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(entities).To(HaveLen(2))
+
+			// Verify entity details
+			entity1 := entities[0].(map[string]interface{})
+			uid1 := entity1["uid"].(map[string]interface{})
+			Expect(uid1["type"]).To(Equal("User"))
+			Expect(uid1["id"]).To(Equal("user1"))
+			attrs1 := entity1["attrs"].(map[string]interface{})
+			Expect(attrs1["name"]).To(Equal("Alice"))
+			Expect(attrs1["role"]).To(Equal("developer"))
+
+			entity2 := entities[1].(map[string]interface{})
+			uid2 := entity2["uid"].(map[string]interface{})
+			Expect(uid2["type"]).To(Equal("User"))
+			Expect(uid2["id"]).To(Equal("admin"))
+			attrs2 := entity2["attrs"].(map[string]interface{})
+			Expect(attrs2["name"]).To(Equal("Bob"))
+			Expect(attrs2["role"]).To(Equal("admin"))
+		})
+	})
+})

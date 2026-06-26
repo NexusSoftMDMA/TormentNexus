@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        submodules: false
+
+    - name: Initialize TormentNexus Submodule
+      run: git submodule update --init borg
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.24'
+
+    - name: Install dependencies
+      run: go mod download
+
+    - name: Verify Version Consistency
+      run: |
+        V1=$(cat VERSION)
+        V2=$(cat VERSION.md)
+        if [ "$V1" != "$V2" ]; then
+          echo "Version mismatch: VERSION($V1) != VERSION.md($V2)"
+          exit 1
+        fi
+
+    - name: Run Integrity Tests
+      run: go test ./internal/gitcheck/...
+
+    - name: Run Conflict Resolution Tests
+      run: go test ./internal/gitres/...
+
+    - name: Run All Project Tests
+      run: go test ./...
+
+    - name: Build
+      run: go build -v ./cmd/sales_bot

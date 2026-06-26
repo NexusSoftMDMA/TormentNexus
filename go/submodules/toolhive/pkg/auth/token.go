@@ -1,0 +1,1304 @@
+// SPDX-FileCopyrightText: Copyright 2025 Stacklok, Inc.
+// SPDX-License-Identifier: Apache-2.0
+
+// Package auth provides authentication and authorization utilities.
+package auth
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"log/slog"
+	"net/http"
+	"net/url"
+	"strconv"
+	"strings"
+	"sync"
+	"time"
+
+	"github.com/cenkalti/backoff/v5"
+	"github.com/golang-jwt/jwt/v5"
+	"github.com/lestrrat-go/httprc/v3"
+	"github.com/lestrrat-go/jwx/v3/jwk"
+
+	"github.com/stacklok/toolhive-core/env"
+	"github.com/stacklok/toolhive/pkg/auth/upstreamtoken"
+	"github.com/stacklok/toolhive/pkg/authserver/server/keys"
+	"github.com/stacklok/toolhive/pkg/networking"
+	"github.com/stacklok/toolhive/pkg/oauthproto"
+)
+
+// TokenIntrospector defines the interface for token introspection providers
+type TokenIntrospector interface {
+	// Name returns the provider name
+	Name() string
+
+	// CanHandle returns true if this provider can handle the given introspection URL
+	CanHandle(introspectURL string) bool
+
+	// IntrospectToken introspects an opaque token and returns JWT claims
+	IntrospectToken(ctx context.Context, token string) (jwt.MapClaims, error)
+}
+
+// Registry maintains a list of available token introspection providers
+type Registry struct {
+	providers []TokenIntrospector
+}
+
+// NewRegistry creates a new provider registry
+func NewRegistry() *Registry {
+	return &Registry{
+		providers: []TokenIntrospector{},
+	}
+}
+
+// GetIntrospector returns the appropriate provider for the given introspection URL
+func (r *Registry) GetIntrospector(introspectURL string) TokenIntrospector {
+	for _, provider := range r.providers {
+		if provider.CanHandle(introspectURL) {
+			//nolint:gosec // G706: provider name and URL are from server configuration
+			slog.Debug("selected provider for introspection", "provider", provider.Name(), "url", introspectURL)
+			return provider
+		}
+	}
+	// Create a new fallback provider instance with the specific URL
+	slog.Debug("using RFC7662 fallback provider for introspection", "url", introspectURL)
+	return NewRFC7662Provider(introspectURL)
+}
+
+// AddProvider adds a new provider to the registry
+func (r *Registry) AddProvider(provider TokenIntrospector) {
+	r.providers = append(r.providers, provider)
+}
+
+// GoogleTokeninfoURL is the Google OAuth2 tokeninfo endpoint URL
+const GoogleTokeninfoURL = "https://oauth2.googleapis.com/tokeninfo" //nolint:gosec
+
+// GoogleProvider implements token introspection for Google's tokeninfo API
+type GoogleProvider struct {
+	client *http.Client
+	url    string
+}
+
+// NewGoogleProvider creates a new Google token introspection provider
+func NewGoogleProvider(introspectURL string) *GoogleProvider {
+	return &GoogleProvider{
+		client: http.DefaultClient,
+		url:    introspectURL,
+	}
+}
+
+// Name returns the provider name
+func (*GoogleProvider) Name() string {
+	return "google"
+}
+
+// CanHandle returns true if this provider can handle the given introspection URL
+func (g *GoogleProvider) CanHandle(introspectURL string) bool {
+	return introspectURL == g.url
+}
+
+// IntrospectToken introspects a Google opaque token and returns JWT claims
+func (g *GoogleProvider) IntrospectToken(ctx context.Context, token string) (jwt.MapClaims, error) {
+	slog.Debug("using Google tokeninfo provider for token introspection", "url", g.url)
+
+	// Parse the URL and add query parameters
+	u, err := url.Parse(g.url)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse introspection URL: %w", err)
+	}
+
+	// Add the access token as a query parameter
+	query := u.Query()
+	query.Set("access_token", token)
+	u.RawQuery = query.Encode()
+
+	// Create the GET request
+	//nolint:gosec // G704 - URL from trusted OIDC discovery config
+	req, err := http.NewRequestWithContext(ctx, "GET", u.String(), nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create Google tokeninfo request: %w", err)
+	}
+
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("User-Agent", oauthproto.UserAgent)
+
+	// Make the request
+	resp, err := g.client.Do(req) // #nosec G704 -- URL is the configured OIDC introspection endpoint
+	if err != nil {
+		return nil, fmt.Errorf("google tokeninfo request failed: %w", err)
+	}
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			slog.Debug("failed to close response body", "error", err)
+		}
+	}()
+
+	// Read the response with a reasonable limit to prevent DoS attacks
+	const maxResponseSize = 64 * 1024 // 64KB should be more than enough for tokeninfo response
+	limitedReader := io.LimitReader(resp.Body, maxResponseSize)
+	body, err := io.ReadAll(limitedReader)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read Google tokeninfo response: %w", err)
+	}
+
+	// Check for HTTP errors
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("google tokeninfo request failed with status %d: %s", resp.StatusCode, string(body))
+	}
+
+	// Parse the Google response and convert to JWT claims
+	//nolint:gosec // G706: HTTP status code is not sensitive
+	slog.Debug("successfully received Google tokeninfo response", "status", resp.StatusCode)
+	return g.parseGoogleResponse(body)
+}
+
+// parseGoogleResponse parses Google's tokeninfo response and converts it to JWT claims
+func (*GoogleProvider) parseGoogleResponse(body []byte) (jwt.MapClaims, error) {
+	// Parse Google's response format
+	var googleResp struct {
+		// Standard OAuth fields
+		Aud   string `json:"aud,omitempty"`
+		Sub   string `json:"sub,omitempty"`
+		Scope string `json:"scope,omitempty"`
+
+		// Google returns Unix timestamp as string (RFC 7662 uses numeric)
+		Exp string `json:"exp,omitempty"`
+
+		// Google-specific fields
+		Azp           string `json:"azp,omitempty"`
+		ExpiresIn     string `json:"expires_in,omitempty"`
+		Email         string `json:"email,omitempty"`
+		EmailVerified string `json:"email_verified,omitempty"`
+	}
+
+	if err := json.Unmarshal(body, &googleResp); err != nil {
+		return nil, fmt.Errorf("failed to decode Google tokeninfo JSON: %w", err)
+	}
+
+	// Convert to JWT MapClaims format
+	claims := jwt.MapClaims{
+		"iss": "https://accounts.google.com", // Default Google issuer
+	}
+
+	// Copy standard fields
+	if googleResp.Sub != "" {
+		claims["sub"] = googleResp.Sub
+	}
+	if googleResp.Aud != "" {
+		claims["aud"] = googleResp.Aud
+	}
+	if googleResp.Scope != "" {
+		claims["scope"] = googleResp.Scope
+	}
+
+	// Handle expiration - convert string timestamp to float64
+	if googleResp.Exp != "" {
+		expInt, err := strconv.ParseInt(googleResp.Exp, 10, 64)
+		if err != nil {
+			return nil, fmt.Errorf("invalid exp format: %w", err)
+		}
+		claims["exp"] = float64(expInt) // JWT expects float64
+
+		// Check if token is expired and return error if so (consistent with RFC 7662 behavior)
+		isActive := time.Now().Unix() < expInt
+		claims["active"] = isActive
+		if !isActive {
+			return nil, ErrInvalidToken
+		}
+	} else {
+		return nil, fmt.Errorf("missing exp field in Google response")
+	}
+
+	// Copy Google-specific fields
+	if googleResp.Azp != "" {
+		claims["azp"] = googleResp.Azp
+	}
+	if googleResp.ExpiresIn != "" {
+		claims["expires_in"] = googleResp.ExpiresIn
+	}
+	if googleResp.Email != "" {
+		claims["email"] = googleResp.Email
+	}
+	if googleResp.EmailVerified != "" {
+		claims["email_verified"] = googleResp.EmailVerified
+	}
+
+	return claims, nil
+}
+
+// RFC7662Provider implements standard RFC 7662 OAuth 2.0 Token Introspection
+type RFC7662Provider struct {
+	client       *http.Client
+	clientID     string
+	clientSecret string
+	url          string
+}
+
+// NewRFC7662Provider creates a new RFC 7662 token introspection provider
+func NewRFC7662Provider(introspectURL string) *RFC7662Provider {
+	return &RFC7662Provider{
+		client: http.DefaultClient,
+		url:    introspectURL,
+	}
+}
+
+// NewRFC7662ProviderWithAuth creates a new RFC 7662 provider with client credentials
+func NewRFC7662ProviderWithAuth(
+	introspectURL, clientID, clientSecret, caCertPath, authTokenFile string, allowPrivateIP bool,
+) (*RFC7662Provider, error) {
+	// Create HTTP client with CA bundle and auth token support
+	client, err := networking.NewHttpClientBuilder().
+		WithCABundle(caCertPath).
+		WithTokenFromFile(authTokenFile).
+		WithPrivateIPs(allowPrivateIP).
+		Build()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create HTTP client: %w", err)
+	}
+
+	return &RFC7662Provider{
+		client:       client,
+		clientID:     clientID,
+		clientSecret: clientSecret,
+		url:          introspectURL,
+	}, nil
+}
+
+// Name returns the provider name
+func (*RFC7662Provider) Name() string {
+	return "rfc7662"
+}
+
+// CanHandle returns true if this provider can handle the given introspection URL
+// Returns true for any URL when no specific URL was configured (fallback behavior)
+// or when the URL matches the configured URL
+func (r *RFC7662Provider) CanHandle(introspectURL string) bool {
+	// If no URL was configured, this is a fallback provider that handles everything
+	if r.url == "" {
+		return true
+	}
+	// Otherwise, only handle the specific configured URL
+	return r.url == introspectURL
+}
+
+// IntrospectToken introspects a token using RFC 7662 standard
+func (r *RFC7662Provider) IntrospectToken(ctx context.Context, token string) (jwt.MapClaims, error) {
+	// Prepare form data for POST request
+	formData := url.Values{}
+	formData.Set("token", token)
+	formData.Set("token_type_hint", "access_token")
+
+	// Create POST request with form data
+	//nolint:gosec // G704 - URL is configured introspection endpoint
+	req, err := http.NewRequestWithContext(ctx, "POST", r.url, strings.NewReader(formData.Encode()))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create introspection request: %w", err)
+	}
+
+	// Set headers
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("User-Agent", oauthproto.UserAgent)
+	req.Header.Set("Accept", "application/json")
+
+	// Add client authentication if configured
+	if r.clientID != "" && r.clientSecret != "" {
+		req.SetBasicAuth(r.clientID, r.clientSecret)
+	}
+
+	// Make the request
+	resp, err := r.client.Do(req) // #nosec G704 -- URL is the configured OIDC introspection endpoint
+	if err != nil {
+		return nil, fmt.Errorf("introspection request failed: %w", err)
+	}
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			slog.Debug("failed to close response body", "error", err)
+		}
+	}()
+
+	// Read response body with a reasonable limit to prevent DoS attacks
+	const maxResponseSize = 64 * 1024 // 64KB should be more than enough for introspection response
+	limitedReader := io.LimitReader(resp.Body, maxResponseSize)
+	body, err := io.ReadAll(limitedReader)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read introspection response: %w", err)
+	}
+
+	// Check for HTTP errors
+	if resp.StatusCode != http.StatusOK {
+		if resp.StatusCode == http.StatusUnauthorized {
+			return nil, fmt.Errorf("introspection unauthorized")
+		}
+		return nil, fmt.Errorf("introspection failed with status %d: %s", resp.StatusCode, string(body))
+	}
+
+	// Parse RFC 7662 response - use the existing parseIntrospectionClaims function
+	return parseIntrospectionClaims(strings.NewReader(string(body)))
+}
+
+// Common errors
+var (
+	ErrNoToken                 = errors.New("no token provided")
+	ErrInvalidToken            = errors.New("invalid token")
+	ErrTokenExpired            = errors.New("token expired")
+	ErrInvalidIssuer           = errors.New("invalid issuer")
+	ErrInvalidAudience         = errors.New("invalid audience")
+	ErrMissingJWKSURL          = errors.New("missing JWKS URL")
+	ErrFailedToFetchJWKS       = errors.New("failed to fetch JWKS")
+	ErrFailedToDiscoverOIDC    = errors.New("failed to discover OIDC configuration")
+	ErrMissingIssuerAndJWKSURL = errors.New("either issuer or JWKS URL must be provided")
+)
+
+// TokenValidator validates JWT or opaque tokens using OIDC configuration.
+type TokenValidator struct {
+	// OIDC configuration
+	issuer            string
+	audience          string
+	jwksURL           string
+	clientID          string
+	clientSecret      string // Optional client secret for introspection
+	jwksClient        *jwk.Cache
+	introspectURL     string       // Optional introspection endpoint
+	client            *http.Client // HTTP client for making requests
+	resourceURL       string       // (RFC 9728)
+	scopes            []string     // OAuth scopes to advertise in WWW-Authenticate (RFC 6750 §3)
+	registry          *Registry    // Token introspection providers
+	insecureAllowHTTP bool         // Allow HTTP (non-HTTPS) OIDC issuers for development/testing
+
+	// upstreamTokenReader loads upstream provider tokens for identity enrichment.
+	// nil means no enrichment (no embedded auth server).
+	upstreamTokenReader upstreamtoken.TokenReader
+
+	// keyProvider provides in-process JWKS key lookups from the embedded auth
+	// server's key provider. When set, getKeyFromJWKS resolves keys locally
+	// before falling back to HTTP. Eliminates self-referential HTTP calls.
+	// nil when no embedded auth server is configured.
+	keyProvider keys.PublicKeyProvider
+
+	// Lazy JWKS registration
+	jwksRegistered      bool
+	jwksRegistrationMu  sync.Mutex
+	jwksRegistrationErr error
+
+	// Lazy OIDC discovery - allows deferring discovery until first validation request.
+	// This is needed when the OIDC provider (auth server) is the same pod and starts after
+	// the token validator is created.
+	// Uses mutex+flag instead of sync.Once so that failed discovery can be retried
+	// on subsequent ValidateToken calls (transient failures should not be permanent).
+	oidcDiscoveryMu  sync.Mutex
+	oidcDiscovered   bool
+	oidcDiscoveryErr error
+}
+
+// TokenValidatorConfig contains configuration for the token validator.
+type TokenValidatorConfig struct {
+	// Issuer is the OIDC issuer URL (e.g., https://accounts.google.com)
+	Issuer string
+
+	// Audience is the expected audience for the token
+	Audience string
+
+	// JWKSURL is the URL to fetch the JWKS from
+	JWKSURL string
+
+	// ClientID is the OIDC client ID
+	ClientID string
+
+	// ClientSecret is the optional OIDC client secret for introspection
+	ClientSecret string // #nosec G117 -- not a hardcoded credential, populated at runtime from config
+
+	// CACertPath is the path to the CA certificate bundle for HTTPS requests
+	CACertPath string
+
+	// AuthTokenFile is the path to file containing bearer token for authentication
+	AuthTokenFile string
+
+	// AllowPrivateIP allows JWKS/OIDC endpoints on private IP addresses
+	AllowPrivateIP bool
+
+	// InsecureAllowHTTP allows HTTP (non-HTTPS) OIDC issuers for development/testing
+	// WARNING: This is insecure and should NEVER be used in production
+	InsecureAllowHTTP bool
+
+	// IntrospectionURL is the optional introspection endpoint for validating tokens
+	IntrospectionURL string
+
+	// Store http client with the right config
+	httpClient *http.Client
+
+	// ResourceURL is the explicit resource URL for OAuth discovery (RFC 9728)
+	ResourceURL string
+
+	// Scopes is the list of OAuth scopes to advertise in the well-known endpoint (RFC 9728)
+	// If empty, defaults to ["openid"]
+	Scopes []string
+}
+
+// discoverOIDCConfiguration discovers OIDC configuration from the issuer's well-known endpoint
+func discoverOIDCConfiguration(
+	ctx context.Context,
+	issuer string,
+	client *http.Client,
+	insecureAllowHTTP bool,
+) (*oauthproto.OIDCDiscoveryDocument, error) {
+	// Validate issuer URL scheme
+	if err := networking.ValidateEndpointURLWithInsecure(issuer, insecureAllowHTTP); err != nil {
+		return nil, fmt.Errorf("invalid issuer URL: %w", err)
+	}
+
+	// Construct the well-known endpoint URL
+	wellKnownURL := strings.TrimSuffix(issuer, "/") + oauthproto.WellKnownOIDCPath
+
+	// Create HTTP request
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, wellKnownURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	// Set User-Agent header
+	req.Header.Set("User-Agent", oauthproto.UserAgent)
+	req.Header.Set("Accept", "application/json")
+
+	resp, err := client.Do(req) // #nosec G704 -- URL is the configured OIDC issuer discovery endpoint
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch OIDC configuration: %w", err)
+	}
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			slog.Debug("failed to close response body", "error", err)
+		}
+	}()
+
+	// Check response status
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("OIDC discovery endpoint returned status %d", resp.StatusCode)
+	}
+
+	// Parse the response
+	var doc oauthproto.OIDCDiscoveryDocument
+	if err := json.NewDecoder(resp.Body).Decode(&doc); err != nil {
+		return nil, fmt.Errorf("failed to decode OIDC configuration: %w", err)
+	}
+
+	// Validate that we got the required fields
+	if doc.JWKSURI == "" {
+		return nil, fmt.Errorf("OIDC configuration missing jwks_uri")
+	}
+
+	return &doc, nil
+}
+
+// registerIntrospectionProviders creates and configures the provider registry
+// for token introspection based on the configuration.
+func registerIntrospectionProviders(config TokenValidatorConfig, clientSecret string) (*Registry, error) {
+	registry := NewRegistry()
+
+	// Add Google provider if the introspection URL matches
+	if config.IntrospectionURL == GoogleTokeninfoURL {
+		slog.Debug("registering Google tokeninfo provider", "url", config.IntrospectionURL)
+		registry.AddProvider(NewGoogleProvider(config.IntrospectionURL))
+	}
+
+	// Add GitHub provider if the introspection URL matches GitHub's API pattern
+	if strings.Contains(config.IntrospectionURL, GitHubTokenCheckURL) {
+		slog.Debug("registering GitHub token validation provider", "url", config.IntrospectionURL)
+		githubProvider, err := NewGitHubProvider(
+			config.IntrospectionURL,
+			config.ClientID,
+			clientSecret,
+			config.CACertPath,
+			config.AllowPrivateIP,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create GitHub provider: %w", err)
+		}
+		registry.AddProvider(githubProvider)
+	}
+
+	// Add RFC7662 provider with auth if configured
+	if config.ClientID != "" || clientSecret != "" {
+		rfc7662Provider, err := NewRFC7662ProviderWithAuth(
+			config.IntrospectionURL, config.ClientID, clientSecret,
+			config.CACertPath, config.AuthTokenFile, config.AllowPrivateIP,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create RFC7662 provider: %w", err)
+		}
+		registry.AddProvider(rfc7662Provider)
+	}
+
+	return registry, nil
+}
+
+// tokenValidatorOptions holds optional dependencies for NewTokenValidator.
+type tokenValidatorOptions struct {
+	envReader           env.Reader
+	upstreamTokenReader upstreamtoken.TokenReader
+	keyProvider         keys.PublicKeyProvider
+}
+
+// TokenValidatorOption is a functional option for NewTokenValidator.
+type TokenValidatorOption func(*tokenValidatorOptions)
+
+// WithEnvReader overrides the default environment variable reader.
+// This is primarily used in tests to avoid process-wide env var manipulation.
+func WithEnvReader(reader env.Reader) TokenValidatorOption {
+	return func(o *tokenValidatorOptions) {
+		o.envReader = reader
+	}
+}
+
+// WithUpstreamTokenReader configures the token validator to enrich Identity
+// with upstream provider tokens. When set, the Middleware extracts the token
+// session ID (tsid) from JWT claims, loads all upstream tokens into
+// Identity.UpstreamTokens, and then places the enriched Identity in the
+// request context.
+func WithUpstreamTokenReader(reader upstreamtoken.TokenReader) TokenValidatorOption {
+	return func(o *tokenValidatorOptions) {
+		o.upstreamTokenReader = reader
+	}
+}
+
+// WithKeyProvider configures the token validator to use an in-process key
+// provider for JWKS lookups instead of fetching keys over HTTP. This is used
+// when the embedded auth server's key provider is available in the same process,
+// eliminating self-referential HTTP calls and the need for insecureAllowHTTP
+// and jwksAllowPrivateIP flags.
+//
+// Only PublicKeyProvider is required — the validator never signs tokens.
+func WithKeyProvider(provider keys.PublicKeyProvider) TokenValidatorOption {
+	return func(o *tokenValidatorOptions) {
+		o.keyProvider = provider
+	}
+}
+
+// resolveClientSecret returns the client secret from the config, falling back
+// to the TOOLHIVE_OIDC_CLIENT_SECRET environment variable if not set.
+func resolveClientSecret(configSecret string, envReader env.Reader) string {
+	if configSecret != "" {
+		return configSecret
+	}
+	if envSecret := envReader.Getenv("TOOLHIVE_OIDC_CLIENT_SECRET"); envSecret != "" {
+		return envSecret
+	}
+	return ""
+}
+
+// NewTokenValidator creates a new token validator.
+func NewTokenValidator(ctx context.Context, config TokenValidatorConfig, opts ...TokenValidatorOption) (*TokenValidator, error) {
+	// Apply functional options
+	o := &tokenValidatorOptions{envReader: &env.OSReader{}}
+	for _, opt := range opts {
+		opt(o)
+	}
+
+	// Log warning if insecure HTTP is enabled
+	if config.InsecureAllowHTTP {
+		slog.Warn(
+			"insecure HTTP is enabled - "+
+				"HTTP OIDC URLs are allowed - this is INSECURE and should NEVER be used in production",
+			"issuer", config.Issuer,
+		)
+	}
+
+	jwksURL := config.JWKSURL
+
+	// Determine if we need lazy OIDC discovery.
+	// Discovery is deferred when JWKS URL is not provided but issuer is,
+	// allowing the validator to start before the OIDC provider is ready.
+	// When set, ensureOIDCDiscovered will populate jwksURL on first use.
+
+	// Skip discovery if TOOLHIVE_SKIP_OIDC_DISCOVERY is set (for testing only)
+	skipDiscovery := o.envReader.Getenv("TOOLHIVE_SKIP_OIDC_DISCOVERY") == "true"
+	if skipDiscovery && config.Issuer != "" {
+		if jwksURL == "" {
+			return nil, fmt.Errorf(
+				"TOOLHIVE_SKIP_OIDC_DISCOVERY=true requires explicit JWKSURL in config. " +
+					"This env var is for testing only and cannot guess provider-specific JWKS URLs",
+			)
+		}
+		slog.Warn(
+			"OIDC discovery skipped (TOOLHIVE_SKIP_OIDC_DISCOVERY=true)",
+			"issuer", config.Issuer,
+		)
+	} else if jwksURL == "" && config.Issuer != "" {
+		if o.keyProvider != nil {
+			slog.Debug("OIDC discovery deferred - failure non-fatal with local key provider",
+				"issuer", config.Issuer)
+		} else {
+			slog.Debug("OIDC discovery deferred - will discover on first validation request",
+				"issuer", config.Issuer)
+		}
+	}
+
+	// Ensure we have either an explicit JWKS URL, an issuer to discover from,
+	// or a local key provider (embedded auth server).
+	if jwksURL == "" && config.Issuer == "" && o.keyProvider == nil {
+		return nil, ErrMissingIssuerAndJWKSURL
+	}
+
+	// Create HTTP client with CA bundle and auth token support for JWKS
+	httpClient, err := networking.NewHttpClientBuilder().
+		WithCABundle(config.CACertPath).
+		WithPrivateIPs(config.AllowPrivateIP).
+		WithTokenFromFile(config.AuthTokenFile).
+		WithInsecureAllowHTTP(config.InsecureAllowHTTP).
+		Build()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create HTTP client: %w", err)
+	}
+	config.httpClient = httpClient
+
+	// Create a new JWKS client with auto-refresh
+	// In jwx v3, NewCache requires an httprc.Client
+	httprcClient := httprc.NewClient(httprc.WithHTTPClient(httpClient))
+	cache, err := jwk.NewCache(ctx, httprcClient)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create JWKS cache: %w", err)
+	}
+
+	// Skip synchronous JWKS registration - will be done lazily on first use
+
+	// Resolve client secret from config or environment variable
+	clientSecret := resolveClientSecret(config.ClientSecret, o.envReader)
+
+	// Register introspection providers
+	registry, err := registerIntrospectionProviders(config, clientSecret)
+	if err != nil {
+		return nil, err
+	}
+
+	validator := &TokenValidator{
+		issuer:              config.Issuer,
+		audience:            config.Audience,
+		jwksURL:             jwksURL,
+		introspectURL:       config.IntrospectionURL,
+		clientID:            config.ClientID,
+		clientSecret:        clientSecret,
+		jwksClient:          cache,
+		client:              config.httpClient,
+		resourceURL:         config.ResourceURL,
+		scopes:              config.Scopes,
+		registry:            registry,
+		insecureAllowHTTP:   config.InsecureAllowHTTP,
+		upstreamTokenReader: o.upstreamTokenReader,
+		keyProvider:         o.keyProvider,
+	}
+
+	return validator, nil
+}
+
+// ensureJWKSRegistered ensures that the JWKS URL is registered with the cache.
+// This is called lazily on first use to avoid blocking startup.
+// On failure, registration is retried on subsequent calls (transient failures
+// should not permanently disable the validator).
+func (v *TokenValidator) ensureJWKSRegistered(ctx context.Context) error {
+	v.jwksRegistrationMu.Lock()
+	defer v.jwksRegistrationMu.Unlock()
+
+	// Already registered successfully - nothing to do
+	if v.jwksRegistered {
+		return nil
+	}
+
+	// Create context with 5-second timeout for JWKS registration
+	registrationCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	// Attempt registration
+	if err := v.jwksClient.Register(registrationCtx, v.jwksURL); err != nil {
+		v.jwksRegistrationErr = fmt.Errorf("failed to register JWKS URL: %w", err)
+		// Do NOT set jwksRegistered = true -- allow retry on next call
+		return v.jwksRegistrationErr
+	}
+
+	v.jwksRegistered = true
+	v.jwksRegistrationErr = nil
+	return nil
+}
+
+// OIDC discovery retry configuration constants.
+const (
+	// oidcDiscoveryMaxAttempts is the maximum number of OIDC discovery attempts
+	// (including the initial attempt). Set to 3 to allow sufficient time for
+	// auth server startup (~3.5s with backoff).
+	oidcDiscoveryMaxAttempts = 3
+
+	// oidcDiscoveryInitialInterval is the starting delay for exponential backoff.
+	oidcDiscoveryInitialInterval = 500 * time.Millisecond
+
+	// oidcDiscoveryMaxInterval caps the maximum delay between retry attempts.
+	oidcDiscoveryMaxInterval = 2 * time.Second
+
+	// oidcDiscoveryAttemptTimeout is the timeout for each discovery attempt.
+	oidcDiscoveryAttemptTimeout = 5 * time.Second
+)
+
+// ensureOIDCDiscovered performs lazy OIDC discovery with retry logic.
+// This method is called on first token validation to discover the OIDC configuration
+// (including JWKS URL) from the issuer. It uses exponential backoff to handle cases
+// where the OIDC provider is starting up (e.g., same pod, load balancer warmup).
+//
+// Discovery is retried on each ValidateToken call until it succeeds. Once successful,
+// subsequent calls return immediately. This allows recovery from transient failures
+// (e.g., auth server not yet ready, temporary DNS issues, context cancellation).
+func (v *TokenValidator) ensureOIDCDiscovered(ctx context.Context) error {
+	// If there is no issuer to discover from, nothing to do.
+	// v.issuer is immutable after construction, so this check is safe without a lock.
+	if v.issuer == "" {
+		return nil
+	}
+
+	v.oidcDiscoveryMu.Lock()
+	defer v.oidcDiscoveryMu.Unlock()
+
+	// Already discovered successfully (or JWKS URL was provided at construction) - return immediately.
+	if v.oidcDiscovered || v.jwksURL != "" {
+		return nil
+	}
+
+	// Configure exponential backoff with jitter (provided by the library)
+	expBackoff := backoff.NewExponentialBackOff()
+	expBackoff.InitialInterval = oidcDiscoveryInitialInterval
+	expBackoff.MaxInterval = oidcDiscoveryMaxInterval
+	expBackoff.Reset()
+
+	// Define the discovery operation with per-attempt timeout
+	operation := func() (*oauthproto.OIDCDiscoveryDocument, error) {
+		attemptCtx, cancel := context.WithTimeout(ctx, oidcDiscoveryAttemptTimeout)
+		defer cancel()
+
+		return discoverOIDCConfiguration(
+			attemptCtx,
+			v.issuer,
+			v.client,
+			v.insecureAllowHTTP,
+		)
+	}
+
+	// Execute with retry using cenkalti/backoff (consistent with ToolHive patterns)
+	doc, err := backoff.Retry(ctx, operation,
+		backoff.WithBackOff(expBackoff),
+		backoff.WithMaxTries(oidcDiscoveryMaxAttempts),
+		backoff.WithNotify(func(err error, duration time.Duration) {
+			slog.Debug(
+				"oidc discovery failed, retrying",
+				"issuer", v.issuer, "retry_in", duration, "error", err,
+			)
+		}),
+	)
+
+	if err != nil {
+		v.oidcDiscoveryErr = fmt.Errorf("%w: %w", ErrFailedToDiscoverOIDC, err)
+		//nolint:gosec // G706: issuer is from server configuration
+		slog.Error(
+			"oidc discovery failed after retries",
+			"issuer", v.issuer, "attempts", oidcDiscoveryMaxAttempts, "error", err,
+		)
+		// Do NOT set oidcDiscovered = true -- allow retry on next ValidateToken call
+		return v.oidcDiscoveryErr
+	}
+
+	// Discovery succeeded - update the JWKS URL and mark as done
+	v.jwksURL = doc.JWKSURI
+	v.oidcDiscovered = true
+	v.oidcDiscoveryErr = nil
+	// Reset JWKS registration so it re-registers with the newly discovered URL.
+	// Acquire jwksRegistrationMu to safely reset the flag, since ensureJWKSRegistered
+	// reads it under that mutex. Lock ordering: oidcDiscoveryMu -> jwksRegistrationMu.
+	v.jwksRegistrationMu.Lock()
+	v.jwksRegistered = false
+	v.jwksRegistrationMu.Unlock()
+	//nolint:gosec // G706: issuer and JWKS URL are from OIDC discovery
+	slog.Debug(
+		"oidc discovery succeeded",
+		"issuer", v.issuer, "jwks_url", doc.JWKSURI,
+	)
+
+	return nil
+}
+
+// getKeyFromLocalProvider attempts to find a verification key from the local
+// key provider (embedded auth server). Returns (key, nil) on success,
+// (nil, nil) to signal fallback to HTTP, or (nil, error) for hard failures.
+// validateTokenHeader checks the signing method is supported (RSA or ECDSA) and
+// extracts the key ID from the token header. Returns an error for unsupported
+// methods or a missing kid claim.
+func validateTokenHeader(token *jwt.Token) (string, error) {
+	switch token.Method.(type) {
+	case *jwt.SigningMethodRSA, *jwt.SigningMethodECDSA:
+		// Supported signing methods
+	default:
+		return "", fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+	}
+
+	kid, ok := token.Header["kid"].(string)
+	if !ok {
+		return "", fmt.Errorf("token header missing kid")
+	}
+	return kid, nil
+}
+
+func (v *TokenValidator) getKeyFromLocalProvider(ctx context.Context, token *jwt.Token) (interface{}, error) {
+	if v.keyProvider == nil {
+		return nil, nil
+	}
+
+	kid, err := validateTokenHeader(token)
+	if err != nil {
+		return nil, err
+	}
+
+	pubKeys, err := v.keyProvider.PublicKeys(ctx)
+	if err != nil {
+		slog.Debug("local JWKS provider failed, falling back to HTTP", "error", err)
+		return nil, nil
+	}
+
+	for _, k := range pubKeys {
+		if k.KeyID == kid {
+			slog.Debug("resolved JWKS key from embedded auth server", "kid", kid)
+			return k.PublicKey, nil
+		}
+	}
+
+	// Key not found locally — fall back to HTTP JWKS
+	slog.Debug("key not found in local JWKS provider, falling back to HTTP", "kid", kid)
+	return nil, nil
+}
+
+// getKeyFromJWKS gets the key from the JWKS.
+func (v *TokenValidator) getKeyFromJWKS(ctx context.Context, token *jwt.Token) (interface{}, error) {
+	// Try local key provider first (embedded auth server in-process keys).
+	// This avoids self-referential HTTP calls when the auth server and
+	// token validator run in the same process.
+	if key, err := v.getKeyFromLocalProvider(ctx, token); err != nil {
+		return nil, err
+	} else if key != nil {
+		return key, nil
+	}
+
+	// Fall through to HTTP-based JWKS lookup.
+	// When a local key provider is present, OIDC discovery may have been
+	// skipped entirely, so jwksURL can legitimately be empty.
+	if v.jwksURL == "" {
+		if v.keyProvider != nil {
+			return nil, fmt.Errorf(
+				"local key provider could not resolve key and no JWKS URL is available: %w",
+				ErrMissingJWKSURL,
+			)
+		}
+		return nil, ErrMissingJWKSURL
+	}
+
+	// Ensure JWKS is registered before attempting to use it
+	if err := v.ensureJWKSRegistered(ctx); err != nil {
+		return nil, fmt.Errorf("JWKS registration failed: %w", err)
+	}
+
+	kid, err := validateTokenHeader(token)
+	if err != nil {
+		return nil, err
+	}
+
+	// Get the key set from the JWKS
+	// In jwx v3, Get is replaced with Lookup
+	keySet, err := v.jwksClient.Lookup(ctx, v.jwksURL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to lookup JWKS: %w", err)
+	}
+
+	// Get the key with the matching key ID
+	key, found := keySet.LookupKeyID(kid)
+	if !found {
+		return nil, fmt.Errorf("key ID %s not found in JWKS", kid)
+	}
+
+	// Get the raw key
+	// In jwx v3, Raw method is replaced with Export function
+	var rawKey interface{}
+	if err := jwk.Export(key, &rawKey); err != nil {
+		return nil, fmt.Errorf("failed to export raw key: %w", err)
+	}
+
+	return rawKey, nil
+}
+
+// validateClaims validates the claims in the token.
+func (v *TokenValidator) validateClaims(claims jwt.MapClaims) error {
+	// Validate the issuer if provided
+	if v.issuer != "" {
+		issuerClaim, err := claims.GetIssuer()
+		if err != nil {
+			return fmt.Errorf("failed to get issuer from claims: %w", err)
+		}
+		if strings.TrimSpace(issuerClaim) != strings.TrimSpace(v.issuer) {
+			return ErrInvalidIssuer
+		}
+	}
+	// Validate the audience if provided
+	if v.audience != "" {
+		audiences, err := claims.GetAudience()
+		if err != nil {
+			return ErrInvalidAudience
+		}
+
+		found := false
+		for _, aud := range audiences {
+			if aud == v.audience {
+				found = true
+				break
+			}
+		}
+
+		if !found {
+			return ErrInvalidAudience
+		}
+	}
+
+	// Validate the expiration time
+	expirationTime, err := claims.GetExpirationTime()
+	if err != nil || expirationTime == nil || expirationTime.Before(time.Now()) {
+		return ErrTokenExpired
+	}
+
+	return nil
+}
+
+func parseIntrospectionClaims(r io.Reader) (jwt.MapClaims, error) {
+	var j struct {
+		Active bool                   `json:"active"`
+		Exp    *float64               `json:"exp,omitempty"`
+		Sub    string                 `json:"sub,omitempty"`
+		Aud    interface{}            `json:"aud,omitempty"`
+		Scope  string                 `json:"scope,omitempty"`
+		Iss    string                 `json:"iss,omitempty"`
+		Extra  map[string]interface{} `json:"-"`
+	}
+
+	if err := json.NewDecoder(r).Decode(&j); err != nil {
+		return nil, fmt.Errorf("failed to decode introspection JSON: %w", err)
+	}
+	if !j.Active {
+		return nil, ErrInvalidToken
+	}
+
+	claims := jwt.MapClaims{}
+	if j.Exp != nil {
+		claims["exp"] = *j.Exp
+	}
+	if j.Sub != "" {
+		claims["sub"] = strings.TrimSpace(j.Sub)
+	}
+	if j.Aud != nil {
+		claims["aud"] = j.Aud
+	}
+	if j.Scope != "" {
+		claims["scope"] = strings.TrimSpace(j.Scope)
+	}
+	if j.Iss != "" {
+		claims["iss"] = strings.TrimSpace(j.Iss)
+	}
+	for k, v := range j.Extra {
+		claims[k] = v
+	}
+
+	return claims, nil
+}
+
+// introspectOpaqueToken uses the provider pattern to introspect opaque tokens
+func (v *TokenValidator) introspectOpaqueToken(ctx context.Context, tokenStr string) (jwt.MapClaims, error) {
+	if v.introspectURL == "" {
+		return nil, fmt.Errorf("no introspection endpoint available")
+	}
+
+	// Find appropriate provider for the introspection URL
+	provider := v.registry.GetIntrospector(v.introspectURL)
+	if provider == nil {
+		return nil, fmt.Errorf("no provider available for introspection URL: %s", v.introspectURL)
+	}
+
+	// Use provider to introspect the token
+	claims, err := provider.IntrospectToken(ctx, tokenStr)
+	if err != nil {
+		return nil, fmt.Errorf("%s introspection failed: %w", provider.Name(), err)
+	}
+
+	// Validate required claims (exp, iss, aud if configured)
+	if err := v.validateClaims(claims); err != nil {
+		return nil, err
+	}
+
+	return claims, nil
+}
+
+// ValidateToken validates a token.
+func (v *TokenValidator) ValidateToken(ctx context.Context, tokenString string) (jwt.MapClaims, error) {
+	// Ensure OIDC discovery is complete (lazy discovery with retry).
+	// When a local key provider is configured (embedded auth server),
+	// discovery failure is non-fatal — signing keys can be resolved
+	// in-process and the issuer URL may not be reachable from within
+	// the cluster. Mark discovery as done to avoid per-request retries.
+	if err := v.ensureOIDCDiscovered(ctx); err != nil {
+		if v.keyProvider == nil {
+			return nil, fmt.Errorf("OIDC discovery failed: %w", err)
+		}
+		slog.Warn("OIDC discovery failed, proceeding with local key provider",
+			"issuer", v.issuer, "error", err)
+		v.oidcDiscoveryMu.Lock()
+		v.oidcDiscovered = true
+		v.oidcDiscoveryMu.Unlock()
+	}
+
+	// Parse the token
+	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (any, error) {
+		return v.getKeyFromJWKS(ctx, token)
+	})
+
+	if err != nil {
+		if errors.Is(err, jwt.ErrTokenMalformed) {
+			// check against introspection endpoint if available
+			claims, err := v.introspectOpaqueToken(ctx, tokenString)
+			if err != nil {
+				return nil, fmt.Errorf("failed to introspect opaque token: %w", err)
+			}
+			return claims, nil
+		}
+		return nil, fmt.Errorf("failed to parse token: %w", err)
+	}
+
+	// it is a jwt token
+	// Check if the token is valid
+	if !token.Valid {
+		return nil, ErrInvalidToken
+	}
+
+	// Get the claims
+	claims, ok := token.Claims.(jwt.MapClaims)
+	if !ok {
+		return nil, fmt.Errorf("failed to get claims from token")
+	}
+
+	// Validate the claims
+	if err := v.validateClaims(claims); err != nil {
+		return nil, err
+	}
+
+	return claims, nil
+}
+
+// buildWWWAuthenticate builds a RFC 6750 / RFC 9728 compliant value for the
+// WWW-Authenticate header. It always includes realm and, if set, resource_metadata.
+// When errorCode is non-empty ("invalid_request", "invalid_token", or "insufficient_scope"),
+// it appends the error and optional error_description.
+func (v *TokenValidator) buildWWWAuthenticate(errorCode string, errDescription string) string {
+	var parts []string
+
+	// realm (RFC 6750)
+	if v.issuer != "" {
+		parts = append(parts, fmt.Sprintf(`realm="%s"`, EscapeQuotes(v.issuer)))
+	}
+
+	// resource_metadata (RFC 9728)
+	// Per RFC 9728 Section 3.1, the well-known URI is inserted between the host and path components
+	// Example: https://resource.example.com/resource1 -> https://resource.example.com/.well-known/oauth-protected-resource/resource1
+	if v.resourceURL != "" {
+		parsedURL, err := url.Parse(v.resourceURL)
+		if err == nil {
+			// Per RFC 9728 Section 3.1, remove any terminating slash from path
+			path := parsedURL.Path
+			if path == "/" {
+				path = ""
+			}
+
+			// Construct the metadata URL by inserting the well-known path between host and path
+			metadataURL := fmt.Sprintf("%s://%s/.well-known/oauth-protected-resource%s",
+				parsedURL.Scheme,
+				parsedURL.Host,
+				path)
+			parts = append(parts, fmt.Sprintf(`resource_metadata="%s"`, EscapeQuotes(metadataURL)))
+		}
+	}
+
+	// scope (RFC 6750 §3) - only when explicitly configured
+	if len(v.scopes) > 0 {
+		parts = append(parts, fmt.Sprintf(`scope="%s"`, EscapeQuotes(strings.Join(v.scopes, " "))))
+	}
+
+	// error fields (RFC 6750 §3)
+	if errorCode != "" {
+		parts = append(parts, fmt.Sprintf(`error="%s"`, EscapeQuotes(errorCode)))
+		if errDescription != "" {
+			parts = append(parts, fmt.Sprintf(`error_description="%s"`, EscapeQuotes(errDescription)))
+		}
+	}
+	return "Bearer " + strings.Join(parts, ", ")
+}
+
+// RFC 6750 error code constants for Bearer token authentication.
+const (
+	OAuthErrInvalidRequest    = "invalid_request"
+	OAuthErrInvalidToken      = "invalid_token"
+	OAuthErrInsufficientScope = "insufficient_scope"
+)
+
+// RFC6750Error represents an RFC 6750 compliant OAuth error response body.
+type RFC6750Error struct {
+	Error            string `json:"error"`
+	ErrorDescription string `json:"error_description"`
+}
+
+// writeOAuthError writes an RFC 6750 compliant JSON error response.
+func writeOAuthError(w http.ResponseWriter, errorCode, description string, status int) {
+	body, err := json.Marshal(RFC6750Error{
+		Error:            errorCode,
+		ErrorDescription: description,
+	})
+	if err != nil {
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	_, _ = w.Write(body)
+}
+
+// loadUpstreamTokens extracts the token session ID from claims and loads
+// all upstream provider tokens for that session. Returns (nil, nil) if no
+// tsid claim exists. Returns a non-nil error when a tsid claim is present
+// but token loading fails (infrastructure error).
+func (v *TokenValidator) loadUpstreamTokens(ctx context.Context, claims jwt.MapClaims) (map[string]string, error) {
+	tsid, ok := claims[upstreamtoken.TokenSessionIDClaimKey].(string)
+	if !ok || tsid == "" {
+		return nil, nil
+	}
+
+	tokens, err := v.upstreamTokenReader.GetAllValidTokens(ctx, tsid)
+	if err != nil {
+		return nil, fmt.Errorf("load upstream tokens for session %s: %w", tsid, err)
+	}
+
+	return tokens, nil
+}
+
+// Middleware creates an HTTP middleware that validates JWT tokens and creates Identity.
+func (v *TokenValidator) Middleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Extract the bearer token from the Authorization header
+		tokenString, err := ExtractBearerToken(r)
+		if err != nil {
+			w.Header().Set("WWW-Authenticate", v.buildWWWAuthenticate(OAuthErrInvalidRequest, err.Error()))
+			writeOAuthError(w, OAuthErrInvalidRequest, err.Error(), http.StatusUnauthorized)
+			return
+		}
+
+		// Validate the token
+		claims, err := v.ValidateToken(r.Context(), tokenString)
+		if err != nil {
+			w.Header().Set("WWW-Authenticate", v.buildWWWAuthenticate(OAuthErrInvalidToken, err.Error()))
+			writeOAuthError(w, OAuthErrInvalidToken, fmt.Sprintf("Invalid token: %v", err), http.StatusUnauthorized)
+			return
+		}
+
+		// Convert claims to Identity
+		identity, err := claimsToIdentity(claims, tokenString)
+		if err != nil {
+			slog.Error("failed to convert claims to identity", "error", err)
+			w.Header().Set("WWW-Authenticate", v.buildWWWAuthenticate(OAuthErrInvalidToken, err.Error()))
+			writeOAuthError(w, OAuthErrInvalidToken, "Invalid authentication claims", http.StatusUnauthorized)
+			return
+		}
+
+		// Enrich Identity with upstream provider tokens when an embedded auth
+		// server is active (reader configured via WithUpstreamTokenReader). The
+		// load runs against a temporary load-scoped context carrying the Identity,
+		// so storage layers invoked during the load can resolve the canonical user
+		// from context (via CanonicalUserFromContext, which falls back to the
+		// Identity's PlatformUserID on this request-serving path). The in-place
+		// UpstreamTokens mutation completes here, before the publicly-reachable
+		// context is built below — so the Identity placed in the served context is
+		// never mutated afterwards (see the UpstreamTokens doc comment in identity.go).
+		if v.upstreamTokenReader != nil {
+			loadCtx := WithIdentity(r.Context(), identity)
+			tokens, loadErr := v.loadUpstreamTokens(loadCtx, claims)
+			if loadErr != nil {
+				slog.WarnContext(loadCtx, "upstream token storage unavailable",
+					"error", loadErr,
+				)
+				http.Error(w, "authentication service temporarily unavailable", http.StatusServiceUnavailable)
+				return
+			}
+			identity.UpstreamTokens = tokens
+		}
+
+		// Add the fully-populated Identity to the request context and serve.
+		ctx := WithIdentity(r.Context(), identity)
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
+}
+
+// RFC9728AuthInfo represents the OAuth Protected Resource metadata as defined in RFC 9728
+type RFC9728AuthInfo struct {
+	Resource               string   `json:"resource"`
+	AuthorizationServers   []string `json:"authorization_servers"`
+	BearerMethodsSupported []string `json:"bearer_methods_supported"`
+	JWKSURI                string   `json:"jwks_uri,omitempty"`
+	ScopesSupported        []string `json:"scopes_supported"`
+}
+
+// NewAuthInfoHandler creates an HTTP handler that returns RFC-9728 compliant OAuth Protected Resource metadata
+func NewAuthInfoHandler(issuer, resourceURL string, scopes []string) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Set CORS headers for all requests
+		origin := r.Header.Get("Origin")
+		if origin == "" {
+			// Allow all origins if none specified. This should be fine because this is a discovery endpoint.
+			origin = "*"
+		}
+		w.Header().Set("Access-Control-Allow-Origin", origin)
+		w.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS")
+		// At least mcp-inspector requires these headers to be set for CORS. It seems to be a little
+		// off since this is a discovery endpoint, but let's make the inspector happy.
+		w.Header().Set("Access-Control-Allow-Headers", "mcp-protocol-version, Content-Type, Authorization")
+		w.Header().Set("Access-Control-Max-Age", "86400") // 24 hours
+
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+
+		// if resourceURL is not set, return 404 as we shouldn't presume a resource URL
+		if resourceURL == "" {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+
+		// Use provided scopes or fall back to a minimal default.
+		// When the embedded auth server is used, the caller provides
+		// the AS's ScopesSupported explicitly (see config_builder.go).
+		supportedScopes := scopes
+		if len(supportedScopes) == 0 {
+			supportedScopes = []string{"openid"}
+		}
+
+		authInfo := RFC9728AuthInfo{
+			Resource:               resourceURL,
+			AuthorizationServers:   []string{issuer},
+			BearerMethodsSupported: []string{"header"},
+			ScopesSupported:        supportedScopes,
+		}
+
+		// Set content type
+		w.Header().Set("Content-Type", "application/json")
+
+		// Encode and send the response
+		if err := json.NewEncoder(w).Encode(authInfo); err != nil {
+			slog.Error("failed to encode OAuth discovery response", "error", err)
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			return
+		}
+	})
+}

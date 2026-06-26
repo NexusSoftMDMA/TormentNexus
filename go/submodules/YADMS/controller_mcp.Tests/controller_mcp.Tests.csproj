@@ -1,0 +1,37 @@
+<Project Sdk='Microsoft.NET.Sdk'>
+
+  <PropertyGroup>
+    <TargetFramework>net472</TargetFramework>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
+    <IncludeGameHacking Condition="'$(IncludeGameHacking)' == ''">false</IncludeGameHacking>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(IncludeGameHacking)' == 'true'">
+    <DefineConstants>$(DefineConstants);GAME_HACKING</DefineConstants>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include='coverlet.collector' Version='6.0.4' />
+    <PackageReference Include='Microsoft.NET.Test.Sdk' Version='17.14.1' />
+    <PackageReference Include='xunit' Version='2.9.3' />
+    <PackageReference Include='xunit.runner.visualstudio' Version='3.1.4' />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include='Xunit' />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\controller_mcp\controller_mcp.csproj" />
+    <ProjectReference Include="..\controller_mcp.TestTarget\controller_mcp.TestTarget.csproj" />
+    <ProjectReference Include="..\controller_mcp.PcapTestTarget\controller_mcp.PcapTestTarget.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include='System.IO.Compression' />
+    <Reference Include='System.IO.Compression.FileSystem' />
+  </ItemGroup>
+</Project>

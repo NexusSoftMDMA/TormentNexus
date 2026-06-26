@@ -1,0 +1,398 @@
+// SPDX-FileCopyrightText: Copyright 2025 Stacklok, Inc.
+// SPDX-License-Identifier: Apache-2.0
+
+package controllers
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"os"
+
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/log"
+
+	mcpv1beta1 "github.com/stacklok/toolhive/cmd/thv-operator/api/v1beta1"
+	ctrlutil "github.com/stacklok/toolhive/cmd/thv-operator/pkg/controllerutil"
+	"github.com/stacklok/toolhive/cmd/thv-operator/pkg/kubernetes/configmaps"
+	"github.com/stacklok/toolhive/cmd/thv-operator/pkg/oidc"
+	runconfig "github.com/stacklok/toolhive/cmd/thv-operator/pkg/runconfig"
+	"github.com/stacklok/toolhive/cmd/thv-operator/pkg/runconfig/configmap/checksum"
+	"github.com/stacklok/toolhive/pkg/runner"
+	transporttypes "github.com/stacklok/toolhive/pkg/transport/types"
+	"github.com/stacklok/toolhive/pkg/vmcp/headerforward/wirefmt"
+)
+
+// ensureRunConfigConfigMap ensures the RunConfig ConfigMap exists and is up to date for MCPRemoteProxy
+func (r *MCPRemoteProxyReconciler) ensureRunConfigConfigMap(ctx context.Context, proxy *mcpv1beta1.MCPRemoteProxy) error {
+	runConfig, err := r.createRunConfigFromMCPRemoteProxy(ctx, proxy)
+	if err != nil {
+		return fmt.Errorf("failed to create RunConfig from MCPRemoteProxy: %w", err)
+	}
+
+	// Validate the RunConfig before creating the ConfigMap
+	if err := r.validateRunConfigForRemoteProxy(ctx, runConfig); err != nil {
+		return fmt.Errorf("invalid RunConfig: %w", err)
+	}
+
+	runConfigJSON, err := json.MarshalIndent(runConfig, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal run config: %w", err)
+	}
+
+	configMapName := fmt.Sprintf("%s-runconfig", proxy.Name)
+	configMap := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      configMapName,
+			Namespace: proxy.Namespace,
+			Labels:    labelsForRunConfigRemoteProxy(proxy.Name),
+		},
+		Data: map[string]string{
+			"runconfig.json": string(runConfigJSON),
+		},
+	}
+
+	// Compute and add content checksum annotation
+	checksumCalculator := checksum.NewRunConfigConfigMapChecksum()
+	cs := checksumCalculator.ComputeConfigMapChecksum(configMap)
+	configMap.Annotations = map[string]string{
+		checksum.ContentChecksumAnnotation: cs,
+	}
+
+	// Use the kubernetes configmaps client for upsert operations
+	configMapsClient := configmaps.NewClient(r.Client, r.Scheme)
+	if _, err := configMapsClient.UpsertWithOwnerReference(ctx, configMap, proxy); err != nil {
+		return fmt.Errorf("failed to upsert RunConfig ConfigMap: %w", err)
+	}
+
+	return nil
+}
+
+// createRunConfigFromMCPRemoteProxy converts MCPRemoteProxy spec to RunConfig
+// Key difference from MCPServer: Sets RemoteURL instead of Image, and Deployer remains nil
+func (r *MCPRemoteProxyReconciler) createRunConfigFromMCPRemoteProxy(
+	ctx context.Context,
+	proxy *mcpv1beta1.MCPRemoteProxy,
+) (*runner.RunConfig, error) {
+	proxyHost := defaultProxyHost
+	if envHost := os.Getenv("TOOLHIVE_PROXY_HOST"); envHost != "" {
+		proxyHost = envHost
+	}
+
+	// Get tool configuration from MCPToolConfig if referenced
+	toolsFilter, toolsOverride, err := r.resolveToolConfig(proxy)
+	if err != nil {
+		return nil, err
+	}
+
+	// Determine transport type (default to streamable-http to match CLI)
+	transport := proxy.Spec.Transport
+	if transport == "" {
+		transport = transporttypes.TransportTypeStreamableHTTP.String()
+	}
+
+	// Build options for remote proxy
+	options := []runner.RunConfigBuilderOption{
+		runner.WithName(proxy.Name),
+		// Key: Set RemoteURL instead of Image
+		runner.WithRemoteURL(proxy.Spec.RemoteURL),
+		// Use user-specified transport (sse or streamable-http, both use HTTPTransport internally)
+		runner.WithTransportAndPorts(transport, int(proxy.GetProxyPort()), 0),
+		runner.WithHost(proxyHost),
+		runner.WithTrustProxyHeaders(proxy.Spec.TrustProxyHeaders),
+		runner.WithEndpointPrefix(proxy.Spec.EndpointPrefix),
+		runner.WithToolsFilter(toolsFilter),
+	}
+
+	// Add tools override if present
+	if toolsOverride != nil {
+		options = append(options, runner.WithToolsOverride(toolsOverride))
+	}
+
+	// Add telemetry configuration from TelemetryConfigRef
+	if err := r.addTelemetryOptions(ctx, proxy, &options); err != nil {
+		return nil, err
+	}
+
+	// Create context for API operations
+	apiCtx, cancel := context.WithTimeout(context.Background(), defaultAPITimeout)
+	defer cancel()
+
+	// Add authorization configuration if specified
+
+	if err := ctrlutil.AddAuthzConfigOptions(apiCtx, r.Client, proxy.Namespace, proxy.Spec.AuthzConfig, &options); err != nil {
+		return nil, fmt.Errorf("failed to process AuthzConfig: %w", err)
+	}
+
+	// Resolve a referenced MCPAuthzConfig (spec.authzConfigRef) into runtime authz.
+	// Inline and ref are mutually exclusive (CRD XValidation), so at most one is active.
+	if err := ctrlutil.AddAuthzConfigRefOptions(apiCtx, r.Client, proxy.Namespace, proxy.Spec.AuthzConfigRef, &options); err != nil {
+		return nil, fmt.Errorf("failed to process AuthzConfigRef: %w", err)
+	}
+
+	// Add OIDC configuration if referenced via MCPOIDCConfigRef
+	resolvedOIDCConfig, err := r.resolveAndAddOIDCConfig(apiCtx, proxy, &options)
+	if err != nil {
+		return nil, err
+	}
+
+	// Add external auth configuration if specified (updated call)
+	// Will fail if embedded auth server is used without OIDC config or resourceUrl
+	if err := ctrlutil.AddExternalAuthConfigOptions(
+		apiCtx, r.Client, proxy.Namespace, proxy.Name, proxy.Spec.ExternalAuthConfigRef,
+		resolvedOIDCConfig, &options,
+	); err != nil {
+		return nil, fmt.Errorf("failed to process ExternalAuthConfig: %w", err)
+	}
+
+	// Validate authServerRef/externalAuthConfigRef conflict and add authServerRef options
+	if err := ctrlutil.ValidateAndAddAuthServerRefOptions(
+		apiCtx, r.Client, proxy.Namespace, proxy.Name, proxy.Spec.AuthServerRef,
+		proxy.Spec.ExternalAuthConfigRef, resolvedOIDCConfig, &options,
+	); err != nil {
+		return nil, fmt.Errorf("failed to process authServerRef: %w", err)
+	}
+
+	// Add audit configuration if specified
+	runconfig.AddAuditConfigOptions(&options, proxy.Spec.Audit)
+
+	// Add header forward configuration if specified
+	addHeaderForwardConfigOptions(proxy, &options)
+
+	// Use the RunConfigBuilder for operator context
+	// Deployer is nil for remote proxies because they connect to external services
+	// and do not require container deployment (unlike MCPServer which deploys containers)
+	runConfig, err := runner.NewOperatorRunConfigBuilder(
+		context.Background(),
+		nil,
+		nil,
+		nil,
+		options...,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	// Populate ScalingConfig.SessionRedis from spec.sessionStorage so the
+	// proxy runner has the address/db/keyPrefix needed to construct a
+	// shared Redis-backed session store. The Redis password is intentionally
+	// excluded here — it is injected as the THV_SESSION_REDIS_PASSWORD env
+	// var by buildRedisPasswordEnvVar in mcpremoteproxy_deployment.go.
+	// Must run before PopulateMiddlewareConfigs because rate limiting reads SessionRedis.
+	populateScalingConfigForRemoteProxy(runConfig, proxy)
+
+	// Populate middleware configs from the configuration fields
+	// This ensures that middleware_configs is properly set for serialization
+	if err := runner.PopulateMiddlewareConfigs(runConfig); err != nil {
+		return nil, fmt.Errorf("failed to populate middleware configs: %w", err)
+	}
+
+	return runConfig, nil
+}
+
+// populateScalingConfigForRemoteProxy mirrors populateScalingConfig from
+// mcpserver_runconfig.go but for MCPRemoteProxy (which has no
+// BackendReplicas concept). When MCPRemoteProxy.spec.sessionStorage uses
+// the redis provider, this populates runner.ScalingConfig.SessionRedis with
+// the non-sensitive connection parameters. Falls back to
+// TOOLHIVE_DEFAULT_REDIS_ADDR when spec.sessionStorage is unset.
+func populateScalingConfigForRemoteProxy(runConfig *runner.RunConfig, proxy *mcpv1beta1.MCPRemoteProxy) {
+	if proxy.Spec.SessionStorage != nil {
+		if proxy.Spec.SessionStorage.Provider == mcpv1beta1.SessionStorageProviderRedis {
+			if runConfig.ScalingConfig == nil {
+				runConfig.ScalingConfig = &runner.ScalingConfig{}
+			}
+			runConfig.ScalingConfig.SessionRedis = &runner.SessionRedisConfig{
+				Address:   proxy.Spec.SessionStorage.Address,
+				DB:        proxy.Spec.SessionStorage.DB,
+				KeyPrefix: proxy.Spec.SessionStorage.KeyPrefix,
+			}
+		}
+		// spec.sessionStorage was set explicitly — never fall through to the
+		// global default regardless of provider.
+		return
+	}
+
+	if def := ctrlutil.ReadDefaultRedisConfig(); def != nil {
+		if runConfig.ScalingConfig == nil {
+			runConfig.ScalingConfig = &runner.ScalingConfig{}
+		}
+		runConfig.ScalingConfig.SessionRedis = &runner.SessionRedisConfig{
+			Address: def.Addr,
+		}
+	}
+}
+
+// resolveAndAddOIDCConfig resolves OIDC configuration from the shared MCPOIDCConfigRef,
+// adds the appropriate runner options, and returns the resolved config.
+func (r *MCPRemoteProxyReconciler) resolveAndAddOIDCConfig(
+	ctx context.Context,
+	proxy *mcpv1beta1.MCPRemoteProxy,
+	options *[]runner.RunConfigBuilderOption,
+) (*oidc.OIDCConfig, error) {
+	if proxy.Spec.OIDCConfigRef == nil {
+		return nil, nil
+	}
+
+	// Resolve from shared MCPOIDCConfig reference
+	oidcCfg, err := ctrlutil.GetOIDCConfigForServer(ctx, r.Client, proxy.Namespace, proxy.Spec.OIDCConfigRef)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get MCPOIDCConfig: %w", err)
+	}
+	resolver := oidc.NewResolver(r.Client)
+	resolved, err := resolver.ResolveFromConfigRef(
+		ctx, proxy.Spec.OIDCConfigRef, oidcCfg, proxy.Name, proxy.Namespace, proxy.GetProxyPort(),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve OIDC config from MCPOIDCConfig ref: %w", err)
+	}
+	if resolved == nil {
+		return nil, nil
+	}
+	*options = append(*options, runner.WithOIDCConfig(
+		resolved.Issuer,
+		resolved.Audience,
+		resolved.JWKSURL,
+		resolved.IntrospectionURL,
+		resolved.ClientID,
+		resolved.ClientSecret,
+		resolved.ThvCABundlePath,
+		resolved.JWKSAuthTokenPath,
+		resolved.ResourceURL,
+		resolved.JWKSAllowPrivateIP,
+		resolved.InsecureAllowHTTP,
+		resolved.Scopes,
+	))
+	return resolved, nil
+}
+
+// validateRunConfigForRemoteProxy validates a RunConfig for remote proxy deployments
+func (*MCPRemoteProxyReconciler) validateRunConfigForRemoteProxy(ctx context.Context, config *runner.RunConfig) error {
+	if config == nil {
+		return fmt.Errorf("RunConfig cannot be nil")
+	}
+
+	if config.RemoteURL == "" {
+		return fmt.Errorf("remoteUrl is required for remote proxy")
+	}
+
+	if config.Name == "" {
+		return fmt.Errorf("name is required")
+	}
+
+	// SSE or StreamableHTTP transport is used for remote proxies (both use HTTPTransport internally)
+	if config.Transport != transporttypes.TransportTypeSSE && config.Transport != transporttypes.TransportTypeStreamableHTTP {
+		return fmt.Errorf("transport must be SSE or StreamableHTTP for remote proxy, got: %s", config.Transport)
+	}
+
+	if config.Port <= 0 {
+		return fmt.Errorf("port is required for remote proxy")
+	}
+
+	if config.Host == "" {
+		return fmt.Errorf("host is required for remote proxy")
+	}
+
+	// Validate tools filter
+	for _, tool := range config.ToolsFilter {
+		if tool == "" {
+			return fmt.Errorf("tool filter cannot contain empty values")
+		}
+	}
+
+	ctxLogger := log.FromContext(ctx)
+	ctxLogger.V(1).Info("RunConfig validation passed for remote proxy", "name", config.Name)
+	return nil
+}
+
+// labelsForRunConfigRemoteProxy returns labels for run config ConfigMap for remote proxy
+func labelsForRunConfigRemoteProxy(proxyName string) map[string]string {
+	return map[string]string{
+		"toolhive.stacklok.io/component":        "run-config",
+		"toolhive.stacklok.io/mcp-remote-proxy": proxyName,
+		"toolhive.stacklok.io/managed-by":       "toolhive-operator",
+	}
+}
+
+// addHeaderForwardConfigOptions adds header forward configuration options to the builder options slice.
+// This handles both plaintext headers (stored directly in RunConfig) and secret-backed headers
+// (which are mounted as env vars and referenced by identifier in RunConfig).
+func addHeaderForwardConfigOptions(proxy *mcpv1beta1.MCPRemoteProxy, options *[]runner.RunConfigBuilderOption) {
+	if proxy.Spec.HeaderForward == nil {
+		return
+	}
+
+	// Add plaintext headers directly
+	if len(proxy.Spec.HeaderForward.AddPlaintextHeaders) > 0 {
+		*options = append(*options, runner.WithHeaderForward(proxy.Spec.HeaderForward.AddPlaintextHeaders))
+	}
+
+	// Build AddHeadersFromSecret map: header name → secret identifier
+	// The secret identifier is used by secrets.EnvironmentProvider to look up
+	// the env var (TOOLHIVE_SECRET_<identifier>). The actual secret values are
+	// mounted as env vars by buildHeaderForwardSecretEnvVars() in the deployment.
+	if len(proxy.Spec.HeaderForward.AddHeadersFromSecret) > 0 {
+		headerSecrets := make(map[string]string, len(proxy.Spec.HeaderForward.AddHeadersFromSecret))
+		for _, headerSecret := range proxy.Spec.HeaderForward.AddHeadersFromSecret {
+			if headerSecret.ValueSecretRef == nil {
+				continue
+			}
+			// Get the secret identifier (not the full env var name)
+			_, secretIdentifier := wirefmt.SecretEnvVarName(proxy.Name, headerSecret.HeaderName)
+			headerSecrets[headerSecret.HeaderName] = secretIdentifier
+		}
+		*options = append(*options, runner.WithHeaderForwardSecrets(headerSecrets))
+	}
+}
+
+// resolveToolConfig fetches the MCPToolConfig referenced by the proxy and
+// returns the tools filter and override map.
+func (r *MCPRemoteProxyReconciler) resolveToolConfig(
+	proxy *mcpv1beta1.MCPRemoteProxy,
+) ([]string, map[string]runner.ToolOverride, error) {
+	if proxy.Spec.ToolConfigRef == nil {
+		return nil, nil, nil
+	}
+
+	toolConfig, err := ctrlutil.GetToolConfigForMCPRemoteProxy(context.Background(), r.Client, proxy)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to get MCPToolConfig: %w", err)
+	}
+	if toolConfig == nil {
+		return nil, nil, nil
+	}
+
+	var toolsOverride map[string]runner.ToolOverride
+	if len(toolConfig.Spec.ToolsOverride) > 0 {
+		toolsOverride = make(map[string]runner.ToolOverride)
+		for toolName, override := range toolConfig.Spec.ToolsOverride {
+			toolsOverride[toolName] = runner.ToolOverride{
+				Name:        override.Name,
+				Description: override.Description,
+			}
+		}
+	}
+
+	return toolConfig.Spec.ToolsFilter, toolsOverride, nil
+}
+
+// addTelemetryOptions resolves telemetry configuration for the RunConfig.
+func (r *MCPRemoteProxyReconciler) addTelemetryOptions(
+	ctx context.Context,
+	proxy *mcpv1beta1.MCPRemoteProxy,
+	options *[]runner.RunConfigBuilderOption,
+) error {
+	if proxy.Spec.TelemetryConfigRef != nil {
+		telCfg, err := ctrlutil.GetTelemetryConfigForMCPRemoteProxy(ctx, r.Client, proxy)
+		if err != nil {
+			return fmt.Errorf("failed to get MCPTelemetryConfig: %w", err)
+		}
+		if telCfg != nil {
+			caPath := ctrlutil.TelemetryCABundleFilePath(telCfg)
+			svcName := proxy.Spec.TelemetryConfigRef.ServiceName
+			runconfig.AddMCPTelemetryConfigRefOptions(options, &telCfg.Spec, svcName, proxy.Name, caPath)
+		}
+	}
+	return nil
+}

@@ -1,0 +1,27 @@
+{
+  "active_url": "https://github.com/john-zhang-dev/xero-mcp",
+  "borg_rows": 10669,
+  "last_error": null,
+  "last_extracted_url": "https://github.com/john-zhang-dev/xero-mcp",
+  "last_model": null,
+  "models": [
+    "lmstudio-local",
+    "openrouter-gemma-4-26b-a4b-it",
+    "openrouter-nemotron-3-super-120b-a12b",
+    "openrouter-qwen3-coder",
+    "openrouter-lfm-2.5-1.2b-thinking",
+    "openrouter-qwen3-next-80b-a3b-instruct",
+    "openrouter-ling-2.6-flash",
+    "openrouter-nemotron-3-nano-30b-a3b",
+    "openrouter-gpt-oss-120b",
+    "openrouter-gemma-4-31b-it",
+    "openrouter-minimax-m2.5",
+    "groq-llama3-8b",
+    "openrouter-gemini-flash"
+  ],
+  "remaining_urls": 4459,
+  "sleep_seconds": null,
+  "state": "processing",
+  "updated_at": "2026-04-23T21:55:37.233187+00:00",
+  "worker_pid": 46856
+}

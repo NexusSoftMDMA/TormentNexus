@@ -1,0 +1,28 @@
+[package]
+name = "mnem-ner-providers"
+description = "NER provider adapters for mnem. Ships RuleNer (heuristic, zero-dep) and NullNer. Future: GLiNER ONNX."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+keywords = ["mnem", "ner", "entity-extraction", "knowledge-graph"]
+categories = ["text-processing"]
+readme = "README.md"
+documentation = "https://docs.rs/mnem-ner-providers"
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
+[lints]
+workspace = true
+
+[features]
+default = []
+
+[dependencies]
+serde      = { workspace = true, features = ["derive"] }
+thiserror  = { workspace = true }

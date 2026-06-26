@@ -1,0 +1,18 @@
+@model SampleApp.Models.ProfileViewModel
+
+@functions {
+    public string FullName() => $"{FirstName} {LastName}";
+    private int Count = 1;
+}
+
+<div id="profile-card">
+  <script src="/js/profile.js"></script>
+  <style>
+    .profile-card { color: red; }
+  </style>
+  <script>
+    function toggleCard(id) {
+      return document.getElementById(id);
+    }
+  </script>
+</div>

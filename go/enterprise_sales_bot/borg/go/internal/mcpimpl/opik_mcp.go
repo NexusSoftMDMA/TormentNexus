@@ -1,0 +1,24 @@
+package mcpimpl
+
+import (
+	"context"
+	"fmt"
+)
+
+func HandleHello_opik_mcp(ctx context.Context, args map[string]interface{}) (ToolResponse, error) {
+	name, _ :=getString(args, "name")
+	if name == "" {
+		return err("name is required")
+}
+
+	return ok(fmt.Sprintf("Hello, %s!", name))
+}
+
+func HandleEcho_opik_mcp(ctx context.Context, args map[string]interface{}) (ToolResponse, error) {
+	message, _ :=getString(args, "message")
+	if message == "" {
+		return success("No message provided")
+}
+
+	return ok(message)
+}

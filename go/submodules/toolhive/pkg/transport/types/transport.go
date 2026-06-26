@@ -1,0 +1,320 @@
+// SPDX-FileCopyrightText: Copyright 2025 Stacklok, Inc.
+// SPDX-License-Identifier: Apache-2.0
+
+// Package types provides common types and interfaces for the transport package
+// used in communication between the client and MCP server.
+package types
+
+//go:generate go run go.uber.org/mock/mockgen -package mocks -destination=mocks/mock_transport.go -source=transport.go MiddlewareRunner,RunnerConfig
+
+import (
+	"context"
+	"encoding/json"
+	"net/http"
+	"time"
+
+	"golang.org/x/exp/jsonrpc2"
+	"golang.org/x/oauth2"
+
+	"github.com/stacklok/toolhive/pkg/auth/upstreamtoken"
+	"github.com/stacklok/toolhive/pkg/authserver/server/keys"
+	rt "github.com/stacklok/toolhive/pkg/container/runtime"
+	"github.com/stacklok/toolhive/pkg/transport/errors"
+	"github.com/stacklok/toolhive/pkg/transport/session"
+)
+
+// MiddlewareFunction is a function that wraps an http.Handler with additional functionality.
+type MiddlewareFunction func(http.Handler) http.Handler
+
+// NamedMiddleware pairs a middleware function with its name for logging purposes.
+type NamedMiddleware struct {
+	Name     string
+	Function MiddlewareFunction
+}
+
+// Middleware defines a middleware interceptor and a close method.
+type Middleware interface {
+	// Handler returns the middleware function used by the proxy.
+	Handler() MiddlewareFunction
+	// Close cleans up any resources used by the middleware.
+	Close() error
+}
+
+// MiddlewareConfig represents the configuration for a middleware.
+// This is stored in the run config, and is used to instantiate the middleware.
+type MiddlewareConfig struct {
+	// Type is a string representing the middleware type.
+	Type string `json:"type"`
+	// Parameters is a JSON object containing the middleware parameters.
+	// It is stored as a raw message to allow flexible parameter types.
+	Parameters json.RawMessage `json:"parameters" swaggertype:"object"`
+}
+
+// NewMiddlewareConfig creates a new MiddlewareConfig with the given type and parameters.
+// The parameters are marshaled to JSON and stored in the Parameters field.
+func NewMiddlewareConfig(middlewareType string, parameters any) (*MiddlewareConfig, error) {
+	// Marshal the parameters to JSON
+	paramsJSON, err := json.Marshal(parameters)
+	if err != nil {
+		return nil, err
+	}
+
+	return &MiddlewareConfig{
+		Type:       middlewareType,
+		Parameters: paramsJSON,
+	}, nil
+}
+
+// MiddlewareRunner defines the interface that middleware can use to interact with the runner.
+// This unified interface replaces the ad-hoc interfaces defined in each middleware package.
+type MiddlewareRunner interface {
+	// AddMiddleware adds a middleware instance to the runner's middleware chain with a name for logging
+	AddMiddleware(name string, middleware Middleware)
+
+	// SetAuthInfoHandler sets the authentication info handler (used by auth middleware)
+	SetAuthInfoHandler(handler http.Handler)
+
+	// SetPrometheusHandler sets the Prometheus metrics handler (used by telemetry middleware)
+	SetPrometheusHandler(handler http.Handler)
+
+	// GetConfig returns a config interface for middleware to access runner configuration
+	GetConfig() RunnerConfig
+
+	// GetUpstreamTokenReader returns a TokenReader for identity enrichment.
+	// Returns nil if the embedded auth server is not configured.
+	GetUpstreamTokenReader() upstreamtoken.TokenReader
+
+	// GetKeyProvider returns the embedded auth server's public key provider
+	// for in-process JWKS key lookups. Returns nil if no embedded auth server
+	// is configured.
+	GetKeyProvider() keys.PublicKeyProvider
+}
+
+// RunnerConfig defines the config interface needed by middleware to access runner configuration
+type RunnerConfig interface {
+	GetName() string
+	GetPort() int
+}
+
+// MiddlewareFactory is a function that creates a Middleware instance based on the provided configuration
+// and configures the runner with the middleware and any additional handlers it provides.
+type MiddlewareFactory func(config *MiddlewareConfig, runner MiddlewareRunner) error
+
+// Transport defines the interface for MCP transport implementations.
+// It provides methods for handling communication between the client and server.
+type Transport interface {
+	// Mode returns the transport mode.
+	Mode() TransportType
+
+	// ProxyPort returns the port used by the transport.
+	ProxyPort() int
+
+	// Start initializes the transport and begins processing messages.
+	// The transport is responsible for container operations like attaching to stdin/stdout if needed.
+	Start(ctx context.Context) error
+
+	// Stop gracefully shuts down the transport.
+	Stop(ctx context.Context) error
+
+	// IsRunning checks if the transport is currently running.
+	IsRunning() (bool, error)
+
+	// SetRemoteURL sets the remote URL for the MCP server.
+	// For transports that don't support remote servers (e.g., stdio), this is a no-op.
+	SetRemoteURL(remoteURL string)
+
+	// SetTokenSource sets the OAuth token source for remote authentication.
+	// For transports that don't support remote authentication (e.g., stdio), this is a no-op.
+	SetTokenSource(tokenSource oauth2.TokenSource)
+
+	// SetOnHealthCheckFailed sets the callback for health check failures.
+	// For transports that don't support health checks (e.g., stdio), this is a no-op.
+	SetOnHealthCheckFailed(callback HealthCheckFailedCallback)
+
+	// SetOnUnauthorizedResponse sets the callback for 401 Unauthorized responses.
+	// For transports that don't support this (e.g., stdio), this is a no-op.
+	SetOnUnauthorizedResponse(callback UnauthorizedResponseCallback)
+}
+
+// TransportType represents the type of transport to use.
+//
+//nolint:revive // Intentionally named TransportType despite package name
+type TransportType string
+
+const (
+	// TransportTypeStdio represents the stdio transport.
+	TransportTypeStdio TransportType = "stdio"
+
+	// TransportTypeSSE represents the SSE transport.
+	TransportTypeSSE TransportType = "sse"
+
+	// TransportTypeStreamableHTTP represents the streamable HTTP transport.
+	TransportTypeStreamableHTTP TransportType = "streamable-http"
+
+	// TransportTypeInspector represents the transport mode for MCP Inspector.
+	TransportTypeInspector TransportType = "inspector"
+)
+
+// String returns the string representation of the transport type.
+func (t TransportType) String() string {
+	return string(t)
+}
+
+// ParseTransportType parses a string into a transport type.
+func ParseTransportType(s string) (TransportType, error) {
+	switch s {
+	case "stdio", "STDIO":
+		return TransportTypeStdio, nil
+	case "sse", "SSE":
+		return TransportTypeSSE, nil
+	case "streamable-http", "STREAMABLE-HTTP":
+		return TransportTypeStreamableHTTP, nil
+	case "inspector", "INSPECTOR":
+		return TransportTypeInspector, nil
+	default:
+		return "", errors.ErrUnsupportedTransport
+	}
+}
+
+// Proxy defines the interface for proxying messages between clients and destinations.
+type Proxy interface {
+	// Start starts the proxy.
+	Start(ctx context.Context) error
+
+	// Stop stops the proxy.
+	Stop(ctx context.Context) error
+
+	// IsRunning checks if the proxy is currently running.
+	// This is used by HTTPTransport to detect when the proxy has stopped
+	// (e.g., due to health check failure) even if the transport itself hasn't been stopped.
+	IsRunning() (bool, error)
+
+	// GetMessageChannel returns the channel for messages to/from the destination.
+	GetMessageChannel() chan jsonrpc2.Message
+
+	// SendMessageToDestination sends a message to the destination.
+	SendMessageToDestination(msg jsonrpc2.Message) error
+
+	// ForwardResponseToClients forwards a response from the destination to clients.
+	ForwardResponseToClients(ctx context.Context, msg jsonrpc2.Message) error
+}
+
+// HealthCheckFailedCallback is a function that is called when a health check fails.
+// This allows the transport to notify the runner/status manager when remote servers become unhealthy.
+type HealthCheckFailedCallback func()
+
+// UnauthorizedResponseCallback is a function that is called when a 401 Unauthorized response is received.
+// This allows the transport to notify the runner/status manager when bearer tokens become invalid.
+type UnauthorizedResponseCallback func()
+
+// Config contains configuration options for a transport.
+type Config struct {
+	// Type is the type of transport to use.
+	Type TransportType
+
+	// ProxyPort is the port to use for network transports (host port).
+	ProxyPort int
+
+	// TargetPort is the port that the container will expose (container port).
+	// This is only applicable to SSE transport.
+	TargetPort int
+
+	// TargetHost is the host to forward traffic to.
+	// This is only applicable to SSE transport.
+	TargetHost string
+
+	// Host is the host to use for network transports.
+	Host string
+
+	// Deployer is the container runtime to use.
+	// This is used for container operations like creating, starting, and attaching.
+	Deployer rt.Deployer
+
+	// Debug indicates whether debug mode is enabled.
+	// If debug mode is enabled, containers will not be removed when stopped.
+	Debug bool
+
+	// Middlewares is a list of named middleware to apply to the transport.
+	// These are applied in order, with the first middleware being the outermost wrapper.
+	Middlewares []NamedMiddleware
+
+	// PrometheusHandler is an optional HTTP handler for Prometheus metrics endpoint.
+	// If provided, it will be exposed at /metrics on the transport's HTTP server.
+	PrometheusHandler http.Handler
+
+	// AuthInfoHandler is an optional HTTP handler for authentication information endpoint.
+	// If provided, it will be exposed at /.well-known/oauth-protected-resource on the transport's HTTP server.
+	AuthInfoHandler http.Handler
+
+	// TrustProxyHeaders indicates whether to trust X-Forwarded-* headers from reverse proxies
+	TrustProxyHeaders bool
+
+	// ProxyMode is the proxy mode for stdio transport ("sse" or "streamable-http")
+	ProxyMode ProxyMode
+
+	// EndpointPrefix is an explicit prefix to prepend to SSE endpoint URLs.
+	// This is used to handle path-based ingress routing scenarios.
+	EndpointPrefix string
+
+	// PrefixHandlers is a map of path prefixes to HTTP handlers.
+	// These handlers are mounted on the transport's HTTP server before
+	// the catch-all proxy handler. Go's ServeMux longest-match routing
+	// ensures more specific paths take precedence.
+	//
+	// Note: When integrating the auth server, the Handler() method returns
+	// a single combined handler that internally routes all OAuth/OIDC endpoints.
+	// Mount it at specific paths or use http.StripPrefix as needed.
+	//
+	// Example:
+	//
+	//	{
+	//	  "/oauth/": authServerHandler,
+	//	  "/.well-known/oauth-authorization-server": authServerHandler,
+	//	}
+	PrefixHandlers map[string]http.Handler
+
+	// SessionStorage overrides the default in-memory session store when set.
+	// Used for Redis-backed session sharing across replicas.
+	// When nil, transports use their default in-memory LocalStorage.
+	SessionStorage session.Storage
+
+	// SessionTTL is the inactivity timeout for sessions managed by this proxy.
+	// Sessions idle for longer than this duration are cleaned up by the session
+	// manager's background worker. Zero uses session.DefaultSessionTTL.
+	SessionTTL time.Duration
+}
+
+// ProxyMode represents the proxy mode for stdio transport.
+type ProxyMode string
+
+const (
+	// ProxyModeSSE is the proxy mode for SSE.
+	// Deprecated: SSE proxy mode is deprecated and will be removed in a future release.
+	// Use ProxyModeStreamableHTTP instead.
+	ProxyModeSSE ProxyMode = "sse"
+	// ProxyModeStreamableHTTP is the proxy mode for streamable HTTP.
+	ProxyModeStreamableHTTP ProxyMode = "streamable-http"
+)
+
+// IsValidProxyMode returns true if the given mode is a valid ProxyMode.
+func IsValidProxyMode(mode string) bool {
+	return mode == ProxyModeSSE.String() || mode == ProxyModeStreamableHTTP.String()
+}
+
+func (p ProxyMode) String() string {
+	return string(p)
+}
+
+// EffectiveProxyMode determines the actual HTTP protocol the proxy is using.
+// For stdio transports, this returns the proxy mode (sse or streamable-http).
+// For direct transports (sse/streamable-http), this returns the transport type
+// since the transport itself is the protocol.
+func EffectiveProxyMode(transportType TransportType, proxyMode ProxyMode) ProxyMode {
+	if transportType == TransportTypeStdio {
+		if proxyMode == "" {
+			return ProxyModeStreamableHTTP
+		}
+		return proxyMode
+	}
+	return ProxyMode(transportType.String())
+}

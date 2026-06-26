@@ -1,0 +1,12 @@
+{
+  "users": [
+    {
+      "id": "24d2ffab-497b-4b01-b2fa-13cc965a16b4",
+      "name": "",
+      "email": "pelloni.robert@gmail.com",
+      "passwordHash": "3b87a85335f968a3a0d2763e39bb4786b4f519ef62bb7cd9c6e09aa76a81513c0cc39bf982439de5b910500d9236625278efd62f25190cb3a420c8116bc48e2a",
+      "createdAt": "2026-03-27T04:17:08.213Z"
+    }
+  ],
+  "sessions": []
+}

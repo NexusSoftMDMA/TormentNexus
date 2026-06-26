@@ -1,0 +1,437 @@
+// SPDX-FileCopyrightText: Copyright 2025 Stacklok, Inc.
+// SPDX-License-Identifier: Apache-2.0
+
+package server
+
+import (
+	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+
+	"github.com/stacklok/toolhive/pkg/vmcp"
+	"github.com/stacklok/toolhive/pkg/vmcp/health"
+	"github.com/stacklok/toolhive/pkg/vmcp/mocks"
+	routermocks "github.com/stacklok/toolhive/pkg/vmcp/router/mocks"
+)
+
+// TestServer_HealthMonitoring_Disabled verifies behavior when health monitoring is disabled.
+func TestServer_HealthMonitoring_Disabled(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockRouter := routermocks.NewMockRouter(ctrl)
+	mockBackendClient := mocks.NewMockBackendClient(ctrl)
+
+	backends := []vmcp.Backend{
+		{ID: "backend-1", Name: "Backend 1", BaseURL: "http://localhost:8080"},
+	}
+
+	// Create server WITHOUT health monitoring config
+	cfg := &Config{
+		Name:                "test-server",
+		Version:             "1.0.0",
+		Host:                "127.0.0.1",
+		Port:                0,
+		HealthMonitorConfig: nil, // Health monitoring disabled
+		SessionFactory:      testMinimalFactory(), Aggregator: &stubAggregator{},
+	}
+
+	backendRegistry := vmcp.NewImmutableRegistry(backends)
+	srv, err := New(context.Background(), cfg, mockRouter, mockBackendClient, backendRegistry, nil)
+	require.NoError(t, err)
+	require.NotNil(t, srv)
+
+	// Verify health monitoring is disabled (the core exposes no reporter).
+	assert.Nil(t, srv.backendHealth())
+
+	// Verify getter methods return appropriate responses when disabled
+	status, err := srv.GetBackendHealthStatus("backend-1")
+	assert.Error(t, err)
+	assert.Equal(t, vmcp.BackendUnknown, status)
+	assert.Contains(t, err.Error(), "health monitoring is disabled")
+
+	state, err := srv.GetBackendHealthState("backend-1")
+	assert.Error(t, err)
+	assert.Nil(t, state)
+	assert.Contains(t, err.Error(), "health monitoring is disabled")
+
+	allStates := srv.GetAllBackendHealthStates()
+	assert.NotNil(t, allStates)
+	assert.Empty(t, allStates)
+
+	summary := srv.GetHealthSummary()
+	assert.Equal(t, health.Summary{}, summary)
+}
+
+// TestServer_HealthMonitoring_Enabled verifies health monitoring works correctly when enabled.
+func TestServer_HealthMonitoring_Enabled(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockRouter := routermocks.NewMockRouter(ctrl)
+	mockBackendClient := mocks.NewMockBackendClient(ctrl)
+
+	backends := []vmcp.Backend{
+		{ID: "backend-1", Name: "Backend 1", BaseURL: "http://localhost:8080", TransportType: "sse"},
+		{ID: "backend-2", Name: "Backend 2", BaseURL: "http://localhost:8081", TransportType: "sse"},
+	}
+
+	// Mock health checks - backend-1 healthy, backend-2 unhealthy
+	mockBackendClient.EXPECT().
+		ListCapabilities(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, target *vmcp.BackendTarget) (*vmcp.CapabilityList, error) {
+			if target.WorkloadID == "backend-1" {
+				return &vmcp.CapabilityList{}, nil
+			}
+			return nil, assert.AnError
+		}).
+		AnyTimes()
+
+	// Create server WITH health monitoring config
+	cfg := &Config{
+		Name:    "test-server",
+		Version: "1.0.0",
+		Host:    "127.0.0.1",
+		Port:    0,
+		HealthMonitorConfig: &health.MonitorConfig{
+			CheckInterval:      50 * time.Millisecond,
+			UnhealthyThreshold: 1,
+			Timeout:            5 * time.Second,
+			DegradedThreshold:  2 * time.Second,
+		},
+		SessionFactory: testMinimalFactory(), Aggregator: &stubAggregator{},
+	}
+
+	backendRegistry := vmcp.NewImmutableRegistry(backends)
+	srv, err := New(context.Background(), cfg, mockRouter, mockBackendClient, backendRegistry, nil)
+	require.NoError(t, err)
+	require.NotNil(t, srv)
+
+	// Verify the core built the health monitor (started in core.New) and exposes it.
+	assert.NotNil(t, srv.backendHealth())
+
+	// Start server in background
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	errCh := make(chan error, 1)
+	go func() {
+		if err := srv.Start(ctx); err != nil {
+			errCh <- err
+		}
+	}()
+
+	// Wait for server to be ready
+	select {
+	case <-srv.Ready():
+	case err := <-errCh:
+		t.Fatalf("server failed to start: %v", err)
+	case <-time.After(2 * time.Second):
+		t.Fatal("timeout waiting for server to start")
+	}
+
+	// Poll for expected health status (avoids race between Start() and WaitForInitialHealthChecks())
+	require.Eventually(t, func() bool {
+		status, err := srv.GetBackendHealthStatus("backend-1")
+		return err == nil && status == vmcp.BackendHealthy
+	}, 2*time.Second, 10*time.Millisecond, "backend-1 should become healthy")
+
+	require.Eventually(t, func() bool {
+		status, err := srv.GetBackendHealthStatus("backend-2")
+		return err == nil && status == vmcp.BackendUnhealthy
+	}, 2*time.Second, 10*time.Millisecond, "backend-2 should become unhealthy")
+
+	// Test GetBackendHealthState
+	state, err := srv.GetBackendHealthState("backend-1")
+	assert.NoError(t, err)
+	assert.NotNil(t, state)
+	assert.Equal(t, vmcp.BackendHealthy, state.Status)
+
+	// Test GetAllBackendHealthStates
+	allStates := srv.GetAllBackendHealthStates()
+	assert.Len(t, allStates, 2)
+	assert.Contains(t, allStates, "backend-1")
+	assert.Contains(t, allStates, "backend-2")
+
+	// Test GetHealthSummary
+	summary := srv.GetHealthSummary()
+	assert.Equal(t, 2, summary.Total)
+	assert.Equal(t, 1, summary.Healthy)
+	assert.Equal(t, 1, summary.Unhealthy)
+
+	// Stop server cleanly
+	cancel()
+	select {
+	case <-errCh:
+	case <-time.After(2 * time.Second):
+	}
+}
+
+// TestServer_HealthMonitoring_StartupFailure verifies graceful degradation when health monitor fails to start.
+func TestServer_HealthMonitoring_StartupFailure(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockRouter := routermocks.NewMockRouter(ctrl)
+	mockBackendClient := mocks.NewMockBackendClient(ctrl)
+
+	backends := []vmcp.Backend{
+		{ID: "backend-1", Name: "Backend 1", BaseURL: "http://localhost:8080"},
+	}
+
+	// Create server WITH health monitoring config but invalid health monitor config to trigger monitor failure
+	cfg := &Config{
+		Name:    "test-server",
+		Version: "1.0.0",
+		Host:    "127.0.0.1",
+		Port:    0,
+		HealthMonitorConfig: &health.MonitorConfig{
+			CheckInterval:      100 * time.Millisecond,
+			UnhealthyThreshold: 0, // Invalid config - will cause monitor creation to fail
+			Timeout:            50 * time.Millisecond,
+		},
+		SessionFactory: testMinimalFactory(), Aggregator: &stubAggregator{},
+	}
+
+	// This should fail during New() because of invalid health monitor config
+	backendRegistry := vmcp.NewImmutableRegistry(backends)
+	srv, err := New(context.Background(), cfg, mockRouter, mockBackendClient, backendRegistry, nil)
+	require.Error(t, err)
+	require.Nil(t, srv)
+	assert.Contains(t, err.Error(), "failed to create health monitor")
+}
+
+// TestServer_HandleBackendHealth_Disabled verifies /api/backends/health when monitoring is disabled.
+func TestServer_HandleBackendHealth_Disabled(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockRouter := routermocks.NewMockRouter(ctrl)
+	mockBackendClient := mocks.NewMockBackendClient(ctrl)
+
+	backends := []vmcp.Backend{
+		{ID: "backend-1", Name: "Backend 1", BaseURL: "http://localhost:8080"},
+	}
+
+	// Create server WITHOUT health monitoring
+	cfg := &Config{
+		Name:                "test-server",
+		Version:             "1.0.0",
+		Host:                "127.0.0.1",
+		Port:                0,
+		HealthMonitorConfig: nil,
+		SessionFactory:      testMinimalFactory(), Aggregator: &stubAggregator{},
+	}
+
+	backendRegistry := vmcp.NewImmutableRegistry(backends)
+	srv, err := New(context.Background(), cfg, mockRouter, mockBackendClient, backendRegistry, nil)
+	require.NoError(t, err)
+
+	// Create test request
+	req := httptest.NewRequest(http.MethodGet, "/api/backends/health", nil)
+	w := httptest.NewRecorder()
+
+	// Call handler
+	srv.handleBackendHealth(w, req)
+
+	// Verify response
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, "application/json", w.Header().Get("Content-Type"))
+
+	var response BackendHealthResponse
+	err = json.NewDecoder(w.Body).Decode(&response)
+	require.NoError(t, err)
+
+	assert.False(t, response.MonitoringEnabled)
+	assert.Nil(t, response.Summary)
+	assert.Nil(t, response.Backends)
+}
+
+// TestServer_HandleBackendHealth_Enabled verifies /api/backends/health when monitoring is enabled.
+func TestServer_HandleBackendHealth_Enabled(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockRouter := routermocks.NewMockRouter(ctrl)
+	mockBackendClient := mocks.NewMockBackendClient(ctrl)
+
+	backends := []vmcp.Backend{
+		{ID: "backend-1", Name: "Backend 1", BaseURL: "http://localhost:8080", TransportType: "sse"},
+	}
+
+	// Mock healthy backend
+	mockBackendClient.EXPECT().
+		ListCapabilities(gomock.Any(), gomock.Any()).
+		Return(&vmcp.CapabilityList{}, nil).
+		AnyTimes()
+
+	// Create server WITH health monitoring
+	cfg := &Config{
+		Name:    "test-server",
+		Version: "1.0.0",
+		Host:    "127.0.0.1",
+		Port:    0,
+		HealthMonitorConfig: &health.MonitorConfig{
+			CheckInterval:      50 * time.Millisecond,
+			UnhealthyThreshold: 3,
+			Timeout:            5 * time.Second,
+		},
+		SessionFactory: testMinimalFactory(), Aggregator: &stubAggregator{},
+	}
+
+	backendRegistry := vmcp.NewImmutableRegistry(backends)
+	srv, err := New(context.Background(), cfg, mockRouter, mockBackendClient, backendRegistry, nil)
+	require.NoError(t, err)
+
+	// Start server
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- srv.Start(ctx)
+	}()
+
+	// Wait for server to be ready
+	select {
+	case <-srv.Ready():
+	case err := <-errCh:
+		t.Fatalf("server failed to start: %v", err)
+	case <-time.After(2 * time.Second):
+		t.Fatal("timeout waiting for server to start")
+	}
+
+	// Poll until backend health is reported as healthy
+	require.Eventually(t, func() bool {
+		status, statusErr := srv.GetBackendHealthStatus("backend-1")
+		return statusErr == nil && status == vmcp.BackendHealthy
+	}, 2*time.Second, 10*time.Millisecond, "backend-1 should become healthy")
+
+	// Create test request
+	req := httptest.NewRequest(http.MethodGet, "/api/backends/health", nil)
+	w := httptest.NewRecorder()
+
+	// Call handler
+	srv.handleBackendHealth(w, req)
+
+	// Verify response
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, "application/json", w.Header().Get("Content-Type"))
+
+	var response BackendHealthResponse
+	err = json.NewDecoder(w.Body).Decode(&response)
+	require.NoError(t, err)
+
+	assert.True(t, response.MonitoringEnabled)
+	assert.NotNil(t, response.Summary)
+	assert.Equal(t, 1, response.Summary.Total)
+	assert.Equal(t, 1, response.Summary.Healthy)
+	assert.NotNil(t, response.Backends)
+	assert.Len(t, response.Backends, 1)
+	assert.Contains(t, response.Backends, "backend-1")
+
+	// Stop server cleanly
+	cancel()
+	select {
+	case <-errCh:
+	case <-time.After(2 * time.Second):
+	}
+}
+
+// TestServer_Stop_StopsHealthMonitor verifies that Stop() properly cleans up the health monitor.
+func TestServer_Stop_StopsHealthMonitor(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockRouter := routermocks.NewMockRouter(ctrl)
+	mockBackendClient := mocks.NewMockBackendClient(ctrl)
+
+	backends := []vmcp.Backend{
+		{ID: "backend-1", Name: "Backend 1", BaseURL: "http://localhost:8080", TransportType: "sse"},
+	}
+
+	// Mock health checks
+	mockBackendClient.EXPECT().
+		ListCapabilities(gomock.Any(), gomock.Any()).
+		Return(&vmcp.CapabilityList{}, nil).
+		AnyTimes()
+
+	// Create server WITH health monitoring
+	cfg := &Config{
+		Name:    "test-server",
+		Version: "1.0.0",
+		Host:    "127.0.0.1",
+		Port:    0,
+		HealthMonitorConfig: &health.MonitorConfig{
+			CheckInterval:      50 * time.Millisecond,
+			UnhealthyThreshold: 3,
+			Timeout:            5 * time.Second,
+		},
+		SessionFactory: testMinimalFactory(), Aggregator: &stubAggregator{},
+	}
+
+	backendRegistry := vmcp.NewImmutableRegistry(backends)
+	srv, err := New(context.Background(), cfg, mockRouter, mockBackendClient, backendRegistry, nil)
+	require.NoError(t, err)
+
+	// Start server
+	ctx, cancel := context.WithCancel(context.Background())
+
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- srv.Start(ctx)
+	}()
+
+	// Wait for server to be ready
+	<-srv.Ready()
+
+	// Poll until health status is available (monitor has started and run initial checks)
+	require.Eventually(t, func() bool {
+		status, statusErr := srv.GetBackendHealthStatus("backend-1")
+		return statusErr == nil && status == vmcp.BackendHealthy
+	}, 2*time.Second, 10*time.Millisecond, "backend-1 should become healthy")
+
+	// Verify health monitor is running (owned by the core)
+	assert.NotNil(t, srv.backendHealth())
+
+	// Cancel context to trigger graceful shutdown
+	cancel()
+
+	// Wait for server to stop
+	select {
+	case err := <-errCh:
+		assert.NoError(t, err)
+	case <-time.After(2 * time.Second):
+		t.Fatal("timeout waiting for server to stop")
+	}
+
+	// Verify the reporter still exists after stop (core.Close stops the monitor but does not
+	// nil it), so the getter methods below keep working against the stopped monitor.
+	assert.NotNil(t, srv.backendHealth(), "health reporter should still exist after stop")
+
+	// Verify getter methods still work (they query the stopped monitor)
+	// This ensures no panics occur when accessing a stopped monitor
+	status, err := srv.GetBackendHealthStatus("backend-1")
+	assert.NoError(t, err, "getter should not error after stop")
+	// Status might be stale but should be valid
+	assert.NotEqual(t, vmcp.BackendUnknown, status, "should return last known status")
+}

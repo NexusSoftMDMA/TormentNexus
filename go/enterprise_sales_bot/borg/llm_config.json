@@ -1,0 +1,69 @@
+{
+  "llm_mapping": {
+    "sequential_thought_generation": "google/gemini-2.5-flash-lite",
+    "default_generation": "google/gemini-2.5-flash-lite",
+    
+    "research_query": "perplexity/sonar",
+    "research_query_generation": "google/gemini-2.5-flash-lite",
+    "research_enhancement": "google/gemini-2.5-flash-lite",
+    
+    "prd_generation": "google/gemini-2.5-flash-lite",
+    "rules_generation": "google/gemini-2.5-flash-lite",
+    "user_stories_generation": "google/gemini-2.5-flash-lite",
+    "task_list_initial_generation": "google/gemini-2.5-flash-lite",
+    "task_list_decomposition": "google/gemini-2.5-flash-lite",
+    
+    "fullstack_starter_kit_generation": "google/gemini-2.5-flash-lite",
+    "fullstack_starter_kit_module_selection": "google/gemini-2.5-flash-lite",
+    "fullstack_starter_kit_dynamic_yaml_module_generation": "google/gemini-2.5-flash-lite",
+    "module_selection": "google/gemini-2.5-flash-lite",
+    "yaml_generation": "google/gemini-2.5-flash-lite",
+    "template_generation": "google/gemini-2.5-flash-lite",
+    
+    "context_curator_intent_analysis": "google/gemini-2.5-flash-lite",
+    "context_curator_prompt_refinement": "google/gemini-2.5-flash-lite",
+    "context_curator_file_discovery": "google/gemini-2.5-flash-lite",
+    "context_curator_relevance_scoring": "google/gemini-2.5-flash-lite",
+    "context_curator_relevance_ranking": "google/gemini-2.5-flash-lite",
+    "context_curator_meta_prompt_generation": "google/gemini-2.5-flash-lite",
+    "context_curator_task_decomposition": "google/gemini-2.5-flash-lite",
+    "context_curator_architectural_analysis": "google/gemini-2.5-flash-lite",
+    
+    "task_decomposition": "google/gemini-2.5-flash-lite",
+    "atomic_task_detection": "google/gemini-2.5-flash-lite",
+    "task_refinement": "google/gemini-2.5-flash-lite",
+    "task_validation": "google/gemini-2.5-flash-lite",
+    "intent_recognition": "google/gemini-2.5-flash-lite",
+    "natural_language_processing": "google/gemini-2.5-flash-lite",
+    "command_parsing": "google/gemini-2.5-flash-lite",
+    "tag_suggestion": "google/gemini-2.5-flash-lite",
+    
+    "epic_generation": "google/gemini-2.5-flash-lite",
+    "epic_decomposition": "google/gemini-2.5-flash-lite",
+    "epic_task_generation": "google/gemini-2.5-flash-lite",
+    "epic_identification": "google/gemini-2.5-flash-lite",
+    "epic_relationship_analysis": "google/gemini-2.5-flash-lite",
+    "project_analysis": "google/gemini-2.5-flash-lite",
+    
+    "dependency_analysis": "google/gemini-2.5-flash-lite",
+    "dependency_graph_analysis": "google/gemini-2.5-flash-lite",
+    
+    "prd_integration": "google/gemini-2.5-flash-lite",
+    "task_list_integration": "google/gemini-2.5-flash-lite",
+    "artifact_parsing": "google/gemini-2.5-flash-lite",
+    
+    "agent_coordination": "google/gemini-2.5-flash-lite",
+    "agent_task_assignment": "google/gemini-2.5-flash-lite",
+    "agent_response_processing": "google/gemini-2.5-flash-lite",
+    "agent_status_analysis": "google/gemini-2.5-flash-lite",
+    "agent_health_monitoring": "google/gemini-2.5-flash-lite",
+    "task_orchestration": "google/gemini-2.5-flash-lite",
+    "orchestration_workflow": "google/gemini-2.5-flash-lite",
+    "capability_matching": "google/gemini-2.5-flash-lite",
+    
+    "workflow_step_execution": "google/gemini-2.5-flash-lite",
+    "transport_optimization": "google/gemini-2.5-flash-lite",
+    "error_recovery_analysis": "google/gemini-2.5-flash-lite",
+    "session_persistence": "google/gemini-2.5-flash-lite"
+  }
+}

@@ -1,0 +1,21 @@
+package tools
+
+import (
+	"context"
+	"os/exec"
+)
+
+func HandleRun(ctx context.Context, args map[string]interface{}) (ToolResponse, error) {
+	prompt, _ :=getString(args, "prompt")
+	if prompt == "" {
+		return err("prompt is required")
+}
+
+	cmd := exec.CommandContext(ctx, "claude-agent-sdk-darwin-x64", prompt)
+	output, e := cmd.Output()
+	if e != nil {
+		return err("execution failed: " + e.Error())
+}
+
+	return ok(string(output))
+}

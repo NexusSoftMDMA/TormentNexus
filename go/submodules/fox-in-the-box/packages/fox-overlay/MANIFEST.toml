@@ -1,0 +1,86 @@
+# Fox overlay inventory — what's overlaid, what's patched, what's removed.
+#
+# Empty in Phase 1; Phases 2-7 populate the sections below as content moves
+# into the overlay. The full categorization scheme is documented in
+# docs/architecture/upstream-migration-execution-plan.md §Phase 1 / §1 synthesis.
+
+[static]
+# Phase 2 — Fox-only static assets moved out of forks/hermes-webui/static/,
+# served via upstream extensions.py at /extensions/<path>.
+# Setup wizard files (setup.html/css/js) deferred to Phase 7 (coupled to
+# api/onboarding.py's REPO_ROOT / "static" / "setup.html" path access).
+# Fox-branded favicons (apple-touch-icon.png + 5 favicon variants) deferred
+# to a dedicated future phase (coherent group, handle atomically with
+# manifest.json icon refs).
+"fox-in-the-box.css" = "fox-only"
+"fox-overlay.js" = "fox-only"
+"images/fox_avatar_cropped.jpg" = "fox-only"
+"fonts/Manrope[wght].woff2" = "fox-only"
+"fonts/Sora[wght].woff2" = "fox-only"
+"onboarding-preview.js" = "fox-only"
+"fallback-polish.js" = "fox-only"
+"hostname-prompt.js" = "fox-only"
+"approval-explain.js" = "fox-only"
+"custom-providers.js" = "fox-only"
+# Phase 7 — Fox onboarding wizard static files (moved from fork's static/setup.* after Phase 7a removed them):
+"setup.html" = "fox-only"
+"setup.css" = "fox-only"
+"setup.js" = "fox-only"
+# Post-Phase-8 — Fox SOUL.md override (agent-side, copied into /app/hermes-agent/docker/SOUL.md
+# at Docker build time; upstream entrypoint then seeds it into $HERMES_HOME on first run).
+# Classified under [static] (not [python]) because it is a plain content file copied
+# verbatim, not an importable module. FITB_DISABLE_AGENT_OVERLAY=1 short-circuits the copy.
+"agent_overlay/SOUL.md" = "fox-only"
+
+[python]
+# Phase 3 — agent-side overlay. Three monkey-patch modules applied via
+# the `hermes_agent.plugins` entry-point group.
+# Phase 5 and Phase 6 add webui-side entries below.
+#
+# mem0_oss relocation completed in Phase 8 follow-up #243 (2026-05-17):
+# Files live at packages/fox-overlay/agent_memory_plugins/mem0_oss/ and
+# get COPYd into /app/hermes-agent/plugins/memory/mem0_oss/ at Docker
+# build time by a dedicated RUN block. Upstream's directory-scan memory-
+# provider discovery picks them up natively — no entry-point coupling.
+# FITB_DISABLE_AGENT_OVERLAY=1 also short-circuits this step.
+"fox_overlay.agent_plugins" = "fox-only-additive"  # register(ctx) entry-point
+"fox_overlay.agent_plugins.fox_overlay_plugin.monkey_patches.runtime_provider" = "fox-only-additive"
+"fox_overlay.agent_plugins.fox_overlay_plugin.monkey_patches.auxiliary_client" = "fox-only-additive"
+"fox_overlay.agent_plugins.fox_overlay_plugin.monkey_patches.cron_diagnostics" = "fox-only-additive"
+"fox_overlay.agent_plugins.fox_overlay_plugin.monkey_patches._helpers" = "fox-only-additive"
+
+# Phase 4 — dispatcher mechanism + bootstrap.
+"fox_overlay.dispatch" = "fox-only-additive"  # /api/* dispatcher table called from patched routes.py
+"fox_overlay.bootstrap" = "fox-only-additive"  # imported by patched server.py to wire dispatcher
+
+# Phase 5 — additive webui modules. Each claims a /api/<prefix>/ at the
+# dispatcher; Phase 5 fork PRs `git rm` the corresponding api/<name>.py
+# from forks/hermes-webui and remove the inline routes.py blocks.
+"fox_overlay.webui_modules" = "fox-only-additive"
+"fox_overlay.webui_modules.ollama" = "fox-only-additive"  # claims /api/ollama/ (was forks/hermes-webui/api/ollama.py)
+"fox_overlay.webui_modules.tailscale" = "fox-only-additive"  # claims /api/tailscale/ (was forks/hermes-webui/api/tailscale.py)
+"fox_overlay.webui_modules.local_fallback" = "fox-only-additive"  # claims /api/local-fallback/ (was forks/hermes-webui/api/local_fallback.py)
+"fox_overlay.webui_modules.models_download" = "fox-only-additive"  # claims /api/local-models (bare + sub-paths) (was forks/hermes-webui/api/models_download.py)
+"fox_overlay.webui_modules.hostname" = "fox-only-additive"  # claims /api/settings/hostname (bare + /dismiss-prompt) (was forks/hermes-webui/api/hostname.py)
+"fox_overlay.webui_modules.onboarding" = "fox-only-additive"  # Phase 7: claims /setup (bare) + /api/setup/; exports _write_env_key for hostname (was forks/hermes-webui/api/onboarding.py)
+"fox_overlay.webui_modules.approval_explain" = "fox-only-additive"  # claims POST /api/approval-explain/ — aux LLM command explanation (#150)
+"fox_overlay.webui_modules.custom_providers" = "fox-only-additive"  # claims /api/settings/custom-providers (bare + /test + /delete) — CRUD for OpenAI-compat providers (#144)
+
+# Phase 6 — webui mid-file monkey-patches. Fork files are restored to
+# virgin upstream content; these modules re-apply Fox behavior at runtime
+# via inspect.getsource + anchored textual substitution. Anchor drift
+# fails fast at boot — Phase 9 nightly upstream-watch catches it earlier.
+"fox_overlay.webui_patches" = "fox-only-additive"  # apply_all() called from bootstrap
+"fox_overlay.webui_patches._helpers" = "fox-only-additive"  # substitute_function (webui-side; mirror of agent_plugins helper)
+"fox_overlay.webui_patches.providers" = "fox-only-additive"  # patches api.providers.set_provider_key — adds gateway hot-reload
+# Phase 8 follow-up #239: models patch removed — upstream v0.51.84 provides
+# #1558 P0 guard + .bak backup + load_metadata_only flag setter natively.
+"fox_overlay.webui_patches.config" = "fox-only-additive"  # patches api.config — Fox _SETTINGS_DEFAULTS + _SETTINGS_BOOL_KEYS + get_config mtime invalidation + reload_config models-cache eviction + save_settings TS/Ollama validation + bool-string coercion
+"fox_overlay.webui_patches.streaming" = "fox-only-additive"  # patches api.streaming — adds _FAILOVER_ELIGIBLE_TYPES + _attempt_failover (#129b silent failover); 6 substitutions in _run_agent_streaming for FITB#9 local-fallback plumbing + FITB#89 mid-stream break + FITB#129b apperror gating
+
+# Phase 8 — Fox-only agent memory providers (Phase 3 deferral closed in #243).
+# Copied into /app/hermes-agent/plugins/memory/ at Docker build time;
+# upstream's directory-scan discovery picks them up natively.
+"agent_memory_plugins/mem0_oss/__init__.py" = "fox-only-additive"  # 1011 LOC mem0ai-backed memory provider
+"agent_memory_plugins/mem0_oss/plugin.yaml" = "fox-only-additive"
+"agent_memory_plugins/mem0_oss/README.md" = "fox-only-additive"

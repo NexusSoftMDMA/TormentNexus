@@ -1,0 +1,251 @@
+// SPDX-FileCopyrightText: Copyright 2025 Stacklok, Inc.
+// SPDX-License-Identifier: Apache-2.0
+
+package app
+
+import (
+	"context"
+	"fmt"
+	"log/slog"
+	"os"
+	"strconv"
+
+	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
+
+	regtypes "github.com/stacklok/toolhive-core/registry/types"
+	"github.com/stacklok/toolhive/pkg/container"
+	"github.com/stacklok/toolhive/pkg/container/kubernetes"
+	"github.com/stacklok/toolhive/pkg/container/runtime"
+	"github.com/stacklok/toolhive/pkg/runner"
+	"github.com/stacklok/toolhive/pkg/workloads/statuses"
+)
+
+var runCmd *cobra.Command
+var runFlags proxyRunFlags
+
+// NewRunCmd creates a new run command for testing
+func NewRunCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "run [flags] SERVER_OR_IMAGE_OR_PROTOCOL [-- ARGS...]",
+		Short: "Run an MCP server",
+		Long: `Run an MCP server with the specified name, image, or protocol scheme.
+
+	ToolHive supports three ways to run an MCP server:
+
+	1. From the registry:
+	   $ thv run server-name [-- args...]
+	   Looks up the server in the registry and uses its predefined settings
+	   (transport, permissions, environment variables, etc.)
+
+	2. From a container image:
+	   $ thv run ghcr.io/example/mcp-server:latest [-- args...]
+	   Runs the specified container image directly with the provided arguments
+
+	The container will be started with the specified transport mode and
+	permission profile. Additional configuration can be provided via flags.`,
+		Args: cobra.MinimumNArgs(1),
+		RunE: runCmdFunc,
+		// Ignore unknown flags to allow passing flags to the MCP server
+		FParseErrWhitelist: cobra.FParseErrWhitelist{
+			UnknownFlags: true,
+		},
+	}
+}
+
+type proxyRunFlags struct {
+	runK8sPodPatch string
+}
+
+func addRunFlags(runCmd *cobra.Command, runFlags *proxyRunFlags) {
+	runCmd.Flags().StringVar(
+		&runFlags.runK8sPodPatch,
+		"k8s-pod-patch",
+		"",
+		"JSON string to patch the Kubernetes pod template (only applicable when using Kubernetes runtime)",
+	)
+	// This is used for the K8s operator which wraps the run command, but shouldn't be visible to users.
+	if err := runCmd.Flags().MarkHidden("k8s-pod-patch"); err != nil {
+		slog.Warn(fmt.Sprintf("Error hiding flag: %v", err))
+	}
+}
+
+func init() {
+	runCmd = NewRunCmd()
+	addRunFlags(runCmd, &runFlags)
+}
+
+func runCmdFunc(cmd *cobra.Command, args []string) error {
+	ctx := cmd.Context()
+
+	// Common setup for both execution paths
+	// Get debug mode from viper (which includes both --debug flag and TOOLHIVE_DEBUG env var)
+	debugMode := viper.GetBool("debug")
+
+	// Create container runtime
+	rt, err := container.NewFactory().Create(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to create container runtime: %w", err)
+	}
+
+	// Select an env var validation strategy depending on how the CLI is run:
+	// If we have called the CLI directly, we use the CLIEnvVarValidator.
+	// If we are running in detached mode, or the CLI is wrapped by the K8s operator,
+	// we use the DetachedEnvVarValidator.
+	envVarValidator := &runner.DetachedEnvVarValidator{}
+
+	var imageMetadata *regtypes.ImageMetadata
+
+	// Get the name of the MCP server to run.
+	// This may be a server name from the registry, a container image, or a protocol scheme.
+	mcpServerImage := args[0]
+
+	// Always try to load runconfig.json from filesystem first
+	fileBasedConfig, err := tryLoadConfigFromFile()
+	if err != nil {
+		slog.Debug(fmt.Sprintf("No configuration file found or failed to load: %v", err))
+		// Continue without configuration file - will use flags instead
+	}
+	slog.Info("auto-discovered and loaded configuration from runconfig.json file")
+	// Use simplified approach: when config file exists, use it directly and only apply essential flags
+	return runWithFileBasedConfig(ctx, cmd, mcpServerImage, fileBasedConfig, rt, debugMode, envVarValidator, imageMetadata)
+}
+
+// Standard configuration file paths for runconfig.json
+// These paths match the volume mount paths used by the Kubernetes operator
+const (
+	kubernetesRunConfigPath = "/etc/runconfig/runconfig.json" // Primary path for K8s ConfigMap volume mounts
+	systemRunConfigPath     = "/etc/toolhive/runconfig.json"  // System-wide configuration path
+	localRunConfigPath      = "./runconfig.json"              // Local directory fallback
+)
+
+// tryLoadConfigFromFile attempts to load runconfig.json from standard file locations
+func tryLoadConfigFromFile() (*runner.RunConfig, error) {
+	// Standard locations where runconfig.json might be mounted or placed
+	configPaths := []string{
+		kubernetesRunConfigPath,
+		systemRunConfigPath,
+		localRunConfigPath,
+	}
+
+	for _, path := range configPaths {
+		if _, err := os.Stat(path); err != nil {
+			continue // File doesn't exist, try next location
+		}
+
+		slog.Debug(fmt.Sprintf("Found configuration file at %s", path))
+
+		// Security: Only read from predefined safe paths to avoid path traversal
+		file, err := os.Open(path) // #nosec G304 - path is from predefined safe list
+		if err != nil {
+			return nil, fmt.Errorf("found config file at %s but failed to open: %w", path, err)
+		}
+		defer func() {
+			if err := file.Close(); err != nil {
+				// Non-fatal: file cleanup failure after successful read
+				slog.Warn(fmt.Sprintf("Failed to close config file: %v", err))
+			}
+		}()
+
+		// Use existing runner.ReadJSON function for consistency
+		runConfig, err := runner.ReadJSON(file)
+		if err != nil {
+			return nil, fmt.Errorf("found config file at %s but failed to parse JSON: %w", path, err)
+		}
+
+		applyMCPServerGenerationOverride(runConfig)
+
+		slog.Info(fmt.Sprintf("Successfully loaded configuration from %s", path))
+		return runConfig, nil
+	}
+
+	// No configuration file found
+	return nil, fmt.Errorf("configuration file required but no configuration file was found")
+}
+
+// applyMCPServerGenerationOverride replaces runConfig.MCPServerGeneration with
+// the value of the EnvVarMCPServerGeneration environment variable when set.
+// The operator projects this env var via the downward API from the pod's
+// mcpserver-generation annotation, freezing the value per pod at creation
+// time. Without this override the value would come from /etc/runconfig
+// (a live-updating ConfigMap volume), letting two coexisting proxyrunner
+// pods converge on the same generation during a rolling update and defeat
+// the apply-gate at shouldSkipStatefulSetApply. See issue #5360.
+func applyMCPServerGenerationOverride(runConfig *runner.RunConfig) {
+	raw := os.Getenv(kubernetes.EnvVarMCPServerGeneration)
+	if raw == "" {
+		return
+	}
+	gen, err := strconv.ParseInt(raw, 10, 64)
+	if err != nil {
+		slog.Warn("ignoring unparsable env var; falling back to runconfig value",
+			"env", kubernetes.EnvVarMCPServerGeneration, "value", raw, "err", err)
+		return
+	}
+	// metadata.generation is a monotonic non-negative integer per the K8s API
+	// convention. A negative value cannot have come from a legitimate downward
+	// API projection of the pod annotation and would silently disable the
+	// apply-gate stamp at pkg/container/kubernetes/client.go:479-482.
+	if gen < 0 {
+		slog.Warn("ignoring negative env var; falling back to runconfig value",
+			"env", kubernetes.EnvVarMCPServerGeneration, "value", raw)
+		return
+	}
+	slog.Debug("applied MCPServer generation override from env var",
+		"env", kubernetes.EnvVarMCPServerGeneration,
+		"file_value", runConfig.MCPServerGeneration,
+		"env_value", gen)
+	runConfig.MCPServerGeneration = gen
+}
+
+// runWithFileBasedConfig handles execution when a runconfig.json file is found.
+// Uses config from file exactly as-is, ignoring all CLI configuration flags.
+// Only uses essential non-configuration inputs: image, command args, and --k8s-pod-patch.
+func runWithFileBasedConfig(
+	ctx context.Context,
+	cmd *cobra.Command,
+	mcpServerImage string,
+	config *runner.RunConfig,
+	rt runtime.Runtime,
+	debugMode bool,
+	envVarValidator runner.EnvVarValidator,
+	imageMetadata *regtypes.ImageMetadata,
+) error {
+	// Use the file config directly with minimal essential overrides
+	config.Image = mcpServerImage
+	config.Deployer = rt
+	config.Debug = debugMode
+
+	// Apply --k8s-pod-patch flag if provided (essential for K8s operation)
+	if cmd.Flags().Changed("k8s-pod-patch") && runFlags.runK8sPodPatch != "" {
+		config.K8sPodTemplatePatch = runFlags.runK8sPodPatch
+	}
+
+	// Validate environment variables using the provided validator
+	if envVarValidator != nil {
+		validatedEnvVars, err := envVarValidator.Validate(ctx, imageMetadata, config, config.EnvVars)
+		if err != nil {
+			return fmt.Errorf("failed to validate environment variables: %w", err)
+		}
+		config.EnvVars = validatedEnvVars
+	}
+
+	// Process environment files from EnvFileDir if specified (e.g., for Vault secrets)
+	if config.EnvFileDir != "" {
+		updatedConfig, err := config.WithEnvFilesFromDirectory(config.EnvFileDir)
+		if err != nil {
+			return fmt.Errorf("failed to process environment files from directory %s: %w", config.EnvFileDir, err)
+		}
+		config = updatedConfig
+	}
+
+	// Apply image metadata overrides if needed (similar to what the builder does)
+	if imageMetadata != nil && config.Name == "" {
+		config.Name = imageMetadata.Name
+	}
+
+	// statusManager is only needed for the local use case, use a stub here.
+	statusManager := statuses.NewNoopStatusManager()
+	mcpRunner := runner.NewRunner(config, statusManager)
+	return mcpRunner.Run(ctx)
+}

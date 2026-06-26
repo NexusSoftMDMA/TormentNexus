@@ -1,0 +1,107 @@
+// SPDX-FileCopyrightText: Copyright 2026 Stacklok, Inc.
+// SPDX-License-Identifier: Apache-2.0
+
+package secrets
+
+import (
+	"context"
+	"errors"
+	"log/slog"
+	"strings"
+)
+
+// FallbackProvider wraps a primary provider with environment variable fallback
+type FallbackProvider struct {
+	primary     Provider
+	envProvider Provider
+}
+
+// NewFallbackProvider creates a new provider with environment variable fallback
+func NewFallbackProvider(primary Provider) Provider {
+	return &FallbackProvider{
+		primary: primary,
+		envProvider: &EnvironmentProvider{
+			prefix: EnvVarPrefix,
+		},
+	}
+}
+
+// GetSecret attempts to get a secret from the primary provider,
+// falling back to environment variables if not found
+func (f *FallbackProvider) GetSecret(ctx context.Context, name string) (string, error) {
+	// First, try the primary provider
+	value, err := f.primary.GetSecret(ctx, name)
+	if err == nil {
+		return value, nil
+	}
+
+	// Check if it's a "not found" error
+	if !IsNotFoundError(err) {
+		return "", err
+	}
+
+	// Try environment variable fallback
+	envValue, envErr := f.envProvider.GetSecret(ctx, name)
+	if envErr == nil {
+		//nolint:gosec // G706: secret name is user-provided input used for diagnostics
+		slog.Debug("Secret retrieved from environment variable fallback", "name", name)
+		return envValue, nil
+	}
+
+	// Return the original error if no fallback found
+	return "", err
+}
+
+// SetSecret always uses the primary provider (no env var writes)
+func (f *FallbackProvider) SetSecret(ctx context.Context, name, value string) error {
+	return f.primary.SetSecret(ctx, name, value)
+}
+
+// DeleteSecret always uses the primary provider (no env var deletes)
+func (f *FallbackProvider) DeleteSecret(ctx context.Context, name string) error {
+	return f.primary.DeleteSecret(ctx, name)
+}
+
+// ListSecrets only lists from the primary provider
+// (env vars not listed in fallback mode for security)
+func (f *FallbackProvider) ListSecrets(ctx context.Context) ([]SecretDescription, error) {
+	return f.primary.ListSecrets(ctx)
+}
+
+// DeleteSecrets delegates to the primary provider.
+func (f *FallbackProvider) DeleteSecrets(ctx context.Context, keys []string) error {
+	return f.primary.DeleteSecrets(ctx, keys)
+}
+
+// Cleanup delegates to the primary provider
+func (f *FallbackProvider) Cleanup() error {
+	return f.primary.Cleanup()
+}
+
+// Capabilities returns the primary provider's capabilities
+func (f *FallbackProvider) Capabilities() ProviderCapabilities {
+	return f.primary.Capabilities()
+}
+
+// ErrSecretNotFound is the sentinel error returned by built-in Provider
+// implementations when a requested secret does not exist. Callers should
+// use IsNotFoundError rather than comparing directly, so that third-party
+// backends whose errors cannot wrap this sentinel are still handled.
+var ErrSecretNotFound = errors.New("secret not found")
+
+// IsNotFoundError reports whether err indicates that a secret was not found.
+// It first checks for the ErrSecretNotFound sentinel (used by all built-in
+// backends) via errors.Is, then falls back to substring matching for
+// third-party backends (e.g. 1Password SDK) that cannot wrap the sentinel.
+func IsNotFoundError(err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, ErrSecretNotFound) {
+		return true
+	}
+	// Legacy fallback for third-party backends that don't wrap ErrSecretNotFound.
+	errStr := err.Error()
+	return strings.Contains(errStr, "not found") ||
+		strings.Contains(errStr, "does not exist")
+}

@@ -1,0 +1,21 @@
+{
+  "name": "@opengui/backend",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Networked OpenGUI Backend: embeds Runtime, HTTP/IPC, queues",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "dependencies": {
+    "@opengui/protocol": "workspace:*",
+    "@opengui/runtime": "workspace:*",
+    "hono": "^4.12.23"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

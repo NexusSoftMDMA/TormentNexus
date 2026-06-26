@@ -1,0 +1,81 @@
+repo: langchain-ai/langchain
+questions:
+  - id: langchain-001
+    question: "How does LangChain implement the chain abstraction for composing LLM calls?"
+    ground_truth_answer: "LangChain uses LCEL (LangChain Expression Language) where components implement Runnable with invoke/ainvoke/batch/stream methods. The | operator chains Runnables via RunnableSequence. Each step's output becomes the next step's input. RunnableParallel runs branches concurrently."
+    ground_truth_symbols: ["Runnable", "RunnableSequence", "RunnableParallel", "invoke"]
+    difficulty: medium
+    category: architecture
+    tags: [chains, lcel]
+
+  - id: langchain-002
+    question: "How does LangChain implement retrieval-augmented generation (RAG)?"
+    ground_truth_answer: "RAG chains combine a Retriever (wrapping a VectorStore) with an LLM. The retriever's get_relevant_documents fetches similar chunks. These are formatted into a prompt template via format_docs. The LLM receives context + question and generates an answer."
+    ground_truth_symbols: ["BaseRetriever", "VectorStore", "get_relevant_documents"]
+    difficulty: medium
+    category: architecture
+    tags: [rag, retrieval]
+
+  - id: langchain-003
+    question: "How does LangChain implement chat message history and memory?"
+    ground_truth_answer: "BaseChatMessageHistory stores a list of BaseMessage objects (HumanMessage, AIMessage, etc.). Memory classes (ConversationBufferMemory, ConversationSummaryMemory) load and save context from history. RunnableWithMessageHistory wraps a chain to auto-persist conversation."
+    ground_truth_symbols: ["BaseChatMessageHistory", "RunnableWithMessageHistory"]
+    difficulty: medium
+    category: api
+    tags: [memory, chat]
+
+  - id: langchain-004
+    question: "How does LangChain implement tool calling for agents?"
+    ground_truth_answer: "Tools are defined with @tool decorator or BaseTool subclass with name, description, and args_schema. create_tool_calling_agent builds an agent that uses the LLM's native tool_calls output. AgentExecutor loops: call LLM, if tool_calls exist execute them, feed results back."
+    ground_truth_symbols: ["BaseTool", "tool", "create_tool_calling_agent", "AgentExecutor"]
+    difficulty: hard
+    category: architecture
+    tags: [agents, tools]
+
+  - id: langchain-005
+    question: "How does LangChain implement prompt templates?"
+    ground_truth_answer: "PromptTemplate uses Python f-string or jinja2 syntax with named variables. ChatPromptTemplate composes SystemMessage, HumanMessage templates. Templates implement Runnable, so they can be chained with |. format() substitutes variables; invoke() is the Runnable interface."
+    ground_truth_symbols: ["PromptTemplate", "ChatPromptTemplate"]
+    difficulty: easy
+    category: api
+    tags: [prompts, templates]
+
+  - id: langchain-006
+    question: "How does LangChain implement document loading and text splitting?"
+    ground_truth_answer: "BaseLoader.load() returns Document objects with page_content and metadata. Specific loaders (PyPDFLoader, WebBaseLoader, CSVLoader) handle different formats. TextSplitter.split_documents() chunks documents by character count, tokens, or recursive separators while maintaining overlap."
+    ground_truth_symbols: ["BaseLoader", "Document", "RecursiveCharacterTextSplitter"]
+    difficulty: easy
+    category: api
+    tags: [documents, splitting]
+
+  - id: langchain-007
+    question: "How does LangChain implement structured output parsing?"
+    ground_truth_answer: "OutputParsers transform LLM text output into structured data. PydanticOutputParser generates format instructions from a Pydantic model and parses the LLM response. JsonOutputParser handles JSON. with_structured_output() on chat models uses native function calling for reliable structured output."
+    ground_truth_symbols: ["PydanticOutputParser", "JsonOutputParser", "with_structured_output"]
+    difficulty: medium
+    category: api
+    tags: [parsing, structured-output]
+
+  - id: langchain-008
+    question: "How does LangChain implement vector store integration?"
+    ground_truth_answer: "VectorStore is an abstract class with add_documents(), similarity_search(), and as_retriever() methods. Implementations (FAISS, Chroma, Pinecone) handle embedding storage and nearest-neighbor lookup. from_documents() is a class method that creates and populates a store in one call."
+    ground_truth_symbols: ["VectorStore", "similarity_search", "as_retriever"]
+    difficulty: medium
+    category: api
+    tags: [vectorstore, embeddings]
+
+  - id: langchain-009
+    question: "How does LangChain implement streaming for LLM responses?"
+    ground_truth_answer: "Chat models implement stream() yielding AIMessageChunk objects. Each chunk has content delta. RunnableSequence.stream() pipes chunks through the chain. astream_events() provides fine-grained streaming events from every step in the chain with run metadata."
+    ground_truth_symbols: ["stream", "AIMessageChunk", "astream_events"]
+    difficulty: medium
+    category: api
+    tags: [streaming, async]
+
+  - id: langchain-010
+    question: "How does LangChain implement callbacks for observability?"
+    ground_truth_answer: "BaseCallbackHandler defines hooks (on_llm_start, on_chain_start, on_tool_start, etc.). CallbackManager dispatches events to registered handlers. Callbacks can be passed per-call via config or set globally. LangSmith integration uses callbacks for automatic tracing."
+    ground_truth_symbols: ["BaseCallbackHandler", "CallbackManager"]
+    difficulty: easy
+    category: api
+    tags: [callbacks, observability]

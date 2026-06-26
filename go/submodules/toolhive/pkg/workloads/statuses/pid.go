@@ -1,0 +1,159 @@
+// SPDX-FileCopyrightText: Copyright 2025 Stacklok, Inc.
+// SPDX-License-Identifier: Apache-2.0
+
+package statuses
+
+import (
+	"fmt"
+	"os"
+	"path/filepath"
+	"strconv"
+	"strings"
+
+	"github.com/adrg/xdg"
+
+	"github.com/stacklok/toolhive/pkg/container/runtime"
+)
+
+/*
+ * NOTE: PID file functionality is deprecated. It should only be used by code which migrates PIDs to status files.
+ */
+
+// getOldPIDFilePath returns the legacy path to the PID file for a container (for backward compatibility)
+// Note: containerBaseName is pre-sanitized by the caller
+func getOldPIDFilePath(containerBaseName string) string {
+	// Use the system temporary directory (old behavior)
+	tmpDir := os.TempDir()
+	// Clean the path to satisfy security scanners (containerBaseName is already sanitized)
+	return filepath.Clean(filepath.Join(tmpDir, fmt.Sprintf("toolhive-%s.pid", containerBaseName)))
+}
+
+// getPIDFilePath returns the path to the PID file for a container
+// It first tries the new XDG location, then falls back to the old temp directory location
+func getPIDFilePath(containerBaseName string) (string, error) {
+	// Return empty path in Kubernetes runtime since PID files are not used
+	if runtime.IsKubernetesRuntime() {
+		return "", fmt.Errorf("PID file operations are not supported in Kubernetes runtime")
+	}
+
+	// Get the new XDG-based path
+	pidPath, err := xdg.DataFile(filepath.Join("toolhive", "pids", fmt.Sprintf("toolhive-%s.pid", containerBaseName)))
+	if err != nil {
+		return "", fmt.Errorf("failed to get PID file path: %w", err)
+	}
+	return pidPath, nil
+}
+
+// getPIDFilePathWithFallback returns the path to an existing PID file for a container
+// It checks both the new XDG location and the old temp directory location
+// Note: containerBaseName is pre-sanitized by the caller
+func getPIDFilePathWithFallback(containerBaseName string) (string, error) {
+	// Return empty path in Kubernetes runtime since PID files are not used
+	if runtime.IsKubernetesRuntime() {
+		return "", fmt.Errorf("PID file operations are not supported in Kubernetes runtime")
+	}
+
+	// First try the new XDG-based path
+	newPath, err := getPIDFilePath(containerBaseName)
+	if err != nil {
+		return "", err
+	}
+
+	// Check if new file exists - prefer it if it does
+	if _, err := os.Stat(newPath); err == nil {
+		return newPath, nil
+	}
+
+	// Fall back to old location if new doesn't exist
+	// Clean the path to satisfy security scanners (containerBaseName is already sanitized)
+	oldPath := filepath.Clean(getOldPIDFilePath(containerBaseName))
+	if _, err := os.Stat(oldPath); err == nil {
+		return oldPath, nil
+	}
+
+	// If neither exists, return the new path (for new files)
+	return newPath, nil
+}
+
+// readPIDFile reads the process ID from a file
+// It checks both the new XDG location and the old temp directory location
+// Note: containerBaseName is pre-sanitized by the caller
+func readPIDFile(containerBaseName string) (int, error) {
+	// Skip PID file operations in Kubernetes runtime
+	if runtime.IsKubernetesRuntime() {
+		return 0, fmt.Errorf("PID file operations are not supported in Kubernetes runtime")
+	}
+
+	// Get the PID file path with fallback
+	pidFilePath, err := getPIDFilePathWithFallback(containerBaseName)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get PID file path: %w", err)
+	}
+
+	// Read the PID from the file
+	// Clean the path to satisfy security scanners (containerBaseName is already sanitized)
+	cleanPidPath := filepath.Clean(pidFilePath)
+	pidBytes, err := os.ReadFile(cleanPidPath)
+	if err != nil {
+		// If we can't read from the new location, try the old location explicitly
+		oldPath := getOldPIDFilePath(containerBaseName)
+		if oldPath != pidFilePath {
+			// Clean the path to satisfy security scanners (containerBaseName is already sanitized)
+			cleanOldPath := filepath.Clean(oldPath)
+			pidBytes, err = os.ReadFile(cleanOldPath)
+			if err != nil {
+				return 0, fmt.Errorf("failed to read PID file from both new and old locations: %w", err)
+			}
+		} else {
+			return 0, fmt.Errorf("failed to read PID file: %w", err)
+		}
+	}
+
+	// Parse the PID
+	pidStr := strings.TrimSpace(string(pidBytes))
+	pid, err := strconv.Atoi(pidStr)
+	if err != nil {
+		return 0, fmt.Errorf("failed to parse PID: %w", err)
+	}
+
+	return pid, nil
+}
+
+// removePIDFile removes the PID file
+// It attempts to remove from both the new XDG location and the old temp directory location
+func removePIDFile(containerBaseName string) error {
+	// Skip PID file operations in Kubernetes runtime
+	if runtime.IsKubernetesRuntime() {
+		return nil
+	}
+
+	var lastErr error
+
+	// Try to remove from the new location
+	newPath, err := getPIDFilePath(containerBaseName)
+	if err != nil {
+		return fmt.Errorf("failed to get PID file path: %w", err)
+	}
+
+	if err := os.Remove(newPath); err != nil && !os.IsNotExist(err) {
+		lastErr = err
+	}
+
+	// Also try to remove from the old location (cleanup legacy files)
+	// Clean the path to satisfy security scanners (containerBaseName is already sanitized)
+	oldPath := filepath.Clean(getOldPIDFilePath(containerBaseName))
+	if err := os.Remove(oldPath); err != nil && !os.IsNotExist(err) {
+		// If we couldn't remove either file and both had errors, return the error
+		if lastErr != nil {
+			return fmt.Errorf("failed to remove PID files: new location: %v, old location: %w", lastErr, err)
+		}
+		lastErr = err
+	}
+
+	// If at least one was removed successfully (or didn't exist), consider it success
+	if lastErr != nil && !os.IsNotExist(lastErr) {
+		return lastErr
+	}
+
+	return nil
+}

@@ -1,0 +1,54 @@
+[workspace]
+members = [
+  "crates/ctx-cli",
+  "crates/ctx-core",
+  "crates/ctx-config",
+  "crates/ctx-intake",
+  "crates/ctx-prune",
+  "crates/ctx-ast",
+  "crates/ctx-semantic",
+  "crates/ctx-pack",
+  "crates/ctx-graph",
+  "crates/ctx-mcp",
+  "crates/ctx-hooks",
+  "crates/ctx-telemetry",
+  "crates/ctx-token",
+]
+resolver = "2"
+
+[workspace.package]
+version = "0.2.5"
+edition = "2024"
+license = "MIT"
+authors = ["CTX contributors"]
+repository = "https://github.com/Alegau03/CTX"
+homepage = "https://github.com/Alegau03/CTX"
+
+[workspace.dependencies]
+anyhow = "1.0"
+assert_cmd = "2.0"
+camino = "1.1"
+clap = { version = "4.5", features = ["derive"] }
+ctx-ast = { path = "crates/ctx-ast", version = "0.2.5" }
+ctx-config = { path = "crates/ctx-config", version = "0.2.5" }
+ctx-core = { path = "crates/ctx-core", version = "0.2.5" }
+ctx-graph = { path = "crates/ctx-graph", version = "0.2.5" }
+ctx-hooks = { path = "crates/ctx-hooks", version = "0.2.5" }
+ctx-intake = { path = "crates/ctx-intake", version = "0.2.5" }
+ctx-mcp = { path = "crates/ctx-mcp", version = "0.2.5" }
+ctx-pack = { path = "crates/ctx-pack", version = "0.2.5" }
+ctx-prune = { path = "crates/ctx-prune", version = "0.2.5" }
+ctx-semantic = { path = "crates/ctx-semantic", version = "0.2.5" }
+ctx-telemetry = { path = "crates/ctx-telemetry", version = "0.2.5" }
+ctx-token = { path = "crates/ctx-token", version = "0.2.5" }
+predicates = "3.1"
+regex = "1.12"
+rusqlite = { version = "0.37", features = ["bundled", "modern_sqlite"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tempfile = "3.23"
+thiserror = "2.0"
+toml = "0.9"
+tracing = "0.1"
+walkdir = "2.5"
+globset = "0.4"

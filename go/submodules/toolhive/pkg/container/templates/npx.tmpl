@@ -1,0 +1,117 @@
+FROM {{.RuntimeConfig.BuilderImage}} AS builder
+
+{{if .BuildEnv}}
+# Custom build environment variables
+{{range $key, $value := .BuildEnv}}ENV {{$key}}="{{$value}}"
+{{end}}
+{{end}}
+{{if .CACertContent}}
+# Add custom CA certificate BEFORE any network operations
+# This ensures that package managers can verify TLS certificates in corporate networks
+COPY ca-cert.crt /tmp/custom-ca.crt
+RUN cat /tmp/custom-ca.crt >> /etc/ssl/certs/ca-certificates.crt && \
+    rm /tmp/custom-ca.crt
+{{end}}
+
+{{if .RuntimeConfig.AdditionalPackages}}
+# Install build dependencies
+RUN apk add --no-cache {{range .RuntimeConfig.AdditionalPackages}}{{.}} {{end}}
+{{end}}
+
+{{if .CACertContent}}
+# Properly install the custom CA certificate using standard tools
+RUN mkdir -p /usr/local/share/ca-certificates && \
+    cp /tmp/custom-ca.crt /usr/local/share/ca-certificates/custom-ca.crt 2>/dev/null || \
+    echo "CA cert already added to bundle" && \
+    chmod 644 /usr/local/share/ca-certificates/custom-ca.crt 2>/dev/null || true && \
+    update-ca-certificates
+{{end}}
+
+# Configure npm for faster installations in containerized environments
+ENV NODE_ENV=production \
+    NPM_CONFIG_LOGLEVEL=error \
+    NPM_CONFIG_FUND=false \
+    NPM_CONFIG_AUDIT=false \
+    NPM_CONFIG_UPDATE_NOTIFIER=false \
+    NPM_CONFIG_PROGRESS=false
+
+# Set working directory for package installation
+WORKDIR /build
+
+{{if index .BuildAuthFiles "npmrc"}}
+# Copy npmrc for registry authentication (build stage only)
+COPY .npmrc /root/.npmrc
+{{end}}
+
+{{if .IsLocalPath}}
+# Copy the local source code
+COPY . /build/
+# Install dependencies if package.json exists
+RUN if [ -f package.json ]; then npm ci --only=production || npm install --production; fi
+
+# Clean up auth files from build directory to prevent leaking to final image
+RUN rm -f /build/.netrc /build/.npmrc /build/.yarnrc /root/.npmrc
+{{else}}
+# Create a package.json to install the MCP package
+RUN echo '{"name":"mcp-container","version":"1.0.0"}' > package.json
+
+# Install the MCP package and its dependencies at build time
+# This ensures all dependencies are downloaded during the build phase
+RUN npm install --save {{.MCPPackage}}
+{{end}}
+
+# Final stage - runtime image with pre-installed packages
+FROM {{.RuntimeConfig.BuilderImage}}
+
+{{if .CACertContent}}
+# Add custom CA certificate for runtime
+COPY ca-cert.crt /tmp/custom-ca.crt
+RUN cat /tmp/custom-ca.crt >> /etc/ssl/certs/ca-certificates.crt && \
+    rm /tmp/custom-ca.crt
+{{end}}
+
+{{if .RuntimeConfig.AdditionalPackages}}
+# Install runtime dependencies
+RUN apk add --no-cache {{range .RuntimeConfig.AdditionalPackages}}{{.}} {{end}}
+{{end}}
+
+# Set working directory
+WORKDIR /app
+
+# Create a non-root user to run the application
+RUN addgroup -S appgroup && \
+    adduser -S appuser -G appgroup && \
+    mkdir -p /app && \
+    chown -R appuser:appgroup /app
+
+{{if .CACertContent}}
+# Install CA certificate for runtime
+RUN mkdir -p /usr/local/share/ca-certificates && \
+    cp /tmp/custom-ca.crt /usr/local/share/ca-certificates/custom-ca.crt 2>/dev/null || \
+    echo "CA cert already added to bundle" && \
+    chmod 644 /usr/local/share/ca-certificates/custom-ca.crt 2>/dev/null || true && \
+    update-ca-certificates
+{{end}}
+
+# Copy the installed node_modules from builder stage
+COPY --from=builder --chown=appuser:appgroup /build/node_modules /app/node_modules
+
+{{if .IsLocalPath}}
+# Copy the local application files
+COPY --from=builder --chown=appuser:appgroup /build/ /app/
+{{else}}
+# Copy package.json to maintain the dependency tree
+COPY --from=builder --chown=appuser:appgroup /build/package.json /app/package.json
+COPY --from=builder --chown=appuser:appgroup /build/package-lock.json /app/package-lock.json
+{{end}}
+
+# Set NODE_PATH to find the pre-installed modules
+ENV NODE_PATH=/app/node_modules \
+    PATH=/app/node_modules/.bin:$PATH
+
+# Switch to non-root user
+USER appuser
+
+# Run the preinstalled MCP package directly using npx
+# MCPPackageClean has version suffix already stripped (e.g., @org/package@1.2.3 -> @org/package)
+ENTRYPOINT ["npx", "{{.MCPPackageClean}}"{{range .BuildArgs}}, "{{.}}"{{end}}]

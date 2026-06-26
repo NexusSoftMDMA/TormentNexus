@@ -1,0 +1,59 @@
+name: Android APK
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-android:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Check
+        run: pnpm exec vp check
+
+      - name: Build web app
+        run: pnpm exec vp build
+
+      - name: Sync Capacitor Android
+        run: pnpm exec cap sync android
+
+      - name: Build release APK
+        run: cd android && ./gradlew assembleRelease
+
+      - name: Rename release APK
+        run: |
+          mkdir -p release-android
+          cp android/app/build/outputs/apk/release/*.apk "release-android/OpenGUI-${GITHUB_REF_NAME}-android-release.apk"
+
+      - name: Upload release APK artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: opengui-android-release-apk
+          path: release-android/*.apk
+          retention-days: 30
+
+      - name: Attach APK to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release-android/*.apk

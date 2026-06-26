@@ -1,0 +1,32 @@
+---
+title: Hermes v0.17.0 Audit Findings
+type: note
+permalink: scarf/integration/hermes-v0-17-0-audit-findings
+tags:
+- hermes
+- v017
+- audit
+- verification
+- wire-format
+---
+
+Source-verified audit of Hermes v0.17.0 (tag v2026.6.19, semver 0.17.0, commit 2bd1977d8) vs Scarf (currently targets v0.16.0). Audited 2026-06-21 against a read-only worktree at the tag, via 8 parallel per-surface investigators + live `--help` probes. Recorded so the next cycle doesn't re-litigate the NO-OPs. NOTE: implementation NOT yet decided/shipped — this is the findings record, not a decisions note.
+
+## Observations
+- [headline] **v0.17.0 requires ZERO mandatory Scarf changes for compatibility**, despite being the largest Hermes release yet (~1,475 commits, 1,693 files). It is overwhelmingly server-side / desktop-app / other-frontend. Every correctness-critical surface is byte-stable. #headline
+- [schema] **state.db schema did NOT change.** `messages` + `sessions` DDL byte-identical v0.16→v0.17 (`hermes_state.py:514-570`). `SCHEMA_VERSION` bumped 14→16 but those migrations are data-only (model_config JSON backfill), NOT new columns. Only DDL delta = one new index `idx_sessions_source_id` (invisible to readers). `reasoning_content` still the live thinking column. No "no such column" risk. #schema
+- [acp] **ACP wire byte-stable.** Advertised commands unchanged (9: help/model/tools/context/reset/compact/steer/queue/version), notification discriminators unchanged, `set_mode` still 3 modes, permission + image-block shapes unchanged. Only addition: `_meta.hermes.sessionProvenance` (compression-rotation lineage) on session responses — lands in the ACP-reserved `_meta` field Scarf already ignores. MCP **elicitation is server-internal — never crosses the ACP wire** (`grep elicit acp_adapter/` = 0). `/version` predates v0.16 on ACP; `/billing` is CLI-only — do NOT add to the ACP slash menu (same trap as `/goal` `/subgoal`). #acp
+- [cli] **All ~70 `hermes` verbs Scarf invokes survived the big cli.py refactor (3297→954 lines)** — verbatim parser extraction into `hermes_cli/subcommands/*.py`; kanban.py/migrate.py/proxy/pairing/webhook byte-identical. Prior dead-verb findings still hold (`kanban verify` absent; `curator list-archived`/`gateway list` have no `--json`). #cli
+- [config] **No breaking config-key rename intersects Scarf's ~115-key write set.** `write_mode`→`write_approval` does NOT touch Scarf (Scarf never used `write_mode`; its `approvals.mode` is the separate tool-call gate). `openrouter.response_cache` still scalar bool (already correct). #config
+- [catalog] **Model/provider catalog needs nothing.** HERMES_OVERLAYS + `xai_retirement.py` byte-identical; new models (glm-5.2 [1M ctx, claim TRUE this time], claude-fable-5, laguna-m.1, nemotron-3-ultra, grok-composer-2.5-fast) self-surface from `models_dev_cache.json`. No new overlay-only provider (unlike v0.16's bedrock). #catalog
+- [pre-existing-bugs] **4 pre-existing Health/Curator CLI bugs found (broken on v0.16 AND v0.17, not upgrade-introduced), live-confirmed against the binary:** (1) `HealthViewModel.swift:571` runs `["audit"]` — not a verb, routes to the chat agent; real path `["security","audit"]`. (2) `HealthViewModel.swift:623` runs `["migrate","xai"]` — dry-run by default, never migrates yet reports success; needs `--apply`. (3) `HealthView.swift:181` passes `--assume-yes` to `acp --setup-browser` — invalid flag (argparse exit 2); is `--yes`. (4) `CuratorService.swift:113-119` appends `--json` to `curator prune` (no such flag) → dry-run preview shows archived not candidates, and the destructive path lacks `-y` → hangs to timeout. #pre-existing-bugs
+- [pre-existing-bugs] (5) `GatewayAllowlistKind.swift:71` maps WhatsApp → `.chats` → writes `whatsapp.allowed_chats`, which Hermes never reads (WhatsApp uses `allow_from`/`group_allow_from`) → Scarf's WhatsApp allowlist is a silent no-op. #pre-existing-bugs
+- [additive-v017] **Optional additive surfaces (all gate-able behind a new `isV017OrLater`), in rough value order:** 3 new gateway platforms (`photon`=iMessage via Photon Spectrum, `whatsapp_cloud`=WhatsApp Business Cloud API, `raft`=agent-network wake channel; roster 23→26) + a SimpleX setup form (in roster since v0.14 but never had a form); `curator.consolidate` toggle (consolidation is now default-OFF/opt-in — UX-relevant); `max_concurrent_sessions` session cap; Telegram `rich_messages`/`status_indicator`; `memory/skills.write_approval` gate; MCP per-server `keepalive_interval`; new CLI `hermes skills list-modified --json` + `skills diff <name>`; lower-value config (`terminal.home_mode`, `tts.gemini.*`, `updates.*`, Hindsight `observation_scopes`). #additive
+- [managed-scope] **Managed scope (`/etc/hermes`, root-owned, user-immutable, NEW in v0.17) is the one genuinely new risk — but POSIX-only; macOS is explicitly deferred.** So it's latent for Mac/iOS users UNLESS (a) admin sets `$HERMES_MANAGED_DIR` or (b) Scarf is connected over SSH to a managed Linux host (a real use case). Failure modes: `hermes config set` to a pinned key exits 1 but Scarf only logs a warning (control keeps showing stale value); direct config.yaml writes (MCP patcher, allowlists) bypass the CLI guard and get silently overridden at load. No JSON/structured detection signal — only `hermes doctor`/`config show` text. Cheapest always-beneficial fix: surface non-zero exit/stderr from `config set` to the user. Full read-only rendering of pinned keys: defer until Hermes ships macOS managed support or structured detection. #managed-scope
+- [doc-debt] `wiki/Hermes-Version-Compatibility.md` is two cycles stale (still says "current target v0.15.0"; never updated for v0.16/v2.11). Fix during the next release-prep. #doc-debt
+
+## Relations
+- relates_to [[Hermes v0.16 Compatibility Decisions]]
+- relates_to [[Hermes Version Compatibility Target]]
+- relates_to [[Hermes Release Audit Process]]
+- relates_to [[Hermes Capability Gating Pattern]]

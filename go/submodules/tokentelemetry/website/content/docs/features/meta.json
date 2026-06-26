@@ -1,0 +1,14 @@
+{
+  "title": "Features",
+  "pages": [
+    "dashboard",
+    "analytics",
+    "projects",
+    "budgets",
+    "traces",
+    "summarization",
+    "artifacts",
+    "hermes"
+  ],
+  "defaultOpen": true
+}

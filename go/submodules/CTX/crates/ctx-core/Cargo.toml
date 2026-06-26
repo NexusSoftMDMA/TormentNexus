@@ -1,0 +1,30 @@
+[package]
+name = "ctx-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "Core indexing, packing, retrieval, and runtime orchestration for CTX"
+
+[dependencies]
+anyhow.workspace = true
+ctx-config.workspace = true
+ctx-ast.workspace = true
+ctx-graph.workspace = true
+ctx-intake.workspace = true
+ctx-pack.workspace = true
+ctx-prune.workspace = true
+ctx-semantic.workspace = true
+ctx-telemetry.workspace = true
+ctx-token.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+toml.workspace = true
+walkdir.workspace = true
+regex.workspace = true
+globset.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true

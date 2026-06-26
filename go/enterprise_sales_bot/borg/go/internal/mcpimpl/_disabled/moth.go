@@ -1,0 +1,20 @@
+package mcpimpl
+
+import (
+	"context"
+	"net/http"
+)
+
+func HandleGreet_moth(ctx context.Context, args map[string]interface{}) (ToolResponse, error) {
+	name, _ :=getString(args, "name")
+	if name == "" {
+		name = "World"
+	}
+	return ok("Hello, " + name + "!")
+}
+
+func HandleAdd_moth(ctx context.Context, args map[string]interface{}) (ToolResponse, error) {
+	a, _ :=getInt(args, "a")
+	b, _ :=getInt(args, "b")
+	return success(a + b)
+}

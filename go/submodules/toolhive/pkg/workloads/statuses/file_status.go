@@ -1,0 +1,1145 @@
+// SPDX-FileCopyrightText: Copyright 2025 Stacklok, Inc.
+// SPDX-License-Identifier: Apache-2.0
+
+package statuses
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"log/slog"
+	"os"
+	"path/filepath"
+	"strings"
+	"time"
+
+	"github.com/adrg/xdg"
+
+	rt "github.com/stacklok/toolhive/pkg/container/runtime"
+	"github.com/stacklok/toolhive/pkg/core"
+	"github.com/stacklok/toolhive/pkg/fileutils"
+	"github.com/stacklok/toolhive/pkg/labels"
+	"github.com/stacklok/toolhive/pkg/lockfile"
+	"github.com/stacklok/toolhive/pkg/process"
+	"github.com/stacklok/toolhive/pkg/state"
+	"github.com/stacklok/toolhive/pkg/transport"
+	transporttypes "github.com/stacklok/toolhive/pkg/transport/types"
+	"github.com/stacklok/toolhive/pkg/workloads/types"
+)
+
+const (
+	// statusesPrefix is the prefix used for status files in the XDG data directory
+	statusesPrefix = "toolhive/statuses"
+	// lockTimeout is the maximum time to wait for a file lock
+	lockTimeout = 1 * time.Second
+	// lockRetryInterval is the interval between lock attempts
+	lockRetryInterval = 100 * time.Millisecond
+)
+
+// NewFileStatusManager creates a new file-based StatusManager.
+// Status files will be stored in the XDG data directory under "statuses/".
+func NewFileStatusManager(runtime rt.Runtime) (StatusManager, error) {
+	// Get the base directory using XDG data directory
+	baseDir, err := xdg.DataFile(statusesPrefix)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get directory for status files: %w", err)
+	}
+
+	// Ensure the base directory exists (equivalent to mkdir -p)
+	if err := os.MkdirAll(baseDir, 0o750); err != nil {
+		return nil, fmt.Errorf("failed to create status directory %s: %w", baseDir, err)
+	}
+
+	// Create run config store for accessing run configurations
+	runConfigStore, err := state.NewRunConfigStore(state.DefaultAppName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create run config store: %w", err)
+	}
+
+	return &fileStatusManager{
+		baseDir:        baseDir,
+		runtime:        runtime,
+		runConfigStore: runConfigStore,
+	}, nil
+}
+
+// fileStatusManager is an implementation of StatusManager that persists
+// workload status to files on disk with JSON serialization and file locking
+// to prevent concurrent access issues.
+type fileStatusManager struct {
+	baseDir string
+	runtime rt.Runtime
+	// runConfigStore is used to access run configurations without import cycles
+	// TODO: This is a temporary solution to check if a workload is remote
+	runConfigStore state.Store
+}
+
+// isRemoteWorkload checks if a workload is remote by attempting to load its run configuration
+// and checking if it has a RemoteURL field set.
+// TODO: This is a temporary solution to check if a workload is remote
+// because of the import cycle between this package and the runconfig package.
+// We can easily load run config and check if it has a RemoteURL field set when we resolve the import cycle.
+func (f *fileStatusManager) isRemoteWorkload(ctx context.Context, workloadName string) (bool, error) {
+	// Check if the run configuration exists
+	exists, err := f.runConfigStore.Exists(ctx, workloadName)
+	if err != nil {
+		return false, err
+	}
+
+	if !exists {
+		return false, rt.ErrWorkloadNotFound
+	}
+
+	// Get a reader for the run configuration
+	reader, err := f.runConfigStore.GetReader(ctx, workloadName)
+	if err != nil {
+		return false, err
+	}
+	defer func() {
+		if err := reader.Close(); err != nil {
+			slog.Warn("failed to close reader", "error", err)
+		}
+	}()
+
+	// Parse the JSON to check for remote_url field
+	var config struct {
+		RemoteURL string `json:"remote_url"`
+	}
+	decoder := json.NewDecoder(reader)
+	if err := decoder.Decode(&config); err != nil {
+		return false, err
+	}
+
+	// Check if the remote_url field is set
+	return strings.TrimSpace(config.RemoteURL) != "", nil
+}
+
+// remoteWorkloadConfig is a minimal struct to parse only the fields we need from RunConfig
+// without importing the runner package (which would create a circular dependency).
+type remoteWorkloadConfig struct {
+	RemoteURL       string            `json:"remote_url"`
+	Port            int               `json:"port"`
+	Transport       string            `json:"transport"` // Parse as string, then convert to transport type
+	ProxyMode       string            `json:"proxy_mode"`
+	Group           string            `json:"group"`
+	ContainerLabels map[string]string `json:"container_labels"`
+}
+
+// populateRemoteWorkloadData populates a workload with data from the run config for remote workloads.
+// This includes URL, port, transport type, and other fields that are stored in the run config.
+func (f *fileStatusManager) populateRemoteWorkloadData(ctx context.Context, workload *core.Workload) error {
+	// Load the run configuration JSON
+	reader, err := f.runConfigStore.GetReader(ctx, workload.Name)
+	if err != nil {
+		return fmt.Errorf("failed to load run config for remote workload %s: %w", workload.Name, err)
+	}
+	defer func() {
+		if err := reader.Close(); err != nil {
+			slog.Warn("failed to close reader", "error", err)
+		}
+	}()
+
+	// Parse only the fields we need
+	var config remoteWorkloadConfig
+	decoder := json.NewDecoder(reader)
+	if err := decoder.Decode(&config); err != nil {
+		return fmt.Errorf("failed to decode run config for remote workload %s: %w", workload.Name, err)
+	}
+
+	if config.RemoteURL == "" {
+		return fmt.Errorf("workload %s does not have a remote URL", workload.Name)
+	}
+
+	// Parse the transport type from string
+	transportType, err := transporttypes.ParseTransportType(config.Transport)
+	if err != nil {
+		return fmt.Errorf("failed to parse transport type for remote workload %s: %w", workload.Name, err)
+	}
+
+	proxyURL := ""
+	if config.Port > 0 {
+		proxyURL = transport.GenerateMCPServerURL(
+			transportType.String(),
+			config.ProxyMode,
+			transport.LocalhostIPv4,
+			config.Port,
+			workload.Name,
+			config.RemoteURL,
+		)
+	}
+
+	effectiveProxyMode := types.GetEffectiveProxyMode(transportType, config.ProxyMode)
+
+	workload.Package = "remote"
+	workload.URL = proxyURL
+	workload.Port = config.Port
+	workload.TransportType = transportType
+	workload.ProxyMode = effectiveProxyMode
+	workload.Group = config.Group
+	workload.Labels = config.ContainerLabels
+	workload.Remote = true
+
+	return nil
+}
+
+// workloadStatusFile represents the JSON structure stored on disk
+type workloadStatusFile struct {
+	Status        rt.WorkloadStatus `json:"status"`
+	StatusContext string            `json:"status_context,omitempty"`
+	CreatedAt     time.Time         `json:"created_at"`
+	UpdatedAt     time.Time         `json:"updated_at"`
+	ProcessID     int               `json:"process_id"`
+}
+
+// GetWorkload retrieves the status of a workload by its name.
+func (f *fileStatusManager) GetWorkload(ctx context.Context, workloadName string) (core.Workload, error) {
+	var pid int
+	result := core.Workload{Name: workloadName}
+	fileFound := false
+
+	err := f.withFileReadLock(ctx, workloadName, func(statusFilePath string) error {
+		// Check if file exists
+		if _, err := os.Stat(statusFilePath); os.IsNotExist(err) {
+			// File doesn't exist, we'll fall back to runtime check
+			return nil
+		} else if err != nil {
+			return fmt.Errorf("failed to check status file for workload %s: %w", workloadName, err)
+		}
+
+		statusFile, err := f.readStatusFile(statusFilePath)
+		if err != nil {
+			return fmt.Errorf("failed to read status for workload %s: %w", workloadName, err)
+		}
+
+		result.Status = statusFile.Status
+		result.StatusContext = statusFile.StatusContext
+		result.CreatedAt = statusFile.CreatedAt
+
+		fileFound = true
+
+		// Check if PID migration is needed
+		if statusFile.Status == rt.WorkloadStatusRunning && statusFile.ProcessID == 0 {
+			// Try PID migration - the migration function will handle cases
+			// where container info is not available gracefully
+			if migratedPID, wasMigrated := f.migratePIDFromFile(workloadName, nil); wasMigrated {
+				// Update the status file with the migrated PID
+				statusFile.ProcessID = migratedPID
+				statusFile.UpdatedAt = time.Now()
+				if err := f.writeStatusFile(statusFilePath, *statusFile); err != nil {
+					slog.Warn("failed to write migrated PID", "workload", workloadName, "error", err)
+				} else {
+					slog.Debug("successfully migrated PID to status file", "pid", migratedPID, "workload", workloadName)
+				}
+			}
+		}
+
+		pid = statusFile.ProcessID
+
+		return nil
+	})
+	if err != nil {
+		return core.Workload{}, err
+	}
+
+	// If file was found, check if this is a remote workload
+	if fileFound {
+		// Check if this is a remote workload using the state package
+		remote, err := f.isRemoteWorkload(ctx, workloadName)
+		if err != nil {
+			// error is expected
+			slog.Debug("failed to check if workload is remote", "workload", workloadName, "error", err)
+		}
+		if remote {
+			// Populate remote workload data from run config
+			if err := f.populateRemoteWorkloadData(ctx, &result); err != nil {
+				slog.Warn("failed to populate remote workload data", "workload", workloadName, "error", err)
+				// Mark as remote even if we couldn't load full data
+				result.Remote = true
+				result.Package = "remote (data failed to load)"
+			}
+		}
+
+		// If workload is running, validate against runtime
+		if result.Status == rt.WorkloadStatusRunning {
+			return f.validateRunningWorkload(ctx, workloadName, result, pid)
+		}
+
+		// Return file data
+		return result, nil
+	}
+
+	// File not found, fall back to runtime check
+	return f.getWorkloadFromRuntime(ctx, workloadName)
+}
+
+func (f *fileStatusManager) ListWorkloads(ctx context.Context, listAll bool, labelFilters []string) ([]core.Workload, error) {
+	// Parse the filters into a format we can use for matching.
+	parsedFilters, err := types.ParseLabelFilters(labelFilters)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse label filters: %w", err)
+	}
+
+	// Get workloads from runtime
+	runtimeContainers, err := f.runtime.ListWorkloads(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list workloads from runtime: %w", err)
+	}
+
+	// Get workloads from files
+	fileWorkloadsWithPID, err := f.getWorkloadsFromFiles()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get workloads from files: %w", err)
+	}
+
+	// TODO: Fetch the runconfig if present to populate additional fields like package, tool type, group etc.
+	// There's currently an import cycle between this package and the runconfig package
+
+	for _, fileWorkload := range fileWorkloadsWithPID {
+		if fileWorkload.workload.Remote { // Remote workloads are not managed by the container runtime
+			delete(fileWorkloadsWithPID, fileWorkload.workload.Name) // Skip remote workloads here, we add them in workload manager
+		}
+	}
+
+	// Create a map of runtime workloads by name for easy lookup
+	workloadMap := f.mergeRuntimeAndFileWorkloads(ctx, runtimeContainers, fileWorkloadsWithPID)
+
+	// Convert map to slice and apply filters
+	var workloads []core.Workload
+	for _, workload := range workloadMap {
+		// Apply listAll filter. AuthRetrying is intentionally surfaced
+		// alongside Running because the workload is still self-recovering
+		// without user intervention on a longer cadence — every other
+		// non-Running status is terminal until external intervention,
+		// and is hidden.
+		if !listAll &&
+			workload.Status != rt.WorkloadStatusRunning &&
+			workload.Status != rt.WorkloadStatusAuthRetrying {
+			continue
+		}
+
+		// Apply label filters
+		if len(parsedFilters) > 0 {
+			if !types.MatchesLabelFilters(workload.Labels, parsedFilters) {
+				continue
+			}
+		}
+
+		workloads = append(workloads, workload)
+	}
+
+	return workloads, nil
+}
+
+// setWorkloadStatusInternal handles the core logic for updating workload status files.
+// pidPtr controls PID behavior: nil means preserve existing PID, non-nil means set to provided value.
+func (f *fileStatusManager) setWorkloadStatusInternal(
+	ctx context.Context,
+	workloadName string,
+	status rt.WorkloadStatus,
+	contextMsg string,
+	pidPtr *int,
+) error {
+	err := f.withFileLock(ctx, workloadName, func(statusFilePath string) error {
+		// Check if file exists
+		fileExists := true
+		if _, err := os.Stat(statusFilePath); os.IsNotExist(err) {
+			fileExists = false
+		} else if err != nil {
+			return fmt.Errorf("failed to check status file for workload %s: %w", workloadName, err)
+		}
+
+		var statusFile *workloadStatusFile
+		var err error
+		now := time.Now()
+
+		if fileExists {
+			// Read existing file to preserve created_at timestamp and other fields
+			statusFile, err = f.readStatusFile(statusFilePath)
+			if err != nil {
+				return fmt.Errorf("failed to read existing status for workload %s: %w", workloadName, err)
+			}
+		} else {
+			// Create new status file with CreatedAt set
+			statusFile = &workloadStatusFile{
+				CreatedAt: now,
+			}
+		}
+
+		// Update status, context, and optionally PID
+		statusFile.Status = status
+		statusFile.StatusContext = contextMsg
+		statusFile.UpdatedAt = now
+
+		// Only update PID if pidPtr is provided
+		if pidPtr != nil {
+			statusFile.ProcessID = *pidPtr
+		}
+
+		if err = f.writeStatusFile(statusFilePath, *statusFile); err != nil {
+			return fmt.Errorf("failed to write updated status for workload %s: %w", workloadName, err)
+		}
+
+		// Log with appropriate message based on whether PID was set
+		if pidPtr != nil {
+			slog.Debug("workload status set with PID", "workload", workloadName, "status", status, "pid", *pidPtr, "context", contextMsg)
+		} else {
+			slog.Debug("workload status set", "workload", workloadName, "status", status, "context", contextMsg)
+		}
+		return nil
+	})
+	if err != nil {
+		if pidPtr != nil {
+			slog.Error("error updating workload status and PID", "workload", workloadName, "error", err)
+		} else {
+			slog.Error("error updating workload status", "workload", workloadName, "error", err)
+		}
+	}
+	return err
+}
+
+// SetWorkloadStatus sets the status of a workload by its name.
+func (f *fileStatusManager) SetWorkloadStatus(
+	ctx context.Context,
+	workloadName string,
+	status rt.WorkloadStatus,
+	contextMsg string,
+) error {
+	return f.setWorkloadStatusInternal(ctx, workloadName, status, contextMsg, nil)
+}
+
+// DeleteWorkloadStatus removes the status of a workload by its name.
+func (f *fileStatusManager) DeleteWorkloadStatus(ctx context.Context, workloadName string) error {
+	return f.withFileLock(ctx, workloadName, func(statusFilePath string) error {
+		// Remove status file
+		if err := os.Remove(statusFilePath); err != nil && !os.IsNotExist(err) {
+			return fmt.Errorf("failed to delete status file for workload %s: %w", workloadName, err)
+		}
+
+		// Remove lock file (best effort) - done by withFileLock after this function returns
+		slog.Debug("workload status deleted", "workload", workloadName)
+		return nil
+	})
+}
+
+// SetWorkloadPID sets the PID of a workload by its name.
+// This method will do nothing if the workload does not exist.
+func (f *fileStatusManager) SetWorkloadPID(ctx context.Context, workloadName string, pid int) error {
+	err := f.withFileLock(ctx, workloadName, func(statusFilePath string) error {
+		// Check if file exists
+		if _, err := os.Stat(statusFilePath); os.IsNotExist(err) {
+			// File doesn't exist, nothing to do
+			slog.Debug("workload does not exist, skipping PID update", "workload", workloadName)
+			return nil
+		} else if err != nil {
+			return fmt.Errorf("failed to check status file for workload %s: %w", workloadName, err)
+		}
+
+		// Read existing file
+		statusFile, err := f.readStatusFile(statusFilePath)
+		if err != nil {
+			return fmt.Errorf("failed to read existing status for workload %s: %w", workloadName, err)
+		}
+
+		// Update only the PID and UpdatedAt timestamp
+		statusFile.ProcessID = pid
+		statusFile.UpdatedAt = time.Now()
+
+		if err = f.writeStatusFile(statusFilePath, *statusFile); err != nil {
+			return fmt.Errorf("failed to write updated PID for workload %s: %w", workloadName, err)
+		}
+
+		slog.Debug("workload PID set", "workload", workloadName, "pid", pid)
+		return nil
+	})
+	if err != nil {
+		slog.Error("error updating workload PID", "workload", workloadName, "error", err)
+	}
+	return err
+}
+
+// ResetWorkloadPID resets the PID of a workload to 0.
+// This method will do nothing if the workload does not exist.
+func (f *fileStatusManager) ResetWorkloadPID(ctx context.Context, workloadName string) error {
+	// As a side effect, get rid of the PID file if any exists
+	err := removePIDFile(workloadName)
+	if err != nil {
+		// This is an expected error in most cases.
+		slog.Debug("no PID for workload was removed", "workload", workloadName)
+	}
+
+	return f.SetWorkloadPID(ctx, workloadName, 0)
+}
+
+// ResetWorkloadPIDIfMatch resets the PID of a workload to 0 only if the
+// current PID in the status file matches expectedPID. This prevents a dying
+// process from clobbering a PID written by a replacement process.
+func (f *fileStatusManager) ResetWorkloadPIDIfMatch(ctx context.Context, workloadName string, expectedPID int) error {
+	// As a side effect, get rid of the PID file if any exists
+	if err := removePIDFile(workloadName); err != nil {
+		slog.Debug("no PID for workload was removed", "workload", workloadName)
+	}
+
+	err := f.withFileLock(ctx, workloadName, func(statusFilePath string) error {
+		if _, err := os.Stat(statusFilePath); os.IsNotExist(err) {
+			return nil
+		} else if err != nil {
+			return fmt.Errorf("failed to check status file for workload %s: %w", workloadName, err)
+		}
+
+		statusFile, err := f.readStatusFile(statusFilePath)
+		if err != nil {
+			return fmt.Errorf("failed to read status for workload %s: %w", workloadName, err)
+		}
+
+		if statusFile.ProcessID != expectedPID {
+			slog.Debug("skipping PID reset: current PID does not match",
+				"workload", workloadName,
+				"current_pid", statusFile.ProcessID,
+				"expected_pid", expectedPID)
+			return nil
+		}
+
+		statusFile.ProcessID = 0
+		statusFile.UpdatedAt = time.Now()
+		return f.writeStatusFile(statusFilePath, *statusFile)
+	})
+	if err != nil {
+		slog.Error("error resetting workload PID", "workload", workloadName, "error", err)
+	}
+	return err
+}
+
+// GetWorkloadPID retrieves the PID of a workload from its status file.
+func (f *fileStatusManager) GetWorkloadPID(ctx context.Context, workloadName string) (int, error) {
+	var pid int
+
+	err := f.withFileReadLock(ctx, workloadName, func(statusFilePath string) error {
+		// Check if file exists
+		if _, err := os.Stat(statusFilePath); os.IsNotExist(err) {
+			// File doesn't exist, return 0
+			pid = 0
+			return nil
+		} else if err != nil {
+			return fmt.Errorf("failed to check status file for workload %s: %w", workloadName, err)
+		}
+
+		statusFile, err := f.readStatusFile(statusFilePath)
+		if err != nil {
+			return fmt.Errorf("failed to read status file for workload %s: %w", workloadName, err)
+		}
+
+		pid = statusFile.ProcessID
+		return nil
+	})
+	if err != nil {
+		return 0, err
+	}
+
+	slog.Debug("workload PID retrieved", "workload", workloadName, "pid", pid)
+	return pid, nil
+}
+
+// migratePIDFromFile migrates PID from legacy PID file to status file if needed.
+// This is called when the status is running and ProcessID is 0.
+// Returns (migratedPID, wasUpdated) where wasUpdated indicates if the PID was successfully migrated
+func (*fileStatusManager) migratePIDFromFile(workloadName string, containerInfo *rt.ContainerInfo) (int, bool) {
+	// Get the base name from container labels
+	var baseName string
+	if containerInfo != nil {
+		baseName = labels.GetContainerBaseName(containerInfo.Labels)
+	} else {
+		// If we don't have container info, try using workload name as base name
+		baseName = workloadName
+	}
+
+	if baseName == "" {
+		slog.Debug("no base name available for workload, skipping PID migration", "workload", workloadName)
+		return 0, false
+	}
+
+	// Try to read PID from PID file
+	// The readPIDFile function handles checking both old and new locations
+	pid, err := readPIDFile(baseName)
+	if err != nil {
+		slog.Debug("failed to read PID file for workload", "workload", workloadName, "baseName", baseName, "error", err)
+		return 0, false
+	}
+	slog.Debug("found PID in PID file for workload, will update status file", "pid", pid, "workload", workloadName)
+
+	// Delete the PID file after successful migration
+	if err := removePIDFile(baseName); err != nil {
+		slog.Warn("failed to remove PID file for workload", "workload", workloadName, "baseName", baseName, "error", err)
+		// Don't return false here - the migration succeeded, cleanup just failed
+	}
+
+	return pid, true
+}
+
+// getStatusFilePath returns the file path for a given workload's status file.
+func (f *fileStatusManager) getStatusFilePath(workloadName string) string {
+	return filepath.Join(f.baseDir, fmt.Sprintf("%s.json", workloadName))
+}
+
+// getLockFilePath returns the lock file path for a given workload.
+func (f *fileStatusManager) getLockFilePath(workloadName string) string {
+	return filepath.Join(f.baseDir, fmt.Sprintf("%s.lock", workloadName))
+}
+
+// ensureBaseDir creates the base directory if it doesn't exist.
+func (f *fileStatusManager) ensureBaseDir() error {
+	return os.MkdirAll(f.baseDir, 0o750)
+}
+
+// TODO: This can probably be de-duped with withFileReadLock
+// withFileLock executes the provided function while holding a write lock on the workload's lock file.
+func (f *fileStatusManager) withFileLock(ctx context.Context, workloadName string, fn func(string) error) error {
+	// Remove any slashes from the workload name to avoid problems.
+	workloadName = strings.ReplaceAll(workloadName, "/", "-")
+
+	// Validate workload name for safe path construction
+	if err := fileutils.ValidateWorkloadNameForPath(workloadName); err != nil {
+		return fmt.Errorf("invalid workload name '%s': %w", workloadName, err)
+	}
+	if err := f.ensureBaseDir(); err != nil {
+		return fmt.Errorf("failed to create base directory: %w", err)
+	}
+
+	statusFilePath := f.getStatusFilePath(workloadName)
+	lockFilePath := f.getLockFilePath(workloadName)
+
+	// Create file lock
+	fileLock := lockfile.NewTrackedLock(lockFilePath)
+	defer lockfile.ReleaseTrackedLock(lockFilePath, fileLock)
+
+	// Create context with timeout
+	lockCtx, cancel := context.WithTimeout(ctx, lockTimeout)
+	defer cancel()
+
+	// Acquire lock with context
+	locked, err := fileLock.TryLockContext(lockCtx, lockRetryInterval)
+	if err != nil {
+		return fmt.Errorf("failed to acquire lock for workload %s: %w", workloadName, err)
+	}
+	if !locked {
+		return fmt.Errorf("could not acquire lock for workload %s: timeout after %v", workloadName, lockTimeout)
+	}
+
+	return fn(statusFilePath)
+}
+
+// withFileReadLock executes the provided function while holding a read lock on the workload's lock file.
+func (f *fileStatusManager) withFileReadLock(ctx context.Context, workloadName string, fn func(string) error) error {
+	// Remove any slashes from the workload name to avoid problems.
+	workloadName = strings.ReplaceAll(workloadName, "/", "-")
+
+	// Validate workload name for safe path construction
+	if err := fileutils.ValidateWorkloadNameForPath(workloadName); err != nil {
+		return fmt.Errorf("invalid workload name '%s': %w", workloadName, err)
+	}
+	if err := f.ensureBaseDir(); err != nil {
+		return fmt.Errorf("failed to create base directory: %w", err)
+	}
+	statusFilePath := f.getStatusFilePath(workloadName)
+	lockFilePath := f.getLockFilePath(workloadName)
+
+	// Create file lock
+	fileLock := lockfile.NewTrackedLock(lockFilePath)
+	defer lockfile.ReleaseTrackedLock(lockFilePath, fileLock)
+
+	// Create context with timeout
+	lockCtx, cancel := context.WithTimeout(ctx, lockTimeout)
+	defer cancel()
+
+	// Acquire read lock with context
+	locked, err := fileLock.TryRLockContext(lockCtx, lockRetryInterval)
+	if err != nil {
+		return fmt.Errorf("failed to acquire read lock for workload %s: %w", workloadName, err)
+	}
+	if !locked {
+		return fmt.Errorf("could not acquire read lock for workload %s: timeout after %v", workloadName, lockTimeout)
+	}
+
+	return fn(statusFilePath)
+}
+
+// readStatusFile reads and parses a workload status file from disk.
+// If the file is corrupted, it attempts recovery using various strategies.
+func (f *fileStatusManager) readStatusFile(statusFilePath string) (*workloadStatusFile, error) {
+	data, err := os.ReadFile(statusFilePath) //nolint:gosec // file path is constructed by our own function
+	if err != nil {
+		return nil, fmt.Errorf("failed to read status file: %w", err)
+	}
+
+	// Validate file content before parsing
+	if len(data) == 0 {
+		return nil, fmt.Errorf("status file is empty")
+	}
+
+	// Attempt to parse the JSON
+	var statusFile workloadStatusFile
+	parseErr := json.Unmarshal(data, &statusFile)
+
+	// If parsing succeeded, validate and return
+	if parseErr == nil {
+		if statusFile.Status == "" {
+			return nil, fmt.Errorf("status file missing required 'status' field")
+		}
+		if statusFile.CreatedAt.IsZero() {
+			return nil, fmt.Errorf("status file missing or invalid 'created_at' field")
+		}
+		return &statusFile, nil
+	}
+
+	// Parsing failed - check if JSON is valid
+	if json.Valid(data) {
+		// JSON is structurally valid but unmarshal failed - this is unexpected
+		return nil, fmt.Errorf("failed to unmarshal valid JSON: %w", parseErr)
+	}
+
+	// JSON is invalid - attempt recovery
+	slog.Warn("status file contains invalid JSON, attempting recovery", "path", statusFilePath)
+
+	recoveredFile, recoveryErr := f.attemptJSONRecovery(statusFilePath, data)
+	if recoveryErr != nil {
+		// Recovery failed - back up the corrupted file
+		backupPath := statusFilePath + ".corrupted"
+		//nolint:gosec // G703 - path derived from trusted status file with fixed suffix
+		if backupErr := os.WriteFile(backupPath, data, 0o600); backupErr == nil {
+			slog.Warn("backed up corrupted status file", "path", backupPath)
+		}
+		return nil, fmt.Errorf("failed to parse status file (original error: %v, recovery failed: %v)", parseErr, recoveryErr)
+	}
+
+	slog.Info("successfully recovered corrupted status file", "path", statusFilePath)
+
+	// Auto-repair: write the recovered file back atomically
+	if repairErr := f.writeStatusFile(statusFilePath, *recoveredFile); repairErr != nil {
+		slog.Warn("recovered status file but failed to auto-repair", "error", repairErr)
+		// Don't fail - we successfully recovered the data
+	} else {
+		slog.Debug("auto-repaired status file", "path", statusFilePath)
+	}
+
+	return recoveredFile, nil
+}
+
+// attemptJSONRecovery tries multiple strategies to recover corrupted JSON data.
+//
+//nolint:gocyclo // Multiple recovery strategies require conditional logic
+func (*fileStatusManager) attemptJSONRecovery(statusFilePath string, data []byte) (*workloadStatusFile, error) {
+	str := string(data)
+	var statusFile workloadStatusFile
+
+	// Strategy 1: Remove extra closing braces
+	openBraces := strings.Count(str, "{")
+	closeBraces := strings.Count(str, "}")
+
+	if closeBraces > openBraces {
+		// Remove extra closing braces from the end
+		trimmed := strings.TrimRight(str, "}")
+		reconstructed := trimmed + strings.Repeat("}", openBraces)
+
+		if err := json.Unmarshal([]byte(reconstructed), &statusFile); err == nil {
+			if statusFile.Status != "" && !statusFile.CreatedAt.IsZero() {
+				slog.Debug("recovered by removing extra closing braces", "path", statusFilePath, "count", closeBraces-openBraces)
+				return &statusFile, nil
+			}
+		}
+	}
+
+	// Strategy 2: Add missing closing braces (truncated file)
+	if closeBraces < openBraces {
+		augmented := str + strings.Repeat("}", openBraces-closeBraces)
+
+		if err := json.Unmarshal([]byte(augmented), &statusFile); err == nil {
+			if statusFile.Status != "" && !statusFile.CreatedAt.IsZero() {
+				slog.Debug("recovered by adding missing closing braces", "path", statusFilePath, "count", openBraces-closeBraces)
+				return &statusFile, nil
+			}
+		}
+	}
+
+	// Strategy 3: Try trimming whitespace and control characters
+	cleaned := strings.TrimSpace(str)
+	// Remove any null bytes or other control characters that might have been introduced
+	cleaned = strings.Map(func(r rune) rune {
+		if r == 0 || (r < 32 && r != '\n' && r != '\r' && r != '\t') {
+			return -1 // Remove character
+		}
+		return r
+	}, cleaned)
+
+	if err := json.Unmarshal([]byte(cleaned), &statusFile); err == nil {
+		if statusFile.Status != "" && !statusFile.CreatedAt.IsZero() {
+			slog.Debug("recovered by cleaning whitespace/control characters", "path", statusFilePath)
+			return &statusFile, nil
+		}
+	}
+
+	return nil, fmt.Errorf("all recovery strategies failed")
+}
+
+// writeStatusFile writes a workload status file to disk with proper formatting.
+// Uses atomic file writes to prevent corruption from interrupted writes.
+func (*fileStatusManager) writeStatusFile(statusFilePath string, statusFile workloadStatusFile) error {
+	data, err := json.MarshalIndent(statusFile, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal status file: %w", err)
+	}
+
+	if err := fileutils.AtomicWriteFile(statusFilePath, data, 0o600); err != nil {
+		return fmt.Errorf("failed to write status file: %w", err)
+	}
+
+	return nil
+}
+
+// getWorkloadFromRuntime retrieves workload information from the runtime.
+func (f *fileStatusManager) getWorkloadFromRuntime(ctx context.Context, workloadName string) (core.Workload, error) {
+	info, err := f.runtime.GetWorkloadInfo(ctx, workloadName)
+	if err != nil {
+		return core.Workload{}, fmt.Errorf("failed to get workload info from runtime: %w", err)
+	}
+
+	return types.WorkloadFromContainerInfo(&info, f.runConfigStore)
+}
+
+// workloadWithPID holds a workload and its associated PID for internal processing
+type workloadWithPID struct {
+	workload core.Workload
+	pid      int
+}
+
+// getWorkloadsFromFiles retrieves all workloads from status files.
+func (f *fileStatusManager) getWorkloadsFromFiles() (map[string]workloadWithPID, error) {
+	// Ensure base directory exists
+	if err := f.ensureBaseDir(); err != nil {
+		return nil, fmt.Errorf("failed to ensure base directory: %w", err)
+	}
+
+	// List all .json files in the base directory
+	files, err := filepath.Glob(filepath.Join(f.baseDir, "*.json"))
+	if err != nil {
+		return nil, fmt.Errorf("failed to list status files: %w", err)
+	}
+
+	workloads := make(map[string]workloadWithPID)
+	ctx := context.Background() // Create context for file locking
+
+	for _, file := range files {
+		// Extract workload name from filename (remove .json extension)
+		workloadName := strings.TrimSuffix(filepath.Base(file), ".json")
+
+		// Use write lock since we may need to update the file for PID migration
+		err := f.withFileLock(ctx, workloadName, func(statusFilePath string) error {
+			// Check if file exists first
+			if _, err := os.Stat(statusFilePath); os.IsNotExist(err) {
+				slog.Debug("status file for workload no longer exists, skipping", "workload", workloadName)
+				return nil // Not an error, file was removed
+			} else if err != nil {
+				return fmt.Errorf("failed to check status file: %w", err)
+			}
+
+			// Read the status file with proper error handling
+			statusFile, err := f.readStatusFile(statusFilePath)
+			if err != nil {
+				// Distinguish between different types of errors
+				if os.IsPermission(err) {
+					return fmt.Errorf("permission denied reading status file: %w", err)
+				}
+				// For JSON parsing errors or corrupted files, log details
+				slog.Error("failed to read or parse status file", "path", statusFilePath, "workload", workloadName, "error", err)
+				return fmt.Errorf("corrupted or invalid status file: %w", err)
+			}
+
+			// Create workload from file data
+			workload := core.Workload{
+				Name:          workloadName,
+				Status:        statusFile.Status,
+				StatusContext: statusFile.StatusContext,
+				CreatedAt:     statusFile.CreatedAt,
+			}
+
+			// Check if this is a remote workload using the state package
+			remote, err := f.isRemoteWorkload(ctx, workloadName)
+			if err != nil {
+				// This error is expected
+				slog.Debug("failed to check if workload is remote", "workload", workloadName, "error", err)
+			}
+			if remote {
+				workload.Remote = true
+			}
+
+			// Check if PID migration is needed
+			pid := statusFile.ProcessID
+			if statusFile.Status == rt.WorkloadStatusRunning && statusFile.ProcessID == 0 {
+				// Try PID migration - the migration function will handle cases
+				// where container info is not available gracefully
+				if migratedPID, wasMigrated := f.migratePIDFromFile(workloadName, nil); wasMigrated {
+					// Update the status file with the migrated PID
+					statusFile.ProcessID = migratedPID
+					statusFile.UpdatedAt = time.Now()
+					pid = migratedPID
+					if err := f.writeStatusFile(statusFilePath, *statusFile); err != nil {
+						slog.Warn("failed to write migrated PID", "workload", workloadName, "error", err)
+					} else {
+						slog.Debug("successfully migrated PID to status file", "pid", migratedPID, "workload", workloadName)
+					}
+				}
+			}
+
+			workloads[workloadName] = workloadWithPID{
+				workload: workload,
+				pid:      pid,
+			}
+			return nil
+		})
+		if err != nil {
+			// Log the specific error but continue processing other workloads
+			// This maintains the existing behavior but with better diagnostics
+			slog.Warn("failed to process status file for workload", "workload", workloadName, "error", err)
+			continue
+		}
+	}
+
+	return workloads, nil
+}
+
+// validateRunningWorkload validates that a workload marked as running in the file
+// is actually running in the runtime and has a healthy proxy process if applicable.
+func (f *fileStatusManager) validateRunningWorkload(
+	ctx context.Context, workloadName string, result core.Workload, pid int,
+) (core.Workload, error) {
+	// For remote workloads, we don't need to validate against the container runtime
+	// since they don't have containers
+	if result.Remote {
+		return result, nil
+	}
+
+	// Get raw container info from runtime (before label filtering)
+	containerInfo, err := f.runtime.GetWorkloadInfo(ctx, workloadName)
+	if err != nil {
+		return core.Workload{}, err
+	}
+
+	// Check if runtime status matches file status
+	if containerInfo.State != rt.WorkloadStatusRunning {
+		return f.handleRuntimeMismatch(ctx, workloadName, result, containerInfo)
+	}
+
+	// Check if proxy process is running when workload is running
+	if unhealthyWorkload, isUnhealthy := f.isProxyUnhealthy(ctx, workloadName, result, containerInfo, pid); isUnhealthy {
+		return unhealthyWorkload, nil
+	}
+
+	// Runtime and proxy confirm workload is healthy - merge runtime data with file status
+	return f.mergeHealthyWorkloadData(containerInfo, result)
+}
+
+// handleRuntimeMismatch handles the case where file indicates running but runtime shows different status
+func (f *fileStatusManager) handleRuntimeMismatch(
+	ctx context.Context, workloadName string, result core.Workload, containerInfo rt.ContainerInfo,
+) (core.Workload, error) {
+	contextMsg := fmt.Sprintf("workload status mismatch: file indicates running, but runtime shows %s", containerInfo.State)
+	if err := f.SetWorkloadStatus(ctx, workloadName, rt.WorkloadStatusUnhealthy, contextMsg); err != nil {
+		slog.Warn("failed to update workload status to unhealthy", "workload", workloadName, "error", err)
+	}
+
+	// Convert to workload and return unhealthy status
+	runtimeResult, err := types.WorkloadFromContainerInfo(&containerInfo, f.runConfigStore)
+	if err != nil {
+		return core.Workload{}, err
+	}
+
+	runtimeResult.Status = rt.WorkloadStatusUnhealthy
+	runtimeResult.StatusContext = contextMsg
+	runtimeResult.CreatedAt = result.CreatedAt // Keep the original file created time
+	return runtimeResult, nil
+}
+
+// handleRuntimeMissing handles the case where the file indicates running or stopped but the runtime
+// does not have the workload running. This can happen if using different versions of ToolHive, for example
+// the CLI and UI have different versions.
+func (f *fileStatusManager) handleRuntimeMissing(
+	ctx context.Context, workloadName string, fileWorkload core.Workload,
+) (core.Workload, error) {
+	// Check if this is a remote workload using the Remote field
+	if fileWorkload.Remote {
+		// Remote workloads don't exist in the container runtime, so it's normal for them to be missing
+		// Don't mark them as unhealthy
+		return fileWorkload, nil
+	}
+
+	if fileWorkload.Status == rt.WorkloadStatusRunning || fileWorkload.Status == rt.WorkloadStatusStopped {
+		// The workload cannot be running or stopped if the runtime container is not found
+		contextMsg := fmt.Sprintf("workload %s not found in runtime, marking as unhealthy", workloadName)
+		if err := f.SetWorkloadStatus(ctx, workloadName, rt.WorkloadStatusUnhealthy, contextMsg); err != nil {
+			return core.Workload{}, err
+		}
+		fileWorkload.Status = rt.WorkloadStatusUnhealthy
+	}
+
+	// If the workload has another status, like starting or stopping, we can keep it as is
+	return fileWorkload, nil
+}
+
+// isProxyUnhealthy checks if the proxy process is running for the workload.
+// Returns (unhealthyWorkload, true) if proxy is not running, (emptyWorkload, false) if proxy is healthy or not applicable.
+func (f *fileStatusManager) isProxyUnhealthy(
+	ctx context.Context, workloadName string, result core.Workload, containerInfo rt.ContainerInfo, pid int,
+) (core.Workload, bool) {
+	// Use original container labels (before filtering) to get base name
+	baseName := labels.GetContainerBaseName(containerInfo.Labels)
+	if baseName == "" {
+		return core.Workload{}, false // No proxy check needed
+	}
+
+	proxyRunning, err := process.FindProcess(pid)
+	if err != nil {
+		slog.Warn("unable to find process", "pid", pid, "error", err)
+	} else if proxyRunning {
+		return core.Workload{}, false // Proxy is healthy
+	}
+
+	// Proxy is not running, but workload should be running
+	contextMsg := fmt.Sprintf("proxy process not running: workload shows running but proxy process for %s is not active",
+		baseName)
+	if err := f.SetWorkloadStatus(ctx, workloadName, rt.WorkloadStatusUnhealthy, contextMsg); err != nil {
+		slog.Warn("failed to update workload status to unhealthy", "workload", workloadName, "error", err)
+	}
+
+	// Convert to workload and return unhealthy status
+	runtimeResult, err := types.WorkloadFromContainerInfo(&containerInfo, f.runConfigStore)
+	if err != nil {
+		slog.Warn("failed to convert container info for unhealthy workload", "workload", workloadName, "error", err)
+		return core.Workload{}, false // Return false to avoid double error handling
+	}
+
+	runtimeResult.Status = rt.WorkloadStatusUnhealthy
+	runtimeResult.StatusContext = contextMsg
+	runtimeResult.CreatedAt = result.CreatedAt // Keep the original file created time
+	return runtimeResult, true
+}
+
+// mergeHealthyWorkloadData merges runtime container data with file-based status information
+func (f *fileStatusManager) mergeHealthyWorkloadData(
+	containerInfo rt.ContainerInfo, result core.Workload,
+) (core.Workload, error) {
+	// Runtime and proxy confirm workload is healthy - use runtime data but preserve file-based status info
+	runtimeResult, err := types.WorkloadFromContainerInfo(&containerInfo, f.runConfigStore)
+	if err != nil {
+		return core.Workload{}, err
+	}
+
+	runtimeResult.Status = result.Status               // Keep the file status (running)
+	runtimeResult.StatusContext = result.StatusContext // Keep the file status context
+	runtimeResult.CreatedAt = result.CreatedAt         // Keep the file created time
+	return runtimeResult, nil
+}
+
+// validateWorkloadInList validates a workload during list operations, similar to validateRunningWorkload
+// but with different error handling to avoid disrupting the entire list operation.
+func (f *fileStatusManager) validateWorkloadInList(
+	ctx context.Context, workloadName string, fileWorkload core.Workload, containerInfo rt.ContainerInfo, pid int,
+) (core.Workload, error) {
+	// Only validate if file shows running status
+	if fileWorkload.Status != rt.WorkloadStatusRunning {
+		// For non-running workloads, just merge runtime data with file status
+		runtimeWorkload, err := types.WorkloadFromContainerInfo(&containerInfo, f.runConfigStore)
+		if err != nil {
+			return core.Workload{}, err
+		}
+		runtimeWorkload.Status = fileWorkload.Status
+		runtimeWorkload.StatusContext = fileWorkload.StatusContext
+		runtimeWorkload.CreatedAt = fileWorkload.CreatedAt
+		return runtimeWorkload, nil
+	}
+
+	// For running workloads, apply full validation
+	// Check if runtime status matches file status
+	if containerInfo.State != rt.WorkloadStatusRunning {
+		return f.handleRuntimeMismatch(ctx, workloadName, fileWorkload, containerInfo)
+	}
+
+	// Check if proxy process is running when workload is running
+	if unhealthyWorkload, isUnhealthy := f.isProxyUnhealthy(ctx, workloadName, fileWorkload, containerInfo, pid); isUnhealthy {
+		return unhealthyWorkload, nil
+	}
+
+	// Runtime and proxy confirm workload is healthy - merge runtime data with file status
+	return f.mergeHealthyWorkloadData(containerInfo, fileWorkload)
+}
+
+// mergeRuntimeAndFileWorkloads returns a map of workloads that combines runtime containers and file-based workloads.
+func (f *fileStatusManager) mergeRuntimeAndFileWorkloads(
+	ctx context.Context,
+	runtimeContainers []rt.ContainerInfo,
+	fileWorkloadsWithPID map[string]workloadWithPID,
+) map[string]core.Workload {
+	runtimeWorkloadMap := make(map[string]rt.ContainerInfo)
+	for _, container := range runtimeContainers {
+		// Use base name from labels for matching, fall back to container name if not available
+		baseName := labels.GetContainerBaseName(container.Labels)
+		if baseName == "" {
+			baseName = container.Name // fallback for containers without base name label
+		}
+		runtimeWorkloadMap[baseName] = container
+	}
+
+	// Create result map to avoid duplicates and merge data
+	workloadMap := make(map[string]core.Workload)
+
+	// First, add all runtime workloads
+	for _, container := range runtimeContainers {
+		workload, err := types.WorkloadFromContainerInfo(&container, f.runConfigStore)
+		if err != nil {
+			slog.Warn("failed to convert container info for workload", "workload", container.Name, "error", err)
+			continue
+		}
+		// Use base name for consistency with file workloads
+		baseName := labels.GetContainerBaseName(container.Labels)
+		if baseName == "" {
+			baseName = container.Name // fallback for containers without base name label
+		}
+		workloadMap[baseName] = workload
+	}
+
+	// Then, merge with file workloads, validating running workloads
+	for name, fileWorkloadWithPID := range fileWorkloadsWithPID {
+		fileWorkload := fileWorkloadWithPID.workload
+		pid := fileWorkloadWithPID.pid
+
+		if fileWorkload.Remote { // Remote workloads are not managed by the container runtime
+			continue // Skip remote workloads here, we add them in workload manager
+		}
+		if runtimeContainer, exists := runtimeWorkloadMap[name]; exists {
+			// Validate running workloads similar to GetWorkload
+			validatedWorkload, err := f.validateWorkloadInList(ctx, name, fileWorkload, runtimeContainer, pid)
+			if err != nil {
+				slog.Warn("failed to validate workload in list", "workload", name, "error", err)
+				// Fall back to basic merge without validation
+				if runtimeWorkload, exists := workloadMap[name]; exists {
+					runtimeWorkload.Status = fileWorkload.Status
+					runtimeWorkload.StatusContext = fileWorkload.StatusContext
+					runtimeWorkload.CreatedAt = fileWorkload.CreatedAt
+					workloadMap[name] = runtimeWorkload
+				} else {
+					// Runtime workload not found, just use the file workload
+					workloadMap[name] = fileWorkload
+				}
+			} else {
+				workloadMap[name] = validatedWorkload
+			}
+		} else {
+			// File-only workload (runtime not available)
+			updatedWorkload, err := f.handleRuntimeMissing(ctx, name, fileWorkload)
+			if err != nil {
+				slog.Warn("failed to handle missing runtime for workload", "workload", name, "error", err)
+				workloadMap[name] = fileWorkload
+			} else {
+				workloadMap[name] = updatedWorkload
+			}
+		}
+	}
+	return workloadMap
+}

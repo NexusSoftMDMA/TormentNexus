@@ -1,0 +1,87 @@
+{
+  "mutations": [
+    {
+      "id": "mut-7",
+      "originalPrompt": "Refactor prompt",
+      "mutatedPrompt": "Refactor prompt\n\n[Native Go Darwin fallback goal emphasis]\nPrioritize: Improve prompts",
+      "reasoning": "Native Go Darwin fallback generated a deterministic local mutation scaffold instead of a live LLM-authored mutation. It emphasized the requested goal: Improve prompts.",
+      "goal": "Improve prompts",
+      "timestamp": 1778268417498
+    },
+    {
+      "id": "mut-5",
+      "originalPrompt": "Refactor prompt",
+      "mutatedPrompt": "Refactor prompt\n\n[Native Go Darwin fallback goal emphasis]\nPrioritize: Improve prompts",
+      "reasoning": "Native Go Darwin fallback generated a deterministic local mutation scaffold instead of a live LLM-authored mutation. It emphasized the requested goal: Improve prompts.",
+      "goal": "Improve prompts",
+      "timestamp": 1778268341561
+    },
+    {
+      "id": "mut-3",
+      "originalPrompt": "Refactor prompt",
+      "mutatedPrompt": "Refactor prompt\n\n[Native Go Darwin fallback goal emphasis]\nPrioritize: Improve prompts",
+      "reasoning": "Native Go Darwin fallback generated a deterministic local mutation scaffold instead of a live LLM-authored mutation. It emphasized the requested goal: Improve prompts.",
+      "goal": "Improve prompts",
+      "timestamp": 1778268276307
+    },
+    {
+      "id": "mut-1",
+      "originalPrompt": "Refactor prompt",
+      "mutatedPrompt": "Refactor prompt\n\n[Native Go Darwin fallback goal emphasis]\nPrioritize: Improve prompts",
+      "reasoning": "Native Go Darwin fallback generated a deterministic local mutation scaffold instead of a live LLM-authored mutation. It emphasized the requested goal: Improve prompts.",
+      "goal": "Improve prompts",
+      "timestamp": 1778268195367
+    }
+  ],
+  "experiments": [
+    {
+      "id": "exp-8",
+      "mutationId": "mut-1",
+      "task": "Run benchmark",
+      "status": "COMPLETED",
+      "resultA": "[Native Go Darwin fallback CONTROL execution]\nTask: Run benchmark\nPrompt Snapshot: Refactor prompt",
+      "resultB": "[Native Go Darwin fallback VARIANT execution]\nTask: Run benchmark\nPrompt Snapshot: Refactor prompt\n\n[Native Go Darwin fallback goal emphasis]\nPrioritize: Improve prompts",
+      "winner": "A",
+      "judgeReasoning": "Native Go Darwin fallback kept the control prompt because the variant became longer without a stronger local heuristic signal.",
+      "startedAt": 1778268417509,
+      "completedAt": 1778268417512
+    },
+    {
+      "id": "exp-6",
+      "mutationId": "mut-1",
+      "task": "Run benchmark",
+      "status": "COMPLETED",
+      "resultA": "[Native Go Darwin fallback CONTROL execution]\nTask: Run benchmark\nPrompt Snapshot: Refactor prompt",
+      "resultB": "[Native Go Darwin fallback VARIANT execution]\nTask: Run benchmark\nPrompt Snapshot: Refactor prompt\n\n[Native Go Darwin fallback goal emphasis]\nPrioritize: Improve prompts",
+      "winner": "A",
+      "judgeReasoning": "Native Go Darwin fallback kept the control prompt because the variant became longer without a stronger local heuristic signal.",
+      "startedAt": 1778268341573,
+      "completedAt": 1778268341574
+    },
+    {
+      "id": "exp-4",
+      "mutationId": "mut-1",
+      "task": "Run benchmark",
+      "status": "COMPLETED",
+      "resultA": "[Native Go Darwin fallback CONTROL execution]\nTask: Run benchmark\nPrompt Snapshot: Refactor prompt",
+      "resultB": "[Native Go Darwin fallback VARIANT execution]\nTask: Run benchmark\nPrompt Snapshot: Refactor prompt\n\n[Native Go Darwin fallback goal emphasis]\nPrioritize: Improve prompts",
+      "winner": "A",
+      "judgeReasoning": "Native Go Darwin fallback kept the control prompt because the variant became longer without a stronger local heuristic signal.",
+      "startedAt": 1778268276318,
+      "completedAt": 1778268276320
+    },
+    {
+      "id": "exp-2",
+      "mutationId": "mut-1",
+      "task": "Run benchmark",
+      "status": "COMPLETED",
+      "resultA": "[Native Go Darwin fallback CONTROL execution]\nTask: Run benchmark\nPrompt Snapshot: Refactor prompt",
+      "resultB": "[Native Go Darwin fallback VARIANT execution]\nTask: Run benchmark\nPrompt Snapshot: Refactor prompt\n\n[Native Go Darwin fallback goal emphasis]\nPrioritize: Improve prompts",
+      "winner": "A",
+      "judgeReasoning": "Native Go Darwin fallback kept the control prompt because the variant became longer without a stronger local heuristic signal.",
+      "startedAt": 1778268195378,
+      "completedAt": 1778268195381
+    }
+  ],
+  "nextId": 9
+}

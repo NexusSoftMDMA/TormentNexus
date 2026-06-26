@@ -1,0 +1,13 @@
+--- go/internal/httpapi/mcp_handlers.go
++++ go/internal/httpapi/mcp_handlers.go
+@@ -37,8 +37,8 @@
+	}
+
+	fallback := map[string]any{
+-		"lazySessionMode":        s.lifecycleModes["lazySessionMode"],
+-		"singleActiveServerMode": s.lifecycleModes["singleActiveServerMode"],
++		"lazySessionMode":        false,
++		"singleActiveServerMode": false,
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{

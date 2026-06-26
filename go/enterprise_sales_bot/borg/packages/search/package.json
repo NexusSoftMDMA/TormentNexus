@@ -1,0 +1,28 @@
+{
+  "name": "@tormentnexus/search",
+  "version": "1.0.0-alpha.160",
+  "private": true,
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch --preserveWatchOutput",
+    "lint": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@tormentnexus/adk": "workspace:*",
+    "@vscode/ripgrep": "^1.17.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "eslint": "^9.26.0",
+    "typescript": "^5.3.3"
+  }
+}

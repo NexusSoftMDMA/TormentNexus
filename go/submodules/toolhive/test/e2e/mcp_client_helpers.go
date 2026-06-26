@@ -1,0 +1,244 @@
+// SPDX-FileCopyrightText: Copyright 2025 Stacklok, Inc.
+// SPDX-License-Identifier: Apache-2.0
+
+package e2e
+
+import (
+	"context"
+	"fmt"
+	"io"
+	"net/http"
+	"strings"
+	"time"
+
+	"github.com/mark3labs/mcp-go/client"
+	"github.com/mark3labs/mcp-go/client/transport"
+	"github.com/mark3labs/mcp-go/mcp"
+	. "github.com/onsi/ginkgo/v2" //nolint:staticcheck // Standard practice for Ginkgo
+	. "github.com/onsi/gomega"    //nolint:staticcheck // Standard practice for Gomega
+)
+
+// MCPClientHelper provides high-level MCP client operations for e2e tests
+type MCPClientHelper struct {
+	client *client.Client
+	config *TestConfig
+}
+
+// NewMCPClientForSSE creates a new MCP client for SSE transport
+func NewMCPClientForSSE(config *TestConfig, serverURL string) (*MCPClientHelper, error) {
+	mcpClient, err := client.NewSSEMCPClient(serverURL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create SSE MCP client: %w", err)
+	}
+
+	return &MCPClientHelper{
+		client: mcpClient,
+		config: config,
+	}, nil
+}
+
+// NewMCPClientForStreamableHTTP creates a new MCP client for streamable HTTP transport
+func NewMCPClientForStreamableHTTP(config *TestConfig, serverURL string) (*MCPClientHelper, error) {
+	mcpClient, err := client.NewStreamableHttpClient(serverURL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create Streamable HTTP MCP client: %w", err)
+	}
+	return &MCPClientHelper{
+		client: mcpClient,
+		config: config,
+	}, nil
+}
+
+// NewMCPClientForStreamableHTTPWithToken creates a new MCP client for streamable HTTP
+// transport that sends an Authorization Bearer token on every request. Use this when
+// the vMCP server has OIDC incoming auth enabled.
+func NewMCPClientForStreamableHTTPWithToken(config *TestConfig, serverURL, token string) (*MCPClientHelper, error) {
+	mcpClient, err := client.NewStreamableHttpClient(serverURL,
+		transport.WithHTTPHeaders(map[string]string{
+			"Authorization": "Bearer " + token,
+		}),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create Streamable HTTP MCP client: %w", err)
+	}
+	return &MCPClientHelper{client: mcpClient, config: config}, nil
+}
+
+// WaitForVMCPHealthReady polls the vMCP /health endpoint until it returns 200 OK or
+// the timeout is reached. Use this instead of WaitForMCPServerReady when incoming auth
+// is configured (MCP Initialize would fail with 401 for unauthenticated probes).
+func WaitForVMCPHealthReady(healthURL string, timeout time.Duration) error {
+	httpClient := &http.Client{Timeout: 5 * time.Second}
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	ticker := time.NewTicker(2 * time.Second)
+	defer ticker.Stop()
+	var lastErr error
+	var lastStatus int
+	var lastBody string
+	for {
+		select {
+		case <-ctx.Done():
+			if lastErr != nil {
+				return fmt.Errorf("timeout waiting for vMCP health endpoint at %s: last error: %w", healthURL, lastErr)
+			}
+			return fmt.Errorf("timeout waiting for vMCP health endpoint at %s: last status: %d, body: %s", healthURL, lastStatus, lastBody)
+		case <-ticker.C:
+			req, err := http.NewRequestWithContext(ctx, http.MethodGet, healthURL, nil) //nolint:gosec // URL is test-controlled
+			if err != nil {
+				lastErr = err
+				continue
+			}
+			resp, err := httpClient.Do(req)
+			if resp != nil {
+				lastStatus = resp.StatusCode
+				bodyBytes, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
+				_ = resp.Body.Close()
+				lastBody = string(bodyBytes)
+			}
+			lastErr = err
+			if err == nil && resp.StatusCode == http.StatusOK {
+				return nil
+			}
+		}
+	}
+}
+
+// Initialize initializes the MCP connection
+func (h *MCPClientHelper) Initialize(ctx context.Context) error {
+	// Start the transport first
+	err := h.client.Start(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to start MCP transport: %w", err)
+	}
+
+	initRequest := mcp.InitializeRequest{}
+	initRequest.Params.ProtocolVersion = "2024-11-05"
+	initRequest.Params.Capabilities = mcp.ClientCapabilities{
+		// Basic client capabilities
+	}
+	initRequest.Params.ClientInfo = mcp.Implementation{
+		Name:    "toolhive-e2e-test",
+		Version: "1.0.0",
+	}
+
+	_, err = h.client.Initialize(ctx, initRequest)
+	if err != nil {
+		return fmt.Errorf("failed to initialize MCP client: %w", err)
+	}
+
+	return nil
+}
+
+// Close closes the MCP client connection
+func (h *MCPClientHelper) Close() error {
+	return h.client.Close()
+}
+
+// ListTools lists all available tools from the MCP server
+func (h *MCPClientHelper) ListTools(ctx context.Context) (*mcp.ListToolsResult, error) {
+	request := mcp.ListToolsRequest{}
+	return h.client.ListTools(ctx, request)
+}
+
+// CallTool calls a specific tool with the given arguments
+func (h *MCPClientHelper) CallTool(
+	ctx context.Context, toolName string, arguments map[string]interface{},
+) (*mcp.CallToolResult, error) {
+	request := mcp.CallToolRequest{}
+	request.Params.Name = toolName
+	request.Params.Arguments = arguments
+	return h.client.CallTool(ctx, request)
+}
+
+// Ping sends a ping to test connectivity
+func (h *MCPClientHelper) Ping(ctx context.Context) error {
+	return h.client.Ping(ctx)
+}
+
+// ExpectToolExists verifies that a tool with the given name exists
+func (h *MCPClientHelper) ExpectToolExists(ctx context.Context, toolName string) {
+	tools, err := h.ListTools(ctx)
+	ExpectWithOffset(1, err).ToNot(HaveOccurred(), "Should be able to list tools")
+
+	found := false
+	for _, tool := range tools.Tools {
+		if tool.Name == toolName {
+			found = true
+			break
+		}
+	}
+	ExpectWithOffset(1, found).To(BeTrue(), fmt.Sprintf("Tool '%s' should exist", toolName))
+}
+
+// ExpectToolCall verifies that a tool can be called successfully
+func (h *MCPClientHelper) ExpectToolCall(
+	ctx context.Context, toolName string, arguments map[string]interface{},
+) *mcp.CallToolResult {
+	result, err := h.CallTool(ctx, toolName, arguments)
+	ExpectWithOffset(1, err).ToNot(HaveOccurred(), fmt.Sprintf("Should be able to call tool '%s'", toolName))
+	ExpectWithOffset(1, result).ToNot(BeNil(), "Tool result should not be nil")
+	return result
+}
+
+// WaitForMCPServerReady waits for an MCP server to be ready and responsive
+func WaitForMCPServerReady(config *TestConfig, serverURL string, mode string, timeout time.Duration) error {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	ticker := time.NewTicker(2 * time.Second)
+	defer ticker.Stop()
+
+	// Extract server name from URL for debugging
+	serverName := extractServerNameFromURL(serverURL)
+
+	for {
+		select {
+		case <-ctx.Done():
+			// Before timing out, debug the server state
+			GinkgoWriter.Printf("MCP server connection timed out, debugging server state...\n")
+			DebugServerState(config, serverName)
+
+			return fmt.Errorf("timeout waiting for MCP server to be ready at %s", serverURL)
+		case <-ticker.C:
+			var mcpClient *MCPClientHelper
+			var err error
+			if mode == "streamable-http" {
+				mcpClient, err = NewMCPClientForStreamableHTTP(config, serverURL)
+				if err != nil {
+					GinkgoWriter.Printf("Failed to create MCP client in streamable-http mode for %s: %v\n", serverURL, err)
+					continue
+				}
+			} else {
+				// Try to create a client and initialize
+				mcpClient, err = NewMCPClientForSSE(config, serverURL)
+				if err != nil {
+					GinkgoWriter.Printf("Failed to create MCP client in SSE mode for %s: %v\n", serverURL, err)
+					continue
+				}
+			}
+
+			initCtx, initCancel := context.WithTimeout(context.Background(), 10*time.Second)
+			err = mcpClient.Initialize(initCtx)
+			initCancel()
+
+			if err == nil {
+				// Successfully initialized, server is ready
+				GinkgoWriter.Printf("MCP server ready at %s\n", serverURL)
+				_ = mcpClient.Close()
+				return nil
+			}
+
+			GinkgoWriter.Printf("MCP initialization failed for %s: %v\n", serverURL, err)
+			_ = mcpClient.Close()
+		}
+	}
+}
+
+// extractServerNameFromURL extracts the server name from a URL like http://127.0.0.1:8080/sse#server-name
+func extractServerNameFromURL(serverURL string) string {
+	if idx := strings.Index(serverURL, "#"); idx != -1 {
+		return serverURL[idx+1:]
+	}
+	return "unknown"
+}

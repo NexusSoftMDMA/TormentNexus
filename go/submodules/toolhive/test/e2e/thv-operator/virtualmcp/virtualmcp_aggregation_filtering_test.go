@@ -1,0 +1,189 @@
+// SPDX-FileCopyrightText: Copyright 2025 Stacklok, Inc.
+// SPDX-License-Identifier: Apache-2.0
+
+package virtualmcp
+
+import (
+	"fmt"
+	"strings"
+	"time"
+
+	"github.com/mark3labs/mcp-go/mcp"
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
+
+	mcpv1beta1 "github.com/stacklok/toolhive/cmd/thv-operator/api/v1beta1"
+	"github.com/stacklok/toolhive/cmd/thv-operator/api/v1beta1/v1beta1test"
+	vmcpconfig "github.com/stacklok/toolhive/pkg/vmcp/config"
+	"github.com/stacklok/toolhive/test/e2e/images"
+)
+
+var _ = Describe("VirtualMCPServer Aggregation Filtering", Ordered, func() {
+	var (
+		testNamespace   = "default"
+		mcpGroupName    = "test-filtering-group"
+		vmcpServerName  = "test-vmcp-filtering"
+		backend1Name    = "yardstick-filter-a"
+		backend2Name    = "yardstick-filter-b"
+		timeout         = 3 * time.Minute
+		pollingInterval = 1 * time.Second
+		vmcpNodePort    int32
+	)
+
+	BeforeAll(func() {
+		By("Creating MCPGroup for filtering test")
+		CreateMCPGroupAndWait(ctx, k8sClient, mcpGroupName, testNamespace,
+			"Test MCP Group for tool filtering E2E tests", timeout, pollingInterval)
+
+		By("Creating yardstick backend MCPServers in parallel")
+		CreateMultipleMCPServersInParallel(ctx, k8sClient, []BackendConfig{
+			{Name: backend1Name, Namespace: testNamespace, GroupRef: mcpGroupName, Image: images.YardstickServerImage},
+			{Name: backend2Name, Namespace: testNamespace, GroupRef: mcpGroupName, Image: images.YardstickServerImage},
+		}, timeout, pollingInterval)
+
+		By("Creating VirtualMCPServer with tool filtering - only expose tools from backend1")
+		vmcpServer := v1beta1test.NewVirtualMCPServer(vmcpServerName, testNamespace,
+			v1beta1test.WithVMCPGroupRef(mcpGroupName),
+			v1beta1test.WithVMCPConfig(vmcpconfig.Config{
+				Group: mcpGroupName,
+				Aggregation: &vmcpconfig.AggregationConfig{
+					ConflictResolution: "prefix",
+					// Tool filtering: only allow echo from backend1, nothing from backend2
+					Tools: []*vmcpconfig.WorkloadToolConfig{
+						{
+							Workload: backend1Name,
+							Filter:   []string{"echo"}, // Only expose echo tool
+						},
+						{
+							Workload:   backend2Name,
+							ExcludeAll: true, // Exclude all tools from backend2
+						},
+					},
+				},
+			}),
+			v1beta1test.WithVMCPIncomingAuth(&mcpv1beta1.IncomingAuthConfig{
+				Type: "anonymous",
+			}),
+			v1beta1test.MutateVMCP(func(v *mcpv1beta1.VirtualMCPServer) {
+				v.Spec.ServiceType = "NodePort"
+			}),
+		)
+		Expect(k8sClient.Create(ctx, vmcpServer)).To(Succeed())
+
+		By("Waiting for VirtualMCPServer to be ready")
+		WaitForVirtualMCPServerReady(ctx, k8sClient, vmcpServerName, testNamespace, timeout, pollingInterval)
+
+		By("Getting NodePort for VirtualMCPServer")
+		vmcpNodePort = GetVMCPNodePort(ctx, k8sClient, vmcpServerName, testNamespace, timeout, pollingInterval)
+
+		By(fmt.Sprintf("VirtualMCPServer accessible at http://localhost:%d", vmcpNodePort))
+	})
+
+	AfterAll(func() {
+		By("Cleaning up VirtualMCPServer")
+		vmcpServer := v1beta1test.NewVirtualMCPServer(vmcpServerName, testNamespace)
+		_ = k8sClient.Delete(ctx, vmcpServer)
+
+		By("Cleaning up backend MCPServers")
+		for _, backendName := range []string{backend1Name, backend2Name} {
+			backend := &mcpv1beta1.MCPServer{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      backendName,
+					Namespace: testNamespace,
+				},
+			}
+			_ = k8sClient.Delete(ctx, backend)
+		}
+
+		By("Cleaning up MCPGroup")
+		mcpGroup := &mcpv1beta1.MCPGroup{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      mcpGroupName,
+				Namespace: testNamespace,
+			},
+		}
+		_ = k8sClient.Delete(ctx, mcpGroup)
+	})
+
+	Context("when tool filtering is configured", func() {
+		It("should only expose filtered tools from backend1", func() {
+			By("Creating and initializing MCP client for VirtualMCPServer")
+			mcpClient, err := CreateInitializedMCPClient(vmcpNodePort, "toolhive-filtering-test", 30*time.Second)
+			Expect(err).ToNot(HaveOccurred())
+			defer mcpClient.Close()
+
+			By("Listing tools from VirtualMCPServer")
+			listRequest := mcp.ListToolsRequest{}
+			tools, err := mcpClient.Client.ListTools(mcpClient.Ctx, listRequest)
+			Expect(err).ToNot(HaveOccurred())
+
+			By(fmt.Sprintf("VirtualMCPServer exposes %d tools after filtering", len(tools.Tools)))
+			for _, tool := range tools.Tools {
+				GinkgoWriter.Printf("  Exposed tool: %s - %s\n", tool.Name, tool.Description)
+			}
+
+			// Verify filtering: should only have echo tool from backend1
+			toolNames := make([]string, len(tools.Tools))
+			for i, tool := range tools.Tools {
+				toolNames[i] = tool.Name
+			}
+
+			// Should have tool from backend1
+			hasBackend1Tool := false
+			for _, name := range toolNames {
+				if strings.Contains(name, backend1Name) && strings.Contains(name, "echo") {
+					hasBackend1Tool = true
+				}
+			}
+			Expect(hasBackend1Tool).To(BeTrue(), "Should have echo tool from backend1")
+
+			// Should NOT have any tool from backend2 (excluded with ExcludeAll: true)
+			hasBackend2Tool := false
+			for _, name := range toolNames {
+				if strings.Contains(name, backend2Name) {
+					hasBackend2Tool = true
+				}
+			}
+			Expect(hasBackend2Tool).To(BeFalse(), "Should NOT have any tool from backend2 (excluded via ExcludeAll: true)")
+		})
+
+		It("should still allow calling filtered tools", func() {
+			// Use shared helper to test tool listing and calling
+			TestToolListingAndCall(vmcpNodePort, "toolhive-filtering-test", "echo", "filtered123")
+		})
+	})
+
+	Context("when verifying filtering configuration", func() {
+		It("should have correct aggregation configuration with tool filters", func() {
+			vmcpServer := &mcpv1beta1.VirtualMCPServer{}
+			err := k8sClient.Get(ctx, types.NamespacedName{
+				Name:      vmcpServerName,
+				Namespace: testNamespace,
+			}, vmcpServer)
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(vmcpServer.Spec.Config.Aggregation).ToNot(BeNil())
+			Expect(vmcpServer.Spec.Config.Aggregation.Tools).To(HaveLen(2))
+
+			// Verify backend1 filter allows echo
+			var backend1Config *vmcpconfig.WorkloadToolConfig
+			var backend2Config *vmcpconfig.WorkloadToolConfig
+			for i := range vmcpServer.Spec.Config.Aggregation.Tools {
+				if vmcpServer.Spec.Config.Aggregation.Tools[i].Workload == backend1Name {
+					backend1Config = vmcpServer.Spec.Config.Aggregation.Tools[i]
+				}
+				if vmcpServer.Spec.Config.Aggregation.Tools[i].Workload == backend2Name {
+					backend2Config = vmcpServer.Spec.Config.Aggregation.Tools[i]
+				}
+			}
+
+			Expect(backend1Config).ToNot(BeNil())
+			Expect(backend1Config.Filter).To(ContainElement("echo"))
+
+			Expect(backend2Config).ToNot(BeNil())
+			Expect(backend2Config.ExcludeAll).To(BeTrue(), "Backend2 should have ExcludeAll: true")
+		})
+	})
+})

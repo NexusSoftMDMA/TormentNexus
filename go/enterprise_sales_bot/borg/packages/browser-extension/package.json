@@ -1,0 +1,20 @@
+{
+  "name": "@tormentnexus/browser-extension-pkg",
+  "version": "1.0.0-alpha.160",
+  "description": "tormentnexus Browser Extension for Hub Connectivity",
+  "scripts": {
+    "build": "echo \"stub package\"",
+    "dev": "vite build --watch --emptyOutDir false --clearScreen false"
+  },
+  "dependencies": {
+    "@mozilla/readability": "^0.6.0",
+    "turndown": "^7.2.2"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.0.263",
+    "@types/node": "^20.11.24",
+    "@types/turndown": "^5.0.6",
+    "typescript": "^5.9.3",
+    "vite": "^6.4.2"
+  }
+}

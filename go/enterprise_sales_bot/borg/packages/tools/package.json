@@ -1,0 +1,36 @@
+{
+  "name": "@tormentnexus/tools",
+  "version": "1.0.0-alpha.160",
+  "private": true,
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch --preserveWatchOutput",
+    "lint": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@tormentnexus/adk": "workspace:*",
+    "@modelcontextprotocol/sdk": "^1.27.1",
+    "active-win": "^8.2.0",
+    "jsdom": "^27.4.0",
+    "turndown": "^7.1.3",
+    "untun": "^0.1.3",
+    "vscode-ripgrep": "^1.13.2",
+    "zod": "^3.22.4"
+  },
+  "devDependencies": {
+    "@types/jsdom": "^27.0.0",
+    "@types/node": "^20.10.0",
+    "@types/turndown": "^5.0.6",
+    "eslint": "^9.26.0",
+    "typescript": "^5.3.3"
+  }
+}

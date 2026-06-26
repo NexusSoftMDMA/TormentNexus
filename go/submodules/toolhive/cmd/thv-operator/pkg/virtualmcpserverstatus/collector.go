@@ -1,0 +1,250 @@
+// SPDX-FileCopyrightText: Copyright 2025 Stacklok, Inc.
+// SPDX-License-Identifier: Apache-2.0
+
+// Package virtualmcpserverstatus provides status management and batched updates for VirtualMCPServer resources.
+package virtualmcpserverstatus
+
+import (
+	"context"
+	"strings"
+
+	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/log"
+
+	mcpv1beta1 "github.com/stacklok/toolhive/cmd/thv-operator/api/v1beta1"
+)
+
+// StatusCollector collects status changes during reconciliation
+// and applies them in a single batch update at the end.
+// It implements the StatusManager interface.
+type StatusCollector struct {
+	vmcp                *mcpv1beta1.VirtualMCPServer
+	hasChanges          bool
+	phase               *mcpv1beta1.VirtualMCPServerPhase
+	message             *string
+	url                 *string
+	observedGeneration  *int64
+	oidcConfigHash      *string
+	authzConfigHash     *string
+	telemetryConfigHash *string
+	conditions          map[string]metav1.Condition
+	discoveredBackends  []mcpv1beta1.DiscoveredBackend
+}
+
+// NewStatusManager creates a new StatusManager for the given VirtualMCPServer resource.
+func NewStatusManager(vmcp *mcpv1beta1.VirtualMCPServer) StatusManager {
+	return &StatusCollector{
+		vmcp:       vmcp,
+		conditions: make(map[string]metav1.Condition),
+	}
+}
+
+// SetPhase sets the phase to be updated.
+func (s *StatusCollector) SetPhase(phase mcpv1beta1.VirtualMCPServerPhase) {
+	s.phase = &phase
+	s.hasChanges = true
+}
+
+// SetMessage sets the message to be updated.
+func (s *StatusCollector) SetMessage(message string) {
+	s.message = &message
+	s.hasChanges = true
+}
+
+// SetCondition sets a general condition with the specified type, reason, message, and status
+func (s *StatusCollector) SetCondition(conditionType, reason, message string, status metav1.ConditionStatus) {
+	s.conditions[conditionType] = metav1.Condition{
+		Type:    conditionType,
+		Status:  status,
+		Reason:  reason,
+		Message: message,
+	}
+	s.hasChanges = true
+}
+
+// SetURL sets the service URL to be updated.
+func (s *StatusCollector) SetURL(url string) {
+	s.url = &url
+	s.hasChanges = true
+}
+
+// SetObservedGeneration sets the observed generation to be updated.
+func (s *StatusCollector) SetObservedGeneration(generation int64) {
+	s.observedGeneration = &generation
+	s.hasChanges = true
+}
+
+// SetOIDCConfigHash sets the OIDC config hash to be updated.
+func (s *StatusCollector) SetOIDCConfigHash(hash string) {
+	s.oidcConfigHash = &hash
+	s.hasChanges = true
+}
+
+// SetAuthzConfigHash sets the authz config hash to be updated.
+func (s *StatusCollector) SetAuthzConfigHash(hash string) {
+	s.authzConfigHash = &hash
+	s.hasChanges = true
+}
+
+// SetTelemetryConfigHash sets the telemetry config hash to be updated.
+func (s *StatusCollector) SetTelemetryConfigHash(hash string) {
+	s.telemetryConfigHash = &hash
+	s.hasChanges = true
+}
+
+// SetTelemetryConfigRefValidatedCondition sets the TelemetryConfigRefValidated condition.
+func (s *StatusCollector) SetTelemetryConfigRefValidatedCondition(reason, message string, status metav1.ConditionStatus) {
+	s.SetCondition(mcpv1beta1.ConditionTypeVirtualMCPServerTelemetryConfigRefValidated, reason, message, status)
+}
+
+// SetGroupRefValidatedCondition sets the GroupRef validation condition.
+func (s *StatusCollector) SetGroupRefValidatedCondition(reason, message string, status metav1.ConditionStatus) {
+	s.SetCondition(mcpv1beta1.ConditionTypeVirtualMCPServerGroupRefValidated, reason, message, status)
+}
+
+// SetCompositeToolRefsValidatedCondition sets the CompositeToolRefs validation condition.
+func (s *StatusCollector) SetCompositeToolRefsValidatedCondition(reason, message string, status metav1.ConditionStatus) {
+	s.SetCondition(mcpv1beta1.ConditionTypeCompositeToolRefsValidated, reason, message, status)
+}
+
+// SetAuthConfiguredCondition sets the AuthConfigured condition.
+func (s *StatusCollector) SetAuthConfiguredCondition(reason, message string, status metav1.ConditionStatus) {
+	s.SetCondition(mcpv1beta1.ConditionTypeAuthConfigured, reason, message, status)
+}
+
+// SetAuthConfigCondition sets a specific auth config condition with dynamic type.
+// This allows setting granular conditions for individual auth config failures.
+func (s *StatusCollector) SetAuthConfigCondition(conditionType, reason, message string, status metav1.ConditionStatus) {
+	s.SetCondition(conditionType, reason, message, status)
+}
+
+// RemoveConditionsWithPrefix removes all conditions whose type starts with the given prefix,
+// except for those in the exclude list. This is tracked as a change and will be applied
+// during UpdateStatus.
+func (s *StatusCollector) RemoveConditionsWithPrefix(prefix string, exclude []string) {
+	// Validate prefix to prevent removing all conditions
+	if prefix == "" {
+		return
+	}
+
+	// Build exclude map for quick lookup
+	excludeMap := make(map[string]bool)
+	for _, condType := range exclude {
+		excludeMap[condType] = true
+	}
+
+	// Mark conditions for removal by storing a condition with empty status
+	// The UpdateStatus method will handle the actual removal
+	for _, existingCondition := range s.vmcp.Status.Conditions {
+		if strings.HasPrefix(existingCondition.Type, prefix) && !excludeMap[existingCondition.Type] {
+			// Store a marker condition with empty status to indicate removal
+			s.conditions[existingCondition.Type] = metav1.Condition{
+				Type:   existingCondition.Type,
+				Status: "", // Empty status indicates removal
+			}
+			s.hasChanges = true
+		}
+	}
+}
+
+// SetReadyCondition sets the Ready condition.
+func (s *StatusCollector) SetReadyCondition(reason, message string, status metav1.ConditionStatus) {
+	s.SetCondition(mcpv1beta1.ConditionTypeVirtualMCPServerReady, reason, message, status)
+}
+
+// SetEmbeddingServerReadyCondition sets the EmbeddingServerReady condition.
+func (s *StatusCollector) SetEmbeddingServerReadyCondition(reason, message string, status metav1.ConditionStatus) {
+	s.SetCondition(mcpv1beta1.ConditionTypeEmbeddingServerReady, reason, message, status)
+}
+
+// SetAuthServerConfigValidatedCondition sets the AuthServerConfigValidated condition.
+func (s *StatusCollector) SetAuthServerConfigValidatedCondition(reason, message string, status metav1.ConditionStatus) {
+	s.SetCondition(mcpv1beta1.ConditionTypeAuthServerConfigValidated, reason, message, status)
+}
+
+// SetDiscoveredBackends sets the discovered backends list to be updated.
+func (s *StatusCollector) SetDiscoveredBackends(backends []mcpv1beta1.DiscoveredBackend) {
+	s.discoveredBackends = backends
+	s.hasChanges = true
+}
+
+// UpdateStatus applies all collected status changes in a single batch update.
+// Expects vmcpStatus to be freshly fetched from the cluster to ensure the update operates on the latest resource version.
+func (s *StatusCollector) UpdateStatus(ctx context.Context, vmcpStatus *mcpv1beta1.VirtualMCPServerStatus) bool {
+	ctxLogger := log.FromContext(ctx)
+
+	if s.hasChanges {
+		// Apply phase change
+		if s.phase != nil {
+			vmcpStatus.Phase = *s.phase
+		}
+
+		// Apply message change
+		if s.message != nil {
+			vmcpStatus.Message = *s.message
+		}
+
+		// Apply URL change
+		if s.url != nil {
+			vmcpStatus.URL = *s.url
+		}
+
+		// Apply observed generation change
+		if s.observedGeneration != nil {
+			vmcpStatus.ObservedGeneration = *s.observedGeneration
+		}
+
+		// Apply OIDC config hash change
+		if s.oidcConfigHash != nil {
+			vmcpStatus.OIDCConfigHash = *s.oidcConfigHash
+		}
+
+		// Apply authz config hash change
+		if s.authzConfigHash != nil {
+			vmcpStatus.AuthzConfigHash = *s.authzConfigHash
+		}
+
+		// Apply telemetry config hash change
+		if s.telemetryConfigHash != nil {
+			vmcpStatus.TelemetryConfigHash = *s.telemetryConfigHash
+		}
+
+		// Apply condition changes
+		for _, condition := range s.conditions {
+			if condition.Status == "" {
+				// Empty status indicates removal
+				meta.RemoveStatusCondition(&vmcpStatus.Conditions, condition.Type)
+			} else {
+				meta.SetStatusCondition(&vmcpStatus.Conditions, condition)
+			}
+		}
+
+		// Apply discovered backends change
+		if s.discoveredBackends != nil {
+			vmcpStatus.DiscoveredBackends = s.discoveredBackends
+			// BackendCount represents the number of routable backends (ready + unauthenticated).
+			// Unauthenticated backends are reachable but require per-request user auth.
+			var routableCount int32
+			for _, backend := range s.discoveredBackends {
+				if backend.Status == mcpv1beta1.BackendStatusReady ||
+					backend.Status == mcpv1beta1.BackendStatusUnauthenticated {
+					routableCount++
+				}
+			}
+			vmcpStatus.BackendCount = routableCount
+		}
+
+		ctxLogger.V(1).Info("Batched status update applied",
+			"phase", s.phase,
+			"message", s.message,
+			"oidcConfigHash", s.oidcConfigHash,
+			"authzConfigHash", s.authzConfigHash,
+			"telemetryConfigHash", s.telemetryConfigHash,
+			"conditionsCount", len(s.conditions),
+			"discoveredBackendsCount", len(s.discoveredBackends))
+		return true
+	}
+	ctxLogger.V(1).Info("No batched status update needed")
+	return false
+}

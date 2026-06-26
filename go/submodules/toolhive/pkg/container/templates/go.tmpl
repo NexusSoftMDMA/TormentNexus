@@ -1,0 +1,121 @@
+FROM {{.RuntimeConfig.BuilderImage}} AS builder
+
+{{if .BuildEnv}}
+# Custom build environment variables
+{{range $key, $value := .BuildEnv}}ENV {{$key}}="{{$value}}"
+{{end}}
+{{end}}
+{{if .CACertContent}}
+# Add custom CA certificate BEFORE any network operations
+# This ensures that package managers can verify TLS certificates in corporate networks
+COPY ca-cert.crt /tmp/custom-ca.crt
+RUN cat /tmp/custom-ca.crt >> /etc/ssl/certs/ca-certificates.crt && \
+    rm /tmp/custom-ca.crt
+{{end}}
+
+{{if .RuntimeConfig.AdditionalPackages}}
+# Install build dependencies
+RUN apk add --no-cache {{range .RuntimeConfig.AdditionalPackages}}{{.}} {{end}}
+{{end}}
+
+{{if .CACertContent}}
+# Properly install the custom CA certificate using standard tools
+RUN mkdir -p /usr/local/share/ca-certificates && \
+    cp /tmp/custom-ca.crt /usr/local/share/ca-certificates/custom-ca.crt 2>/dev/null || \
+    echo "CA cert already added to bundle" && \
+    chmod 644 /usr/local/share/ca-certificates/custom-ca.crt 2>/dev/null || true && \
+    update-ca-certificates
+{{end}}
+
+# Set environment variables for better performance in containers
+ENV CGO_ENABLED=0 \
+    GOOS=linux \
+    GO111MODULE=on
+
+# Set working directory
+WORKDIR /build
+
+{{if index .BuildAuthFiles "netrc"}}
+# Copy netrc for private Go module authentication (build stage only)
+COPY .netrc /root/.netrc
+RUN chmod 600 /root/.netrc
+{{end}}
+
+{{if .IsLocalPath}}
+# Copy the local source code
+COPY . /build/
+
+# Build the application
+RUN go build -o /app/mcp-server {{.MCPPackage}}
+
+# Clean up auth files from build directory to prevent leaking to final image
+# (authentication was already used during go build to fetch private modules)
+RUN rm -f /build/.netrc /build/.npmrc /build/.yarnrc /root/.netrc
+{{else}}
+# Pre-install the Go package at build time
+# This downloads all dependencies and builds the binary
+# Check if the package already has a version specifier
+RUN package="{{.MCPPackage}}"; \
+    # If package doesn't have @ version specifier, add @latest
+    if ! echo "$package" | grep -q '@'; then \
+        package="${package}@latest"; \
+    fi; \
+    # Create the app directory first
+    mkdir -p /app && \
+    # Install the package
+    go install "$package" && \
+    # Move the installed binary to a known location
+    mv $GOPATH/bin/* /app/mcp-server 2>/dev/null || \
+    # If the package name differs from binary name, try to find it
+    find $GOPATH/bin -type f -executable -exec mv {} /app/mcp-server \; 2>/dev/null || \
+    # As a fallback, build it directly (strip version for go build)
+    (base_package=$(echo "$package" | sed 's/@.*//'); \
+     go get "$package" && go build -o /app/mcp-server "$base_package")
+{{end}}
+
+# Final stage - minimal runtime image
+FROM index.docker.io/library/alpine:3.23@sha256:5b10f432ef3da1b8d4c7eb6c487f2f5a8f096bc91145e68878dd4a5019afde11
+
+{{if .CACertContent}}
+# Add custom CA certificate for runtime
+COPY ca-cert.crt /tmp/custom-ca.crt
+RUN cat /tmp/custom-ca.crt >> /etc/ssl/certs/ca-certificates.crt && \
+    rm /tmp/custom-ca.crt
+{{end}}
+
+{{if .RuntimeConfig.AdditionalPackages}}
+# Install runtime dependencies
+RUN apk add --no-cache {{range .RuntimeConfig.AdditionalPackages}}{{.}} {{end}}
+{{end}}
+
+# Set working directory
+WORKDIR /app
+
+# Create a non-root user to run the application
+RUN addgroup -S appgroup && \
+    adduser -S appuser -G appgroup && \
+    mkdir -p /app && \
+    chown -R appuser:appgroup /app
+
+{{if .CACertContent}}
+# Install CA certificate for runtime
+RUN mkdir -p /usr/local/share/ca-certificates && \
+    cp /tmp/custom-ca.crt /usr/local/share/ca-certificates/custom-ca.crt 2>/dev/null || \
+    echo "CA cert already added to bundle" && \
+    chmod 644 /usr/local/share/ca-certificates/custom-ca.crt 2>/dev/null || true && \
+    update-ca-certificates
+{{end}}
+
+# Copy the pre-built binary from builder stage
+COPY --from=builder --chown=appuser:appgroup /app/mcp-server /app/mcp-server
+
+{{if .IsLocalPath}}
+# Copy any additional files that might be needed at runtime
+COPY --from=builder --chown=appuser:appgroup /build/ /app/
+{{end}}
+
+# Switch to non-root user
+USER appuser
+
+# Run the pre-built MCP server binary
+ENTRYPOINT ["/app/mcp-server"{{range .BuildArgs}}, "{{.}}"{{end}}]

@@ -1,0 +1,47 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+*.egg
+
+backup-default-profile-2026-03-27-ollama-dense-only.json
+
+# Environment
+.env
+.env.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# MCP config (local per-machine)
+.mcp*.json
+
+# Skills installed via npx (symlinked from .agents/)
+.agents/
+.claude/skills/
+skills-lock.json
+
+# UV
+
+# Docker
+.worktrees/
+# Benchmark data (large JSON files, results, venvs)
+benchmarks/*.json
+benchmarks/beam_results/
+benchmarks/.venv*/
+benchmarks/.env.local
+models/

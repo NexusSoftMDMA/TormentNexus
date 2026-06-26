@@ -1,0 +1,134 @@
+[project]
+name = "ogham-mcp"
+version = "0.15.2"
+description = "Shared memory MCP server — persistent, searchable, cross-client"
+requires-python = ">=3.13"
+dependencies = [
+    "fastmcp>=3.4.2,<4",
+    "postgrest>=2.0",
+    "pydantic-settings>=2.0",
+    "python-dotenv>=1.0",
+    "ollama>=0.4",
+    "openai>=1.0",
+    "typer>=0.24",
+    "stop-words>=2024.2.1",
+    "parsedatetime>=2.6",
+    "pyyaml>=6.0",
+    "geotext>=0.4",
+    "tenacity>=9.1.4",
+    "json-repair>=0.30",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "pytest-asyncio>=0.24", "ruff>=0.9", "pyright>=1.1.409"]
+postgres = [
+    "psycopg-pool>=3.1",
+    "psycopg[binary]>=3.1",
+]
+mistral = ["mistralai>=1.0"]
+voyage = ["voyageai>=0.3"]
+gemini = ["google-genai>=1.0"]
+# Local CPU embeddings via BGE-M3 ONNX (Josh @ ninthhousestudios, PR #14).
+# Excluded from `all` because the model is 2.2 GB at runtime and the
+# wheel adds ~25 MB of ONNX runtime + tokenizer deps. Self-hosters who
+# want sparse three-signal hybrid search without API costs install
+# explicitly: `pip install ogham-mcp[onnx]`.
+onnx = ["onnxruntime>=1.17", "tokenizers>=0.19"]
+rerank = ["flashrank>=0.2"]
+dashboard = ["prefab-ui>=0.18", "fastapi>=0.115", "uvicorn>=0.34"]
+all = ["mistralai>=1.0", "voyageai>=0.3", "google-genai>=1.0", "psycopg-pool>=3.1", "psycopg[binary]>=3.1", "flashrank>=0.2", "prefab-ui>=0.18", "fastapi>=0.115", "uvicorn>=0.34"]
+
+[project.scripts]
+ogham = "ogham.cli:main"
+ogham-serve = "ogham.server:main"
+
+[tool.pytest.ini_options]
+markers = [
+    "integration: tests that hit real Supabase + embedding provider (deselect with -m 'not integration')",
+    "postgres_integration: tests that hit real Postgres (deselect with -m 'not postgres_integration')",
+]
+# Third-party DeprecationWarnings we don't control. Filter narrowly by module
+# so genuine warnings in our own code still surface. Drop entries here when
+# upstream releases a fix.
+filterwarnings = [
+    # google-genai uses typing._UnionGenericAlias which Python 3.17 will remove.
+    "ignore::DeprecationWarning:google.genai.types",
+]
+
+[tool.ruff]
+target-version = "py313"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W", "S"]
+# S608: SQL in postgres.py -- all parameterised queries, column names are internal
+# S104: bind 0.0.0.0 in http_health.py -- intentional for Docker
+ignore = ["S608", "S104", "S101"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S"]
+"benchmarks/**" = ["S"]
+"extras/**" = ["S"]
+
+[tool.ruff.lint.extend-per-file-ignores]
+".claude/**" = ["E", "F", "I", "W", "S"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/ogham"]
+
+# Phase B (v0.13): canonical migrations live at sql/migrations/ only. The wheel
+# ships them at ogham/sql/migrations/ via force-include so self-hosters keep
+# the same import path they had before src/ogham/sql/ was deleted.
+# The three top-level schema files (fresh-install entrypoints) are force-included
+# at the same logical path so `ogham init` can find them via importlib.resources
+# in pip-installed deployments.
+[tool.hatch.build.targets.wheel.force-include]
+"sql/migrations" = "ogham/sql/migrations"
+"sql/schema.sql" = "ogham/sql/schema.sql"
+"sql/schema_postgres.sql" = "ogham/sql/schema_postgres.sql"
+"sql/schema_selfhost_supabase.sql" = "ogham/sql/schema_selfhost_supabase.sql"
+
+# Sdist explicitly excludes dev-only directories. Guards against shipping
+# benchmark .env files, research notes, claude metadata, or experimental
+# extras to PyPI. Source distribution stays minimal: src/, tests/, sql/,
+# top-level metadata files. Allowlist is the primary gate; exclude is
+# belt-and-suspenders for files that hatchling might otherwise sweep up
+# from the working tree.
+[tool.hatch.build.targets.sdist]
+include = [
+    "src/",
+    "tests/",
+    "sql/",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md",
+    "pyproject.toml",
+]
+exclude = [
+    "benchmarks/",
+    "docs/",
+    "research/",
+    "extras/",
+    ".claude/",
+    ".github/",
+    ".worktrees/",
+    "notebooks/",
+    "**/*.env*",
+    "**/.venv*",
+    "**/__pycache__/",
+    "**/*.pyc",
+    "sql/migrations/DANGER_*",
+    "sql/migrations/rollback/",
+    "sql/archive/",
+    "demo-scripts/",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[dependency-groups]
+dev = [
+    "matplotlib>=3.10.8",
+    "pyright>=1.1.409",
+]

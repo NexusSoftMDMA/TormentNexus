@@ -1,0 +1,52 @@
+# Security audit: cargo-deny against RustSec advisories.
+#
+# Runs on every push + PR so a CVE published between releases trips CI
+# before the bad crate ships in a mnem tag. cargo-deny walks Cargo.lock
+# looking up each crate against https://rustsec.org/advisories.
+#
+# cargo-deny is used in preference to cargo-audit because cargo-audit
+# 0.22.x (latest stable) cannot parse CVSS 4.0 advisory entries and
+# crashes loading the database. cargo-deny 0.18.6+ uses rustsec 0.31
+# which has full CVSS 4.0 support. See:
+# https://github.com/EmbarkStudios/cargo-deny/issues/804
+#
+# cargo-deny is pinned to a specific version so a supply-chain attack
+# on the audit tool itself can't silently bypass this gate.
+# Bump deliberately and update the cache key below.
+
+name: audit
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  # Weekly scheduled run so dormant branches still see new advisories.
+  schedule:
+    - cron: "17 4 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  cargo-deny:
+    name: cargo audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache cargo-deny binary
+        uses: actions/cache@v5
+        with:
+          path: ~/.cargo/bin/cargo-deny
+          key: cargo-deny-${{ runner.os }}-v0.19.5
+
+      # Pinned version. When bumping, verify the release notes at
+      # https://github.com/EmbarkStudios/cargo-deny/releases and update
+      # the cache key above so the new binary is not shadowed by the old one.
+      - name: Install cargo-deny (pinned)
+        run: cargo install cargo-deny --locked --force --version 0.19.5
+
+      - name: Run cargo deny (advisories only)
+        run: cargo deny --all-features check advisories

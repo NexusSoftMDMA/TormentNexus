@@ -1,0 +1,102 @@
+name: Security Scan
+
+on:
+  workflow_call:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  schedule:
+    # Run daily at 2 AM UTC
+    - cron: '0 2 * * *'
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  grype-repo-scan:
+    name: Grype Repository Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+
+      - name: Run Grype vulnerability scanner
+        id: grype-scan
+        uses: anchore/scan-action@e1165082ffb1fe366ebaf02d8526e7c4989ea9d2 # v7.4.0
+        with:
+          path: "."
+          output-format: "sarif"
+          fail-build: false
+
+      - name: Upload Grype scan results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@8aad20d150bbac5944a9f9d289da16a4b0d87c1e # v4
+        if: always()
+        with:
+          sarif_file: ${{ steps.grype-scan.outputs.sarif }}
+          category: "grype"
+
+  govulncheck:
+    name: Go Vulnerability Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+
+      - name: Run govulncheck
+        uses: golang/govulncheck-action@b625fbe08f3bccbe446d94fbf87fcc875a4f50ee # v1
+        with:
+          go-version-input: 'stable'
+          go-package: ./...
+          repo-checkout: false
+          output-format: json
+          output-file: govulncheck-output.json
+
+      - name: Check for vulnerabilities (with exclusions)
+        run: |
+          # Ignored vulnerabilities with justification:
+          # Go stdlib advisories published 2026-06-02, all fixed in go1.26.4 /
+          # go1.25.11 (DoS / log-injection class, no RCE):
+          #   GO-2026-5037 (CVE-2026-27145, crypto/x509 VerifyHostname)
+          #   GO-2026-5038 (CVE-2026-42504, mime WordDecoder.DecodeHeader)
+          #   GO-2026-5039 (CVE-2026-42507, net/textproto error messages)
+          # CI's `setup-go: stable` still resolves to go1.26.3 because the
+          # actions/go-versions manifest lags the Go release. Temporary
+          # exclusion; remove once CI builds on go1.26.4 or later.
+          IGNORED_VULNS="GO-2026-5037 GO-2026-5038 GO-2026-5039"
+
+          # Show the raw output for debugging
+          echo "::group::govulncheck raw output"
+          cat govulncheck-output.json
+          echo "::endgroup::"
+
+          # Extract vulnerability IDs that have actual findings (called symbols)
+          # The JSON has "finding" objects with "osv" field only for vulnerabilities
+          # where vulnerable code paths are actually called
+          FOUND_VULNS=$(jq -r 'select(.finding != null) | .finding.osv' govulncheck-output.json | sort -u | grep -E '^GO-' || true)
+
+          if [ -z "$FOUND_VULNS" ]; then
+            echo "✅ No vulnerabilities found"
+            exit 0
+          fi
+
+          echo "Found vulnerabilities: $FOUND_VULNS"
+
+          # Check if all found vulnerabilities are in the ignore list
+          UNIGNORED=""
+          for vuln in $FOUND_VULNS; do
+            if ! echo "$IGNORED_VULNS" | grep -qw "$vuln"; then
+              UNIGNORED="$UNIGNORED $vuln"
+            fi
+          done
+          UNIGNORED=$(echo "$UNIGNORED" | xargs)
+
+          if [ -z "$UNIGNORED" ]; then
+            echo "⚠️  All vulnerabilities are ignored: $FOUND_VULNS"
+            exit 0
+          fi
+
+          echo "❌ Vulnerabilities need attention: $UNIGNORED"
+          exit 1

@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>munch-bench Leaderboard</title>
+    <style>
+        :root {
+            --bg: #0d1117; --surface: #161b22; --border: #30363d;
+            --text: #e6edf3; --text-muted: #8b949e;
+            --accent: #58a6ff; --green: #3fb950; --orange: #d29922; --red: #f85149;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+            background: var(--bg); color: var(--text); line-height: 1.5;
+            max-width: 1200px; margin: 0 auto; padding: 2rem;
+        }
+        h1 { font-size: 2rem; margin-bottom: 0.25rem; }
+        .subtitle { color: var(--text-muted); margin-bottom: 2rem; font-size: 0.95rem; }
+        .subtitle a { color: var(--accent); text-decoration: none; }
+
+        table { width: 100%; border-collapse: collapse; margin-bottom: 2rem; }
+        th, td { padding: 0.75rem 1rem; text-align: left; border-bottom: 1px solid var(--border); }
+        th { background: var(--surface); color: var(--text-muted); font-weight: 600; font-size: 0.85rem;
+             text-transform: uppercase; letter-spacing: 0.05em; }
+        tr:hover { background: var(--surface); }
+        td.num { text-align: right; font-variant-numeric: tabular-nums; }
+
+        .rank { font-weight: 700; color: var(--accent); }
+        .bar-cell { position: relative; }
+        .bar { height: 6px; border-radius: 3px; background: var(--accent); min-width: 2px; }
+        .bar.green { background: var(--green); }
+        .bar.orange { background: var(--orange); }
+
+        .charts { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; margin-bottom: 2rem; }
+        .chart-box { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 1.5rem; }
+        .chart-box h3 { font-size: 0.95rem; color: var(--text-muted); margin-bottom: 1rem; }
+        canvas { width: 100% !important; height: 250px !important; }
+
+        .footer { color: var(--text-muted); font-size: 0.8rem; text-align: center; margin-top: 3rem;
+                  padding-top: 1.5rem; border-top: 1px solid var(--border); }
+        .footer a { color: var(--accent); text-decoration: none; }
+
+        @media (max-width: 768px) {
+            .charts { grid-template-columns: 1fr; }
+            body { padding: 1rem; }
+            th, td { padding: 0.5rem; font-size: 0.9rem; }
+        }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+</head>
+<body>
+    <h1>munch-bench Leaderboard</h1>
+    <p class="subtitle">
+        Retrieval + Inference benchmark for LLM-powered codebase Q&A &mdash;
+        Powered by <a href="https://github.com/jgravelle/jcodemunch-mcp">jCodeMunch</a> +
+        <a href="https://groq.com">Groq</a>
+    </p>
+
+    <table>
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>Provider / Model</th>
+                <th>Judge Score</th>
+                <th></th>
+                <th>P@5</th>
+                <th>Recall</th>
+                <th>Exact Match</th>
+                <th>Avg Time</th>
+                <th>Cost</th>
+                <th>Questions</th>
+            </tr>
+        </thead>
+        <tbody>
+            
+            <tr>
+                <td class="rank">1</td>
+                <td><strong>anthropic</strong> / claude-sonnet-4-6</td>
+                <td class="num">0.81</td>
+                <td class="bar-cell">
+                    <div class="bar green"
+                         style="width: 81%"></div>
+                </td>
+                <td class="num">0.17</td>
+                <td class="num">0.36</td>
+                <td class="num">16.1%</td>
+                <td class="num">15.02s</td>
+                <td class="num">$1.1180</td>
+                <td class="num">31</td>
+            </tr>
+            
+            <tr>
+                <td class="rank">2</td>
+                <td><strong>groq</strong> / llama-3.3-70b-versatile</td>
+                <td class="num">0.69</td>
+                <td class="bar-cell">
+                    <div class="bar orange"
+                         style="width: 69%"></div>
+                </td>
+                <td class="num">0.00</td>
+                <td class="num">0.00</td>
+                <td class="num">0.0%</td>
+                <td class="num">40.09s</td>
+                <td class="num">$0.0479</td>
+                <td class="num">9</td>
+            </tr>
+            
+            <tr>
+                <td class="rank">3</td>
+                <td><strong>anthropic</strong> / claude-haiku-4-5-20251001</td>
+                <td class="num">0.68</td>
+                <td class="bar-cell">
+                    <div class="bar orange"
+                         style="width: 67%"></div>
+                </td>
+                <td class="num">0.17</td>
+                <td class="num">0.36</td>
+                <td class="num">16.1%</td>
+                <td class="num">6.99s</td>
+                <td class="num">$0.2891</td>
+                <td class="num">31</td>
+            </tr>
+            
+        </tbody>
+    </table>
+
+    <div class="charts">
+        <div class="chart-box">
+            <h3>LLM Judge Score by Model</h3>
+            <canvas id="chartJudge"></canvas>
+        </div>
+        <div class="chart-box">
+            <h3>Cost vs Accuracy</h3>
+            <canvas id="chartCost"></canvas>
+        </div>
+    </div>
+
+    <script>
+        const labels = ["anthropic/claude-sonnet-4-6", "groq/llama-3.3-70b-versatile", "anthropic/claude-haiku-4-5-20251001"];
+        const judgeScores = [0.8103, 0.6944, 0.679];
+        const costs = [1.117965, 0.047936, 0.289143];
+
+        new Chart(document.getElementById('chartJudge'), {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Judge Score',
+                    data: judgeScores,
+                    backgroundColor: judgeScores.map(s => s >= 0.7 ? '#3fb950' : s >= 0.4 ? '#d29922' : '#f85149'),
+                    borderRadius: 4,
+                }]
+            },
+            options: {
+                responsive: true,
+                scales: { y: { beginAtZero: true, max: 1.0, ticks: { color: '#8b949e' }, grid: { color: '#30363d' } },
+                          x: { ticks: { color: '#8b949e' }, grid: { display: false } } },
+                plugins: { legend: { display: false } }
+            }
+        });
+
+        new Chart(document.getElementById('chartCost'), {
+            type: 'scatter',
+            data: {
+                datasets: [{
+                    label: 'Models',
+                    data: labels.map((l, i) => ({ x: costs[i], y: judgeScores[i], label: l })),
+                    backgroundColor: '#58a6ff',
+                    pointRadius: 8,
+                }]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    x: { title: { display: true, text: 'Cost (USD)', color: '#8b949e' }, ticks: { color: '#8b949e' }, grid: { color: '#30363d' } },
+                    y: { title: { display: true, text: 'Judge Score', color: '#8b949e' }, beginAtZero: true, max: 1.0, ticks: { color: '#8b949e' }, grid: { color: '#30363d' } }
+                },
+                plugins: {
+                    tooltip: {
+                        callbacks: { label: ctx => ctx.raw.label + ': $' + ctx.raw.x.toFixed(4) + ', score=' + ctx.raw.y.toFixed(2) }
+                    },
+                    legend: { display: false }
+                }
+            }
+        });
+    </script>
+
+    <div class="footer">
+        Generated by <a href="https://github.com/jgravelle/munch-bench">munch-bench</a> &mdash;
+        Powered by <a href="https://github.com/jgravelle/jcodemunch-mcp">jCodeMunch</a> + <a href="https://groq.com">Groq</a>
+    </div>
+</body>
+</html>

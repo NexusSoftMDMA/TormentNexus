@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 300" width="1200" height="300">
+  <!-- Dark background -->
+  <rect width="1200" height="300" fill="#1a1f2e"/>
+  <!-- Subtle radial glow -->
+  <radialGradient id="glow" cx="50%" cy="50%" r="60%">
+    <stop offset="0%" stop-color="#5BFFA0" stop-opacity="0.07"/>
+    <stop offset="100%" stop-color="#1a1f2e" stop-opacity="0"/>
+  </radialGradient>
+  <rect width="1200" height="300" fill="url(#glow)"/>
+
+  <!-- Fork icon (pixel art, brand green) -->
+  <g transform="translate(360, 90)" shape-rendering="crispEdges">
+    <rect fill="#5BFFA0" x="0"  y="0"  width="16" height="48"/>
+    <rect fill="#5BFFA0" x="32" y="0"  width="16" height="48"/>
+    <rect fill="#5BFFA0" x="64" y="0"  width="16" height="48"/>
+    <rect fill="#5BFFA0" x="0"  y="48" width="80" height="16"/>
+    <rect fill="#5BFFA0" x="16" y="64" width="48" height="16"/>
+    <rect fill="#5BFFA0" x="32" y="80" width="16" height="40"/>
+  </g>
+
+  <!-- Wordmark -->
+  <text x="472" y="162" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif" font-size="72" font-weight="800" fill="#ffffff" letter-spacing="-2">forkit</text>
+
+  <!-- Tagline -->
+  <text x="472" y="204" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif" font-size="22" font-weight="400" fill="#5BFFA0" letter-spacing="0.5">The Reasoning Layer for Agent Swarms</text>
+
+  <!-- Separator line -->
+  <line x1="460" y1="125" x2="460" y2="215" stroke="#5BFFA0" stroke-width="2" opacity="0.3"/>
+
+  <!-- Stat pills -->
+  <g transform="translate(472, 230)">
+    <rect x="0" y="0" width="100" height="28" rx="6" fill="#5BFFA0" fill-opacity="0.12" stroke="#5BFFA0" stroke-opacity="0.3" stroke-width="1"/>
+    <text x="50" y="19" font-family="monospace" font-size="12" font-weight="600" fill="#5BFFA0" text-anchor="middle">7 MCP tools</text>
+  </g>
+  <g transform="translate(584, 230)">
+    <rect x="0" y="0" width="120" height="28" rx="6" fill="#5BFFA0" fill-opacity="0.12" stroke="#5BFFA0" stroke-opacity="0.3" stroke-width="1"/>
+    <text x="60" y="19" font-family="monospace" font-size="12" font-weight="600" fill="#5BFFA0" text-anchor="middle">99% token savings</text>
+  </g>
+  <g transform="translate(716, 230)">
+    <rect x="0" y="0" width="130" height="28" rx="6" fill="#5BFFA0" fill-opacity="0.12" stroke="#5BFFA0" stroke-opacity="0.3" stroke-width="1"/>
+    <text x="65" y="19" font-family="monospace" font-size="12" font-weight="600" fill="#5BFFA0" text-anchor="middle">~250ms handoffs</text>
+  </g>
+</svg>

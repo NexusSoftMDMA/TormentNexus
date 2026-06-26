@@ -1,0 +1,279 @@
+# .github/workflows/release.yml
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  wait-for-container:
+    name: Wait — build-container.yml
+    uses: ./.github/workflows/build-container.yml
+    permissions:
+      contents: read
+      packages: write
+
+  wait-for-electron:
+    name: Wait — build-electron.yml
+    uses: ./.github/workflows/build-electron.yml
+    permissions:
+      contents: write
+      packages: write
+      id-token: write   # OIDC token for Azure Trusted Signing — must be granted at the caller, not just declared in the called workflow
+    secrets: inherit
+    with:
+      # Binds the Windows matrix job to this GitHub Environment so its OIDC
+      # token's sub claim is `repo:.../environment:release`, which the Azure
+      # federated credential `github-env-release` matches exactly. Removes
+      # dependency on tag-name patterns (Azure FICs don't actually wildcard).
+      signing-environment: release
+
+  # ── .deb build (amd64 + arm64, native runners) ───────────────────────────────
+  build-deb:
+    name: Build .deb (${{ matrix.arch }})
+    strategy:
+      matrix:
+        arch: [amd64, arm64]
+    runs-on: ${{ matrix.arch == 'arm64' && 'ubuntu-22.04-arm' || 'ubuntu-22.04' }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          submodules: recursive
+
+      - name: Install dpkg-dev
+        run: sudo apt-get install -y -q dpkg-dev
+
+      - name: Build .deb
+        run: bash packages/deb/build.sh ${{ matrix.arch }}
+
+      - name: Upload .deb artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: deb-${{ matrix.arch }}
+          path: dist/*.deb
+          if-no-files-found: error
+
+  # ── .deb smoke test ───────────────────────────────────────────────────────────
+  deb-smoke-test:
+    name: .deb smoke test (amd64)
+    needs: build-deb
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Download amd64 .deb
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: deb-amd64
+          path: dist/
+
+      - name: Run smoke test
+        run: bash tests/container/test_deb_install.sh
+
+  # ── Publish to apt.foxinthebox.ai ─────────────────────────────────────────────
+  publish-apt:
+    name: Publish to apt.foxinthebox.ai
+    needs: [build-deb, deb-smoke-test]
+    continue-on-error: true  # #539 — secrets not yet configured; remove when populated
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Download amd64 .deb
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: deb-amd64
+          path: dist/
+
+      - name: Download arm64 .deb
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: deb-arm64
+          path: dist/
+
+      - name: Publish to apt repo
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.APT_GPG_PRIVATE_KEY }}
+          GPG_KEY_ID:      ${{ secrets.APT_GPG_KEY_ID }}
+          R2_ACCOUNT_ID:   ${{ secrets.R2_ACCOUNT_ID }}
+          R2_ACCESS_KEY:   ${{ secrets.R2_ACCESS_KEY }}
+          R2_SECRET_KEY:   ${{ secrets.R2_SECRET_KEY }}
+        run: bash packages/deb/publish-apt.sh
+
+  # ── Container :stable + :vX.Y.Z promotion ──────────────────────────────────
+  # Decoupled from the GitHub Release job (#550) so that a failing Electron
+  # build does not block :stable advancement. Operators using :stable get
+  # critical container fixes immediately; the GitHub Release (with desktop
+  # artifacts) follows once all platform builds succeed.
+  promote-container:
+    name: Promote container image
+    needs: [wait-for-container]
+    runs-on: ubuntu-latest
+
+    permissions:
+      packages: write
+
+    steps:
+      - name: Log in to GHCR
+        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract version tag
+        id: tag
+        run: echo "version=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4.1.0
+
+      # Pin the released image to the exact bytes wait-for-container pushed,
+      # while preserving the multi-arch manifest list (#82). The previous
+      # implementation used `docker pull && docker tag && docker push` —
+      # that pattern collapses a manifest list to a single-platform image
+      # because `docker pull` on the (amd64) runner only fetches the amd64
+      # child manifest, then the `tag` and `push` rewrite the new tag with
+      # just amd64. Switching to `docker buildx imagetools create` keeps
+      # the operation registry-side: it constructs the new tag pointing at
+      # the same manifest list, so `:vX.Y.Z` and `:stable` are multi-arch.
+      # The digest pinning rationale from #41 still holds — using
+      # `name@<index-digest>` as the source means a concurrent push to
+      # main can't mutate :latest between build and release.
+      - name: Re-tag Docker image as versioned and :stable
+        env:
+          DIGEST: ${{ needs.wait-for-container.outputs.digest }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$DIGEST" ]]; then
+            echo "::error::wait-for-container did not produce a digest output."
+            exit 1
+          fi
+          IMG="ghcr.io/fox-in-the-box-ai/cloud"
+          VERSION="${{ steps.tag.outputs.version }}"
+          docker buildx imagetools create -t "$IMG:$VERSION" "$IMG@$DIGEST"
+          docker buildx imagetools create -t "$IMG:stable"   "$IMG@$DIGEST"
+          # Verify the released tags are multi-arch — fail loudly if either
+          # has somehow become single-platform (ships a broken release
+          # before users find out).
+          for TAG in "$VERSION" "stable"; do
+            PLATFORMS=$(docker buildx imagetools inspect "$IMG:$TAG" \
+              --format '{{range .Manifest.Manifests}}{{.Platform.OS}}/{{.Platform.Architecture}}{{"\n"}}{{end}}')
+            echo "$IMG:$TAG platforms:"; echo "$PLATFORMS"
+            grep -qx 'linux/amd64' <<<"$PLATFORMS" || { echo "::error::$IMG:$TAG missing linux/amd64"; exit 1; }
+            grep -qx 'linux/arm64' <<<"$PLATFORMS" || { echo "::error::$IMG:$TAG missing linux/arm64"; exit 1; }
+          done
+          echo "✅ Both $IMG:$VERSION and $IMG:stable are multi-arch (linux/amd64, linux/arm64)"
+
+  release:
+    name: Create GitHub Release
+    needs: [wait-for-electron, deb-smoke-test, promote-container]
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      # SMOKE_LOG gate.
+      # v0.7.15 added the header check (every release tag must have a matching
+      # `## vX.Y.Z` entry in qa/SMOKE_LOG.md). v0.7.19 added the body check
+      # (the entry must contain at least one `- [x]` line OR an explicit
+      # `Bypass reason:` line). The v0.7.16/17/18 bypass streak revealed the
+      # original gate's loophole: the header existed but the body was empty
+      # `[ ]` placeholders, so the gate passed while the smoke hadn't actually
+      # run. Real smoke leaves real check-marks; bypass leaves a written
+      # justification. Empty placeholders are no longer accepted.
+      - name: Smoke-log gate (require qa/SMOKE_LOG.md entry for this tag)
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF_NAME}"
+          if [ ! -f qa/SMOKE_LOG.md ]; then
+            echo "::error::qa/SMOKE_LOG.md does not exist. This file is required since v0.7.14. Restore it before tagging a release."
+            exit 1
+          fi
+          if ! grep -qE "^## ${TAG}( |$|\\b)" qa/SMOKE_LOG.md; then
+            echo "::error::qa/SMOKE_LOG.md has no '## ${TAG}' entry."
+            echo "::error::Per v0.7.15 process gate: every release tag must have a matching entry in qa/SMOKE_LOG.md documenting which manual smoke gates were run (or explicitly bypassed)."
+            echo "::error::Add a section like:"
+            echo "::error::"
+            echo "::error::  ## ${TAG} — $(date +%Y-%m-%d) (initials)"
+            echo "::error::  - [x] Section A — Header health"
+            echo "::error::  - ... (etc, see SMOKE_LOG.md format)"
+            echo "::error::"
+            echo "::error::To bypass deliberately (hotfix or infrastructure-only release), add the entry with a 'Bypass reason:' line."
+            exit 1
+          fi
+          # v0.7.19 body check: capture the entry block (header → next ## v or EOF)
+          # and require at least one of: a `- [x]` checked-box line, OR a
+          # `Bypass reason:` line. Catches the v0.7.16-18 pattern where the
+          # entry header existed but every box was `[ ]` unchecked.
+          ENTRY="$(awk -v tag="^## ${TAG}" '
+            $0 ~ tag {flag=1; next}
+            flag && /^## v[0-9]+\.[0-9]+/ {flag=0}
+            flag {print}
+          ' qa/SMOKE_LOG.md)"
+          if ! printf '%s\n' "$ENTRY" | grep -qE '^- \[x\]|^Bypass reason:'; then
+            echo "::error::qa/SMOKE_LOG.md entry for ${TAG} exists but has no checked boxes and no 'Bypass reason:' line."
+            echo "::error::Per v0.7.19 gate teeth: the entry body must contain at least one '- [x]' (real smoke was run) OR a 'Bypass reason:' line (explicit waiver in writing)."
+            echo "::error::Empty '- [ ]' placeholders mean the smoke wasn't actually performed — exactly the pattern the v0.7.13 retro recommended catching."
+            exit 1
+          fi
+          echo "✅ SMOKE_LOG.md entry for ${TAG} present + body is non-empty (has checked boxes or explicit bypass)"
+
+      - name: Extract version tag
+        id: tag
+        run: echo "version=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+
+      - name: Download Windows artifact
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: fox-windows
+          path: release-artifacts/windows
+
+      - name: Download macOS artifact
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: fox-macos
+          path: release-artifacts/macos
+
+      - name: Download .deb artifacts
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: deb-*
+          path: release-artifacts/deb
+          merge-multiple: true
+
+      - name: Extract release notes from CHANGELOG
+        id: changelog
+        run: |
+          VERSION="${{ steps.tag.outputs.version }}"
+          VERSION_BARE="${VERSION#v}"
+          awk "/^## \[${VERSION_BARE}\]/{found=1; next} found && /^## \[/{exit} found{print}" CHANGELOG.md \
+            > /tmp/release_notes.md
+          if [ ! -s /tmp/release_notes.md ]; then
+            echo "::error::CHANGELOG.md has no entry for [${VERSION_BARE}] — refusing to publish a release with empty body."
+            exit 1
+          fi
+          echo "notes_path=/tmp/release_notes.md" >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@718ea10b132b3b2eba29c1007bb80653f286566b # v3.0.1
+        with:
+          tag_name: ${{ steps.tag.outputs.version }}
+          body_path: ${{ steps.changelog.outputs.notes_path }}
+          fail_on_unmatched_files: true
+          files: |
+            release-artifacts/windows/*.exe
+            release-artifacts/macos/*.dmg
+            release-artifacts/macos/*.zip
+            release-artifacts/deb/*.deb
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

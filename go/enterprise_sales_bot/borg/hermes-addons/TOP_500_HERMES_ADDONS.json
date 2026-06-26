@@ -1,0 +1,5002 @@
+[
+  {
+    "rank": 1,
+    "name": "OpenMemory",
+    "github_url": "https://github.com/CaviraOSS/OpenMemory",
+    "score": 194,
+    "signal": 95,
+    "category": "Memory & Knowledge Systems",
+    "description": "OpenMemory: Local persistent memory store for LLM applications including cl",
+    "status": "pending"
+  },
+  {
+    "rank": 2,
+    "name": "ultimate_mcp_server",
+    "github_url": "https://github.com/dicklesworthstone/ultimate_mcp_server",
+    "score": 192,
+    "signal": 90,
+    "category": "Memory & Knowledge Systems",
+    "description": "ultimate_mcp_server: Comprehensive MCP server exposing dozens of capabiliti",
+    "status": "pending"
+  },
+  {
+    "rank": 3,
+    "name": "spurs-blog-mcp-server",
+    "github_url": "https://github.com/akshay23/spurs-blog-mcp-server",
+    "score": 192,
+    "signal": 89,
+    "category": "Memory & Knowledge Systems",
+    "description": "spurs-blog-mcp-server: An MCP server for Pounding The Rock blog, that provi",
+    "status": "pending"
+  },
+  {
+    "rank": 4,
+    "name": "alibabacloud-dms-mcp-server",
+    "github_url": "https://github.com/aliyun/alibabacloud-dms-mcp-server",
+    "score": 179,
+    "signal": 98,
+    "category": "Database & Data Access",
+    "description": "alibabacloud-dms-mcp-server: A universal multi-cloud data MCP Server suppor",
+    "status": "pending"
+  },
+  {
+    "rank": 5,
+    "name": "kapture",
+    "github_url": "https://github.com/williamkapke/kapture",
+    "score": 174,
+    "signal": 95,
+    "category": "Browser Automation & Web Scraping",
+    "description": "kapture: Chrome DevTools Extension that enables browser automation through ",
+    "status": "pending"
+  },
+  {
+    "rank": 6,
+    "name": "Mimir",
+    "github_url": "https://github.com/orneryd/Mimir",
+    "score": 174,
+    "signal": 98,
+    "category": "Memory & Knowledge Systems",
+    "description": "Mimir: Mimir - Fully open and customizable memory bank with semantic vector",
+    "status": "pending"
+  },
+  {
+    "rank": 7,
+    "name": "mcp-automem",
+    "github_url": "https://github.com/verygoodplugins/mcp-automem",
+    "score": 174,
+    "signal": 95,
+    "category": "Memory & Knowledge Systems",
+    "description": "mcp-automem: AutoMem is a graph-vector memory service that gives AI assista",
+    "status": "pending"
+  },
+  {
+    "rank": 8,
+    "name": "lsmcp",
+    "github_url": "https://github.com/mizchi/lsmcp",
+    "score": 174,
+    "signal": 95,
+    "category": "Code & Development Tools",
+    "description": "lsmcp",
+    "status": "pending"
+  },
+  {
+    "rank": 9,
+    "name": "agent-tool",
+    "github_url": "https://github.com/knewstimek/agent-tool",
+    "score": 174,
+    "signal": 80,
+    "category": "Memory & Knowledge Systems",
+    "description": "agent-tool: MCP tool server for AI coding agents -- encoding-aware file too",
+    "status": "pending"
+  },
+  {
+    "rank": 10,
+    "name": "MemMachine",
+    "github_url": "https://github.com/MemMachine/MemMachine",
+    "score": 174,
+    "signal": 95,
+    "category": "Memory & Knowledge Systems",
+    "description": "MemMachine: Universal memory layer for AI Agents. It provides scalable, ext",
+    "status": "pending"
+  },
+  {
+    "rank": 11,
+    "name": "codealive-mcp",
+    "github_url": "https://github.com/codealive-ai/codealive-mcp",
+    "score": 174,
+    "signal": 98,
+    "category": "Code & Development Tools",
+    "description": "codealive-mcp: The most accurate and comprehensive Context Engine as a serv",
+    "status": "pending"
+  },
+  {
+    "rank": 12,
+    "name": "semanticworkbench",
+    "github_url": "https://github.com/microsoft/semanticworkbench",
+    "score": 173,
+    "signal": 94,
+    "category": "Code & Development Tools",
+    "description": "semanticworkbench: A versatile tool designed to help prototype intelligent ",
+    "status": "pending"
+  },
+  {
+    "rank": 13,
+    "name": "webpeel",
+    "github_url": "https://github.com/webpeel/webpeel",
+    "score": 173,
+    "signal": 78,
+    "category": "Browser Automation & Web Scraping",
+    "description": "webpeel: The web data layer for AI agents \u2014 fetch, search, crawl, extract, ",
+    "status": "pending"
+  },
+  {
+    "rank": 14,
+    "name": "aio-mcp",
+    "github_url": "https://github.com/athapong/aio-mcp",
+    "score": 172,
+    "signal": 91,
+    "category": "Memory & Knowledge Systems",
+    "description": "aio-mcp: \ud83d\ude80 All-in-one MCP server with AI search, RAG, and multi-service int",
+    "status": "pending"
+  },
+  {
+    "rank": 15,
+    "name": "expert-registry-mcp",
+    "github_url": "https://github.com/agentience/expert-registry-mcp",
+    "score": 172,
+    "signal": 91,
+    "category": "Database & Data Access",
+    "description": "expert-registry-mcp: High-performance MCP server for expert discovery with ",
+    "status": "pending"
+  },
+  {
+    "rank": 16,
+    "name": "openrouter-deep-research-mcp",
+    "github_url": "https://github.com/wheattoast11/openrouter-deep-research-mcp",
+    "score": 171,
+    "signal": 88,
+    "category": "Agent Frameworks & Orchestration",
+    "description": "openrouter-deep-research-mcp: A multi-agent research MCP server + mini clie",
+    "status": "pending"
+  },
+  {
+    "rank": 17,
+    "name": "mcp-context-server",
+    "github_url": "https://github.com/alex-feel/mcp-context-server",
+    "score": 171,
+    "signal": 88,
+    "category": "Memory & Knowledge Systems",
+    "description": "mcp-context-server: MCP Context Server \u2014 a FastMCP-based server providing p",
+    "status": "pending"
+  },
+  {
+    "rank": 18,
+    "name": "android-mcp-server",
+    "github_url": "https://github.com/martingeidobler/android-mcp-server",
+    "score": 165,
+    "signal": 82,
+    "category": "Code & Development Tools",
+    "description": "android-mcp-server: MCP server for controlling Android emulators via ADB \u2014 ",
+    "status": "pending"
+  },
+  {
+    "rank": 19,
+    "name": "slack-mcp-server",
+    "github_url": "https://github.com/korotovsky/slack-mcp-server",
+    "score": 164,
+    "signal": 95,
+    "category": "Memory & Knowledge Systems",
+    "description": "slack-mcp-server: The most powerful MCP Slack Server with no permission req",
+    "status": "pending"
+  },
+  {
+    "rank": 20,
+    "name": "git-mcp-server",
+    "github_url": "https://github.com/cyanheads/git-mcp-server",
+    "score": 163,
+    "signal": 94,
+    "category": "Browser Automation & Web Scraping",
+    "description": "git-mcp-server: An MCP (Model Context Protocol) server enabling LLMs and AI",
+    "status": "pending"
+  },
+  {
+    "rank": 21,
+    "name": "mcp-rubber-duck",
+    "github_url": "https://github.com/nesquikm/mcp-rubber-duck",
+    "score": 162,
+    "signal": 91,
+    "category": "Code & Development Tools",
+    "description": "mcp-rubber-duck: An MCP server that acts as a bridge to query multiple Open",
+    "status": "pending"
+  },
+  {
+    "rank": 22,
+    "name": "chrome-devtools-mcp",
+    "github_url": "https://github.com/ChromeDevTools/chrome-devtools-mcp",
+    "score": 159,
+    "signal": 98,
+    "category": "Browser Automation & Web Scraping",
+    "description": "chrome-devtools-mcp: Chrome DevTools for coding agents",
+    "status": "pending"
+  },
+  {
+    "rank": 23,
+    "name": "mcp-video-download-server",
+    "github_url": "https://github.com/ctaylor86/mcp-video-download-server",
+    "score": 158,
+    "signal": 95,
+    "category": "Memory & Knowledge Systems",
+    "description": "mcp-video-download-server: Remote MCP to download videos and store on s3 co",
+    "status": "pending"
+  },
+  {
+    "rank": 24,
+    "name": "server-google-news",
+    "github_url": "https://github.com/ChanMeng666/server-google-news",
+    "score": 157,
+    "signal": 91,
+    "category": "Memory & Knowledge Systems",
+    "description": "server-google-news: \u3010Star-crossed coders unite!\u2b50\ufe0f\u3011Model Context Protocol (M",
+    "status": "pending"
+  },
+  {
+    "rank": 25,
+    "name": "grants-mcp",
+    "github_url": "https://github.com/tar-ive/grants-mcp",
+    "score": 157,
+    "signal": 91,
+    "category": "Memory & Knowledge Systems",
+    "description": "grants-mcp",
+    "status": "pending"
+  },
+  {
+    "rank": 26,
+    "name": "agentic",
+    "github_url": "https://github.com/oalles/agentic",
+    "score": 157,
+    "signal": 91,
+    "category": "Memory & Knowledge Systems",
+    "description": "agentic: Spring boot Agent-based architecture. The project consists of mult",
+    "status": "pending"
+  },
+  {
+    "rank": 27,
+    "name": "food-data-central-mcp-server",
+    "github_url": "https://github.com/jlfwong/food-data-central-mcp-server",
+    "score": 157,
+    "signal": 91,
+    "category": "MCP Clients & Desktop Apps",
+    "description": "food-data-central-mcp-server",
+    "status": "pending"
+  },
+  {
+    "rank": 28,
+    "name": "mcp-panther",
+    "github_url": "https://github.com/panther-labs/mcp-panther",
+    "score": 157,
+    "signal": 91,
+    "category": "Memory & Knowledge Systems",
+    "description": "mcp-panther: Write detections, investigate alerts, and query logs from your",
+    "status": "pending"
+  },
+  {
+    "rank": 29,
+    "name": "alibabacloud-adb-mysql-mcp-server",
+    "github_url": "https://github.com/aliyun/alibabacloud-adb-mysql-mcp-server",
+    "score": 157,
+    "signal": 91,
+    "category": "Database & Data Access",
+    "description": "alibabacloud-adb-mysql-mcp-server: AnalyticDB for MySQL MCP Server",
+    "status": "pending"
+  },
+  {
+    "rank": 30,
+    "name": "coolify-mcp",
+    "github_url": "https://github.com/felixallistar/coolify-mcp",
+    "score": 157,
+    "signal": 91,
+    "category": "Memory & Knowledge Systems",
+    "description": "coolify-mcp: V I B E D E V O P S   with 100% api coverage.",
+    "status": "pending"
+  },
+  {
+    "rank": 31,
+    "name": "memory-journal-mcp",
+    "github_url": "https://github.com/neverinfamous/memory-journal-mcp",
+    "score": 157,
+    "signal": 91,
+    "category": "Memory & Knowledge Systems",
+    "description": "memory-journal-mcp: AI Memory with Dynamic Project Detection, Automatic Ses",
+    "status": "pending"
+  },
+  {
+    "rank": 32,
+    "name": "agentcortex-mcp",
+    "github_url": "https://github.com/sage-hq/agentcortex-mcp",
+    "score": 156,
+    "signal": 87,
+    "category": "Memory & Knowledge Systems",
+    "description": "agentcortex-mcp: \ud83e\udde0 The first MCP-native memory system for AI coding assista",
+    "status": "pending"
+  },
+  {
+    "rank": 33,
+    "name": "survey-mcp-server",
+    "github_url": "https://github.com/cyanheads/survey-mcp-server",
+    "score": 156,
+    "signal": 87,
+    "category": "Memory & Knowledge Systems",
+    "description": "survey-mcp-server: Transform LLMs into intelligent interviewers. MCP server",
+    "status": "pending"
+  },
+  {
+    "rank": 34,
+    "name": "srclight",
+    "github_url": "https://github.com/srclight/srclight",
+    "score": 155,
+    "signal": 82,
+    "category": "Database & Data Access",
+    "description": "srclight: Deep code indexing MCP server for AI agents. 25 tools: hybrid FTS",
+    "status": "pending"
+  },
+  {
+    "rank": 35,
+    "name": "MARM-Systems",
+    "github_url": "https://github.com/Lyellr88/MARM-Systems",
+    "score": 154,
+    "signal": 95,
+    "category": "Memory & Knowledge Systems",
+    "description": "MARM-Systems: Turn AI into a persistent, memory-powered collaborator. Unive",
+    "status": "pending"
+  },
+  {
+    "rank": 36,
+    "name": "core",
+    "github_url": "https://github.com/redplanethq/core",
+    "score": 154,
+    "signal": 98,
+    "category": "Memory & Knowledge Systems",
+    "description": "core: Your AI butler that get things done",
+    "status": "pending"
+  },
+  {
+    "rank": 37,
+    "name": "ApeRAG",
+    "github_url": "https://github.com/apecloud/ApeRAG",
+    "score": 154,
+    "signal": 80,
+    "category": "Memory & Knowledge Systems",
+    "description": "ApeRAG: ApeRAG: Production-ready GraphRAG with multi-modal indexing, AI age",
+    "status": "pending"
+  },
+  {
+    "rank": 38,
+    "name": "DocSentinel",
+    "github_url": "https://github.com/arthurpanhku/DocSentinel",
+    "score": 154,
+    "signal": 80,
+    "category": "Memory & Knowledge Systems",
+    "description": "DocSentinel: MCP server for AI agent for cybersecurity: automate assessment",
+    "status": "pending"
+  },
+  {
+    "rank": 39,
+    "name": "mcp-server",
+    "github_url": "https://github.com/gpu-bridge/mcp-server",
+    "score": 153,
+    "signal": 91,
+    "category": "Memory & Knowledge Systems",
+    "description": "mcp-server: GPU-Bridge MCP Server \u2014 30 AI services as Model Context Protoco",
+    "status": "pending"
+  },
+  {
+    "rank": 40,
+    "name": "Memory-Plus",
+    "github_url": "https://github.com/yuchen20/memory-plus",
+    "score": 153,
+    "signal": 92,
+    "category": "Memory & Knowledge Systems",
+    "description": "Memory-Plus: \ud83e\udde0 \ud835\udc74\ud835\udc86\ud835\udc8e\ud835\udc90\ud835\udc93\ud835\udc9a-\ud835\udc77\ud835\udc8d\ud835\udc96\ud835\udc94 is a lightweight, local RAG memory store for MCP",
+    "status": "pending"
+  },
+  {
+    "rank": 41,
+    "name": "prompts-mcp-server",
+    "github_url": "https://github.com/tanker327/prompts-mcp-server",
+    "score": 153,
+    "signal": 92,
+    "category": "Code & Development Tools",
+    "description": "prompts-mcp-server: MCP server for managing and providing prompts with Type",
+    "status": "pending"
+  },
+  {
+    "rank": 42,
+    "name": "rippr",
+    "github_url": "https://github.com/mrslbt/rippr",
+    "score": 153,
+    "signal": 78,
+    "category": "Memory & Knowledge Systems",
+    "description": "rippr: YouTube transcript ripper for RAG, LLM workflows, and AI research. C",
+    "status": "pending"
+  },
+  {
+    "rank": 43,
+    "name": "apktool-mcp-server",
+    "github_url": "https://github.com/zinja-coder/apktool-mcp-server",
+    "score": 152,
+    "signal": 90,
+    "category": "Memory & Knowledge Systems",
+    "description": "apktool-mcp-server: A MCP Server for APK Tool (Part of Android Reverse Engi",
+    "status": "pending"
+  },
+  {
+    "rank": 44,
+    "name": "claude-code-tips",
+    "github_url": "https://github.com/ykdojo/claude-code-tips",
+    "score": 148,
+    "signal": 95,
+    "category": "Code & Development Tools",
+    "description": "claude-code-tips: 45 tips for getting the most out of Claude Code, from bas",
+    "status": "pending"
+  },
+  {
+    "rank": 45,
+    "name": "uniswap-poolspy-mcp",
+    "github_url": "https://github.com/kukapay/uniswap-poolspy-mcp",
+    "score": 147,
+    "signal": 91,
+    "category": "Code & Development Tools",
+    "description": "uniswap-poolspy-mcp: An MCP server that tracks newly created liquidity pool",
+    "status": "pending"
+  },
+  {
+    "rank": 46,
+    "name": "VSCode-Perplexity-MCP",
+    "github_url": "https://github.com/Automations-Project/VSCode-Perplexity-MCP",
+    "score": 145,
+    "signal": 82,
+    "category": "MCP Clients & Desktop Apps",
+    "description": "VSCode-Perplexity-MCP: Perplexity AI search, reasoning, research, and compu",
+    "status": "pending"
+  },
+  {
+    "rank": 47,
+    "name": "Upsonic",
+    "github_url": "https://github.com/Upsonic/Upsonic",
+    "score": 144,
+    "signal": 95,
+    "category": "Agent Frameworks & Orchestration",
+    "description": "Upsonic: Agent Framework For Fintech and Banks",
+    "status": "pending"
+  },
+  {
+    "rank": 48,
+    "name": "codemode-unified",
+    "github_url": "https://github.com/danieliser/codemode-unified",
+    "score": 144,
+    "signal": 95,
+    "category": "Code & Development Tools",
+    "description": "codemode-unified: Local-first Code Mode implementation with protocol-agnost",
+    "status": "pending"
+  },
+  {
+    "rank": 49,
+    "name": "code",
+    "github_url": "https://github.com/just-every/code",
+    "score": 144,
+    "signal": 95,
+    "category": "Browser Automation & Web Scraping",
+    "description": "code: Every Code - push frontier AI to it limits. A fork of the Codex CLI w",
+    "status": "pending"
+  },
+  {
+    "rank": 50,
+    "name": "code-mode-toon",
+    "github_url": "https://github.com/ziad-hsn/code-mode-toon",
+    "score": 144,
+    "signal": 95,
+    "category": "Agent Frameworks & Orchestration",
+    "description": "code-mode-toon: a lightweight Model Context Protocol (MCP) orchestrator foc",
+    "status": "pending"
+  },
+  {
+    "rank": 51,
+    "name": "rustchain-mcp",
+    "github_url": "https://github.com/Scottcjn/rustchain-mcp",
+    "score": 144,
+    "signal": 95,
+    "category": "Browser Automation & Web Scraping",
+    "description": "rustchain-mcp: MCP server for RustChain blockchain and BoTTube video platfo",
+    "status": "pending"
+  },
+  {
+    "rank": 52,
+    "name": "mcp-chat-studio",
+    "github_url": "https://github.com/JoeCastrom/mcp-chat-studio",
+    "score": 144,
+    "signal": 80,
+    "category": "Code & Development Tools",
+    "description": "mcp-chat-studio: A powerful MCP testing tool with multi-provider LLM suppor",
+    "status": "pending"
+  },
+  {
+    "rank": 53,
+    "name": "obsidian-mcp-server",
+    "github_url": "https://github.com/cyanheads/obsidian-mcp-server",
+    "score": 143,
+    "signal": 93,
+    "category": "Memory & Knowledge Systems",
+    "description": "obsidian-mcp-server: Obsidian Knowledge-Management MCP (Model Context Proto",
+    "status": "pending"
+  },
+  {
+    "rank": 54,
+    "name": "db-mcp-server",
+    "github_url": "https://github.com/freepeak/db-mcp-server",
+    "score": 143,
+    "signal": 92,
+    "category": "Database & Data Access",
+    "description": "db-mcp-server: A powerful multi-database server implementing the Model Cont",
+    "status": "pending"
+  },
+  {
+    "rank": 55,
+    "name": "vibe-eyes",
+    "github_url": "https://github.com/monteslu/vibe-eyes",
+    "score": 143,
+    "signal": 92,
+    "category": "Browser Automation & Web Scraping",
+    "description": "vibe-eyes: description: \"An MCP server that enables LLMs to 'see' what's ha",
+    "status": "pending"
+  },
+  {
+    "rank": 56,
+    "name": "files-db-mcp",
+    "github_url": "https://github.com/randomm/files-db-mcp",
+    "score": 143,
+    "signal": 92,
+    "category": "Database & Data Access",
+    "description": "files-db-mcp",
+    "status": "pending"
+  },
+  {
+    "rank": 57,
+    "name": "skydeckai-code",
+    "github_url": "https://github.com/skydeckai/skydeckai-code",
+    "score": 142,
+    "signal": 91,
+    "category": "Code & Development Tools",
+    "description": "skydeckai-code",
+    "status": "pending"
+  },
+  {
+    "rank": 58,
+    "name": "server",
+    "github_url": "https://github.com/agentmode/server",
+    "score": 142,
+    "signal": 90,
+    "category": "Database & Data Access",
+    "description": "server: All-in-1 MCP server for developers",
+    "status": "pending"
+  },
+  {
+    "rank": 59,
+    "name": "fitness-influencer-mcp",
+    "github_url": "https://github.com/MarceauSolutions/fitness-influencer-mcp",
+    "score": 142,
+    "signal": 74,
+    "category": "MCP Clients & Desktop Apps",
+    "description": "fitness-influencer-mcp: Fitness content creator workflow automation - MCP s",
+    "status": "pending"
+  },
+  {
+    "rank": 60,
+    "name": "Loadoutz | MCP catalog, loadouts, and secure connections",
+    "github_url": "http://loadoutz.io",
+    "score": 142,
+    "signal": 73,
+    "category": "Code & Development Tools",
+    "description": "Loadoutz | MCP catalog, loadouts, and secure connections",
+    "status": "pending"
+  },
+  {
+    "rank": 61,
+    "name": "mcp-sqlserver-pro",
+    "github_url": "https://github.com/jensenloke/mcp-sqlserver-pro",
+    "score": 141,
+    "signal": 88,
+    "category": "Database & Data Access",
+    "description": "mcp-sqlserver-pro: Comprehensive MCP Server for Microsoft SQL Server - Conn",
+    "status": "pending"
+  },
+  {
+    "rank": 62,
+    "name": "mcp",
+    "github_url": "https://github.com/microsoft/mcp",
+    "score": 141,
+    "signal": 88,
+    "category": "Memory & Knowledge Systems",
+    "description": "mcp: Catalog of official Microsoft MCP (Model Context Protocol) server impl",
+    "status": "pending"
+  },
+  {
+    "rank": 63,
+    "name": "mcp_consciousness_bridge",
+    "github_url": "https://github.com/ocean1/mcp_consciousness_bridge",
+    "score": 141,
+    "signal": 86,
+    "category": "Memory & Knowledge Systems",
+    "description": "mcp_consciousness_bridge: A Model Context Protocol (MCP) server that enable",
+    "status": "pending"
+  },
+  {
+    "rank": 64,
+    "name": "alibabacloud-polardbx-mcp-server",
+    "github_url": "https://github.com/aliyun/alibabacloud-polardbx-mcp-server",
+    "score": 140,
+    "signal": 85,
+    "category": "Database & Data Access",
+    "description": "alibabacloud-polardbx-mcp-server: A Model Context Protocol (MCP) server whi",
+    "status": "pending"
+  },
+  {
+    "rank": 65,
+    "name": "umami-mcp",
+    "github_url": "https://github.com/mikusnuz/umami-mcp",
+    "score": 139,
+    "signal": 80,
+    "category": "Memory & Knowledge Systems",
+    "description": "umami-mcp: Full-coverage MCP server for Umami Analytics API v2 \u2014 66 tools, ",
+    "status": "pending"
+  },
+  {
+    "rank": 66,
+    "name": "serena",
+    "github_url": "https://github.com/oraios/serena",
+    "score": 139,
+    "signal": 98,
+    "category": "Code & Development Tools",
+    "description": "serena: A powerful MCP toolkit for coding, providing semantic retrieval and",
+    "status": "pending"
+  },
+  {
+    "rank": 67,
+    "name": "puppeteer",
+    "github_url": "https://github.com/puppeteer/puppeteer",
+    "score": 139,
+    "signal": 98,
+    "category": "Browser Automation & Web Scraping",
+    "description": "puppeteer: JavaScript API for Chrome and Firefox",
+    "status": "pending"
+  },
+  {
+    "rank": 68,
+    "name": "agent-scrape",
+    "github_url": "https://github.com/hshintelligence/agent-scrape",
+    "score": 139,
+    "signal": 81,
+    "category": "Memory & Knowledge Systems",
+    "description": "agent-scrape: Pay-per-call web scraping for AI agents \u2014 no signup, no API k",
+    "status": "pending"
+  },
+  {
+    "rank": 69,
+    "name": "wc26-mcp",
+    "github_url": "https://github.com/jordanlyall/wc26-mcp",
+    "score": 139,
+    "signal": 80,
+    "category": "Memory & Knowledge Systems",
+    "description": "wc26-mcp: AI companion for FIFA World Cup 2026 \u2014 18 tools covering matches,",
+    "status": "pending"
+  },
+  {
+    "rank": 70,
+    "name": "context-portal",
+    "github_url": "https://github.com/GreatScottyMac/context-portal",
+    "score": 138,
+    "signal": 95,
+    "category": "Memory & Knowledge Systems",
+    "description": "context-portal: Context Portal (ConPort): A memory bank MCP server building",
+    "status": "pending"
+  },
+  {
+    "rank": 71,
+    "name": "https",
+    "github_url": "https://github.com/apple-techie/dokploy-mcp",
+    "score": 138,
+    "signal": 84,
+    "category": "Memory & Knowledge Systems",
+    "description": "https://github.com/apple-techie/dokploy-mcp",
+    "status": "pending"
+  },
+  {
+    "rank": 72,
+    "name": "mcp-crawl4ai-rag",
+    "github_url": "https://github.com/coleam00/mcp-crawl4ai-rag",
+    "score": 138,
+    "signal": 95,
+    "category": "Memory & Knowledge Systems",
+    "description": "mcp-crawl4ai-rag: Web Crawling and RAG Capabilities for AI Agents and AI Co",
+    "status": "pending"
+  },
+  {
+    "rank": 73,
+    "name": "crush",
+    "github_url": "https://github.com/charmbracelet/crush",
+    "score": 138,
+    "signal": 95,
+    "category": "Code & Development Tools",
+    "description": "crush: Glamourous agentic coding for all \ud83d\udc98",
+    "status": "pending"
+  },
+  {
+    "rank": 74,
+    "name": "project-synapse-mcp",
+    "github_url": "https://github.com/angrysky56/project-synapse-mcp",
+    "score": 138,
+    "signal": 94,
+    "category": "Memory & Knowledge Systems",
+    "description": "project-synapse-mcp: Transforms raw text into interconnected knowledge grap",
+    "status": "pending"
+  },
+  {
+    "rank": 75,
+    "name": "meta-mcp-proxy",
+    "github_url": "https://github.com/nullplatform/meta-mcp-proxy",
+    "score": 138,
+    "signal": 95,
+    "category": "Memory & Knowledge Systems",
+    "description": "meta-mcp-proxy: An mcp to do rag of other mcps",
+    "status": "pending"
+  },
+  {
+    "rank": 76,
+    "name": "x-twitter-scraper",
+    "github_url": "https://github.com/Xquik-dev/x-twitter-scraper",
+    "score": 138,
+    "signal": 95,
+    "category": "MCP Clients & Desktop Apps",
+    "description": "x-twitter-scraper: X (Twitter) data platform skill for AI coding agents. 12",
+    "status": "pending"
+  },
+  {
+    "rank": 77,
+    "name": "second-opinion",
+    "github_url": "https://github.com/procreations-official/second-opinion",
+    "score": 138,
+    "signal": 92,
+    "category": "Memory & Knowledge Systems",
+    "description": "second-opinion: Let Claude access other AI models via MCP",
+    "status": "pending"
+  },
+  {
+    "rank": 78,
+    "name": "tpc-server",
+    "github_url": "https://github.com/suttonwilliamd/tpc-server",
+    "score": 138,
+    "signal": 93,
+    "category": "Database & Data Access",
+    "description": "tpc-server: Thoughts Plans Changelog is an MCP compliant server for coding ",
+    "status": "pending"
+  },
+  {
+    "rank": 79,
+    "name": "alibabacloud-hologres-mcp-server",
+    "github_url": "https://github.com/aliyun/alibabacloud-hologres-mcp-server",
+    "score": 138,
+    "signal": 78,
+    "category": "Database & Data Access",
+    "description": "alibabacloud-hologres-mcp-server",
+    "status": "pending"
+  },
+  {
+    "rank": 80,
+    "name": "mcp-brain-tools",
+    "github_url": "https://github.com/j3k0/mcp-brain-tools",
+    "score": 138,
+    "signal": 92,
+    "category": "Memory & Knowledge Systems",
+    "description": "mcp-brain-tools: A powerful MCP memory using a knowledge graph powered by e",
+    "status": "pending"
+  },
+  {
+    "rank": 81,
+    "name": "mcp-think-tank",
+    "github_url": "https://github.com/flight505/mcp-think-tank",
+    "score": 138,
+    "signal": 95,
+    "category": "Memory & Knowledge Systems",
+    "description": "mcp-think-tank: MCP Think Tank is a powerful Model Context Protocol (MCP) s",
+    "status": "pending"
+  },
+  {
+    "rank": 82,
+    "name": "openclaw-holy-grail",
+    "github_url": "https://github.com/aidevelopers2/openclaw-holy-grail",
+    "score": 137,
+    "signal": 73,
+    "category": "Memory & Knowledge Systems",
+    "description": "openclaw-holy-grail: Curated OpenClaw resource library with setup guides, p",
+    "status": "pending"
+  },
+  {
+    "rank": 83,
+    "name": "gsc-mcp",
+    "github_url": "https://github.com/mikusnuz/gsc-mcp",
+    "score": 137,
+    "signal": 73,
+    "category": "Memory & Knowledge Systems",
+    "description": "gsc-mcp: MCP server for Google Search Console, URL Inspection & Indexing AP",
+    "status": "pending"
+  },
+  {
+    "rank": 84,
+    "name": "mcp-server-opendal",
+    "github_url": "https://github.com/xuanwo/mcp-server-opendal",
+    "score": 137,
+    "signal": 90,
+    "category": "Memory & Knowledge Systems",
+    "description": "mcp-server-opendal: Model Context Protocol Server for Apache OpenDAL\u2122",
+    "status": "pending"
+  },
+  {
+    "rank": 85,
+    "name": "auto-causal-inference",
+    "github_url": "https://github.com/lethienhoavn/auto-causal-inference",
+    "score": 137,
+    "signal": 91,
+    "category": "Memory & Knowledge Systems",
+    "description": "auto-causal-inference: Auto Causal Inference Assistant for Banking using La",
+    "status": "pending"
+  },
+  {
+    "rank": 86,
+    "name": "serpapi-mcp-server",
+    "github_url": "https://github.com/URDJMK/serpapi-mcp-server",
+    "score": 137,
+    "signal": 91,
+    "category": "Agent Frameworks & Orchestration",
+    "description": "serpapi-mcp-server",
+    "status": "pending"
+  },
+  {
+    "rank": 87,
+    "name": "task-manager-mcp",
+    "github_url": "https://github.com/jhawkins11/task-manager-mcp",
+    "score": 137,
+    "signal": 90,
+    "category": "Memory & Knowledge Systems",
+    "description": "task-manager-mcp: Node.js MCP server using LLMs (Gemini/OpenRouter) for AI-",
+    "status": "pending"
+  },
+  {
+    "rank": 88,
+    "name": "open-harness",
+    "github_url": "https://github.com/MaxGfeller/open-harness",
+    "score": 137,
+    "signal": 91,
+    "category": "Memory & Knowledge Systems",
+    "description": "open-harness: A code-first, composable SDK to build powerful AI agents",
+    "status": "pending"
+  },
+  {
+    "rank": 89,
+    "name": "akb",
+    "github_url": "https://github.com/dnotitia/akb",
+    "score": 136,
+    "signal": 85,
+    "category": "Memory & Knowledge Systems",
+    "description": "akb: AKB \u2014 Agent Knowledgebase. Organizational memory for AI agents: vault-",
+    "status": "pending"
+  },
+  {
+    "rank": 90,
+    "name": "txtai-assistant-mcp",
+    "github_url": "https://github.com/rmtech1/txtai-assistant-mcp",
+    "score": 136,
+    "signal": 86,
+    "category": "Memory & Knowledge Systems",
+    "description": "txtai-assistant-mcp: Model Context Protocol (MCP) server implementation for",
+    "status": "pending"
+  },
+  {
+    "rank": 91,
+    "name": "Introducing Pieces Model Context Protocol (MCP) | Pieces Docs",
+    "github_url": "https://docs.pieces.app/products/mcp/get-started",
+    "score": 136,
+    "signal": 87,
+    "category": "Memory & Knowledge Systems",
+    "description": "Introducing Pieces Model Context Protocol (MCP) | Pieces Docs",
+    "status": "pending"
+  },
+  {
+    "rank": 92,
+    "name": "ai",
+    "github_url": "https://github.com/stripe/agent-toolkit",
+    "score": 136,
+    "signal": 87,
+    "category": "Code & Development Tools",
+    "description": "ai: One-stop shop for building AI-powered products and businesses with Stri",
+    "status": "pending"
+  },
+  {
+    "rank": 93,
+    "name": "FlowStateV1.1",
+    "github_url": "https://github.com/dialectforge/FlowStateV1.1",
+    "score": 136,
+    "signal": 88,
+    "category": "Memory & Knowledge Systems",
+    "description": "FlowStateV1.1: Development memory that flows between sessions. An MCP serve",
+    "status": "pending"
+  },
+  {
+    "rank": 94,
+    "name": "codebase-context",
+    "github_url": "https://github.com/PatrickSys/codebase-context",
+    "score": 135,
+    "signal": 84,
+    "category": "Memory & Knowledge Systems",
+    "description": "codebase-context: Generate a map of your codebaseto help AI Agents understa",
+    "status": "pending"
+  },
+  {
+    "rank": 95,
+    "name": "supermemory-mcp",
+    "github_url": "https://github.com/supermemoryai/supermemory-mcp",
+    "score": 135,
+    "signal": 84,
+    "category": "Memory & Knowledge Systems",
+    "description": "supermemory-mcp: Your memories are in ChatGPT... But nowhere else. Universa",
+    "status": "pending"
+  },
+  {
+    "rank": 96,
+    "name": "iranti",
+    "github_url": "https://github.com/nfemmanuel/iranti",
+    "score": 135,
+    "signal": 66,
+    "category": "Memory & Knowledge Systems",
+    "description": "iranti: Memory infrastructure for multi-agent AI systems. Shared, persisten",
+    "status": "pending"
+  },
+  {
+    "rank": 97,
+    "name": "ravenclaw",
+    "github_url": "https://github.com/chainofdive/ravenclaw",
+    "score": 135,
+    "signal": 84,
+    "category": "Memory & Knowledge Systems",
+    "description": "ravenclaw: Work context management for AI coding agents \u2014 web UI, MCP, CLI ",
+    "status": "pending"
+  },
+  {
+    "rank": 98,
+    "name": "tailtest-cline",
+    "github_url": "https://github.com/avansaber/tailtest-cline",
+    "score": 134,
+    "signal": 81,
+    "category": "Memory & Knowledge Systems",
+    "description": "tailtest-cline: tailtest for Cline: MCP server + .clinerules pack + Memory ",
+    "status": "pending"
+  },
+  {
+    "rank": 99,
+    "name": "coder-config",
+    "github_url": "https://github.com/regression-io/coder-config",
+    "score": 134,
+    "signal": 80,
+    "category": "Memory & Knowledge Systems",
+    "description": "coder-config: Configuration manager for AI coding tools - Claude Code, Gemi",
+    "status": "pending"
+  },
+  {
+    "rank": 100,
+    "name": "everything-gemini",
+    "github_url": "https://github.com/Fmarzochi/everything-gemini",
+    "score": 133,
+    "signal": 77,
+    "category": "Memory & Knowledge Systems",
+    "description": "everything-gemini: Your AI remembers your project across sessions and tools",
+    "status": "pending"
+  },
+  {
+    "rank": 101,
+    "name": "mcp-superassistant-proxy",
+    "github_url": "https://github.com/leeroybrun/mcp-superassistant-proxy",
+    "score": 133,
+    "signal": 78,
+    "category": "Memory & Knowledge Systems",
+    "description": "mcp-superassistant-proxy: A **bulletproof proxy server** for MCP (Model Con",
+    "status": "pending"
+  },
+  {
+    "rank": 102,
+    "name": "nexo",
+    "github_url": "https://github.com/wazionapps/nexo",
+    "score": 133,
+    "signal": 77,
+    "category": "Memory & Knowledge Systems",
+    "description": "nexo: NEXO Brain \u2014 Shared brain for AI agents. Persistent memory, semantic ",
+    "status": "pending"
+  },
+  {
+    "rank": 103,
+    "name": "wet-mcp",
+    "github_url": "https://github.com/n24q02m/wet-mcp",
+    "score": 133,
+    "signal": 76,
+    "category": "Memory & Knowledge Systems",
+    "description": "wet-mcp: Open-source MCP Server for web search, content extraction, library",
+    "status": "pending"
+  },
+  {
+    "rank": 104,
+    "name": "pluggedin-mcp-proxy",
+    "github_url": "https://github.com/VeriTeknik/pluggedin-mcp-proxy",
+    "score": 133,
+    "signal": 77,
+    "category": "Memory & Knowledge Systems",
+    "description": "pluggedin-mcp-proxy: Plugged.in MCP Server manages all your other MCPs in o",
+    "status": "pending"
+  },
+  {
+    "rank": 105,
+    "name": "mcp-server-github-repo",
+    "github_url": "https://github.com/loglmhq/mcp-server-github-repo",
+    "score": 132,
+    "signal": 91,
+    "category": "Code & Development Tools",
+    "description": "mcp-server-github-repo: MCP server for interacting with a github repo",
+    "status": "pending"
+  },
+  {
+    "rank": 106,
+    "name": "browserloop",
+    "github_url": "https://github.com/mattiasw/browserloop",
+    "score": 131,
+    "signal": 88,
+    "category": "Browser Automation & Web Scraping",
+    "description": "browserloop: A Model Context Protocol (MCP) server for taking screenshots a",
+    "status": "pending"
+  },
+  {
+    "rank": 107,
+    "name": "honeycomb-mcp",
+    "github_url": "https://github.com/honeycombio/honeycomb-mcp",
+    "score": 131,
+    "signal": 86,
+    "category": "Code & Development Tools",
+    "description": "honeycomb-mcp: Allows Honeycomb Enterprise customers to use AI to query and",
+    "status": "pending"
+  },
+  {
+    "rank": 108,
+    "name": "translator-ai",
+    "github_url": "https://github.com/datanoisetv/translator-ai",
+    "score": 129,
+    "signal": 98,
+    "category": "Memory & Knowledge Systems",
+    "description": "translator-ai: \ud83c\udf10 Multi-provider AI translation tool for JSON i18n files. Fe",
+    "status": "pending"
+  },
+  {
+    "rank": 109,
+    "name": "safari-mcp",
+    "github_url": "https://github.com/achiya-automation/safari-mcp",
+    "score": 129,
+    "signal": 80,
+    "category": "Browser Automation & Web Scraping",
+    "description": "safari-mcp: Native Safari browser automation for AI agents. 80 tools via Ap",
+    "status": "pending"
+  },
+  {
+    "rank": 110,
+    "name": "SCB-MCP",
+    "github_url": "https://github.com/isakskogstad/SCB-MCP",
+    "score": 128,
+    "signal": 95,
+    "category": "Browser Automation & Web Scraping",
+    "description": "SCB-MCP: Connect LLMs or AI-chatbots to let them query and interact with of",
+    "status": "pending"
+  },
+  {
+    "rank": 111,
+    "name": "unichat-ts-mcp-server",
+    "github_url": "https://github.com/amidabuddha/unichat-ts-mcp-server",
+    "score": 128,
+    "signal": 95,
+    "category": "Code & Development Tools",
+    "description": "unichat-ts-mcp-server",
+    "status": "pending"
+  },
+  {
+    "rank": 112,
+    "name": "trustchain",
+    "github_url": "https://github.com/viftode4/trustchain",
+    "score": 128,
+    "signal": 92,
+    "category": "Database & Data Access",
+    "description": "trustchain: TrustChain - decentralized trust for AI agents. Rust core, QUIC",
+    "status": "pending"
+  },
+  {
+    "rank": 113,
+    "name": "mcp-images",
+    "github_url": "https://github.com/ia-programming/mcp-images",
+    "score": 128,
+    "signal": 94,
+    "category": "Database & Data Access",
+    "description": "mcp-images: ## MCP-Images Looking for a powerful image processing server? M",
+    "status": "pending"
+  },
+  {
+    "rank": 114,
+    "name": "mcp-server-datahub",
+    "github_url": "https://github.com/acryldata/mcp-server-datahub",
+    "score": 128,
+    "signal": 92,
+    "category": "Agent Frameworks & Orchestration",
+    "description": "mcp-server-datahub: The official Model Context Protocol (MCP) server for Da",
+    "status": "pending"
+  },
+  {
+    "rank": 115,
+    "name": "puppeteer-real-browser-mcp-server",
+    "github_url": "https://github.com/withlinda/puppeteer-real-browser-mcp-server",
+    "score": 128,
+    "signal": 94,
+    "category": "Browser Automation & Web Scraping",
+    "description": "puppeteer-real-browser-mcp-server: Provides AI assistants with powerful, de",
+    "status": "pending"
+  },
+  {
+    "rank": 116,
+    "name": "mysql-mcp-server-sse",
+    "github_url": "https://github.com/mangooer/mysql-mcp-server-sse",
+    "score": 128,
+    "signal": 93,
+    "category": "Database & Data Access",
+    "description": "mysql-mcp-server-sse: MySQL query server based on the MCP sse.Multi-level S",
+    "status": "pending"
+  },
+  {
+    "rank": 117,
+    "name": "dbx-mcp-server",
+    "github_url": "https://github.com/amgadabdelhafez/dbx-mcp-server",
+    "score": 128,
+    "signal": 94,
+    "category": "Code & Development Tools",
+    "description": "dbx-mcp-server: MCP Server for Dropbox",
+    "status": "pending"
+  },
+  {
+    "rank": 118,
+    "name": "chrome-debug-mcp",
+    "github_url": "https://github.com/robertheadley/chrome-debug-mcp",
+    "score": 128,
+    "signal": 93,
+    "category": "Browser Automation & Web Scraping",
+    "description": "chrome-debug-mcp: An MCP server to allow you to debug webpages using LLMs",
+    "status": "pending"
+  },
+  {
+    "rank": 119,
+    "name": "elasticsearch-mcp-server",
+    "github_url": "https://github.com/cr7258/elasticsearch-mcp-server",
+    "score": 127,
+    "signal": 91,
+    "category": "Database & Data Access",
+    "description": "elasticsearch-mcp-server: A Model Context Protocol (MCP) server implementat",
+    "status": "pending"
+  },
+  {
+    "rank": 120,
+    "name": "Blaxel",
+    "github_url": "https://blaxel.ai",
+    "score": 127,
+    "signal": 90,
+    "category": "Code & Development Tools",
+    "description": "Blaxel: The Persistent Sandbox Platform",
+    "status": "pending"
+  },
+  {
+    "rank": 121,
+    "name": "mcp-browser-use",
+    "github_url": "https://github.com/deploya-labs/mcp-browser-use",
+    "score": 127,
+    "signal": 90,
+    "category": "MCP Clients & Desktop Apps",
+    "description": "mcp-browser-use",
+    "status": "pending"
+  },
+  {
+    "rank": 122,
+    "name": "mcp-server-postgres-multi-schema",
+    "github_url": "https://github.com/harjjotsinghh/mcp-server-postgres-multi-schema",
+    "score": 127,
+    "signal": 89,
+    "category": "Database & Data Access",
+    "description": "mcp-server-postgres-multi-schema: A Model Context Protocol server that prov",
+    "status": "pending"
+  },
+  {
+    "rank": 123,
+    "name": "shopify-mcp",
+    "github_url": "https://github.com/geli2001/shopify-mcp",
+    "score": 127,
+    "signal": 91,
+    "category": "MCP Clients & Desktop Apps",
+    "description": "shopify-mcp: MCP server for Shopify api, usable on mcp hosts such as Claude",
+    "status": "pending"
+  },
+  {
+    "rank": 124,
+    "name": "ateam-mcp",
+    "github_url": "https://github.com/ariekogan/ateam-mcp",
+    "score": 126,
+    "signal": 85,
+    "category": "Agent Frameworks & Orchestration",
+    "description": "ateam-mcp: ADAS MCP Server \u2014 build, validate, and deploy multi-agent soluti",
+    "status": "pending"
+  },
+  {
+    "rank": 125,
+    "name": "deep-research-mcp",
+    "github_url": "https://github.com/pinkpixel-dev/deep-research-mcp",
+    "score": 126,
+    "signal": 88,
+    "category": "Browser Automation & Web Scraping",
+    "description": "deep-research-mcp: A Model Context Protocol (MCP) compliant server designed",
+    "status": "pending"
+  },
+  {
+    "rank": 126,
+    "name": "CNTK",
+    "github_url": "https://github.com/microsoft/CNTK",
+    "score": 126,
+    "signal": 88,
+    "category": "Memory & Knowledge Systems",
+    "description": "CNTK: Microsoft Cognitive Toolkit (CNTK), an open source deep-learning tool",
+    "status": "pending"
+  },
+  {
+    "rank": 127,
+    "name": "mcp-servers",
+    "github_url": "https://github.com/michael-trullion/mcp-servers",
+    "score": 126,
+    "signal": 87,
+    "category": "MCP Clients & Desktop Apps",
+    "description": "mcp-servers",
+    "status": "pending"
+  },
+  {
+    "rank": 128,
+    "name": "google-search-mcp",
+    "github_url": "https://github.com/modelcontextprotocol-servers/google-search-mcp",
+    "score": 126,
+    "signal": 85,
+    "category": "Browser Automation & Web Scraping",
+    "description": "google-search-mcp",
+    "status": "pending"
+  },
+  {
+    "rank": 129,
+    "name": "mcp-database-server",
+    "github_url": "https://github.com/executeautomation/mcp-database-server",
+    "score": 126,
+    "signal": 88,
+    "category": "Database & Data Access",
+    "description": "mcp-database-server: MCP Database Server is a new MCP Server which helps co",
+    "status": "pending"
+  },
+  {
+    "rank": 130,
+    "name": "SuperMCP",
+    "github_url": "https://github.com/honestlai/SuperMCP",
+    "score": 126,
+    "signal": 85,
+    "category": "Browser Automation & Web Scraping",
+    "description": "SuperMCP: One container. One port. Every MCP your AI coding agent needs \u00b7 G",
+    "status": "pending"
+  },
+  {
+    "rank": 131,
+    "name": "superset-mcp",
+    "github_url": "https://github.com/aptro/superset-mcp",
+    "score": 126,
+    "signal": 87,
+    "category": "MCP Clients & Desktop Apps",
+    "description": "superset-mcp: connect to 50+ data stores via superset mcp server. Can use w",
+    "status": "pending"
+  },
+  {
+    "rank": 132,
+    "name": "isolator-mcp",
+    "github_url": "https://github.com/ompragash/isolator-mcp",
+    "score": 126,
+    "signal": 86,
+    "category": "Code & Development Tools",
+    "description": "isolator-mcp: MCP server providing secure code execution (Python, Go, JS) v",
+    "status": "pending"
+  },
+  {
+    "rank": 133,
+    "name": "mcp_browser_use",
+    "github_url": "https://github.com/janspoerer/mcp_browser_use",
+    "score": 126,
+    "signal": 85,
+    "category": "Browser Automation & Web Scraping",
+    "description": "mcp_browser_use: Web use, browser automation, scraping, and automation with",
+    "status": "pending"
+  },
+  {
+    "rank": 134,
+    "name": "Roo Code - Visual Studio Marketplace",
+    "github_url": "https://marketplace.visualstudio.com/items?itemName=RooVeterinaryInc.roo-cline",
+    "score": 126,
+    "signal": 87,
+    "category": "Code & Development Tools",
+    "description": "Roo Code - Visual Studio Marketplace",
+    "status": "pending"
+  },
+  {
+    "rank": 135,
+    "name": "selenium-mcp",
+    "github_url": "https://github.com/pshivapr/selenium-mcp",
+    "score": 126,
+    "signal": 88,
+    "category": "Browser Automation & Web Scraping",
+    "description": "selenium-mcp: Selenium Tools for MCP",
+    "status": "pending"
+  },
+  {
+    "rank": 136,
+    "name": "mcp-package-docs",
+    "github_url": "https://github.com/sammcj/mcp-package-docs",
+    "score": 126,
+    "signal": 88,
+    "category": "Code & Development Tools",
+    "description": "mcp-package-docs: An MCP server that provides LLMs with efficient access to",
+    "status": "pending"
+  },
+  {
+    "rank": 137,
+    "name": "obsidian-mcp-pro",
+    "github_url": "https://github.com/rps321321/obsidian-mcp-pro",
+    "score": 125,
+    "signal": 82,
+    "category": "Database & Data Access",
+    "description": "obsidian-mcp-pro: The most feature-complete MCP server for Obsidian vaults ",
+    "status": "pending"
+  },
+  {
+    "rank": 138,
+    "name": "orihime",
+    "github_url": "https://github.com/srinivasan-sundaresan95/orihime",
+    "score": 125,
+    "signal": 84,
+    "category": "Memory & Knowledge Systems",
+    "description": "orihime: Cross-repo code knowledge graph for Java/Kotlin/JS/TS \u2014 MCP server",
+    "status": "pending"
+  },
+  {
+    "rank": 139,
+    "name": "embedded-debugger-mcp",
+    "github_url": "https://github.com/adancurusul/embedded-debugger-mcp",
+    "score": 125,
+    "signal": 84,
+    "category": "Code & Development Tools",
+    "description": "embedded-debugger-mcp: A Model Context Protocol server for embedded debuggi",
+    "status": "pending"
+  },
+  {
+    "rank": 140,
+    "name": "ai-setup",
+    "github_url": "https://github.com/caliber-ai-org/ai-setup",
+    "score": 125,
+    "signal": 84,
+    "category": "MCP Clients & Desktop Apps",
+    "description": "ai-setup: Continuously sync your AI setups with one command. Codebase tailo",
+    "status": "pending"
+  },
+  {
+    "rank": 141,
+    "name": "guardvibe",
+    "github_url": "https://github.com/goklab/guardvibe",
+    "score": 125,
+    "signal": 84,
+    "category": "Memory & Knowledge Systems",
+    "description": "guardvibe: Security MCP for vibe coding. 390 rules, 36 tools, CLI + doctor.",
+    "status": "pending"
+  },
+  {
+    "rank": 142,
+    "name": "bitcoin-mcp",
+    "github_url": "https://github.com/Bortlesboat/bitcoin-mcp",
+    "score": 124,
+    "signal": 80,
+    "category": "MCP Clients & Desktop Apps",
+    "description": "bitcoin-mcp: The most comprehensive Bitcoin MCP server. 49 tools for AI age",
+    "status": "pending"
+  },
+  {
+    "rank": 143,
+    "name": "mcp-sncf",
+    "github_url": "https://github.com/kryzo/mcp-sncf",
+    "score": 124,
+    "signal": 95,
+    "category": "MCP Clients & Desktop Apps",
+    "description": "mcp-sncf: This project provides a modular Python wrapper for the SNCF API, ",
+    "status": "pending"
+  },
+  {
+    "rank": 144,
+    "name": "mcpproxy",
+    "github_url": "https://github.com/Dumbris/mcpproxy",
+    "score": 124,
+    "signal": 95,
+    "category": "Code & Development Tools",
+    "description": "mcpproxy",
+    "status": "pending"
+  },
+  {
+    "rank": 145,
+    "name": "octocode",
+    "github_url": "https://github.com/Muvon/octocode",
+    "score": 124,
+    "signal": 98,
+    "category": "Code & Development Tools",
+    "description": "octocode: Semantic code searcher and codebase utility",
+    "status": "pending"
+  },
+  {
+    "rank": 146,
+    "name": "taskqueue-mcp",
+    "github_url": "https://github.com/chriscarrollsmith/taskqueue-mcp",
+    "score": 124,
+    "signal": 80,
+    "category": "Code & Development Tools",
+    "description": "taskqueue-mcp: MCP tool for exposing a structured task queue to guide AI ag",
+    "status": "pending"
+  },
+  {
+    "rank": 147,
+    "name": "algorand-mcp",
+    "github_url": "https://github.com/GoPlausible/algorand-mcp",
+    "score": 124,
+    "signal": 90,
+    "category": "MCP Clients & Desktop Apps",
+    "description": "algorand-mcp: Algorand Local Model Context Protocol (Server & Client) \u00b7 Git",
+    "status": "pending"
+  },
+  {
+    "rank": 148,
+    "name": "tradingview-chart-mcp",
+    "github_url": "https://github.com/ertugrul59/tradingview-chart-mcp",
+    "score": 124,
+    "signal": 95,
+    "category": "Browser Automation & Web Scraping",
+    "description": "tradingview-chart-mcp: MCP server that captures TradingView chart images vi",
+    "status": "pending"
+  },
+  {
+    "rank": 149,
+    "name": "yugabytedb-mcp-server",
+    "github_url": "https://github.com/yugabyte/yugabytedb-mcp-server",
+    "score": 124,
+    "signal": 98,
+    "category": "Database & Data Access",
+    "description": "yugabytedb-mcp-server: MCP Server to interact with data in YugabyteDB",
+    "status": "pending"
+  },
+  {
+    "rank": 150,
+    "name": "mcp-code-indexer",
+    "github_url": "https://github.com/zxfgds/mcp-code-indexer",
+    "score": 124,
+    "signal": 96,
+    "category": "Code & Development Tools",
+    "description": "mcp-code-indexer",
+    "status": "pending"
+  },
+  {
+    "rank": 151,
+    "name": "Grok",
+    "github_url": "https://grok.com/chat/ece13148-8f77-4e69-a541-1fff51601fbe",
+    "score": 124,
+    "signal": 81,
+    "category": "Memory & Knowledge Systems",
+    "description": "Grok",
+    "status": "pending"
+  },
+  {
+    "rank": 152,
+    "name": "antigravity-workspace-template",
+    "github_url": "https://github.com/study8677/antigravity-workspace-template",
+    "score": 124,
+    "signal": 80,
+    "category": "Code & Development Tools",
+    "description": "antigravity-workspace-template: Give Claude Code, Cursor, Codex CLI a ChatG",
+    "status": "pending"
+  },
+  {
+    "rank": 153,
+    "name": "serial-mcp-server",
+    "github_url": "https://github.com/adancurusul/serial-mcp-server",
+    "score": 124,
+    "signal": 80,
+    "category": "Code & Development Tools",
+    "description": "serial-mcp-server: A comprehensive MCP server for serial port communication",
+    "status": "pending"
+  },
+  {
+    "rank": 154,
+    "name": "mcp-tool-kit",
+    "github_url": "https://github.com/getfounded/mcp-tool-kit",
+    "score": 124,
+    "signal": 95,
+    "category": "Memory & Knowledge Systems",
+    "description": "mcp-tool-kit: Agentic abstraction layer for building high precision vertica",
+    "status": "pending"
+  },
+  {
+    "rank": 155,
+    "name": "mongodb-mcp-server",
+    "github_url": "https://github.com/mongodb-js/mongodb-mcp-server",
+    "score": 124,
+    "signal": 95,
+    "category": "Database & Data Access",
+    "description": "mongodb-mcp-server: A Model Context Protocol server to connect to MongoDB d",
+    "status": "pending"
+  },
+  {
+    "rank": 156,
+    "name": "multi_mcp",
+    "github_url": "https://github.com/religa/multi_mcp",
+    "score": 124,
+    "signal": 80,
+    "category": "Code & Development Tools",
+    "description": "multi_mcp: Multi-Model chat, code review and analysis MCP Server for Claude",
+    "status": "pending"
+  },
+  {
+    "rank": 157,
+    "name": "agenthold",
+    "github_url": "https://github.com/edobusy/agenthold",
+    "score": 124,
+    "signal": 81,
+    "category": "Agent Frameworks & Orchestration",
+    "description": "agenthold: Shared versioned state for multi-agent AI workflows. An MCP serv",
+    "status": "pending"
+  },
+  {
+    "rank": 158,
+    "name": "mcp-memory-dashboard",
+    "github_url": "https://github.com/doobidoo/mcp-memory-dashboard",
+    "score": 123,
+    "signal": 93,
+    "category": "Memory & Knowledge Systems",
+    "description": "mcp-memory-dashboard: A dashboard for the MCP Memory Service",
+    "status": "pending"
+  },
+  {
+    "rank": 159,
+    "name": "docmcp",
+    "github_url": "https://github.com/visheshd/docmcp",
+    "score": 123,
+    "signal": 92,
+    "category": "MCP Clients & Desktop Apps",
+    "description": "docmcp: MCP to index techincal docs on local vector database to work with C",
+    "status": "pending"
+  },
+  {
+    "rank": 160,
+    "name": "cloudscope-mcp",
+    "github_url": "https://github.com/alexpota/cloudscope-mcp",
+    "score": 123,
+    "signal": 78,
+    "category": "Database & Data Access",
+    "description": "cloudscope-mcp: Multi-cloud cost management MCP server (Azure + GCP). Read-",
+    "status": "pending"
+  },
+  {
+    "rank": 161,
+    "name": "gmail-mcp-server",
+    "github_url": "https://github.com/navbuildz/gmail-mcp-server",
+    "score": 123,
+    "signal": 92,
+    "category": "MCP Clients & Desktop Apps",
+    "description": "gmail-mcp-server: Open-source Gmail MCP server. Multi-account, read, write,",
+    "status": "pending"
+  },
+  {
+    "rank": 162,
+    "name": "agent-trust-stack-mcp",
+    "github_url": "https://github.com/alexfleetcommander/agent-trust-stack-mcp",
+    "score": 123,
+    "signal": 78,
+    "category": "Agent Frameworks & Orchestration",
+    "description": "agent-trust-stack-mcp: MCP server for Agent Trust Stack \u2014 cryptographic pro",
+    "status": "pending"
+  },
+  {
+    "rank": 163,
+    "name": "multi-service-mcp-server",
+    "github_url": "https://github.com/adampippert/multi-service-mcp-server",
+    "score": 123,
+    "signal": 78,
+    "category": "Agent Frameworks & Orchestration",
+    "description": "multi-service-mcp-server: an MCP server for the services I like to use with",
+    "status": "pending"
+  },
+  {
+    "rank": 164,
+    "name": "tutorials",
+    "github_url": "https://github.com/hollaugo/tutorials",
+    "score": 123,
+    "signal": 93,
+    "category": "Code & Development Tools",
+    "description": "tutorials: This repo contains all the tutorials I am making on my channel.",
+    "status": "pending"
+  },
+  {
+    "rank": 165,
+    "name": "cicada",
+    "github_url": "https://github.com/wende/cicada",
+    "score": 123,
+    "signal": 77,
+    "category": "Memory & Knowledge Systems",
+    "description": "cicada: AI Coders search blindly. Be their guide. \u00b7 GitHub",
+    "status": "pending"
+  },
+  {
+    "rank": 166,
+    "name": "mcp-server-webcrawl",
+    "github_url": "https://github.com/pragmar/mcp-server-webcrawl",
+    "score": 123,
+    "signal": 92,
+    "category": "Memory & Knowledge Systems",
+    "description": "mcp-server-webcrawl: MCP server tailored to connecting web crawler data and",
+    "status": "pending"
+  },
+  {
+    "rank": 167,
+    "name": "5ire",
+    "github_url": "https://github.com/nanbingxyz/5ire",
+    "score": 123,
+    "signal": 78,
+    "category": "MCP Clients & Desktop Apps",
+    "description": "5ire: 5ire is a cross-platform desktop AI assistant, MCP client. It compati",
+    "status": "pending"
+  },
+  {
+    "rank": 168,
+    "name": "mcp-files",
+    "github_url": "https://github.com/flesler/mcp-files",
+    "score": 123,
+    "signal": 78,
+    "category": "MCP Clients & Desktop Apps",
+    "description": "mcp-files: A comprehensive MCP server providing helpful tools for AI agents",
+    "status": "pending"
+  },
+  {
+    "rank": 169,
+    "name": "webfetch",
+    "github_url": "https://github.com/ashlrai/webfetch",
+    "score": 123,
+    "signal": 77,
+    "category": "Agent Frameworks & Orchestration",
+    "description": "webfetch: The license-first image layer for AI agents and humans. 24 federa",
+    "status": "pending"
+  },
+  {
+    "rank": 170,
+    "name": "mcp_mercadinho",
+    "github_url": "https://github.com/lennonconstantino/mcp_mercadinho",
+    "score": 123,
+    "signal": 92,
+    "category": "Browser Automation & Web Scraping",
+    "description": "mcp_mercadinho: mercadinho multi agent",
+    "status": "pending"
+  },
+  {
+    "rank": 171,
+    "name": "youtube-mcp",
+    "github_url": "https://github.com/sfiorini/youtube-mcp",
+    "score": 123,
+    "signal": 87,
+    "category": "Database & Data Access",
+    "description": "youtube-mcp: MCP Server for YouTube API, enabling video management, Shorts ",
+    "status": "pending"
+  },
+  {
+    "rank": 172,
+    "name": "APIbase",
+    "github_url": "https://github.com/whiteknightonhorse/APIbase",
+    "score": 123,
+    "signal": 76,
+    "category": "Agent Frameworks & Orchestration",
+    "description": "APIbase: Universal MCP gateway for AI agents \u2014 618 tools, 191 providers. Bl",
+    "status": "pending"
+  },
+  {
+    "rank": 173,
+    "name": "nsaf-mcp-server",
+    "github_url": "https://github.com/ariunbolor/nsaf-mcp-server",
+    "score": 123,
+    "signal": 93,
+    "category": "Code & Development Tools",
+    "description": "nsaf-mcp-server: The Neuro-Symbolic Autonomy Framework integrates neural, s",
+    "status": "pending"
+  },
+  {
+    "rank": 174,
+    "name": "mcp-client-configuration-server",
+    "github_url": "https://github.com/landicefu/mcp-client-configuration-server",
+    "score": 123,
+    "signal": 92,
+    "category": "MCP Clients & Desktop Apps",
+    "description": "mcp-client-configuration-server",
+    "status": "pending"
+  },
+  {
+    "rank": 175,
+    "name": "focus_mcp_data",
+    "github_url": "https://github.com/focussearch/focus_mcp_data",
+    "score": 122,
+    "signal": 74,
+    "category": "Database & Data Access",
+    "description": "focus_mcp_data: The intelligent data query plugin under DataFocus that supp",
+    "status": "pending"
+  },
+  {
+    "rank": 176,
+    "name": "prompt-to-asset",
+    "github_url": "https://github.com/MohamedAbdallah-14/prompt-to-asset",
+    "score": 122,
+    "signal": 73,
+    "category": "MCP Clients & Desktop Apps",
+    "description": "prompt-to-asset: MCP server + CLI for production-grade software assets (log",
+    "status": "pending"
+  },
+  {
+    "rank": 177,
+    "name": "Pipeworx \u2014 Live data for AI agents",
+    "github_url": "http://pipeworx.io",
+    "score": 122,
+    "signal": 72,
+    "category": "Code & Development Tools",
+    "description": "Pipeworx \u2014 Live data for AI agents",
+    "status": "pending"
+  },
+  {
+    "rank": 178,
+    "name": "mcp-neo4j",
+    "github_url": "https://github.com/rebots-online/mcp-neo4j",
+    "score": 122,
+    "signal": 90,
+    "category": "Memory & Knowledge Systems",
+    "description": "mcp-neo4j: Fork of Neo4j MCP server with environment variable support",
+    "status": "pending"
+  },
+  {
+    "rank": 179,
+    "name": "replicate-flux-mcp",
+    "github_url": "https://github.com/awkoy/replicate-flux-mcp",
+    "score": 122,
+    "signal": 91,
+    "category": "Memory & Knowledge Systems",
+    "description": "replicate-flux-mcp: MCP for Replicate Flux Model - A powerful tool for gene",
+    "status": "pending"
+  },
+  {
+    "rank": 180,
+    "name": "fast-mcp-telegram",
+    "github_url": "https://github.com/leshchenko1979/fast-mcp-telegram",
+    "score": 122,
+    "signal": 90,
+    "category": "MCP Clients & Desktop Apps",
+    "description": "fast-mcp-telegram: Telegram MCP Server and HTTP-MTProto bridge | Multi-user",
+    "status": "pending"
+  },
+  {
+    "rank": 181,
+    "name": "sauce-api-mcp",
+    "github_url": "https://github.com/saucelabs/sauce-api-mcp",
+    "score": 122,
+    "signal": 89,
+    "category": "Code & Development Tools",
+    "description": "sauce-api-mcp: MCP Server that models the Sauce Labs API",
+    "status": "pending"
+  },
+  {
+    "rank": 182,
+    "name": "deepcontext-mcp",
+    "github_url": "https://github.com/Wildcard-Official/deepcontext-mcp",
+    "score": 122,
+    "signal": 91,
+    "category": "Code & Development Tools",
+    "description": "deepcontext-mcp: DeepContext is an MCP server that adds symbol-aware semant",
+    "status": "pending"
+  },
+  {
+    "rank": 183,
+    "name": "vibecoding-lg-mcp-a2a",
+    "github_url": "https://github.com/HyunjunJeon/vibecoding-lg-mcp-a2a",
+    "score": 122,
+    "signal": 90,
+    "category": "Agent Frameworks & Orchestration",
+    "description": "vibecoding-lg-mcp-a2a: ttimes \ubc14\uc774\ube0c\ucf54\ub529 \ucee8\ud37c\ub7f0\uc2a4 \ub77c\uc774\ube0c \ucf54\ub529 - \ub9ac\uc11c\uce58 / \ubcf4\uace0\uc11c \uc791\uc131 Multi Agent ",
+    "status": "pending"
+  },
+  {
+    "rank": 184,
+    "name": "multi-chat-mcp-server",
+    "github_url": "https://github.com/siva010928/multi-chat-mcp-server",
+    "score": 122,
+    "signal": 74,
+    "category": "MCP Clients & Desktop Apps",
+    "description": "multi-chat-mcp-server: Google Chat MCP server that lets AI assistants like ",
+    "status": "pending"
+  },
+  {
+    "rank": 185,
+    "name": "mcp-x402-task-scheduler",
+    "github_url": "https://github.com/fortnightly-devs/mcp-x402-task-scheduler",
+    "score": 122,
+    "signal": 90,
+    "category": "Memory & Knowledge Systems",
+    "description": "mcp-x402-task-scheduler",
+    "status": "pending"
+  },
+  {
+    "rank": 186,
+    "name": "alibabacloud-polardb-mcp-server",
+    "github_url": "https://github.com/aliyun/alibabacloud-polardb-mcp-server",
+    "score": 122,
+    "signal": 90,
+    "category": "Database & Data Access",
+    "description": "alibabacloud-polardb-mcp-server: MCP Servers to access PolarDB.",
+    "status": "pending"
+  },
+  {
+    "rank": 187,
+    "name": "bracketbot-mcp",
+    "github_url": "https://github.com/bracketbotcapstone/bracketbot-mcp",
+    "score": 122,
+    "signal": 90,
+    "category": "Browser Automation & Web Scraping",
+    "description": "bracketbot-mcp: An MCP server to control a bracket bot that runs the exampl",
+    "status": "pending"
+  },
+  {
+    "rank": 188,
+    "name": "mcp-toolkit",
+    "github_url": "https://github.com/zxfgds/mcp-toolkit",
+    "score": 121,
+    "signal": 87,
+    "category": "Database & Data Access",
+    "description": "mcp-toolkit",
+    "status": "pending"
+  },
+  {
+    "rank": 189,
+    "name": "mcp-test-runner",
+    "github_url": "https://github.com/privsim/mcp-test-runner",
+    "score": 121,
+    "signal": 88,
+    "category": "Code & Development Tools",
+    "description": "mcp-test-runner",
+    "status": "pending"
+  },
+  {
+    "rank": 190,
+    "name": "code-analysis-mcp",
+    "github_url": "https://github.com/saiprashanths/code-analysis-mcp",
+    "score": 121,
+    "signal": 87,
+    "category": "Code & Development Tools",
+    "description": "code-analysis-mcp",
+    "status": "pending"
+  },
+  {
+    "rank": 191,
+    "name": "branch-thinking",
+    "github_url": "https://github.com/ssdeanx/branch-thinking",
+    "score": 121,
+    "signal": 87,
+    "category": "Database & Data Access",
+    "description": "branch-thinking: A TypeScript-based MCP-server tool enabling concurrent cha",
+    "status": "pending"
+  },
+  {
+    "rank": 192,
+    "name": "tigris-mcp-server",
+    "github_url": "https://github.com/tigrisdata/tigris-mcp-server",
+    "score": 121,
+    "signal": 86,
+    "category": "Memory & Knowledge Systems",
+    "description": "tigris-mcp-server: \ud83d\ude80 Tigris MCP Server implements the MCP specification to ",
+    "status": "pending"
+  },
+  {
+    "rank": 193,
+    "name": "pprof-analyzer-mcp",
+    "github_url": "https://github.com/zephyrdeng/pprof-analyzer-mcp",
+    "score": 121,
+    "signal": 88,
+    "category": "Memory & Knowledge Systems",
+    "description": "pprof-analyzer-mcp: This is a Model Context Protocol (MCP) server implement",
+    "status": "pending"
+  },
+  {
+    "rank": 194,
+    "name": "DialogBrain - MCP Connector | Glama",
+    "github_url": "https://glama.ai/mcp/connectors/com.dialogbrain.api/dialog-brain",
+    "score": 121,
+    "signal": 70,
+    "category": "Agent Frameworks & Orchestration",
+    "description": "DialogBrain - MCP Connector | Glama",
+    "status": "pending"
+  },
+  {
+    "rank": 195,
+    "name": "mlb-api-mcp",
+    "github_url": "https://github.com/guillochon/mlb-api-mcp",
+    "score": 121,
+    "signal": 70,
+    "category": "Code & Development Tools",
+    "description": "mlb-api-mcp: A Model Context Protocol (MCP) server that provides comprehens",
+    "status": "pending"
+  },
+  {
+    "rank": 196,
+    "name": "mcp-mem0-general",
+    "github_url": "https://github.com/ryaker/mcp-mem0-general",
+    "score": 121,
+    "signal": 86,
+    "category": "Memory & Knowledge Systems",
+    "description": "mcp-mem0-general: OpenAI just added memory across your chats across your op",
+    "status": "pending"
+  },
+  {
+    "rank": 197,
+    "name": "mcp-server-mas-sequential-thinking",
+    "github_url": "https://github.com/fradser/mcp-server-mas-sequential-thinking",
+    "score": 121,
+    "signal": 88,
+    "category": "Agent Frameworks & Orchestration",
+    "description": "mcp-server-mas-sequential-thinking: An advanced sequential thinking process",
+    "status": "pending"
+  },
+  {
+    "rank": 198,
+    "name": "mcp-sandbox",
+    "github_url": "https://github.com/johanli233/mcp-sandbox",
+    "score": 121,
+    "signal": 88,
+    "category": "Memory & Knowledge Systems",
+    "description": "mcp-sandbox: Python sandboxes for llms",
+    "status": "pending"
+  },
+  {
+    "rank": 199,
+    "name": "agentid-protocol",
+    "github_url": "https://github.com/colapsis/agentid-protocol",
+    "score": 120,
+    "signal": 85,
+    "category": "Memory & Knowledge Systems",
+    "description": "agentid-protocol: Open protocol for portable AI agent identity, persistent ",
+    "status": "pending"
+  },
+  {
+    "rank": 200,
+    "name": "contextmanager",
+    "github_url": "https://github.com/tejpalvirk/contextmanager",
+    "score": 120,
+    "signal": 85,
+    "category": "Memory & Knowledge Systems",
+    "description": "contextmanager: MCP Servers for persistent context across work sessions usi",
+    "status": "pending"
+  },
+  {
+    "rank": 201,
+    "name": "mcp-ragdocs",
+    "github_url": "https://github.com/hannesrudolph/mcp-ragdocs",
+    "score": 120,
+    "signal": 92,
+    "category": "Memory & Knowledge Systems",
+    "description": "mcp-ragdocs: An MCP server implementation that provides tools for retrievin",
+    "status": "pending"
+  },
+  {
+    "rank": 202,
+    "name": "memex",
+    "github_url": "https://github.com/STiFLeR7/memex",
+    "score": 120,
+    "signal": 82,
+    "category": "Memory & Knowledge Systems",
+    "description": "memex: Persistent memory for AI coding agents via MCP \u2014 a bitemporal knowle",
+    "status": "pending"
+  },
+  {
+    "rank": 203,
+    "name": "exa-mcp-server",
+    "github_url": "https://github.com/exa-labs/exa-mcp-server",
+    "score": 120,
+    "signal": 84,
+    "category": "Browser Automation & Web Scraping",
+    "description": "exa-mcp-server: Exa MCP for web search and web crawling!",
+    "status": "pending"
+  },
+  {
+    "rank": 204,
+    "name": "heym",
+    "github_url": "https://github.com/heymrun/heym",
+    "score": 120,
+    "signal": 82,
+    "category": "Memory & Knowledge Systems",
+    "description": "heym: Self-hosted AI workflow automation platform with visual canvas, agent",
+    "status": "pending"
+  },
+  {
+    "rank": 205,
+    "name": "statelessagent",
+    "github_url": "https://github.com/sgx-labs/statelessagent",
+    "score": 120,
+    "signal": 84,
+    "category": "Memory & Knowledge Systems",
+    "description": "statelessagent: Your AI forgets everything between sessions. SAME fixes tha",
+    "status": "pending"
+  },
+  {
+    "rank": 206,
+    "name": "Waggle-mcp",
+    "github_url": "https://github.com/Abhigyan-Shekhar/Waggle-mcp",
+    "score": 120,
+    "signal": 85,
+    "category": "Memory & Knowledge Systems",
+    "description": "Waggle-mcp: MCP server for external memory layer for AI agents + more . Dow",
+    "status": "pending"
+  },
+  {
+    "rank": 207,
+    "name": "Unified-MCP-Tool-Graph",
+    "github_url": "https://github.com/pratikjadhav2726/Unified-MCP-Tool-Graph",
+    "score": 120,
+    "signal": 84,
+    "category": "Memory & Knowledge Systems",
+    "description": "Unified-MCP-Tool-Graph: Instead of dumping 1000+ tools into a model\u2019s promp",
+    "status": "pending"
+  },
+  {
+    "rank": 208,
+    "name": "sourcerer-mcp",
+    "github_url": "https://github.com/st3v3nmw/sourcerer-mcp",
+    "score": 120,
+    "signal": 82,
+    "category": "Code & Development Tools",
+    "description": "sourcerer-mcp: MCP for semantic code search & navigation that reduces token",
+    "status": "pending"
+  },
+  {
+    "rank": 209,
+    "name": "AiDex",
+    "github_url": "https://github.com/CSCSoftware/AiDex",
+    "score": 120,
+    "signal": 82,
+    "category": "Code & Development Tools",
+    "description": "AiDex: MCP Server for persistent code indexing. Gives AI assistants (Claude",
+    "status": "pending"
+  },
+  {
+    "rank": 210,
+    "name": "budget-aware-mcp",
+    "github_url": "https://github.com/Doorman11991/budget-aware-mcp",
+    "score": 120,
+    "signal": 84,
+    "category": "Memory & Knowledge Systems",
+    "description": "budget-aware-mcp: Model-agnostic code memory MCP server. Budget-aware graph",
+    "status": "pending"
+  },
+  {
+    "rank": 211,
+    "name": "logseq-mcp-tools",
+    "github_url": "https://github.com/joelhooks/logseq-mcp-tools",
+    "score": 120,
+    "signal": 85,
+    "category": "Memory & Knowledge Systems",
+    "description": "logseq-mcp-tools: mcp server for logseq graph",
+    "status": "pending"
+  },
+  {
+    "rank": 212,
+    "name": "mcp-server-ragdocs",
+    "github_url": "https://github.com/sanderkooger/mcp-server-ragdocs",
+    "score": 120,
+    "signal": 85,
+    "category": "Browser Automation & Web Scraping",
+    "description": "mcp-server-ragdocs: An MCP server that provides tools for retrieving and pr",
+    "status": "pending"
+  },
+  {
+    "rank": 213,
+    "name": "nomik",
+    "github_url": "https://github.com/willFreed1/nomik",
+    "score": 120,
+    "signal": 85,
+    "category": "Code & Development Tools",
+    "description": "nomik: Nomik is an AI-native code intelligence graph. It transforms your co",
+    "status": "pending"
+  },
+  {
+    "rank": 214,
+    "name": "mnemory",
+    "github_url": "https://github.com/fpytloun/mnemory",
+    "score": 120,
+    "signal": 84,
+    "category": "Memory & Knowledge Systems",
+    "description": "mnemory: A self-hosted, secure, feature-rich memory system for AI agents an",
+    "status": "pending"
+  },
+  {
+    "rank": 215,
+    "name": "In-Memoria",
+    "github_url": "https://github.com/pi22by7/In-Memoria",
+    "score": 120,
+    "signal": 84,
+    "category": "Memory & Knowledge Systems",
+    "description": "In-Memoria: Persistent Intelligence Infrastructure for AI Agents \u00b7 GitHub",
+    "status": "pending"
+  },
+  {
+    "rank": 216,
+    "name": "excel-mcp-server",
+    "github_url": "https://github.com/zhiwei5576/excel-mcp-server",
+    "score": 120,
+    "signal": 84,
+    "category": "Memory & Knowledge Systems",
+    "description": "excel-mcp-server: Excel\u6570\u636e\u5904\u7406\u5fae\u670d\u52a1",
+    "status": "pending"
+  },
+  {
+    "rank": 217,
+    "name": "Argyph",
+    "github_url": "https://github.com/Ezzy1630/argyph",
+    "score": 120,
+    "signal": 82,
+    "category": "Code & Development Tools",
+    "description": "Argyph: Local-first MCP server giving AI coding agents fast, structured, an",
+    "status": "pending"
+  },
+  {
+    "rank": 218,
+    "name": "repo-graph",
+    "github_url": "https://github.com/James-Chahwan/repo-graph",
+    "score": 120,
+    "signal": 84,
+    "category": "Memory & Knowledge Systems",
+    "description": "repo-graph: Structural graph memory for AI coding assistants \u2014 MCP server f",
+    "status": "pending"
+  },
+  {
+    "rank": 219,
+    "name": "Ori-Mnemos",
+    "github_url": "https://github.com/aayoawoyemi/Ori-Mnemos",
+    "score": 120,
+    "signal": 82,
+    "category": "Memory & Knowledge Systems",
+    "description": "Ori-Mnemos: Local-first persistent agentic memory powered by Recursive Memo",
+    "status": "pending"
+  },
+  {
+    "rank": 220,
+    "name": "gortex",
+    "github_url": "https://github.com/zzet/gortex",
+    "score": 120,
+    "signal": 84,
+    "category": "Memory & Knowledge Systems",
+    "description": "gortex: High-performance code graph and intelligence engine, supports 256 l",
+    "status": "pending"
+  },
+  {
+    "rank": 221,
+    "name": "memory-mcp",
+    "github_url": "https://github.com/michael-denyer/memory-mcp",
+    "score": 119,
+    "signal": 81,
+    "category": "Memory & Knowledge Systems",
+    "description": "memory-mcp: Engram-inspired memory MCP server with hot cache and pattern mi",
+    "status": "pending"
+  },
+  {
+    "rank": 222,
+    "name": "mnemo-mcp",
+    "github_url": "https://github.com/n24q02m/mnemo-mcp",
+    "score": 119,
+    "signal": 80,
+    "category": "Database & Data Access",
+    "description": "mnemo-mcp: Persistent AI memory with hybrid search and embedded sync. Open,",
+    "status": "pending"
+  },
+  {
+    "rank": 223,
+    "name": "clicks-protocol",
+    "github_url": "https://github.com/clicks-protocol/clicks-protocol",
+    "score": 119,
+    "signal": 80,
+    "category": "Memory & Knowledge Systems",
+    "description": "clicks-protocol: Autonomous yield for AI agents on Base. 80% liquid, 20% ea",
+    "status": "pending"
+  },
+  {
+    "rank": 224,
+    "name": "automem",
+    "github_url": "https://github.com/verygoodplugins/automem",
+    "score": 119,
+    "signal": 98,
+    "category": "Memory & Knowledge Systems",
+    "description": "automem: AutoMem is a graph-vector memory service that gives AI assistants ",
+    "status": "pending"
+  },
+  {
+    "rank": 225,
+    "name": "engram-rs",
+    "github_url": "https://github.com/kael-bit/engram-rs",
+    "score": 119,
+    "signal": 81,
+    "category": "Database & Data Access",
+    "description": "engram-rs: Memory engine for AI agents \u2014 time axis (3-layer decay/promotion",
+    "status": "pending"
+  },
+  {
+    "rank": 226,
+    "name": "ai-guide",
+    "github_url": "https://github.com/liyupi/ai-guide",
+    "score": 119,
+    "signal": 80,
+    "category": "Memory & Knowledge Systems",
+    "description": "ai-guide: \u7a0b\u5e8f\u5458\u9c7c\u76ae\u7684 AI \u8d44\u6e90\u5927\u5168 + Vibe Coding \u96f6\u57fa\u7840\u6559\u7a0b\uff0c\u5206\u4eab OpenClaw \u4fdd\u59c6\u7ea7\u6559\u7a0b\u3001\u5927\u6a21\u578b\u73a9\u6cd5\uff08DeepSe",
+    "status": "pending"
+  },
+  {
+    "rank": 227,
+    "name": "grok-mcp",
+    "github_url": "https://github.com/brewmytech/grok-mcp",
+    "score": 119,
+    "signal": 80,
+    "category": "Agent Frameworks & Orchestration",
+    "description": "grok-mcp: BrewMyTech MCP server for using the Grok API \u00b7 GitHub",
+    "status": "pending"
+  },
+  {
+    "rank": 228,
+    "name": "aws-athena-mcp",
+    "github_url": "https://github.com/lishenxydlgzs/aws-athena-mcp",
+    "score": 119,
+    "signal": 79,
+    "category": "Database & Data Access",
+    "description": "aws-athena-mcp: MCP server to run AWS Athena queries",
+    "status": "pending"
+  },
+  {
+    "rank": 229,
+    "name": "octocode-mcp",
+    "github_url": "https://github.com/bgauryy/octocode-mcp",
+    "score": 119,
+    "signal": 79,
+    "category": "Code & Development Tools",
+    "description": "octocode-mcp: MCP server for semantic code research and context generation ",
+    "status": "pending"
+  },
+  {
+    "rank": 230,
+    "name": "mcp-server-infranodus",
+    "github_url": "https://github.com/infranodus/mcp-server-infranodus",
+    "score": 119,
+    "signal": 98,
+    "category": "Memory & Knowledge Systems",
+    "description": "mcp-server-infranodus: The official InfraNodus MCP server",
+    "status": "pending"
+  },
+  {
+    "rank": 231,
+    "name": "local-memory-mcp",
+    "github_url": "https://github.com/studiomeyer-io/local-memory-mcp",
+    "score": 119,
+    "signal": 81,
+    "category": "Memory & Knowledge Systems",
+    "description": "local-memory-mcp: Persistent local memory for Claude, Cursor & Codex. 13 MC",
+    "status": "pending"
+  },
+  {
+    "rank": 232,
+    "name": "claude-skills-mcp",
+    "github_url": "https://github.com/K-Dense-AI/claude-skills-mcp",
+    "score": 119,
+    "signal": 81,
+    "category": "Database & Data Access",
+    "description": "claude-skills-mcp: MCP server for searching and retrieving Claude Agent Ski",
+    "status": "pending"
+  },
+  {
+    "rank": 233,
+    "name": "mcp-agent-server",
+    "github_url": "https://github.com/leadbroaf/mcp-agent-server",
+    "score": 119,
+    "signal": 79,
+    "category": "Memory & Knowledge Systems",
+    "description": "mcp-agent-server: Open-source, modular \u201cbrain\u201d for AI employees. Integrates",
+    "status": "pending"
+  },
+  {
+    "rank": 234,
+    "name": "python-docs-mcp-server",
+    "github_url": "https://github.com/ayhammouda/python-docs-mcp-server",
+    "score": 119,
+    "signal": 80,
+    "category": "Memory & Knowledge Systems",
+    "description": "python-docs-mcp-server: Read-only MCP server for official Python docs: loca",
+    "status": "pending"
+  },
+  {
+    "rank": 235,
+    "name": "rancher-mcp-server",
+    "github_url": "https://github.com/mrostamii/rancher-mcp-server",
+    "score": 119,
+    "signal": 81,
+    "category": "Memory & Knowledge Systems",
+    "description": "rancher-mcp-server: Model Context Protocol (MCP) server for the Rancher eco",
+    "status": "pending"
+  },
+  {
+    "rank": 236,
+    "name": "all-in-one-model-context-protocol",
+    "github_url": "https://github.com/nguyenvanduocit/all-in-one-model-context-protocol",
+    "score": 119,
+    "signal": 80,
+    "category": "Memory & Knowledge Systems",
+    "description": "all-in-one-model-context-protocol: \ud83d\ude80 All-in-one MCP server with AI search, ",
+    "status": "pending"
+  },
+  {
+    "rank": 237,
+    "name": "atomicmemory",
+    "github_url": "https://github.com/atomicstrata/atomicmemory",
+    "score": 119,
+    "signal": 81,
+    "category": "Memory & Knowledge Systems",
+    "description": "atomicmemory: Portable semantic memory for AI agents: core engine, TypeScri",
+    "status": "pending"
+  },
+  {
+    "rank": 238,
+    "name": "context-sync",
+    "github_url": "https://github.com/Intina47/context-sync",
+    "score": 119,
+    "signal": 80,
+    "category": "Memory & Knowledge Systems",
+    "description": "context-sync: Local persistent memory store for LLM applications including ",
+    "status": "pending"
+  },
+  {
+    "rank": 239,
+    "name": "volume-wall-detector-mcp",
+    "github_url": "https://github.com/cognitive-stack/volume-wall-detector-mcp",
+    "score": 119,
+    "signal": 79,
+    "category": "Memory & Knowledge Systems",
+    "description": "volume-wall-detector-mcp: Volume Wall Detector MCP delivers real-time stock",
+    "status": "pending"
+  },
+  {
+    "rank": 240,
+    "name": "memoir",
+    "github_url": "https://github.com/camgitt/memoir",
+    "score": 119,
+    "signal": 98,
+    "category": "Memory & Knowledge Systems",
+    "description": "memoir: Persistent memory for AI coding tools. Sync Claude, Cursor, Gemini,",
+    "status": "pending"
+  },
+  {
+    "rank": 241,
+    "name": "devrag",
+    "github_url": "https://github.com/tomohiro-owada/devrag",
+    "score": 119,
+    "signal": 80,
+    "category": "Memory & Knowledge Systems",
+    "description": "devrag: Markdown vector search MCP server for Claude Code. Natural language",
+    "status": "pending"
+  },
+  {
+    "rank": 242,
+    "name": "mcp-memory-service",
+    "github_url": "https://github.com/doobidoo/mcp-memory-service",
+    "score": 119,
+    "signal": 98,
+    "category": "Memory & Knowledge Systems",
+    "description": "mcp-memory-service: Open-source persistent memory for AI agent pipelines (L",
+    "status": "pending"
+  },
+  {
+    "rank": 243,
+    "name": "agent-receipts",
+    "github_url": "https://github.com/webaesbyamin/agent-receipts",
+    "score": 119,
+    "signal": 80,
+    "category": "Memory & Knowledge Systems",
+    "description": "agent-receipts: Cryptographic receipts for AI agent actions. MCP server, SD",
+    "status": "pending"
+  },
+  {
+    "rank": 244,
+    "name": "Connapse",
+    "github_url": "https://github.com/Destrayon/Connapse",
+    "score": 119,
+    "signal": 80,
+    "category": "Memory & Knowledge Systems",
+    "description": "Connapse: Open-source, self-hosted knowledge backend for AI agents \u2014 hybrid",
+    "status": "pending"
+  },
+  {
+    "rank": 245,
+    "name": "obsidian-mcp",
+    "github_url": "https://github.com/maxkuminov/obsidian-mcp",
+    "score": 119,
+    "signal": 81,
+    "category": "Memory & Knowledge Systems",
+    "description": "obsidian-mcp: Self-hosted MCP server for Obsidian: semantic + full-text sea",
+    "status": "pending"
+  },
+  {
+    "rank": 246,
+    "name": "mnemostack",
+    "github_url": "https://github.com/udjin-labs/mnemostack",
+    "score": 119,
+    "signal": 81,
+    "category": "Memory & Knowledge Systems",
+    "description": "mnemostack: Durable hybrid memory for AI agents: vector + BM25 + temporal +",
+    "status": "pending"
+  },
+  {
+    "rank": 247,
+    "name": "piia-engram",
+    "github_url": "https://github.com/Patdolitse/piia-engram",
+    "score": 119,
+    "signal": 80,
+    "category": "Memory & Knowledge Systems",
+    "description": "piia-engram: One memory. Every AI tool. Yours to keep. Local-first, MCP-com",
+    "status": "pending"
+  },
+  {
+    "rank": 248,
+    "name": "Rememb",
+    "github_url": "https://github.com/LuizEduPP/Rememb",
+    "score": 119,
+    "signal": 80,
+    "category": "Memory & Knowledge Systems",
+    "description": "Rememb: Persistent memory for AI agents \u2014 local, portable, zero config. Wor",
+    "status": "pending"
+  },
+  {
+    "rank": 249,
+    "name": "waypath",
+    "github_url": "https://github.com/TheStack-ai/waypath",
+    "score": 119,
+    "signal": 81,
+    "category": "Memory & Knowledge Systems",
+    "description": "waypath: Open-source memory CLI for Claude Code, Codex & MCP \u2014 local-first ",
+    "status": "pending"
+  },
+  {
+    "rank": 250,
+    "name": "ida-headless-mcp",
+    "github_url": "https://github.com/zboralski/ida-headless-mcp",
+    "score": 119,
+    "signal": 80,
+    "category": "Memory & Knowledge Systems",
+    "description": "ida-headless-mcp: Headless IDA Pro binary analysis via Model Context Protoc",
+    "status": "pending"
+  },
+  {
+    "rank": 251,
+    "name": "jetbrains-index-mcp-plugin",
+    "github_url": "https://github.com/hechtcarmel/jetbrains-index-mcp-plugin",
+    "score": 119,
+    "signal": 81,
+    "category": "Memory & Knowledge Systems",
+    "description": "jetbrains-index-mcp-plugin: A Jetbrains IDE IntelliJ plugin aimed to provid",
+    "status": "pending"
+  },
+  {
+    "rank": 252,
+    "name": "rember-mcp",
+    "github_url": "https://github.com/rember/rember-mcp",
+    "score": 118,
+    "signal": 95,
+    "category": "Memory & Knowledge Systems",
+    "description": "rember-mcp: A Model Context Protocol (MCP) server for Rember.",
+    "status": "pending"
+  },
+  {
+    "rank": 253,
+    "name": "mcp-undetected-chromedriver",
+    "github_url": "https://github.com/dragons96/mcp-undetected-chromedriver",
+    "score": 118,
+    "signal": 94,
+    "category": "Browser Automation & Web Scraping",
+    "description": "mcp-undetected-chromedriver: undetected-chromedriver server.",
+    "status": "pending"
+  },
+  {
+    "rank": 254,
+    "name": "mcp-server-s3",
+    "github_url": "https://github.com/ofershap/mcp-server-s3",
+    "score": 118,
+    "signal": 78,
+    "category": "Memory & Knowledge Systems",
+    "description": "mcp-server-s3: MCP server for AWS S3 \u2014 list buckets, browse objects, upload",
+    "status": "pending"
+  },
+  {
+    "rank": 255,
+    "name": "mcp-neo4j-memory-server",
+    "github_url": "https://github.com/jovanhsu/mcp-neo4j-memory-server",
+    "score": 118,
+    "signal": 95,
+    "category": "Memory & Knowledge Systems",
+    "description": "mcp-neo4j-memory-server: MCP Memory Server with Neo4j backend for AI knowle",
+    "status": "pending"
+  },
+  {
+    "rank": 256,
+    "name": "shodh-memory",
+    "github_url": "https://github.com/varun29ankuS/shodh-memory",
+    "score": 118,
+    "signal": 92,
+    "category": "Memory & Knowledge Systems",
+    "description": "shodh-memory: Cognitive memory for AI agents \u2014 learns from use, forgets wha",
+    "status": "pending"
+  },
+  {
+    "rank": 257,
+    "name": "Memori",
+    "github_url": "https://github.com/MemoriLabs/Memori",
+    "score": 118,
+    "signal": 95,
+    "category": "Memory & Knowledge Systems",
+    "description": "Memori: Memori is agent-native memory infrastructure. A SQL-native, LLM-agn",
+    "status": "pending"
+  },
+  {
+    "rank": 258,
+    "name": "agent-scraper-mcp",
+    "github_url": "https://github.com/aparajithn/agent-scraper-mcp",
+    "score": 118,
+    "signal": 76,
+    "category": "Browser Automation & Web Scraping",
+    "description": "agent-scraper-mcp: Web scraping MCP server for AI agents \u2014 screenshots, con",
+    "status": "pending"
+  },
+  {
+    "rank": 259,
+    "name": "mcp-orchestro",
+    "github_url": "https://github.com/khaoss85/mcp-orchestro",
+    "score": 118,
+    "signal": 76,
+    "category": "Memory & Knowledge Systems",
+    "description": "mcp-orchestro: Transform product ideas into reality with an intelligent orc",
+    "status": "pending"
+  },
+  {
+    "rank": 260,
+    "name": "roampal-core",
+    "github_url": "https://github.com/roampal-ai/roampal-core",
+    "score": 118,
+    "signal": 95,
+    "category": "Memory & Knowledge Systems",
+    "description": "roampal-core: Outcome-based persistent memory MCP server for Claude Code an",
+    "status": "pending"
+  },
+  {
+    "rank": 261,
+    "name": "HarnessKit",
+    "github_url": "https://github.com/RealZST/HarnessKit",
+    "score": 118,
+    "signal": 95,
+    "category": "Memory & Knowledge Systems",
+    "description": "HarnessKit: More than a skill manager \u2014 manage skills, MCP servers, plugins",
+    "status": "pending"
+  },
+  {
+    "rank": 262,
+    "name": "driflyte-mcp-server",
+    "github_url": "https://github.com/serkan-ozal/driflyte-mcp-server",
+    "score": 118,
+    "signal": 78,
+    "category": "Memory & Knowledge Systems",
+    "description": "driflyte-mcp-server: The Driflyte MCP Server exposes tools that allow AI as",
+    "status": "pending"
+  },
+  {
+    "rank": 263,
+    "name": "yantrikdb",
+    "github_url": "https://github.com/yantrikos/yantrikdb",
+    "score": 118,
+    "signal": 95,
+    "category": "Memory & Knowledge Systems",
+    "description": "yantrikdb: Cognitive memory engine for AI agents \u2014 temporal decay, contradi",
+    "status": "pending"
+  },
+  {
+    "rank": 264,
+    "name": "n2-QLN",
+    "github_url": "https://github.com/choihyunsus/n2-QLN",
+    "score": 118,
+    "signal": 95,
+    "category": "Database & Data Access",
+    "description": "n2-QLN: n2-QLN: Intelligent Tool Router & Semantic Search Layer for MCP. Co",
+    "status": "pending"
+  },
+  {
+    "rank": 265,
+    "name": "DecisionNode",
+    "github_url": "https://github.com/decisionnode/DecisionNode",
+    "score": 118,
+    "signal": 76,
+    "category": "MCP Clients & Desktop Apps",
+    "description": "DecisionNode: CLI + Local MCP - A shared structured memory store across Cla",
+    "status": "pending"
+  },
+  {
+    "rank": 266,
+    "name": "Gorev",
+    "github_url": "https://github.com/msenol/Gorev",
+    "score": 118,
+    "signal": 94,
+    "category": "MCP Clients & Desktop Apps",
+    "description": "Gorev: Modern task management system with Turkish support for MCP-compatibl",
+    "status": "pending"
+  },
+  {
+    "rank": 267,
+    "name": "midi-file-mcp",
+    "github_url": "https://github.com/xiaolaa2/midi-file-mcp",
+    "score": 118,
+    "signal": 93,
+    "category": "Memory & Knowledge Systems",
+    "description": "midi-file-mcp: A powerful MCP tool for parsing and manipulating MIDI files ",
+    "status": "pending"
+  },
+  {
+    "rank": 268,
+    "name": "pg-mnemosyne-mcp",
+    "github_url": "https://github.com/Janadasroor/pg-mnemosyne-mcp",
+    "score": 118,
+    "signal": 78,
+    "category": "Database & Data Access",
+    "description": "pg-mnemosyne-mcp: \ud83e\udde0 A high-performance PostgreSQL-backed MCP server acting ",
+    "status": "pending"
+  },
+  {
+    "rank": 269,
+    "name": "mcp-redis",
+    "github_url": "https://github.com/redis/mcp-redis",
+    "score": 118,
+    "signal": 76,
+    "category": "Database & Data Access",
+    "description": "mcp-redis: The official Redis MCP Server is a natural language interface de",
+    "status": "pending"
+  },
+  {
+    "rank": 270,
+    "name": "mcp-rag-context",
+    "github_url": "https://github.com/notbnull/mcp-rag-context",
+    "score": 118,
+    "signal": 94,
+    "category": "Memory & Knowledge Systems",
+    "description": "mcp-rag-context",
+    "status": "pending"
+  },
+  {
+    "rank": 271,
+    "name": "Younanix Memory MCP - MCP Connector | Glama",
+    "github_url": "https://glama.ai/mcp/connectors/co.supabase.bbuaschzvigwmoxekmoo/younanix-memory-mcp",
+    "score": 118,
+    "signal": 77,
+    "category": "Memory & Knowledge Systems",
+    "description": "Younanix Memory MCP - MCP Connector | Glama",
+    "status": "pending"
+  },
+  {
+    "rank": 272,
+    "name": "ClawMem",
+    "github_url": "https://github.com/yoloshii/ClawMem",
+    "score": 118,
+    "signal": 93,
+    "category": "Memory & Knowledge Systems",
+    "description": "ClawMem: On-device context engine and memory for AI agents. Claude Code, He",
+    "status": "pending"
+  },
+  {
+    "rank": 273,
+    "name": "LIFE",
+    "github_url": "https://github.com/TeamSafeAI/LIFE",
+    "score": 118,
+    "signal": 77,
+    "category": "Memory & Knowledge Systems",
+    "description": "LIFE: LIFE \u2014 Persistent identity architecture for AI agents. 16 MCP servers",
+    "status": "pending"
+  },
+  {
+    "rank": 274,
+    "name": "mcp-server-rag-web-browser",
+    "github_url": "https://github.com/apify/mcp-server-rag-web-browser",
+    "score": 118,
+    "signal": 77,
+    "category": "Memory & Knowledge Systems",
+    "description": "mcp-server-rag-web-browser: A MCP Server for the RAG Web Browser Actor",
+    "status": "pending"
+  },
+  {
+    "rank": 275,
+    "name": "moth",
+    "github_url": "https://github.com/stfade/moth",
+    "score": 118,
+    "signal": 76,
+    "category": "Memory & Knowledge Systems",
+    "description": "moth: A debugging workflow plugin for AI coding agents. Turns terminal fail",
+    "status": "pending"
+  },
+  {
+    "rank": 276,
+    "name": "recall",
+    "github_url": "https://github.com/cashcon57/recall",
+    "score": 118,
+    "signal": 76,
+    "category": "Memory & Knowledge Systems",
+    "description": "recall: Self-hosted MCP memory server with hybrid semantic + keyword search",
+    "status": "pending"
+  },
+  {
+    "rank": 277,
+    "name": "gemini-mcp-tool",
+    "github_url": "https://github.com/jamubc/gemini-mcp-tool",
+    "score": 118,
+    "signal": 76,
+    "category": "Memory & Knowledge Systems",
+    "description": "gemini-mcp-tool: MCP server that enables AI assistants to interact with Goo",
+    "status": "pending"
+  },
+  {
+    "rank": 278,
+    "name": "rust-docs-mcp-server",
+    "github_url": "https://github.com/Govcraft/rust-docs-mcp-server",
+    "score": 117,
+    "signal": 74,
+    "category": "Code & Development Tools",
+    "description": "rust-docs-mcp-server: \ud83e\udd80 Prevents outdated Rust code suggestions from AI ass",
+    "status": "pending"
+  },
+  {
+    "rank": 279,
+    "name": "headroom",
+    "github_url": "https://github.com/chopratejas/headroom",
+    "score": 117,
+    "signal": 74,
+    "category": "Memory & Knowledge Systems",
+    "description": "headroom: Compress tool outputs, logs, files, and RAG chunks before they re",
+    "status": "pending"
+  },
+  {
+    "rank": 280,
+    "name": "harnessbridge",
+    "github_url": "https://github.com/yitianlian/harnessbridge",
+    "score": 117,
+    "signal": 91,
+    "category": "MCP Clients & Desktop Apps",
+    "description": "harnessbridge: Portable agent harness configuration. Convert rules, skills,",
+    "status": "pending"
+  },
+  {
+    "rank": 281,
+    "name": "atlas-mcp-server",
+    "github_url": "https://github.com/cyanheads/atlas-mcp-server",
+    "score": 117,
+    "signal": 91,
+    "category": "Database & Data Access",
+    "description": "atlas-mcp-server: A Model Context Protocol (MCP) server for ATLAS, a Neo4j-",
+    "status": "pending"
+  },
+  {
+    "rank": 282,
+    "name": "mcp-research-tool",
+    "github_url": "https://github.com/objones25/mcp-research-tool",
+    "score": 117,
+    "signal": 89,
+    "category": "Memory & Knowledge Systems",
+    "description": "mcp-research-tool",
+    "status": "pending"
+  },
+  {
+    "rank": 283,
+    "name": "optimized-memory-mcp-server",
+    "github_url": "https://github.com/agentwong/optimized-memory-mcp-server",
+    "score": 117,
+    "signal": 91,
+    "category": "Memory & Knowledge Systems",
+    "description": "optimized-memory-mcp-server",
+    "status": "pending"
+  },
+  {
+    "rank": 284,
+    "name": "consolespy",
+    "github_url": "https://github.com/mgsrevolver/consolespy",
+    "score": 117,
+    "signal": 91,
+    "category": "MCP Clients & Desktop Apps",
+    "description": "consolespy: This tool captures browser console logs and makes them availabl",
+    "status": "pending"
+  },
+  {
+    "rank": 285,
+    "name": "mem0-mcp",
+    "github_url": "https://github.com/pinkpixel-dev/mem0-mcp",
+    "score": 116,
+    "signal": 88,
+    "category": "Memory & Knowledge Systems",
+    "description": "mem0-mcp: \u2728 mem0 MCP Server: A memory system using mem0 for AI applications",
+    "status": "pending"
+  },
+  {
+    "rank": 286,
+    "name": "memphora-mcp",
+    "github_url": "https://github.com/Memphora/memphora-mcp",
+    "score": 116,
+    "signal": 88,
+    "category": "Memory & Knowledge Systems",
+    "description": "memphora-mcp: MCP Server for Memphora - Add persistent memory to Claude, Cu",
+    "status": "pending"
+  },
+  {
+    "rank": 287,
+    "name": "bear-mcp-server",
+    "github_url": "https://github.com/ruanodendaal/bear-mcp-server",
+    "score": 116,
+    "signal": 88,
+    "category": "Memory & Knowledge Systems",
+    "description": "bear-mcp-server: Connect your Bear app via MCP (Model Context Protocol) all",
+    "status": "pending"
+  },
+  {
+    "rank": 288,
+    "name": "campfirein",
+    "github_url": "https://github.com/campfirein",
+    "score": 116,
+    "signal": 86,
+    "category": "Memory & Knowledge Systems",
+    "description": "campfirein",
+    "status": "pending"
+  },
+  {
+    "rank": 289,
+    "name": "Kiln",
+    "github_url": "https://github.com/Kiln-AI/Kiln",
+    "score": 115,
+    "signal": 84,
+    "category": "Memory & Knowledge Systems",
+    "description": "Kiln: Build, Evaluate, and Optimize AI Systems. Includes evals, RAG, agents",
+    "status": "pending"
+  },
+  {
+    "rank": 290,
+    "name": "mcp-bigquery-server",
+    "github_url": "https://github.com/ergut/mcp-bigquery-server",
+    "score": 114,
+    "signal": 98,
+    "category": "Database & Data Access",
+    "description": "mcp-bigquery-server: A Model Context Protocol (MCP) server that provides se",
+    "status": "pending"
+  },
+  {
+    "rank": 291,
+    "name": "membase-mcp",
+    "github_url": "https://github.com/unibaseio/membase-mcp",
+    "score": 113,
+    "signal": 60,
+    "category": "Memory & Knowledge Systems",
+    "description": "membase-mcp: A lightweight decentralized memory gateway that connects AI ag",
+    "status": "pending"
+  },
+  {
+    "rank": 292,
+    "name": "mcp-server-cloudbrowser",
+    "github_url": "https://github.com/clpublic/mcp-server-cloudbrowser",
+    "score": 113,
+    "signal": 93,
+    "category": "Browser Automation & Web Scraping",
+    "description": "mcp-server-cloudbrowser",
+    "status": "pending"
+  },
+  {
+    "rank": 293,
+    "name": "mcp-osv",
+    "github_url": "https://github.com/gleicon/mcp-osv",
+    "score": 113,
+    "signal": 92,
+    "category": "Database & Data Access",
+    "description": "mcp-osv: A MCP (Model Context Protocol) server to allow code security revie",
+    "status": "pending"
+  },
+  {
+    "rank": 294,
+    "name": "mcp-coco",
+    "github_url": "https://github.com/disdjj/mcp-coco",
+    "score": 113,
+    "signal": 94,
+    "category": "Code & Development Tools",
+    "description": "mcp-coco: \u4e00\u4e2a\u7528\u4e8e\u7ed3\u5bf9\u7f16\u7a0b\u7684MCP: \u53cd\u95ee\u4f60\u7684\u65b9\u6848\u548c\u4fee\u6539, \u914d\u5408Codelf\u4f7f\u7528\u6709\u5947\u6548.",
+    "status": "pending"
+  },
+  {
+    "rank": 295,
+    "name": "test_m",
+    "github_url": "https://github.com/blacklotusdev8/test_m",
+    "score": 112,
+    "signal": 90,
+    "category": "Browser Automation & Web Scraping",
+    "description": "test_m",
+    "status": "pending"
+  },
+  {
+    "rank": 296,
+    "name": "directus-mcp",
+    "github_url": "https://github.com/n0safe/directus-mcp",
+    "score": 112,
+    "signal": 89,
+    "category": "Code & Development Tools",
+    "description": "directus-mcp",
+    "status": "pending"
+  },
+  {
+    "rank": 297,
+    "name": "confluence-chat-mcp-service",
+    "github_url": "https://github.com/kinsha-dev/confluence-chat-mcp-service",
+    "score": 112,
+    "signal": 89,
+    "category": "Code & Development Tools",
+    "description": "confluence-chat-mcp-service",
+    "status": "pending"
+  },
+  {
+    "rank": 298,
+    "name": "uml-mcp-server",
+    "github_url": "https://github.com/swayingleaves/uml-mcp-server",
+    "score": 112,
+    "signal": 91,
+    "category": "Code & Development Tools",
+    "description": "uml-mcp-server",
+    "status": "pending"
+  },
+  {
+    "rank": 299,
+    "name": "attendee-mcp",
+    "github_url": "https://github.com/rexposadas/attendee-mcp",
+    "score": 112,
+    "signal": 91,
+    "category": "Browser Automation & Web Scraping",
+    "description": "attendee-mcp: MCP server for the Attendee Project",
+    "status": "pending"
+  },
+  {
+    "rank": 300,
+    "name": "browser-tools-mcp",
+    "github_url": "https://github.com/AgentDeskAI/browser-tools-mcp",
+    "score": 112,
+    "signal": 91,
+    "category": "Browser Automation & Web Scraping",
+    "description": "browser-tools-mcp: Monitor browser logs directly from Cursor and other MCP ",
+    "status": "pending"
+  },
+  {
+    "rank": 301,
+    "name": "knmi-mcp",
+    "github_url": "https://github.com/wolkwork/knmi-mcp",
+    "score": 112,
+    "signal": 89,
+    "category": "Code & Development Tools",
+    "description": "knmi-mcp",
+    "status": "pending"
+  },
+  {
+    "rank": 302,
+    "name": "mcp-playwright-stealth",
+    "github_url": "https://github.com/pvinis/mcp-playwright-stealth",
+    "score": 112,
+    "signal": 90,
+    "category": "MCP Clients & Desktop Apps",
+    "description": "mcp-playwright-stealth: Playwright (with stealth) Model Context Protocol Se",
+    "status": "pending"
+  },
+  {
+    "rank": 303,
+    "name": "mcp-storybook",
+    "github_url": "https://github.com/dannyhw/mcp-storybook",
+    "score": 112,
+    "signal": 89,
+    "category": "Code & Development Tools",
+    "description": "mcp-storybook",
+    "status": "pending"
+  },
+  {
+    "rank": 304,
+    "name": "aha-mcp",
+    "github_url": "https://github.com/slhad/aha-mcp",
+    "score": 112,
+    "signal": 89,
+    "category": "MCP Clients & Desktop Apps",
+    "description": "aha-mcp: A TypeScript MCP server for Home Assistant, enabling programmatic ",
+    "status": "pending"
+  },
+  {
+    "rank": 305,
+    "name": "mcp-steam",
+    "github_url": "https://github.com/exi/mcp-steam",
+    "score": 112,
+    "signal": 89,
+    "category": "Code & Development Tools",
+    "description": "mcp-steam",
+    "status": "pending"
+  },
+  {
+    "rank": 306,
+    "name": "mcp-guardian",
+    "github_url": "https://github.com/rudraneel93/mcp-guardian",
+    "score": 112,
+    "signal": 74,
+    "category": "Code & Development Tools",
+    "description": "mcp-guardian: Security, cost, and health governance proxy for MCP infrastru",
+    "status": "pending"
+  },
+  {
+    "rank": 307,
+    "name": "cursor-mcp-trivy",
+    "github_url": "https://github.com/norbinsh/cursor-mcp-trivy",
+    "score": 112,
+    "signal": 89,
+    "category": "MCP Clients & Desktop Apps",
+    "description": "cursor-mcp-trivy: A Model Context Protocol (MCP) server that provides Trivy",
+    "status": "pending"
+  },
+  {
+    "rank": 308,
+    "name": "code-to-tree",
+    "github_url": "https://github.com/micl2e2/code-to-tree",
+    "score": 112,
+    "signal": 91,
+    "category": "Code & Development Tools",
+    "description": "code-to-tree: A runtime-free MCP server that converts source code into AST\ud83c\udf32",
+    "status": "pending"
+  },
+  {
+    "rank": 309,
+    "name": "google-docs-mcp-server",
+    "github_url": "https://github.com/lkm1developer/google-docs-mcp-server/tree/master/src",
+    "score": 112,
+    "signal": 89,
+    "category": "Code & Development Tools",
+    "description": "google-docs-mcp-server/src at master \u00b7 lkm1developer/google-docs-mcp-server",
+    "status": "pending"
+  },
+  {
+    "rank": 310,
+    "name": "mcp-harbor",
+    "github_url": "https://github.com/nomagicln/mcp-harbor",
+    "score": 112,
+    "signal": 91,
+    "category": "Code & Development Tools",
+    "description": "mcp-harbor: A mcp server for harbor",
+    "status": "pending"
+  },
+  {
+    "rank": 311,
+    "name": "deno2-playwright-mcp-server",
+    "github_url": "https://github.com/jakedahn/deno2-playwright-mcp-server",
+    "score": 112,
+    "signal": 89,
+    "category": "Browser Automation & Web Scraping",
+    "description": "deno2-playwright-mcp-server: A Model Context Protocol server that provides ",
+    "status": "pending"
+  },
+  {
+    "rank": 312,
+    "name": "heart-mcp-server",
+    "github_url": "https://github.com/atuinturtle/heart-mcp-server",
+    "score": 112,
+    "signal": 89,
+    "category": "Code & Development Tools",
+    "description": "heart-mcp-server",
+    "status": "pending"
+  },
+  {
+    "rank": 313,
+    "name": "flomo-mcp",
+    "github_url": "https://github.com/chatmcp/flomo-mcp",
+    "score": 112,
+    "signal": 90,
+    "category": "Code & Development Tools",
+    "description": "flomo-mcp: Write notes to Flomo",
+    "status": "pending"
+  },
+  {
+    "rank": 314,
+    "name": "minium-mcp-server",
+    "github_url": "https://github.com/roy2an/minium-mcp-server",
+    "score": 112,
+    "signal": 89,
+    "category": "Code & Development Tools",
+    "description": "minium-mcp-server",
+    "status": "pending"
+  },
+  {
+    "rank": 315,
+    "name": "my-mcp-server",
+    "github_url": "https://github.com/motorboy1/my-mcp-server",
+    "score": 111,
+    "signal": 88,
+    "category": "Code & Development Tools",
+    "description": "my-mcp-server",
+    "status": "pending"
+  },
+  {
+    "rank": 316,
+    "name": "futu",
+    "github_url": "https://github.com/yikaj/futu",
+    "score": 111,
+    "signal": 88,
+    "category": "Code & Development Tools",
+    "description": "futu: mcp",
+    "status": "pending"
+  },
+  {
+    "rank": 317,
+    "name": "codelogic-mcp-server",
+    "github_url": "https://github.com/CodeLogicIncEngineering/codelogic-mcp-server",
+    "score": 111,
+    "signal": 86,
+    "category": "Code & Development Tools",
+    "description": "codelogic-mcp-server: An MCP Server to utilize Codelogic's rich software de",
+    "status": "pending"
+  },
+  {
+    "rank": 318,
+    "name": "postman-mcp-server",
+    "github_url": "https://github.com/delano/postman-mcp-server",
+    "score": 111,
+    "signal": 93,
+    "category": "Code & Development Tools",
+    "description": "postman-mcp-server: An MCP server that provides access to Postman.",
+    "status": "pending"
+  },
+  {
+    "rank": 319,
+    "name": "mcp-video-gen",
+    "github_url": "https://github.com/wheattoast11/mcp-video-gen",
+    "score": 111,
+    "signal": 86,
+    "category": "Code & Development Tools",
+    "description": "mcp-video-gen: Luma AI Video + Audio + Image Generation and RunwayML Video ",
+    "status": "pending"
+  },
+  {
+    "rank": 320,
+    "name": "google-forms-mcp",
+    "github_url": "https://github.com/matteoantoci/google-forms-mcp/tree/main/src",
+    "score": 111,
+    "signal": 88,
+    "category": "Code & Development Tools",
+    "description": "google-forms-mcp/src at main \u00b7 matteoantoci/google-forms-mcp",
+    "status": "pending"
+  },
+  {
+    "rank": 321,
+    "name": "python-alfresco-mcp-server",
+    "github_url": "https://github.com/stevereiner/python-alfresco-mcp-server",
+    "score": 111,
+    "signal": 88,
+    "category": "Code & Development Tools",
+    "description": "python-alfresco-mcp-server: Python based MCP Server for Alfresco using pyth",
+    "status": "pending"
+  },
+  {
+    "rank": 322,
+    "name": "paddle-mcp-server",
+    "github_url": "https://github.com/paddlehq/paddle-mcp-server",
+    "score": 111,
+    "signal": 87,
+    "category": "MCP Clients & Desktop Apps",
+    "description": "paddle-mcp-server: Interact with the Paddle API using AI assistants like Cl",
+    "status": "pending"
+  },
+  {
+    "rank": 323,
+    "name": "custom_mcp_servers",
+    "github_url": "https://github.com/francesliang/custom_mcp_servers",
+    "score": 111,
+    "signal": 88,
+    "category": "Code & Development Tools",
+    "description": "custom_mcp_servers",
+    "status": "pending"
+  },
+  {
+    "rank": 324,
+    "name": "scrapli-mcp",
+    "github_url": "https://github.com/carlmontanari/scrapli-mcp",
+    "score": 111,
+    "signal": 88,
+    "category": "Browser Automation & Web Scraping",
+    "description": "scrapli-mcp",
+    "status": "pending"
+  },
+  {
+    "rank": 325,
+    "name": "run-command-mcp",
+    "github_url": "https://github.com/benyue1978/run-command-mcp",
+    "score": 111,
+    "signal": 88,
+    "category": "Code & Development Tools",
+    "description": "run-command-mcp",
+    "status": "pending"
+  },
+  {
+    "rank": 326,
+    "name": "jvm-mcp-server",
+    "github_url": "https://github.com/xzq-xu/jvm-mcp-server",
+    "score": 111,
+    "signal": 88,
+    "category": "Memory & Knowledge Systems",
+    "description": "jvm-mcp-server: This is an implementation project of a JVM-based MCP (Model",
+    "status": "pending"
+  },
+  {
+    "rank": 327,
+    "name": "readwise-mcp",
+    "github_url": "https://github.com/readwiseio/readwise-mcp",
+    "score": 111,
+    "signal": 88,
+    "category": "Code & Development Tools",
+    "description": "readwise-mcp: Readwise MCP",
+    "status": "pending"
+  },
+  {
+    "rank": 328,
+    "name": "mcp-browser",
+    "github_url": "https://github.com/neoforge-dev/mcp-browser",
+    "score": 110,
+    "signal": 83,
+    "category": "Browser Automation & Web Scraping",
+    "description": "mcp-browser: NeoForge Browser MCP server - used to test the frontend",
+    "status": "pending"
+  },
+  {
+    "rank": 329,
+    "name": "mcp-stockscreen",
+    "github_url": "https://github.com/twolven/mcp-stockscreen",
+    "score": 110,
+    "signal": 84,
+    "category": "MCP Clients & Desktop Apps",
+    "description": "mcp-stockscreen: Stock screening provider for Claude Desktop using MCP",
+    "status": "pending"
+  },
+  {
+    "rank": 330,
+    "name": "MCP-Facebook",
+    "github_url": "https://github.com/Tisik79/MCP-Facebook/tree/main/src",
+    "score": 110,
+    "signal": 85,
+    "category": "Code & Development Tools",
+    "description": "MCP-Facebook/src at main \u00b7 Tisik79/MCP-Facebook",
+    "status": "pending"
+  },
+  {
+    "rank": 331,
+    "name": "mcp-sql",
+    "github_url": "https://github.com/ryudg/mcp-sql",
+    "score": 110,
+    "signal": 84,
+    "category": "Database & Data Access",
+    "description": "mcp-sql",
+    "status": "pending"
+  },
+  {
+    "rank": 332,
+    "name": "mcp-proxy-sidecar",
+    "github_url": "https://github.com/dortegau/mcp-proxy-sidecar",
+    "score": 110,
+    "signal": 85,
+    "category": "MCP Clients & Desktop Apps",
+    "description": "mcp-proxy-sidecar: A fork of JetBrains MCP Server that adds real-time WebSo",
+    "status": "pending"
+  },
+  {
+    "rank": 333,
+    "name": "node-debugger-mcp",
+    "github_url": "https://github.com/qckfx/node-debugger-mcp",
+    "score": 110,
+    "signal": 85,
+    "category": "Code & Development Tools",
+    "description": "node-debugger-mcp: An MCP server for a Node.js debugger. Designed to run lo",
+    "status": "pending"
+  },
+  {
+    "rank": 334,
+    "name": "mcp-libsql",
+    "github_url": "https://github.com/Xexr/mcp-libsql",
+    "score": 110,
+    "signal": 89,
+    "category": "MCP Clients & Desktop Apps",
+    "description": "mcp-libsql: Secure MCP server for libSQL databases with comprehensive tools",
+    "status": "pending"
+  },
+  {
+    "rank": 335,
+    "name": "mcp-browser-agent",
+    "github_url": "https://github.com/imprvhub/mcp-browser-agent",
+    "score": 110,
+    "signal": 84,
+    "category": "MCP Clients & Desktop Apps",
+    "description": "mcp-browser-agent: A Model Context Protocol (MCP) integration that provides",
+    "status": "pending"
+  },
+  {
+    "rank": 336,
+    "name": "notebooklm-mcp-secure",
+    "github_url": "https://github.com/Pantheon-Security/notebooklm-mcp-secure",
+    "score": 110,
+    "signal": 82,
+    "category": "Browser Automation & Web Scraping",
+    "description": "notebooklm-mcp-secure: Secure NotebookLM MCP Server - Query Google Notebook",
+    "status": "pending"
+  },
+  {
+    "rank": 337,
+    "name": "notebooklm-mcp",
+    "github_url": "https://github.com/roomi-fields/notebooklm-mcp",
+    "score": 110,
+    "signal": 82,
+    "category": "MCP Clients & Desktop Apps",
+    "description": "notebooklm-mcp: Google NotebookLM over MCP + a local HTTP REST API. Citatio",
+    "status": "pending"
+  },
+  {
+    "rank": 338,
+    "name": "mcp-playwright",
+    "github_url": "https://github.com/executeautomation/mcp-playwright",
+    "score": 110,
+    "signal": 83,
+    "category": "MCP Clients & Desktop Apps",
+    "description": "mcp-playwright: Playwright Model Context Protocol Server - Tool to automate",
+    "status": "pending"
+  },
+  {
+    "rank": 339,
+    "name": "teamcity-mcp",
+    "github_url": "https://github.com/itcaat/teamcity-mcp",
+    "score": 110,
+    "signal": 84,
+    "category": "MCP Clients & Desktop Apps",
+    "description": "teamcity-mcp: Teamcity MCP Server",
+    "status": "pending"
+  },
+  {
+    "rank": 340,
+    "name": "godot-mcp",
+    "github_url": "https://github.com/coding-solo/godot-mcp",
+    "score": 110,
+    "signal": 83,
+    "category": "Code & Development Tools",
+    "description": "godot-mcp: MCP server for interfacing with Godot game engine. Provides tool",
+    "status": "pending"
+  },
+  {
+    "rank": 341,
+    "name": "nuke-mcp-2",
+    "github_url": "https://github.com/aourpallynikhil/nuke-mcp-2",
+    "score": 110,
+    "signal": 85,
+    "category": "Code & Development Tools",
+    "description": "nuke-mcp-2: nuke-mcp",
+    "status": "pending"
+  },
+  {
+    "rank": 342,
+    "name": "jenkins-mcp-server",
+    "github_url": "https://github.com/avisangle/jenkins-mcp-server",
+    "score": 109,
+    "signal": 82,
+    "category": "Memory & Knowledge Systems",
+    "description": "jenkins-mcp-server: An MCP server for interacting with a Jenkins server. Al",
+    "status": "pending"
+  },
+  {
+    "rank": 343,
+    "name": "pfsense-mcp-server",
+    "github_url": "https://github.com/gensecaihq/pfsense-mcp-server",
+    "score": 109,
+    "signal": 98,
+    "category": "MCP Clients & Desktop Apps",
+    "description": "pfsense-mcp-server: pfSense MCP Server enables security administrators to m",
+    "status": "pending"
+  },
+  {
+    "rank": 344,
+    "name": "teslamate-mcp",
+    "github_url": "https://github.com/cobanov/teslamate-mcp",
+    "score": 109,
+    "signal": 80,
+    "category": "Database & Data Access",
+    "description": "teslamate-mcp: A Model Context Protocol (MCP) server that provides access t",
+    "status": "pending"
+  },
+  {
+    "rank": 345,
+    "name": "flow-nexus",
+    "github_url": "https://github.com/ruvnet/flow-nexus",
+    "score": 109,
+    "signal": 98,
+    "category": "Code & Development Tools",
+    "description": "flow-nexus: Flow Nexus is the first competitive agentic platform built enti",
+    "status": "pending"
+  },
+  {
+    "rank": 346,
+    "name": "logicstamp-context",
+    "github_url": "https://github.com/LogicStamp/logicstamp-context",
+    "score": 109,
+    "signal": 81,
+    "category": "Code & Development Tools",
+    "description": "logicstamp-context: A Context Compiler for TypeScript. Deterministic, diffa",
+    "status": "pending"
+  },
+  {
+    "rank": 347,
+    "name": "mcpc",
+    "github_url": "https://github.com/apify/mcp-cli",
+    "score": 109,
+    "signal": 80,
+    "category": "Code & Development Tools",
+    "description": "mcpc: A universal CLI client for MCP. mcpc supports persistent sessions, st",
+    "status": "pending"
+  },
+  {
+    "rank": 348,
+    "name": "code-executor-MCP",
+    "github_url": "https://github.com/aberemia24/code-executor-MCP",
+    "score": 109,
+    "signal": 98,
+    "category": "Code & Development Tools",
+    "description": "code-executor-MCP",
+    "status": "pending"
+  },
+  {
+    "rank": 349,
+    "name": "google-calendar-mcp",
+    "github_url": "https://github.com/nspady/google-calendar-mcp",
+    "score": 109,
+    "signal": 96,
+    "category": "MCP Clients & Desktop Apps",
+    "description": "google-calendar-mcp: MCP integration for Google Calendar to manage events.",
+    "status": "pending"
+  },
+  {
+    "rank": 350,
+    "name": "apify-mcp-server",
+    "github_url": "https://github.com/apify/actors-mcp-server",
+    "score": 109,
+    "signal": 98,
+    "category": "Browser Automation & Web Scraping",
+    "description": "apify-mcp-server: The Apify MCP server enables your AI agents to extract da",
+    "status": "pending"
+  },
+  {
+    "rank": 351,
+    "name": "mcp-hfspace",
+    "github_url": "https://github.com/evalstate/mcp-hfspace",
+    "score": 109,
+    "signal": 96,
+    "category": "MCP Clients & Desktop Apps",
+    "description": "mcp-hfspace: MCP Server to Use HuggingFace spaces, easy configuration and C",
+    "status": "pending"
+  },
+  {
+    "rank": 352,
+    "name": "mcp-server-github-actions",
+    "github_url": "https://github.com/ofershap/mcp-server-github-actions",
+    "score": 109,
+    "signal": 80,
+    "category": "MCP Clients & Desktop Apps",
+    "description": "mcp-server-github-actions: MCP server for GitHub Actions \u2014 view runs, read ",
+    "status": "pending"
+  },
+  {
+    "rank": 353,
+    "name": "mcp-orchestrator",
+    "github_url": "https://github.com/rupinder2/mcp-orchestrator",
+    "score": 109,
+    "signal": 81,
+    "category": "MCP Clients & Desktop Apps",
+    "description": "mcp-orchestrator: MCP Orchestration Gateway \u2013 aggregates tools from multipl",
+    "status": "pending"
+  },
+  {
+    "rank": 354,
+    "name": "cocoindex-code",
+    "github_url": "https://github.com/cocoindex-io/cocoindex-code",
+    "score": 109,
+    "signal": 98,
+    "category": "Code & Development Tools",
+    "description": "cocoindex-code: A super light-weight embedded code search engine CLI (AST b",
+    "status": "pending"
+  },
+  {
+    "rank": 355,
+    "name": "hop",
+    "github_url": "https://github.com/danmartuszewski/hop",
+    "score": 109,
+    "signal": 81,
+    "category": "Code & Development Tools",
+    "description": "hop: Fast, elegant SSH connection manager with a TUI dashboard and MCP serv",
+    "status": "pending"
+  },
+  {
+    "rank": 356,
+    "name": "mcp-databricks-server",
+    "github_url": "https://github.com/rafaelcartenet/mcp-databricks-server",
+    "score": 109,
+    "signal": 98,
+    "category": "Database & Data Access",
+    "description": "mcp-databricks-server: Model Context Protocol (MCP) server for Databricks t",
+    "status": "pending"
+  },
+  {
+    "rank": 357,
+    "name": "pdf-toolkit-mcp",
+    "github_url": "https://github.com/AryanBV/pdf-toolkit-mcp",
+    "score": 109,
+    "signal": 81,
+    "category": "MCP Clients & Desktop Apps",
+    "description": "pdf-toolkit-mcp: Write-capable PDF toolkit for any MCP client: 22 tools to ",
+    "status": "pending"
+  },
+  {
+    "rank": 358,
+    "name": "mcp-compress",
+    "github_url": "https://github.com/ShipItAndPray/mcp-compress",
+    "score": 109,
+    "signal": 79,
+    "category": "Database & Data Access",
+    "description": "mcp-compress: First MCP server for data compression. 60x compression on doc",
+    "status": "pending"
+  },
+  {
+    "rank": 359,
+    "name": "legion-mcp",
+    "github_url": "https://github.com/theralabs/legion-mcp",
+    "score": 109,
+    "signal": 98,
+    "category": "Database & Data Access",
+    "description": "legion-mcp: A server that helps people access and query data in databases u",
+    "status": "pending"
+  },
+  {
+    "rank": 360,
+    "name": "Context Engine MCP | Augment Code",
+    "github_url": "https://www.augmentcode.com/product/context-engine-mcp?rdt_cid=5969506300152201220",
+    "score": 109,
+    "signal": 81,
+    "category": "Code & Development Tools",
+    "description": "Context Engine MCP | Augment Code",
+    "status": "pending"
+  },
+  {
+    "rank": 361,
+    "name": "mcp-cockroachdb",
+    "github_url": "https://github.com/amineelkouhen/mcp-cockroachdb",
+    "score": 109,
+    "signal": 80,
+    "category": "Database & Data Access",
+    "description": "mcp-cockroachdb: The CockroachDB MCP Server is a natural language interface",
+    "status": "pending"
+  },
+  {
+    "rank": 362,
+    "name": "bybit-mcp-server",
+    "github_url": "https://github.com/ethancod1ng/bybit-mcp-server",
+    "score": 108,
+    "signal": 95,
+    "category": "MCP Clients & Desktop Apps",
+    "description": "bybit-mcp-server: A Model Context Protocol (MCP) server for integrating AI ",
+    "status": "pending"
+  },
+  {
+    "rank": 363,
+    "name": "mcp-server-motherduck",
+    "github_url": "https://github.com/motherduckdb/mcp-server-motherduck",
+    "score": 108,
+    "signal": 93,
+    "category": "Database & Data Access",
+    "description": "mcp-server-motherduck: Local MCP server for DuckDB and MotherDuck",
+    "status": "pending"
+  },
+  {
+    "rank": 364,
+    "name": "mcp-zenml",
+    "github_url": "https://github.com/zenml-io/mcp-zenml",
+    "score": 108,
+    "signal": 92,
+    "category": "MCP Clients & Desktop Apps",
+    "description": "mcp-zenml: MCP server to connect an MCP client (Cursor, Claude Desktop etc)",
+    "status": "pending"
+  },
+  {
+    "rank": 365,
+    "name": "mcp-domain-availability",
+    "github_url": "https://github.com/imprvhub/mcp-domain-availability",
+    "score": 108,
+    "signal": 76,
+    "category": "MCP Clients & Desktop Apps",
+    "description": "mcp-domain-availability: A Model Context Protocol (MCP) server that enables",
+    "status": "pending"
+  },
+  {
+    "rank": 366,
+    "name": "code-mode",
+    "github_url": "https://github.com/universal-tool-calling-protocol/code-mode",
+    "score": 108,
+    "signal": 94,
+    "category": "Code & Development Tools",
+    "description": "code-mode: \ud83d\udd0c Plug-and-play library to enable agents to call MCP and UTCP to",
+    "status": "pending"
+  },
+  {
+    "rank": 367,
+    "name": "obsidian-second-brain-mcp",
+    "github_url": "https://github.com/alexsmirnov/obsidian-second-brain-mcp",
+    "score": 108,
+    "signal": 92,
+    "category": "Code & Development Tools",
+    "description": "obsidian-second-brain-mcp",
+    "status": "pending"
+  },
+  {
+    "rank": 368,
+    "name": "mcp-postgres-server",
+    "github_url": "https://github.com/antonorlov/mcp-postgres-server/tree/main/src",
+    "score": 108,
+    "signal": 92,
+    "category": "Database & Data Access",
+    "description": "mcp-postgres-server/src at main \u00b7 antonorlov/mcp-postgres-server",
+    "status": "pending"
+  },
+  {
+    "rank": 369,
+    "name": "netops-mcp",
+    "github_url": "https://github.com/alpadalar/netops-mcp",
+    "score": 108,
+    "signal": 76,
+    "category": "Code & Development Tools",
+    "description": "netops-mcp: A comprehensive  MCP server that provides access to essential D",
+    "status": "pending"
+  },
+  {
+    "rank": 370,
+    "name": "trading212-mcp-server",
+    "github_url": "https://github.com/KyuRish/trading212-mcp-server",
+    "score": 108,
+    "signal": 78,
+    "category": "MCP Clients & Desktop Apps",
+    "description": "trading212-mcp-server: MCP server for Trading 212 - portfolio analytics, or",
+    "status": "pending"
+  },
+  {
+    "rank": 371,
+    "name": "wecom-bot-mcp-server",
+    "github_url": "https://github.com/loonghao/wecom-bot-mcp-server",
+    "score": 108,
+    "signal": 93,
+    "category": "Browser Automation & Web Scraping",
+    "description": "wecom-bot-mcp-server: A Python server implementation for WeCom (WeChat Work",
+    "status": "pending"
+  },
+  {
+    "rank": 372,
+    "name": "a2a-ui",
+    "github_url": "https://github.com/a2anet/a2a-ui",
+    "score": 108,
+    "signal": 95,
+    "category": "Agent Frameworks & Orchestration",
+    "description": "a2a-ui: A UI for the A2A protocol built with Next.js and Material UI",
+    "status": "pending"
+  },
+  {
+    "rank": 373,
+    "name": "gbox",
+    "github_url": "https://github.com/babelcloud/gbox",
+    "score": 108,
+    "signal": 94,
+    "category": "Browser Automation & Web Scraping",
+    "description": "gbox: Cli and MCP for gbox. Enable AI agents to operate Android/Browser/Des",
+    "status": "pending"
+  },
+  {
+    "rank": 374,
+    "name": "supermcp",
+    "github_url": "https://github.com/dhanababum/supermcp/tree/main",
+    "score": 108,
+    "signal": 77,
+    "category": "Database & Data Access",
+    "description": "supermcp: \ud83d\ude80 SuperMCP - Create multiple isolated MCP servers using a single ",
+    "status": "pending"
+  },
+  {
+    "rank": 375,
+    "name": "mcpup",
+    "github_url": "https://github.com/mohammedsamin/mcpup",
+    "score": 108,
+    "signal": 93,
+    "category": "Code & Development Tools",
+    "description": "mcpup: MCP configuration manager \u2014 enable, disable, and sync MCP servers ac",
+    "status": "pending"
+  },
+  {
+    "rank": 376,
+    "name": "markmap-mcp-server",
+    "github_url": "https://github.com/jinzcdev/markmap-mcp-server",
+    "score": 108,
+    "signal": 93,
+    "category": "Database & Data Access",
+    "description": "markmap-mcp-server: An MCP server for converting Markdown to interactive mi",
+    "status": "pending"
+  },
+  {
+    "rank": 377,
+    "name": "laravel-mcp",
+    "github_url": "https://github.com/jsonallen/laravel-mcp",
+    "score": 108,
+    "signal": 77,
+    "category": "MCP Clients & Desktop Apps",
+    "description": "laravel-mcp: MCP server for Cursor to assist with Laravel development \u00b7 Git",
+    "status": "pending"
+  },
+  {
+    "rank": 378,
+    "name": "agentscore-mcp-server",
+    "github_url": "https://github.com/Thezenmonster/agentscore-mcp-server",
+    "score": 108,
+    "signal": 78,
+    "category": "Agent Frameworks & Orchestration",
+    "description": "agentscore-mcp-server: MCP security trust layer. Scan packages, get trust v",
+    "status": "pending"
+  },
+  {
+    "rank": 379,
+    "name": "droidmind",
+    "github_url": "https://github.com/hyperb1iss/droidmind",
+    "score": 108,
+    "signal": 92,
+    "category": "Code & Development Tools",
+    "description": "droidmind: Control your Android devices with AI using Model Context Protoco",
+    "status": "pending"
+  },
+  {
+    "rank": 380,
+    "name": "airylark-mcp-server",
+    "github_url": "https://github.com/wizd/airylark-mcp-server",
+    "score": 108,
+    "signal": 92,
+    "category": "MCP Clients & Desktop Apps",
+    "description": "airylark-mcp-server: \u5f3a\u5927\u7684MCP\u7ffb\u8bd1\u670d\u52a1\u5668\uff01#AiryLarkMCP \ud83c\udf10 \u4e13\u4e3a\u4e13\u4e1a\u7ffb\u8bd1\u4eba\u5458\u8bbe\u8ba1\uff1a \u2022 \u4e09\u9636\u6bb5\u7ffb\u8bd1\u6d41\u7a0b\uff1a\u5206\u6790\u89c4\u5212\u3001",
+    "status": "pending"
+  },
+  {
+    "rank": 381,
+    "name": "insta-mcp",
+    "github_url": "https://github.com/arjun1194/insta-mcp",
+    "score": 108,
+    "signal": 90,
+    "category": "Code & Development Tools",
+    "description": "insta-mcp: Instagram MCP Server - Provides AI assistants with tools for Ins",
+    "status": "pending"
+  },
+  {
+    "rank": 382,
+    "name": "open-museum-mcp",
+    "github_url": "https://github.com/cfpramod/open-museum-mcp",
+    "score": 108,
+    "signal": 77,
+    "category": "Code & Development Tools",
+    "description": "open-museum-mcp: MCP server for federated, license-verified search across o",
+    "status": "pending"
+  },
+  {
+    "rank": 383,
+    "name": "mcpdoc",
+    "github_url": "https://github.com/langchain-ai/mcpdoc",
+    "score": 108,
+    "signal": 92,
+    "category": "MCP Clients & Desktop Apps",
+    "description": "mcpdoc: Expose llms-txt to IDEs for development",
+    "status": "pending"
+  },
+  {
+    "rank": 384,
+    "name": "mcp-screenshot-server",
+    "github_url": "https://github.com/sethbang/mcp-screenshot-server",
+    "score": 108,
+    "signal": 93,
+    "category": "Browser Automation & Web Scraping",
+    "description": "mcp-screenshot-server: An MCP server that provides AI assistants with scree",
+    "status": "pending"
+  },
+  {
+    "rank": 385,
+    "name": "probe",
+    "github_url": "https://github.com/probelabs/probe",
+    "score": 108,
+    "signal": 95,
+    "category": "Code & Development Tools",
+    "description": "probe: AI-friendly semantic code search engine for large codebases. Combine",
+    "status": "pending"
+  },
+  {
+    "rank": 386,
+    "name": "mcp-server-12306",
+    "github_url": "https://github.com/drfccv/mcp-server-12306",
+    "score": 108,
+    "signal": 95,
+    "category": "Browser Automation & Web Scraping",
+    "description": "mcp-server-12306: 12306 MCP Server\u200b\u200b \u662f\u4e00\u4e2a\u57fa\u4e8e \u200b\u200bModel Context Protocol (MCP)\u200b\u200b",
+    "status": "pending"
+  },
+  {
+    "rank": 387,
+    "name": "unreal-analyzer-mcp",
+    "github_url": "https://github.com/ayeletstudioindia/unreal-analyzer-mcp",
+    "score": 108,
+    "signal": 95,
+    "category": "Code & Development Tools",
+    "description": "unreal-analyzer-mcp: MCP server for Unreal Engine 5",
+    "status": "pending"
+  },
+  {
+    "rank": 388,
+    "name": "pagecast",
+    "github_url": "https://github.com/mcpware/pagecast",
+    "score": 108,
+    "signal": 76,
+    "category": "Browser Automation & Web Scraping",
+    "description": "pagecast: Record any browser page as GIF or video via MCP \u2014 powered by Play",
+    "status": "pending"
+  },
+  {
+    "rank": 389,
+    "name": "telegram-mcp",
+    "github_url": "https://github.com/chaindead/telegram-mcp",
+    "score": 108,
+    "signal": 95,
+    "category": "MCP Clients & Desktop Apps",
+    "description": "telegram-mcp: Telegram MCP for managing dialogs, messages, drafts, read sta",
+    "status": "pending"
+  },
+  {
+    "rank": 390,
+    "name": "browser-devtools-mcp-vscode-extension",
+    "github_url": "https://github.com/serkan-ozal/browser-devtools-mcp-vscode-extension",
+    "score": 108,
+    "signal": 78,
+    "category": "Browser Automation & Web Scraping",
+    "description": "browser-devtools-mcp-vscode-extension: VSCode Extension for the Browser Dev",
+    "status": "pending"
+  },
+  {
+    "rank": 391,
+    "name": "mcp-json-db-collection-server",
+    "github_url": "https://github.com/jimpick/mcp-json-db-collection-server",
+    "score": 108,
+    "signal": 94,
+    "category": "Database & Data Access",
+    "description": "mcp-json-db-collection-server: Use Model Context Protocol with multiple Fir",
+    "status": "pending"
+  },
+  {
+    "rank": 392,
+    "name": "dappier-mcp",
+    "github_url": "https://github.com/DappierAI/dappier-mcp",
+    "score": 108,
+    "signal": 95,
+    "category": "MCP Clients & Desktop Apps",
+    "description": "dappier-mcp: Enable fast, free real-time web search and access premium data",
+    "status": "pending"
+  },
+  {
+    "rank": 393,
+    "name": "fundzwatch-mcp",
+    "github_url": "https://github.com/Fund-z/fundzwatch-mcp",
+    "score": 108,
+    "signal": 76,
+    "category": "MCP Clients & Desktop Apps",
+    "description": "fundzwatch-mcp: MCP server for FundzWatch.ai -- real-time business events, ",
+    "status": "pending"
+  },
+  {
+    "rank": 394,
+    "name": "codex-subagents-mcp",
+    "github_url": "https://github.com/leonardsellem/codex-subagents-mcp",
+    "score": 108,
+    "signal": 92,
+    "category": "Code & Development Tools",
+    "description": "codex-subagents-mcp: Claude-style sub-agents (reviewer, debugger, security)",
+    "status": "pending"
+  },
+  {
+    "rank": 395,
+    "name": "mcp-server-emojikey",
+    "github_url": "https://github.com/identimoji/mcp-server-emojikey",
+    "score": 107,
+    "signal": 91,
+    "category": "Memory & Knowledge Systems",
+    "description": "mcp-server-emojikey: MCP Server for emojikey.io ... save your unique relati",
+    "status": "pending"
+  },
+  {
+    "rank": 396,
+    "name": "bmad-agent-fastmcp",
+    "github_url": "https://github.com/2799662352/bmad-agent-fastmcp",
+    "score": 107,
+    "signal": 90,
+    "category": "MCP Clients & Desktop Apps",
+    "description": "bmad-agent-fastmcp: \ud83e\udd16 Enterprise-grade AI Agent Service based on FastMCP fr",
+    "status": "pending"
+  },
+  {
+    "rank": 397,
+    "name": "cf-mcp-server",
+    "github_url": "https://github.com/turinhub/cf-mcp-server",
+    "score": 107,
+    "signal": 90,
+    "category": "Memory & Knowledge Systems",
+    "description": "cf-mcp-server",
+    "status": "pending"
+  },
+  {
+    "rank": 398,
+    "name": "mcp-code-review-server",
+    "github_url": "https://github.com/crazyrabbitltc/mcp-code-review-server",
+    "score": 107,
+    "signal": 89,
+    "category": "Code & Development Tools",
+    "description": "mcp-code-review-server: A MCP server for code reviews",
+    "status": "pending"
+  },
+  {
+    "rank": 399,
+    "name": "glyph",
+    "github_url": "https://github.com/benmyles/glyph",
+    "score": 107,
+    "signal": 91,
+    "category": "Code & Development Tools",
+    "description": "glyph: \ud83d\udd2e glyph \u2013 mcp server to map your codebase with symbol outlines",
+    "status": "pending"
+  },
+  {
+    "rank": 400,
+    "name": "bika-mcp-server",
+    "github_url": "https://github.com/bika-ai/bika-mcp-server",
+    "score": 107,
+    "signal": 89,
+    "category": "Database & Data Access",
+    "description": "bika-mcp-server: Bika.ai MCP Server, database, document, agents, automation",
+    "status": "pending"
+  },
+  {
+    "rank": 401,
+    "name": "elastic-semantic-search-mcp-server",
+    "github_url": "https://github.com/jedrazb/elastic-semantic-search-mcp-server",
+    "score": 107,
+    "signal": 89,
+    "category": "Database & Data Access",
+    "description": "elastic-semantic-search-mcp-server: MCP server to search up-to-date elastic",
+    "status": "pending"
+  },
+  {
+    "rank": 402,
+    "name": "mcp-codepipeline-server",
+    "github_url": "https://github.com/cuongdev/mcp-codepipeline-server",
+    "score": 107,
+    "signal": 90,
+    "category": "MCP Clients & Desktop Apps",
+    "description": "mcp-codepipeline-server: This is a Model Context Protocol (MCP) server that",
+    "status": "pending"
+  },
+  {
+    "rank": 403,
+    "name": "kubeview-mcp",
+    "github_url": "https://github.com/mikhae1/kubeview-mcp",
+    "score": 107,
+    "signal": 89,
+    "category": "Code & Development Tools",
+    "description": "kubeview-mcp: A fast, read-only MCP server enabling code-driven AI analysis",
+    "status": "pending"
+  },
+  {
+    "rank": 404,
+    "name": "docs-mcp-server",
+    "github_url": "https://github.com/arabold/docs-mcp-server",
+    "score": 107,
+    "signal": 91,
+    "category": "MCP Clients & Desktop Apps",
+    "description": "docs-mcp-server: Grounded Docs MCP Server: Open-Source Alternative to Conte",
+    "status": "pending"
+  },
+  {
+    "rank": 405,
+    "name": "lspace-server",
+    "github_url": "https://github.com/lspace-io/lspace-server",
+    "score": 107,
+    "signal": 91,
+    "category": "Code & Development Tools",
+    "description": "lspace-server: Lspace is an open source mcp server and standalone applicati",
+    "status": "pending"
+  },
+  {
+    "rank": 406,
+    "name": "mcp-openapi",
+    "github_url": "https://github.com/ReAPI-com/mcp-openapi",
+    "score": 107,
+    "signal": 74,
+    "category": "MCP Clients & Desktop Apps",
+    "description": "mcp-openapi: OpenAPI specification MCP server. \u00b7 GitHub",
+    "status": "pending"
+  },
+  {
+    "rank": 407,
+    "name": "youtube-summarizer-mcp",
+    "github_url": "https://github.com/trilogy-group/youtube-summarizer-mcp",
+    "score": 107,
+    "signal": 90,
+    "category": "Memory & Knowledge Systems",
+    "description": "youtube-summarizer-mcp",
+    "status": "pending"
+  },
+  {
+    "rank": 408,
+    "name": "selenium-mcp-server-python",
+    "github_url": "https://github.com/jyothishkumarav/selenium-mcp-server-python",
+    "score": 107,
+    "signal": 91,
+    "category": "MCP Clients & Desktop Apps",
+    "description": "selenium-mcp-server-python",
+    "status": "pending"
+  },
+  {
+    "rank": 409,
+    "name": "dart-mcp-server",
+    "github_url": "https://github.com/jmanhype/dart-mcp-server",
+    "score": 107,
+    "signal": 89,
+    "category": "Code & Development Tools",
+    "description": "dart-mcp-server: A Model Context Protocol server implementation for Dart ta",
+    "status": "pending"
+  },
+  {
+    "rank": 410,
+    "name": "agentic-playground",
+    "github_url": "https://github.com/denniszielke/agentic-playground",
+    "score": 107,
+    "signal": 91,
+    "category": "Agent Frameworks & Orchestration",
+    "description": "agentic-playground: This is an AI agent playground to demonstrate different",
+    "status": "pending"
+  },
+  {
+    "rank": 411,
+    "name": "mcp-openweathermap",
+    "github_url": "https://github.com/robertn702/mcp-openweathermap",
+    "score": 107,
+    "signal": 73,
+    "category": "Code & Development Tools",
+    "description": "mcp-openweathermap: MCP server for OpenWeatherMap API integration \u00b7 GitHub",
+    "status": "pending"
+  },
+  {
+    "rank": 412,
+    "name": "context7fork",
+    "github_url": "https://github.com/renCosta2025/context7fork",
+    "score": 107,
+    "signal": 90,
+    "category": "MCP Clients & Desktop Apps",
+    "description": "context7fork: Context7 MCP Server -- Up-to-date code documentation for LLMs",
+    "status": "pending"
+  },
+  {
+    "rank": 413,
+    "name": "scrapeless-mcp-server",
+    "github_url": "https://github.com/scrapeless-ai/scrapeless-mcp-server",
+    "score": 107,
+    "signal": 91,
+    "category": "Browser Automation & Web Scraping",
+    "description": "scrapeless-mcp-server: Scrapeless Mcp Server",
+    "status": "pending"
+  },
+  {
+    "rank": 414,
+    "name": "mcp-server-starrocks",
+    "github_url": "https://github.com/hagsmand/mcp-server-starrocks",
+    "score": 107,
+    "signal": 90,
+    "category": "Database & Data Access",
+    "description": "mcp-server-starrocks",
+    "status": "pending"
+  },
+  {
+    "rank": 415,
+    "name": "Claude Code and OpenAI Codex",
+    "github_url": "https://tidewave.ai/blog/claude-code-codex",
+    "score": 107,
+    "signal": 90,
+    "category": "Memory & Knowledge Systems",
+    "description": "Claude Code and OpenAI Codex: now available in Tidewave",
+    "status": "pending"
+  },
+  {
+    "rank": 416,
+    "name": "Crawleo-MCP",
+    "github_url": "https://github.com/Crawleo/Crawleo-MCP",
+    "score": 107,
+    "signal": 74,
+    "category": "Browser Automation & Web Scraping",
+    "description": "Crawleo-MCP: Crawleo MCP Server - Real-Time Web Knowledge for AI Crawleo's ",
+    "status": "pending"
+  },
+  {
+    "rank": 417,
+    "name": "code-review-mcp",
+    "github_url": "https://github.com/praneybehl/code-review-mcp",
+    "score": 107,
+    "signal": 90,
+    "category": "Code & Development Tools",
+    "description": "code-review-mcp: An MCP server for code reviews using OpenAI and Google mod",
+    "status": "pending"
+  },
+  {
+    "rank": 418,
+    "name": "Peekaboo",
+    "github_url": "https://github.com/steipete/peekaboo",
+    "score": 107,
+    "signal": 90,
+    "category": "Browser Automation & Web Scraping",
+    "description": "Peekaboo: Peekaboo is a macOS CLI & optional MCP server that enables AI age",
+    "status": "pending"
+  },
+  {
+    "rank": 419,
+    "name": "sdfsdf",
+    "github_url": "https://github.com/morosss/sdfsdf",
+    "score": 107,
+    "signal": 89,
+    "category": "MCP Clients & Desktop Apps",
+    "description": "sdfsdf",
+    "status": "pending"
+  },
+  {
+    "rank": 420,
+    "name": "yangotech_mcp",
+    "github_url": "https://github.com/zamb124/yangotech_mcp",
+    "score": 107,
+    "signal": 90,
+    "category": "MCP Clients & Desktop Apps",
+    "description": "yangotech_mcp",
+    "status": "pending"
+  },
+  {
+    "rank": 421,
+    "name": "mcp-confluent",
+    "github_url": "https://github.com/confluentinc/mcp-confluent",
+    "score": 107,
+    "signal": 89,
+    "category": "Database & Data Access",
+    "description": "mcp-confluent",
+    "status": "pending"
+  },
+  {
+    "rank": 422,
+    "name": "zeropath-mcp-server",
+    "github_url": "https://github.com/zeropathai/zeropath-mcp-server",
+    "score": 107,
+    "signal": 90,
+    "category": "MCP Clients & Desktop Apps",
+    "description": "zeropath-mcp-server: Open-source MCP server for querying ZeroPath security ",
+    "status": "pending"
+  },
+  {
+    "rank": 423,
+    "name": "mcp-nextflow",
+    "github_url": "https://github.com/adamrtalbot/mcp-nextflow",
+    "score": 107,
+    "signal": 89,
+    "category": "Browser Automation & Web Scraping",
+    "description": "mcp-nextflow",
+    "status": "pending"
+  },
+  {
+    "rank": 424,
+    "name": "whatsapp-go-mcp",
+    "github_url": "https://github.com/samihalawa/whatsapp-go-mcp",
+    "score": 107,
+    "signal": 89,
+    "category": "Browser Automation & Web Scraping",
+    "description": "whatsapp-go-mcp",
+    "status": "pending"
+  },
+  {
+    "rank": 425,
+    "name": "mcp-sqlite",
+    "github_url": "https://github.com/jparkerweb/mcp-sqlite",
+    "score": 107,
+    "signal": 80,
+    "category": "Database & Data Access",
+    "description": "mcp-sqlite: \ud83d\udc07 Model Context Protocol (MCP) server that provides comprehensi",
+    "status": "pending"
+  },
+  {
+    "rank": 426,
+    "name": "gateway",
+    "github_url": "https://github.com/centralmind/gateway",
+    "score": 107,
+    "signal": 91,
+    "category": "Database & Data Access",
+    "description": "gateway: Universal MCP-Server for your Databases optimized for LLMs and AI-",
+    "status": "pending"
+  },
+  {
+    "rank": 427,
+    "name": "dolphinscheduler-mcp",
+    "github_url": "https://github.com/ocean-zhc/dolphinscheduler-mcp",
+    "score": 107,
+    "signal": 90,
+    "category": "Code & Development Tools",
+    "description": "dolphinscheduler-mcp: A Model Context Protocol (MCP) server for Apache Dolp",
+    "status": "pending"
+  },
+  {
+    "rank": 428,
+    "name": "postgres-mcp",
+    "github_url": "https://github.com/crystaldba/postgres-mcp",
+    "score": 106,
+    "signal": 87,
+    "category": "Database & Data Access",
+    "description": "postgres-mcp: Postgres MCP Pro provides configurable read/write access and ",
+    "status": "pending"
+  },
+  {
+    "rank": 429,
+    "name": "gemini-cli-orchestrator",
+    "github_url": "https://github.com/dnnyngyen/gemini-cli-orchestrator",
+    "score": 106,
+    "signal": 88,
+    "category": "Code & Development Tools",
+    "description": "gemini-cli-orchestrator: An MCP server that allows Claude Code orchestrate ",
+    "status": "pending"
+  },
+  {
+    "rank": 430,
+    "name": "codebase-mcp",
+    "github_url": "https://github.com/dedeveloper23/codebase-mcp",
+    "score": 106,
+    "signal": 88,
+    "category": "Code & Development Tools",
+    "description": "codebase-mcp: Model Context Protocol implementation for retrieving codebase",
+    "status": "pending"
+  },
+  {
+    "rank": 431,
+    "name": "tecton-mcp",
+    "github_url": "https://github.com/tecton-ai/tecton-mcp",
+    "score": 106,
+    "signal": 88,
+    "category": "MCP Clients & Desktop Apps",
+    "description": "tecton-mcp: This MCP (Model Context Protocol) server provides tools to inte",
+    "status": "pending"
+  },
+  {
+    "rank": 432,
+    "name": "pubnub-mcp-server",
+    "github_url": "https://github.com/pubnub/pubnub-mcp-server",
+    "score": 106,
+    "signal": 87,
+    "category": "MCP Clients & Desktop Apps",
+    "description": "pubnub-mcp-server: PubNub MCP Model Context Protocol Server for use in Curs",
+    "status": "pending"
+  },
+  {
+    "rank": 433,
+    "name": "digitalocean-mcp",
+    "github_url": "https://github.com/digitalocean/digitalocean-mcp",
+    "score": 106,
+    "signal": 86,
+    "category": "MCP Clients & Desktop Apps",
+    "description": "digitalocean-mcp: DigitalOcean MCP Server for deploying and managing apps o",
+    "status": "pending"
+  },
+  {
+    "rank": 434,
+    "name": "mcp-hot-news-server",
+    "github_url": "https://github.com/wudalu/mcp-hot-news-server",
+    "score": 106,
+    "signal": 88,
+    "category": "Code & Development Tools",
+    "description": "mcp-hot-news-server: Hot news mcp server in Python.",
+    "status": "pending"
+  },
+  {
+    "rank": 435,
+    "name": "redash-mcp",
+    "github_url": "https://github.com/suthio/redash-mcp",
+    "score": 106,
+    "signal": 88,
+    "category": "Database & Data Access",
+    "description": "redash-mcp",
+    "status": "pending"
+  },
+  {
+    "rank": 436,
+    "name": "manusmcp",
+    "github_url": "https://github.com/mantrakp04/manusmcp",
+    "score": 106,
+    "signal": 86,
+    "category": "Agent Frameworks & Orchestration",
+    "description": "manusmcp: ManusMCP is a project that implements AI agent workflows using Fl",
+    "status": "pending"
+  },
+  {
+    "rank": 437,
+    "name": "mcp-redis-cloud",
+    "github_url": "https://github.com/redis/mcp-redis-cloud",
+    "score": 106,
+    "signal": 88,
+    "category": "Database & Data Access",
+    "description": "mcp-redis-cloud",
+    "status": "pending"
+  },
+  {
+    "rank": 438,
+    "name": "n8n-mcp-sse",
+    "github_url": "https://github.com/jacob-dietle/n8n-mcp-sse",
+    "score": 106,
+    "signal": 88,
+    "category": "Agent Frameworks & Orchestration",
+    "description": "n8n-mcp-sse",
+    "status": "pending"
+  },
+  {
+    "rank": 439,
+    "name": "google-docs-mcp",
+    "github_url": "https://github.com/a-bonus/google-docs-mcp",
+    "score": 106,
+    "signal": 87,
+    "category": "MCP Clients & Desktop Apps",
+    "description": "google-docs-mcp: The Ultimate Google Docs, Sheets, Drive, Gmail, & Google C",
+    "status": "pending"
+  },
+  {
+    "rank": 440,
+    "name": "mcp-mongodb-atlas",
+    "github_url": "https://github.com/mongodb-developer/mcp-mongodb-atlas",
+    "score": 106,
+    "signal": 87,
+    "category": "Database & Data Access",
+    "description": "mcp-mongodb-atlas",
+    "status": "pending"
+  },
+  {
+    "rank": 441,
+    "name": "wealthy-mcp",
+    "github_url": "https://github.com/wealthy/wealthy-mcp",
+    "score": 106,
+    "signal": 87,
+    "category": "Memory & Knowledge Systems",
+    "description": "wealthy-mcp: Wealthy-MCP",
+    "status": "pending"
+  },
+  {
+    "rank": 442,
+    "name": "supermemory",
+    "github_url": "https://github.com/supermemoryai",
+    "score": 106,
+    "signal": 87,
+    "category": "Memory & Knowledge Systems",
+    "description": "supermemory",
+    "status": "pending"
+  },
+  {
+    "rank": 443,
+    "name": "poke-video-mcp",
+    "github_url": "https://github.com/aryankeluskar/poke-video-mcp",
+    "score": 106,
+    "signal": 88,
+    "category": "Memory & Knowledge Systems",
+    "description": "poke-video-mcp",
+    "status": "pending"
+  },
+  {
+    "rank": 444,
+    "name": "gemini-mcp",
+    "github_url": "https://github.com/emmron/gemini-mcp",
+    "score": 106,
+    "signal": 88,
+    "category": "MCP Clients & Desktop Apps",
+    "description": "gemini-mcp: MCP for claude code to work with Google's gemini using an Openr",
+    "status": "pending"
+  },
+  {
+    "rank": 445,
+    "name": "kospi-kosdaq-stock-server",
+    "github_url": "https://github.com/dragon1086/kospi-kosdaq-stock-server",
+    "score": 106,
+    "signal": 85,
+    "category": "Memory & Knowledge Systems",
+    "description": "kospi-kosdaq-stock-server: An MCP server that provides KOSPI/KOSDAQ stock d",
+    "status": "pending"
+  },
+  {
+    "rank": 446,
+    "name": "mcp-memory",
+    "github_url": "https://github.com/julianorck/mcp-memory",
+    "score": 106,
+    "signal": 93,
+    "category": "Memory & Knowledge Systems",
+    "description": "mcp-memory",
+    "status": "pending"
+  },
+  {
+    "rank": 447,
+    "name": "cursor-local-indexing",
+    "github_url": "https://github.com/luotocompany/cursor-local-indexing",
+    "score": 106,
+    "signal": 87,
+    "category": "MCP Clients & Desktop Apps",
+    "description": "cursor-local-indexing: ChromaDB-powered local indexing support for Cursor, ",
+    "status": "pending"
+  },
+  {
+    "rank": 448,
+    "name": "Introduction - Agent Client Protocol",
+    "github_url": "https://agentclientprotocol.com/overview/introduction",
+    "score": 106,
+    "signal": 87,
+    "category": "Code & Development Tools",
+    "description": "Introduction - Agent Client Protocol",
+    "status": "pending"
+  },
+  {
+    "rank": 449,
+    "name": "amplitude-mcp-server",
+    "github_url": "https://github.com/moonbirdai/amplitude-mcp-server",
+    "score": 106,
+    "signal": 88,
+    "category": "MCP Clients & Desktop Apps",
+    "description": "amplitude-mcp-server: MCP server for Amplitude Analytics integration with A",
+    "status": "pending"
+  },
+  {
+    "rank": 450,
+    "name": "scaffold",
+    "github_url": "https://github.com/Beer-Bears/scaffold",
+    "score": 106,
+    "signal": 85,
+    "category": "Memory & Knowledge Systems",
+    "description": "scaffold: Structural RAG (Retrieval-Augmented Generation) system for large ",
+    "status": "pending"
+  },
+  {
+    "rank": 451,
+    "name": "oracle-mcp-server",
+    "github_url": "https://github.com/zhengwanbo/oracle-mcp-server",
+    "score": 106,
+    "signal": 87,
+    "category": "Memory & Knowledge Systems",
+    "description": "oracle-mcp-server: oracle-mcp-server",
+    "status": "pending"
+  },
+  {
+    "rank": 452,
+    "name": "momedb-mcp",
+    "github_url": "https://github.com/wuyunmei/momedb-mcp",
+    "score": 105,
+    "signal": 83,
+    "category": "Memory & Knowledge Systems",
+    "description": "momedb-mcp",
+    "status": "pending"
+  },
+  {
+    "rank": 453,
+    "name": "mcp-devtools",
+    "github_url": "https://github.com/dxheroes/mcp-devtools",
+    "score": 105,
+    "signal": 82,
+    "category": "Database & Data Access",
+    "description": "mcp-devtools: MCP DevTools: A suite of Model Context Protocol servers enabl",
+    "status": "pending"
+  },
+  {
+    "rank": 454,
+    "name": "tba-mcp-server",
+    "github_url": "https://github.com/withinfocus/tba-mcp-server",
+    "score": 105,
+    "signal": 83,
+    "category": "MCP Clients & Desktop Apps",
+    "description": "tba-mcp-server: MCP server for The Blue Alliance.",
+    "status": "pending"
+  },
+  {
+    "rank": 455,
+    "name": "mcp-server-zplanner",
+    "github_url": "https://github.com/jotjunior/mcp-server-zplanner",
+    "score": 105,
+    "signal": 82,
+    "category": "Memory & Knowledge Systems",
+    "description": "mcp-server-zplanner",
+    "status": "pending"
+  },
+  {
+    "rank": 456,
+    "name": "agent-fleet-o",
+    "github_url": "https://github.com/escapeboy/agent-fleet-o",
+    "score": 105,
+    "signal": 83,
+    "category": "Agent Frameworks & Orchestration",
+    "description": "agent-fleet-o: Open-source AI agent orchestration platform \u2014 self-hosted mi",
+    "status": "pending"
+  },
+  {
+    "rank": 457,
+    "name": "mcp-unity",
+    "github_url": "https://github.com/CoderGamester/mcp-unity",
+    "score": 105,
+    "signal": 82,
+    "category": "MCP Clients & Desktop Apps",
+    "description": "mcp-unity: Model Context Protocol (MCP) plugin to connect with Unity Editor",
+    "status": "pending"
+  },
+  {
+    "rank": 458,
+    "name": "mcp-server-elasticsearch",
+    "github_url": "https://github.com/elastic/mcp-server-elasticsearch",
+    "score": 105,
+    "signal": 83,
+    "category": "Database & Data Access",
+    "description": "mcp-server-elasticsearch",
+    "status": "pending"
+  },
+  {
+    "rank": 459,
+    "name": "thoughtproof-mcp",
+    "github_url": "https://github.com/ThoughtProof/thoughtproof-mcp",
+    "score": 105,
+    "signal": 84,
+    "category": "Code & Development Tools",
+    "description": "thoughtproof-mcp: Adversarial multi-model reasoning verification MCP server",
+    "status": "pending"
+  },
+  {
+    "rank": 460,
+    "name": "mcp-ossinsight",
+    "github_url": "https://github.com/damonxue/mcp-ossinsight",
+    "score": 105,
+    "signal": 82,
+    "category": "Memory & Knowledge Systems",
+    "description": "mcp-ossinsight: An MCP server based on OSSInsight.io, providing data analys",
+    "status": "pending"
+  },
+  {
+    "rank": 461,
+    "name": "mcp-gemini-server",
+    "github_url": "https://github.com/bsmi021/mcp-gemini-server",
+    "score": 105,
+    "signal": 84,
+    "category": "Memory & Knowledge Systems",
+    "description": "mcp-gemini-server: This project provides a dedicated MCP (Model Context Pro",
+    "status": "pending"
+  },
+  {
+    "rank": 462,
+    "name": "thales-cdsp-csm-mcp-server",
+    "github_url": "https://github.com/sanyambassi/thales-cdsp-csm-mcp-server",
+    "score": 105,
+    "signal": 84,
+    "category": "Memory & Knowledge Systems",
+    "description": "thales-cdsp-csm-mcp-server: A Model Context Protocol (MCP) server for manag",
+    "status": "pending"
+  },
+  {
+    "rank": 463,
+    "name": "voidmcp",
+    "github_url": "https://github.com/voidmind-io/voidmcp",
+    "score": 105,
+    "signal": 66,
+    "category": "Code & Development Tools",
+    "description": "voidmcp: One MCP to orchestrate them all. Standalone Code Mode MCP server w",
+    "status": "pending"
+  },
+  {
+    "rank": 464,
+    "name": "cmcp",
+    "github_url": "https://github.com/assimelha/cmcp",
+    "score": 105,
+    "signal": 84,
+    "category": "Agent Frameworks & Orchestration",
+    "description": "cmcp: Code Mode MCP \u2014 aggregate all your MCP servers behind search() + exec",
+    "status": "pending"
+  },
+  {
+    "rank": 465,
+    "name": "memento",
+    "github_url": "https://github.com/iachilles/memento",
+    "score": 105,
+    "signal": 83,
+    "category": "Memory & Knowledge Systems",
+    "description": "memento: MCP memory server using SQLite + FTS5 + sqlite-vec",
+    "status": "pending"
+  },
+  {
+    "rank": 466,
+    "name": "15 Best MCP servers for developers in May 2025 - Digma",
+    "github_url": "https://digma.ai/15-best-mcp-servers",
+    "score": 105,
+    "signal": 82,
+    "category": "Browser Automation & Web Scraping",
+    "description": "15 Best MCP servers for developers in May 2025 - Digma",
+    "status": "pending"
+  },
+  {
+    "rank": 467,
+    "name": "mochow-mcp-server-python",
+    "github_url": "https://github.com/baidu/mochow-mcp-server-python",
+    "score": 105,
+    "signal": 84,
+    "category": "Database & Data Access",
+    "description": "mochow-mcp-server-python: Model Context Protocol Server for Mochow",
+    "status": "pending"
+  },
+  {
+    "rank": 468,
+    "name": "dependency-graph-mcp",
+    "github_url": "https://github.com/jkerdels/dependency-graph-mcp",
+    "score": 105,
+    "signal": 84,
+    "category": "Memory & Knowledge Systems",
+    "description": "dependency-graph-mcp: A mcp-server that provides a dependency graph to agen",
+    "status": "pending"
+  },
+  {
+    "rank": 469,
+    "name": "mcp-pinterest",
+    "github_url": "https://github.com/terryso/mcp-pinterest",
+    "score": 105,
+    "signal": 83,
+    "category": "MCP Clients & Desktop Apps",
+    "description": "mcp-pinterest",
+    "status": "pending"
+  },
+  {
+    "rank": 470,
+    "name": " veilid \u00b7 GitLab",
+    "github_url": "https://gitlab.com/robertpelloni/veilid",
+    "score": 105,
+    "signal": 84,
+    "category": "Memory & Knowledge Systems",
+    "description": " / veilid \u00b7 GitLab",
+    "status": "pending"
+  },
+  {
+    "rank": 471,
+    "name": "mcp-egrul",
+    "github_url": "https://github.com/atomno-labs/mcp-egrul",
+    "score": 105,
+    "signal": 82,
+    "category": "Database & Data Access",
+    "description": "mcp-egrul: MCP server for Russian EGRUL/EGRIP lookups via FNS open-data \u2014 o",
+    "status": "pending"
+  },
+  {
+    "rank": 472,
+    "name": "Gradio",
+    "github_url": "https://fartlabs-fart.hf.space/?__theme=system",
+    "score": 105,
+    "signal": 84,
+    "category": "Memory & Knowledge Systems",
+    "description": "Gradio",
+    "status": "pending"
+  },
+  {
+    "rank": 473,
+    "name": "PlanningCopilot",
+    "github_url": "https://github.com/SPL-BGU/PlanningCopilot",
+    "score": 105,
+    "signal": 82,
+    "category": "Browser Automation & Web Scraping",
+    "description": "PlanningCopilot: A modular chatbot that runs planning tools via natural lan",
+    "status": "pending"
+  },
+  {
+    "rank": 474,
+    "name": "figma-mcp-chunked",
+    "github_url": "https://github.com/archimedescrypto/figma-mcp-chunked",
+    "score": 105,
+    "signal": 83,
+    "category": "Memory & Knowledge Systems",
+    "description": "figma-mcp-chunked: Use Figma in a MCP with Chunking Support",
+    "status": "pending"
+  },
+  {
+    "rank": 475,
+    "name": "nworks",
+    "github_url": "https://github.com/yjcho9317/nworks",
+    "score": 104,
+    "signal": 81,
+    "category": "Agent Frameworks & Orchestration",
+    "description": "nworks: Full-featured MCP server and CLI for LINE WORKS (NAVER WORKS) \u2014 26 ",
+    "status": "pending"
+  },
+  {
+    "rank": 476,
+    "name": "mcp-rdf-explorer",
+    "github_url": "https://github.com/emekaokoye/mcp-rdf-explorer",
+    "score": 104,
+    "signal": 79,
+    "category": "Memory & Knowledge Systems",
+    "description": "mcp-rdf-explorer: A Model Context Protocol (MCP) server that provides conve",
+    "status": "pending"
+  },
+  {
+    "rank": 477,
+    "name": "azure_mcp_server",
+    "github_url": "https://github.com/mashriram/azure_mcp_server",
+    "score": 104,
+    "signal": 95,
+    "category": "Memory & Knowledge Systems",
+    "description": "azure_mcp_server",
+    "status": "pending"
+  },
+  {
+    "rank": 478,
+    "name": "memory-journal-mcp-server",
+    "github_url": "https://github.com/siddhant-k-code/memory-journal-mcp-server",
+    "score": 104,
+    "signal": 95,
+    "category": "Memory & Knowledge Systems",
+    "description": "memory-journal-mcp-server: MCP server designed to help you search and analy",
+    "status": "pending"
+  },
+  {
+    "rank": 479,
+    "name": "kokoro-tts-mcp",
+    "github_url": "https://github.com/mberg/kokoro-tts-mcp",
+    "score": 104,
+    "signal": 79,
+    "category": "Memory & Knowledge Systems",
+    "description": "kokoro-tts-mcp: Kokoro Text to Speech (TTS) MCP Server",
+    "status": "pending"
+  },
+  {
+    "rank": 480,
+    "name": "Overview - ContextForge AI Gateway",
+    "github_url": "https://ibm.github.io/mcp-context-forge/architecture",
+    "score": 104,
+    "signal": 80,
+    "category": "Code & Development Tools",
+    "description": "Overview - ContextForge AI Gateway",
+    "status": "pending"
+  },
+  {
+    "rank": 481,
+    "name": "MCPJungle",
+    "github_url": "https://github.com/mcpjungle/MCPJungle",
+    "score": 104,
+    "signal": 81,
+    "category": "Code & Development Tools",
+    "description": "MCPJungle: One place to manage & connect to all your MCP servers \u00b7 GitHub",
+    "status": "pending"
+  },
+  {
+    "rank": 482,
+    "name": "japan-seasons-mcp",
+    "github_url": "https://github.com/haomingkoo/japan-seasons-mcp",
+    "score": 104,
+    "signal": 81,
+    "category": "Memory & Knowledge Systems",
+    "description": "japan-seasons-mcp: Cherry blossom & autumn leaves forecast for Japan. 1,700",
+    "status": "pending"
+  },
+  {
+    "rank": 483,
+    "name": "mcp-knowledge-graph",
+    "github_url": "https://github.com/shaneholloman/mcp-knowledge-graph",
+    "score": 104,
+    "signal": 95,
+    "category": "Memory & Knowledge Systems",
+    "description": "mcp-knowledge-graph: MCP server enabling persistent memory for Claude throu",
+    "status": "pending"
+  },
+  {
+    "rank": 484,
+    "name": "mcp-server-milvus",
+    "github_url": "https://github.com/zilliztech/mcp-server-milvus",
+    "score": 104,
+    "signal": 79,
+    "category": "Database & Data Access",
+    "description": "mcp-server-milvus: Model Context Protocol Servers for Milvus",
+    "status": "pending"
+  },
+  {
+    "rank": 485,
+    "name": "mcp-storage-server",
+    "github_url": "https://github.com/storacha/mcp-storage-server",
+    "score": 104,
+    "signal": 95,
+    "category": "Memory & Knowledge Systems",
+    "description": "mcp-storage-server: Storacha MCP storage server - self-sovereign data for y",
+    "status": "pending"
+  },
+  {
+    "rank": 486,
+    "name": "quarterback",
+    "github_url": "https://github.com/bobbyrgoldsmith/quarterback",
+    "score": 104,
+    "signal": 81,
+    "category": "Agent Frameworks & Orchestration",
+    "description": "quarterback: Strategic task prioritization and agent orchestration for mult",
+    "status": "pending"
+  },
+  {
+    "rank": 487,
+    "name": "api-testing-mcp",
+    "github_url": "https://github.com/cocaxcode/api-testing-mcp",
+    "score": 104,
+    "signal": 80,
+    "category": "Code & Development Tools",
+    "description": "api-testing-mcp: The most complete MCP server for API testing. 27 tools: re",
+    "status": "pending"
+  },
+  {
+    "rank": 488,
+    "name": "rag-mcp-server",
+    "github_url": "https://github.com/but3k4/rag-mcp-server",
+    "score": 104,
+    "signal": 81,
+    "category": "MCP Clients & Desktop Apps",
+    "description": "rag-mcp-server: A local MCP server that indexes documents from configured d",
+    "status": "pending"
+  },
+  {
+    "rank": 489,
+    "name": "chainanalyzer-mcp",
+    "github_url": "https://github.com/rascal-3/chainanalyzer-mcp",
+    "score": 104,
+    "signal": 80,
+    "category": "Database & Data Access",
+    "description": "chainanalyzer-mcp: MCP Server for ChainAnalyzer(https://chain-analyzer.com)",
+    "status": "pending"
+  },
+  {
+    "rank": 490,
+    "name": "crabcut-mcp-server",
+    "github_url": "https://github.com/realcrabcut/crabcut-mcp-server",
+    "score": 104,
+    "signal": 80,
+    "category": "Memory & Knowledge Systems",
+    "description": "crabcut-mcp-server: CrabCut MCP Server \u00b7 GitHub",
+    "status": "pending"
+  },
+  {
+    "rank": 491,
+    "name": "mcpunk",
+    "github_url": "https://github.com/jurasofish/mcpunk",
+    "score": 104,
+    "signal": 96,
+    "category": "Memory & Knowledge Systems",
+    "description": "mcpunk: MCP tools for Roaming RAG",
+    "status": "pending"
+  },
+  {
+    "rank": 492,
+    "name": "Trello-Desktop-MCP",
+    "github_url": "https://github.com/kocakli/Trello-Desktop-MCP",
+    "score": 104,
+    "signal": 81,
+    "category": "MCP Clients & Desktop Apps",
+    "description": "Trello-Desktop-MCP: Trello integration for Claude Desktop via Model Context",
+    "status": "pending"
+  },
+  {
+    "rank": 493,
+    "name": "xcode-studio-mcp",
+    "github_url": "https://github.com/kevinswint/xcode-studio-mcp",
+    "score": 104,
+    "signal": 64,
+    "category": "MCP Clients & Desktop Apps",
+    "description": "xcode-studio-mcp: Unified MCP server for AI-assisted iOS development \u2014 buil",
+    "status": "pending"
+  },
+  {
+    "rank": 494,
+    "name": "Cursor CLI | Cursor Docs",
+    "github_url": "https://cursor.com/docs/cli/overview",
+    "score": 104,
+    "signal": 79,
+    "category": "Memory & Knowledge Systems",
+    "description": "Cursor CLI | Cursor Docs",
+    "status": "pending"
+  },
+  {
+    "rank": 495,
+    "name": "mcp-feedback-enhanced",
+    "github_url": "https://github.com/Minidoracat/mcp-feedback-enhanced",
+    "score": 104,
+    "signal": 81,
+    "category": "MCP Clients & Desktop Apps",
+    "description": "mcp-feedback-enhanced: Enhanced MCP server for interactive user feedback an",
+    "status": "pending"
+  },
+  {
+    "rank": 496,
+    "name": "meta-prompt-mcp-server",
+    "github_url": "https://github.com/tisu19021997/meta-prompt-mcp-server",
+    "score": 104,
+    "signal": 81,
+    "category": "Agent Frameworks & Orchestration",
+    "description": "meta-prompt-mcp-server: Turn any MCP Client into a \"multi-agent\" system (vi",
+    "status": "pending"
+  },
+  {
+    "rank": 497,
+    "name": "ottasia-mcp-server",
+    "github_url": "https://github.com/AIweather-Anurag/ottasia-mcp-server",
+    "score": 104,
+    "signal": 81,
+    "category": "Memory & Knowledge Systems",
+    "description": "ottasia-mcp-server: OTTASIA MCP server \u2014 answer \"where can I watch X in Y\" ",
+    "status": "pending"
+  },
+  {
+    "rank": 498,
+    "name": "tft-oracle",
+    "github_url": "https://github.com/gregario/tft-oracle",
+    "score": 104,
+    "signal": 80,
+    "category": "Memory & Knowledge Systems",
+    "description": "tft-oracle: Teamfight Tactics MCP server \u2014 accurate champion, trait, item, ",
+    "status": "pending"
+  },
+  {
+    "rank": 499,
+    "name": "open-ontologies",
+    "github_url": "https://github.com/fabio-rovai/open-ontologies",
+    "score": 104,
+    "signal": 81,
+    "category": "Memory & Knowledge Systems",
+    "description": "open-ontologies: AI-native ontology engine: a Rust MCP server with tools fo",
+    "status": "pending"
+  },
+  {
+    "rank": 500,
+    "name": "mcp-docs-rag",
+    "github_url": "https://github.com/kazuph/mcp-docs-rag",
+    "score": 104,
+    "signal": 95,
+    "category": "Memory & Knowledge Systems",
+    "description": "mcp-docs-rag",
+    "status": "pending"
+  }
+]

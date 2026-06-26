@@ -1,0 +1,35 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "target": "ES2022",
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "noEmit": false,
+    "declaration": false,
+    "sourceMap": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "lib": ["ES2022"],
+    "jsx": "preserve"
+  },
+  "include": [
+    "src/daemon/**/*",
+    "src/mcp/**/*",
+    "src/cli/**/*",
+    "src/lib/db/**/*",
+    "src/lib/template-schema.ts"
+  ],
+  "exclude": [
+    "src/app/**/*",
+    "src/components/**/*",
+    "src/lib/api/**/*",
+    "src/lib/types.ts",
+    "src/lib/mock-data.ts",
+    "src/lib/utils.ts",
+    "node_modules",
+    ".next",
+    "dist"
+  ]
+}

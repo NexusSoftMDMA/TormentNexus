@@ -1,0 +1,52 @@
+id: architect-review
+name: Architecture Review
+description: Two-phase decision workflow. Anthropic drafts a design; 3 cross-lineage reviewers critique it before any coding starts.
+author: chorus
+agreementThreshold: 0.5
+onThresholdMet: ask
+maxRounds: 3
+yoloDefault: false
+# 2-phase decision workflow with denser plan scaffolding. Cockpit-side floor.
+estimatedBaselineTokens: 900
+
+phases:
+  - id: plan
+    kind: plan
+    title: Architecture Proposal
+    description: Anthropic (Opus) drafts an architecture proposal or design decision.
+    doer:
+      lineage: anthropic
+      models:
+        - claude-opus-4-7
+    reviewer:
+      require: 0
+      crossLineage: false
+      candidates: []
+    inputs:
+      include: []
+      exclude: []
+    iterate:
+      maxRounds: 1
+      onDisagreement: continue
+
+  - id: design-review
+    kind: review
+    title: Design Critique
+    description: Three reviewers from different lineages critique the proposal. Lower threshold (50%) encourages surfacing disagreement.
+    doer:
+      lineage: any
+      models: []
+    reviewer:
+      require: 3
+      crossLineage: true
+      candidates:
+        - lineage: anthropic
+        - lineage: openai
+        - lineage: google
+    inputs:
+      include:
+        - plan
+      exclude: []
+    iterate:
+      maxRounds: 2
+      onDisagreement: continue

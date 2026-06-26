@@ -1,0 +1,364 @@
+#
+# Copyright 2025 Stacklok, Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# This workflow compiles toolhive using a SLSA3 compliant
+# build and then verifies the provenance of the built artifacts.
+# It releases the following architectures: amd64, arm64, and armv7 on Linux,
+# Windows, and macOS.
+# The provenance file can be verified using https://github.com/slsa-framework/slsa-verifier.
+# For more information about SLSA and how it improves the supply-chain, visit slsa.dev.
+
+name: Release
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+
+  verify-release:
+    name: Verify Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+
+      - name: Verify tag matches VERSION file
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          VERSION=$(cat VERSION | tr -d '[:space:]')
+
+          echo "Release tag: $TAG"
+          echo "VERSION file: $VERSION"
+
+          # Tag should be "v" + VERSION (e.g., v1.0.0)
+          EXPECTED_TAG="v${VERSION}"
+
+          if [[ "$TAG" != "$EXPECTED_TAG" ]]; then
+            echo ""
+            echo "❌ VERSION MISMATCH!"
+            echo "  Tag:      $TAG"
+            echo "  Expected: $EXPECTED_TAG (from VERSION file)"
+            echo ""
+            echo "The release tag does not match the VERSION file."
+            echo "This could indicate:"
+            echo "  - VERSION file was not updated correctly"
+            echo "  - Tag was created manually with wrong version"
+            exit 1
+          fi
+
+          echo ""
+          echo "✅ Tag matches VERSION file: $TAG"
+
+  compute-build-flags:
+    name: Compute Build Flags
+    runs-on: ubuntu-slim
+    outputs:
+      commit-date: ${{ steps.ldflags.outputs.commit-date }}
+      commit: ${{ steps.ldflags.outputs.commit }}
+      version: ${{ steps.ldflags.outputs.version }}
+      tree-state: ${{ steps.ldflags.outputs.tree-state }}
+    steps:
+      - id: checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          fetch-depth: 0
+      - id: ldflags
+        run: |
+          echo "commit=$GITHUB_SHA" >> $GITHUB_OUTPUT
+          echo "commit-date=$(git log --date=iso8601-strict -1 --pretty=%ct)" >> $GITHUB_OUTPUT
+          echo "version=$(git describe --tags --always --dirty --match 'v*')" >> $GITHUB_OUTPUT
+          echo "tree-state=$(if git diff --quiet; then echo "clean"; else echo "dirty"; fi)" >> $GITHUB_OUTPUT
+  release-binaries:
+    needs:
+      - compute-build-flags
+    name: Build and Release Binaries
+    outputs:
+      hashes: ${{ steps.hash.outputs.hashes }}
+    permissions:
+      contents: write # To add assets to a release.
+      id-token: write # To do keyless signing with cosign
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          fetch-depth: 0
+
+      - name: Setup Go
+        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6
+        with:
+          go-version: 'stable'
+          cache: false # No cache for release builds — prevents cache poisoning attacks
+
+      - name: Install Syft
+        uses: anchore/sbom-action/download-syft@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
+
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+
+      - name: Build and Verify Binary Version
+        env:
+          VERSION: ${{ needs.compute-build-flags.outputs.version }}
+          COMMIT: ${{ needs.compute-build-flags.outputs.commit }}
+          COMMIT_DATE: ${{ needs.compute-build-flags.outputs.commit-date }}
+          TREE_STATE: ${{ needs.compute-build-flags.outputs.tree-state }}
+        run: |
+          # Build a test binary using the same env vars as GoReleaser
+          go build -ldflags "-s -w -X github.com/stacklok/toolhive/pkg/versions.Version=${VERSION} -X github.com/stacklok/toolhive/pkg/versions.Commit=${COMMIT} -X github.com/stacklok/toolhive/pkg/versions.BuildDate=$(date -Iseconds) -X github.com/stacklok/toolhive/pkg/versions.BuildType=release" -o ./thv-test ./cmd/thv
+
+          # Get version from binary
+          BINARY_VERSION=$(./thv-test version --format json | jq -r '.version')
+          EXPECTED_TAG="${GITHUB_REF_NAME}"
+
+          echo "Expected tag: $EXPECTED_TAG"
+          echo "Binary reports version: $BINARY_VERSION"
+
+          # Verify version matches tag
+          if [[ "$BINARY_VERSION" != "$EXPECTED_TAG" ]]; then
+            echo "❌ VERSION MISMATCH!"
+            echo "  Expected: $EXPECTED_TAG"
+            echo "  Got:      $BINARY_VERSION"
+            echo "This indicates a bug in the release process - stopping before publishing."
+            exit 1
+          fi
+
+          echo "✅ Version verification passed: $BINARY_VERSION"
+          rm ./thv-test
+
+      - name: Bundle CLI docs
+        run: |
+          mkdir -p build
+          tar -czf build/thv-cli-docs.tar.gz -C docs/cli .
+
+      - name: Bundle CRD manifests
+        run: |
+          mkdir -p build
+          tar -czf build/thv-crds.tar.gz -C deploy/charts/operator-crds/files/crds .
+
+      - name: Download toolhive-core schemas at pinned version
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Resolve the toolhive-core version this release was built against
+          # (from go.mod, since we ship binaries compiled against that version).
+          # Re-exporting the schemas here lets downstream consumers (notably
+          # docs-website) skip the two-repo dance of deriving the version and
+          # fetching from a separate release.
+          mkdir -p build
+          CORE_VERSION=$(grep 'github.com/stacklok/toolhive-core' go.mod | awk '{print $2}' | head -1)
+          if [ -z "$CORE_VERSION" ]; then
+            echo "::error::Could not determine toolhive-core version from go.mod"
+            exit 1
+          fi
+          echo "Using toolhive-core version: $CORE_VERSION"
+          gh release download "$CORE_VERSION" \
+            --repo stacklok/toolhive-core \
+            --pattern "upstream-registry.schema.json" \
+            --pattern "publisher-provided.schema.json" \
+            --pattern "skill.schema.json" \
+            --dir build/
+
+      - name: Remove existing release assets (allows re-runs)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Delete existing assets so GoReleaser can re-upload when re-running a failed job
+          set +e
+          for name in $(gh release view "${{ github.ref_name }}" --json assets --jq '.assets[].name' 2>/dev/null); do
+            gh release delete-asset "${{ github.ref_name }}" "$name" -y 2>/dev/null || true
+          done
+          set -e
+
+      - name: Generate Homebrew tap token
+        id: homebrew-tap-token
+        uses: actions/create-github-app-token@1b10c78c7865c340bc4f6099eb2f838309f1e8c3 # v3.1.1
+        with:
+          client-id: ${{ vars.HOMEBREW_TAP_APP_CLIENT_ID }}
+          private-key: ${{ secrets.HOMEBREW_TAP_APP_PRIVATE_KEY }}
+          owner: stacklok
+          repositories: homebrew-tap
+
+      - name: Run GoReleaser
+        id: run-goreleaser
+        uses: goreleaser/goreleaser-action@5daf1e915a5f0af01ddbcd89a43b8061ff4f1a89 # v7
+        with:
+          distribution: goreleaser
+          version: "~> v2"
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          WINGET_GITHUB_TOKEN: ${{ secrets.WINGET_GITHUB_TOKEN }}
+          HOMEBREW_TAP_GITHUB_TOKEN: ${{ steps.homebrew-tap-token.outputs.token }}
+          VERSION: ${{ needs.compute-build-flags.outputs.version }}
+          COMMIT: ${{ needs.compute-build-flags.outputs.commit }}
+          COMMIT_DATE: ${{ needs.compute-build-flags.outputs.commit-date }}
+          TREE_STATE: ${{ needs.compute-build-flags.outputs.tree-state }}
+
+      - name: Generate subject
+        id: hash
+        env:
+          ARTIFACTS: "${{ steps.run-goreleaser.outputs.artifacts }}"
+        run: |
+          set -euo pipefail
+          hashes=$(echo $ARTIFACTS | jq --raw-output '.[] | {name, "digest": (.extra.Digest // .extra.Checksum)} | select(.digest) | {digest} + {name} | join("  ") | sub("^sha256:";"")' | base64 -w0)
+          if test "$hashes" = ""; then # goreleaser < v1.13.0
+            checksum_file=$(echo "$ARTIFACTS" | jq -r '.[] | select (.type=="Checksum") | .path')
+            hashes=$(cat $checksum_file | base64 -w0)
+          fi
+          echo "hashes=$hashes" >> $GITHUB_OUTPUT
+
+  image-build-and-push:
+    name: Build and Sign Image
+    needs: [ release-binaries ]
+    permissions:
+      contents: write
+      packages: write
+      id-token: write
+    uses: ./.github/workflows/image-build-and-publish.yml
+
+  skills-build-and-push:
+    name: Build and Publish Skills
+    needs: [ release-binaries ]
+    permissions:
+      contents: read
+      packages: write
+    uses: ./.github/workflows/skills-build-and-publish.yml
+    with:
+      push: true
+
+  publish-helm:
+    name: Publish Helm Chart
+    needs: [image-build-and-push]
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+    uses: ./.github/workflows/helm-publish.yml
+
+#  provenance:
+#    name: Generate provenance (SLSA3)
+#    needs:
+#      - release
+#    permissions:
+#      actions: read # To read the workflow path.
+#      id-token: write # To sign the provenance.
+#      contents: write # To add assets to a release.
+#    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@v2.0.0
+#    with:
+#      base64-subjects: "${{ needs.release.outputs.hashes }}"
+#      upload-assets: true # upload to a new release
+
+#  verification:
+#    name: Verify provenance of assets (SLSA3)
+#    needs:
+#      - release
+#      - provenance
+#    runs-on: ubuntu-latest
+#    permissions: read-all
+#    steps:
+#      - name: Install the SLSA verifier
+#        uses: slsa-framework/slsa-verifier/actions/installer@3714a2a4684014deb874a0e737dffa0ee02dd647 # v2.6.0
+#      - name: Download assets
+#        env:
+#          GH_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+#          CHECKSUMS: "${{ needs.release.outputs.hashes }}"
+#          ATT_FILE_NAME: "${{ needs.provenance.outputs.provenance-name }}"
+#        run: |
+#          set -euo pipefail
+#          checksums=$(echo "$CHECKSUMS" | base64 -d)
+#          while read -r line; do
+#              fn=$(echo $line | cut -d ' ' -f2)
+#              echo "Downloading $fn"
+#              gh -R "$GITHUB_REPOSITORY" release download "$GITHUB_REF_NAME" -p "$fn"
+#          done <<<"$checksums"
+#          gh -R "$GITHUB_REPOSITORY" release download "$GITHUB_REF_NAME" -p "$ATT_FILE_NAME"
+#      - name: Verify assets
+#        env:
+#          CHECKSUMS: "${{ needs.release.outputs.hashes }}"
+#          PROVENANCE: "${{ needs.provenance.outputs.provenance-name }}"
+#        run: |
+#          set -euo pipefail
+#          checksums=$(echo "$CHECKSUMS" | base64 -d)
+#          while read -r line; do
+#              fn=$(echo $line | cut -d ' ' -f2)
+#              echo "Verifying SLSA provenance for $fn"
+#              slsa-verifier verify-artifact --provenance-path "$PROVENANCE" \
+#                                            --source-uri "github.com/$GITHUB_REPOSITORY" \
+#                                            --source-tag "$GITHUB_REF_NAME" \
+#                                            "$fn"
+#          done <<<"$checksums"
+
+  notify-release-failure:
+    name: Notify Release Failure
+    needs:
+      - compute-build-flags
+      - release-binaries
+      - image-build-and-push
+      - skills-build-and-push
+      - publish-helm
+    if: ${{ failure() }}
+    runs-on: ubuntu-slim
+    permissions: {}
+    steps:
+      - name: Send Slack Notification
+        uses: slackapi/slack-github-action@45a88b9581bfab2566dc881e2cd66d334e621e2c # v3.0.3
+        with:
+          webhook: ${{ secrets.SLACK_TOOLHIVE_RELEASE_WEBHOOK_URL }}
+          webhook-type: incoming-webhook
+          payload: |
+            {
+              "blocks": [
+                {
+                  "type": "header",
+                  "text": {
+                    "type": "plain_text",
+                    "text": "🚨 ToolHive Release Failed",
+                    "emoji": true
+                  }
+                },
+                {
+                  "type": "section",
+                  "fields": [
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Version:*\n${{ github.ref_name }}"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Triggered by:*\n${{ needs.extract-release-actor.outputs.triggered_by || github.actor }}"
+                    }
+                  ]
+                },
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*Workflow Run:*\n<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Failed Run>"
+                  }
+                },
+                {
+                  "type": "context",
+                  "elements": [
+                    {
+                      "type": "mrkdwn",
+                      "text": "Repository: ${{ github.repository }} | Commit: ${{ github.sha }}"
+                    }
+                  ]
+                }
+              ]
+            }

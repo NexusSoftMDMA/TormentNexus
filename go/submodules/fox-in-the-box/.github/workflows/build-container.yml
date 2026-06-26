@@ -1,0 +1,466 @@
+# .github/workflows/build-container.yml
+name: Build Container
+
+# Multi-arch (linux/amd64 + linux/arm64) container build using the
+# cross-runner pattern: each platform builds natively on its own runner
+# (no QEMU emulation), per-platform digests are exported as artifacts,
+# and a final merge job assembles the manifest list with
+# `docker buildx imagetools create`. Native arm64 runners are GA and
+# free for public repos. Issue #82.
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+  workflow_call:
+    outputs:
+      digest:
+        description: >-
+          Index (manifest-list) digest of the pushed image. Pulling
+          `name@<digest>` from any platform auto-selects the matching
+          child manifest, so callers (release.yml) consume this exactly
+          like the single-platform digest from before #82.
+        value: ${{ jobs.merge.outputs.digest }}
+
+env:
+  IMAGE: ghcr.io/fox-in-the-box-ai/cloud
+
+jobs:
+  # ── Build per platform, push by digest, export the digest as an artifact.
+  # No tag is written at this stage — tagging happens in the merge job once
+  # both per-platform manifests are confirmed pushed. Cache scopes are
+  # explicitly per-platform to prevent any chance of cross-arch layer
+  # contamination (#82 reviewer concern).
+  build:
+    name: Build & Push (${{ matrix.platform.short }})
+    strategy:
+      fail-fast: false
+      matrix:
+        platform:
+          - { runner: ubuntu-latest,    short: amd64, full: linux/amd64 }
+          - { runner: ubuntu-24.04-arm, short: arm64, full: linux/arm64 }
+    runs-on: ${{ matrix.platform.runner }}
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout (with submodules)
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          submodules: recursive
+
+      # Phase 8 follow-up #246: fail fast if any overlay artefact is stale
+      # against the current submodule pin. Catches upstream rename/delete
+      # of .fox-removals entries + anchor drift in the webui/agent patch
+      # series BEFORE the Docker build wastes ~3 minutes per arch only to
+      # die at git apply --check inside the container.
+      - name: Overlay basis sanity check
+        run: ./packages/fox-overlay/scripts/check-overlay-basis.sh
+
+      - name: Log in to GHCR
+        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4.1.0
+
+      - name: Determine FITB_VERSION
+        id: meta
+        run: |
+          # Tag pushes use the version tag verbatim. Other events (push to
+          # main, PRs) carry a dev marker derived from the short SHA so the
+          # in-app version display is never blank — previously these built
+          # with FITB_VERSION="" which surfaced as empty version strings on
+          # :latest / :stable images. FITB#122 cosmetic.
+          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            echo "fitb_version=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
+          else
+            SHORT_SHA="$(echo "${{ github.sha }}" | cut -c1-7)"
+            echo "fitb_version=dev-${SHORT_SHA}" >> "$GITHUB_OUTPUT"
+          fi
+          RUNTIME_VERSION=$(grep '^hermes_webui_tag' packages/fox-overlay/versions.toml | sed 's/.*= *"\(.*\)"/\1/')
+          echo "runtime_version=${RUNTIME_VERSION:-unknown}" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push by digest
+        id: build
+        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7
+        with:
+          context: .
+          file: packages/integration/Dockerfile
+          platforms: ${{ matrix.platform.full }}
+          # `push-by-digest=true` writes the image to the registry without
+          # creating a tag — the merge job tags it once both arches are
+          # confirmed. `name-canonical=true` ensures the resulting digest
+          # is verifiable at name@sha256:... pull time.
+          outputs: type=image,name=${{ env.IMAGE }},push-by-digest=true,name-canonical=true,push=true
+          # Per-platform cache scopes — distinct keys so amd64 and arm64
+          # never read each other's cache layers (reviewer concern #3).
+          cache-from: type=gha,scope=cloud-${{ matrix.platform.short }}
+          cache-to:   type=gha,scope=cloud-${{ matrix.platform.short }},mode=max
+          build-args: |
+            FITB_VERSION=${{ steps.meta.outputs.fitb_version }}
+            FITB_RUNTIME_VERSION=${{ steps.meta.outputs.runtime_version }}
+
+      - name: Export per-platform digest as artifact
+        run: |
+          set -euo pipefail
+          mkdir -p "${{ runner.temp }}/digests"
+          digest="${{ steps.build.outputs.digest }}"
+          if [[ -z "$digest" ]]; then
+            echo "::error::build-push-action did not return a digest for ${{ matrix.platform.full }}"
+            exit 1
+          fi
+          # Filename is the digest sans the sha256: prefix; merge job
+          # globs these and prefixes name@sha256: at imagetools-create time.
+          touch "${{ runner.temp }}/digests/${digest#sha256:}"
+
+      - name: Upload digest artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: digest-${{ matrix.platform.short }}
+          path: ${{ runner.temp }}/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  # ── Assemble the manifest list, verify both arches present, expose the
+  # index digest. This is the most fragile step (#82 reviewer concern #1):
+  # if either platform's manifest is missing, the merge silently produces a
+  # single-platform image. The verify-both-arches step below makes that a
+  # hard fail.
+  merge:
+    name: Merge into manifest list
+    needs: [build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      digest: ${{ steps.merge.outputs.digest }}
+      tag:    ${{ steps.tag.outputs.tag }}
+
+    steps:
+      - name: Determine tag
+        id: tag
+        run: |
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            echo "tag=dev" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=latest" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Log in to GHCR
+        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4.1.0
+
+      - name: Download per-platform digests
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          path: ${{ runner.temp }}/digests
+          pattern: digest-*
+          merge-multiple: true
+
+      - name: Create manifest list and push
+        id: merge
+        working-directory: ${{ runner.temp }}/digests
+        run: |
+          set -euo pipefail
+          TAG="${{ steps.tag.outputs.tag }}"
+          # Source list = name@sha256:<digest> for each per-platform image.
+          # `printf '%s '` over the artifact filenames, with an explicit
+          # name@sha256: prefix.
+          SOURCES=$(printf "${IMAGE}@sha256:%s " *)
+          echo "Sources: $SOURCES"
+          docker buildx imagetools create -t "${IMAGE}:${TAG}" $SOURCES
+          # Capture the index digest from the freshly-pushed manifest list.
+          # `inspect --raw` returns the canonical bytes; their content
+          # digest IS the manifest-list digest. Use --format for stability.
+          DIGEST=$(docker buildx imagetools inspect "${IMAGE}:${TAG}" --format '{{json .Manifest}}' | jq -r '.digest')
+          if [[ -z "$DIGEST" || "$DIGEST" == "null" ]]; then
+            echo "::error::Could not determine index digest from manifest-list inspect"
+            exit 1
+          fi
+          echo "digest=$DIGEST" >> "$GITHUB_OUTPUT"
+          echo "Manifest-list digest: $DIGEST"
+
+      - name: Verify both architectures present in manifest list
+        run: |
+          set -euo pipefail
+          INSPECT=$(docker buildx imagetools inspect "${IMAGE}:${{ steps.tag.outputs.tag }}" \
+            --format '{{range .Manifest.Manifests}}{{.Platform.OS}}/{{.Platform.Architecture}}{{"\n"}}{{end}}')
+          echo "Platforms found in manifest list:"
+          echo "$INSPECT"
+          # Both must be present. `attestation-manifest` entries (with
+          # platform "unknown/unknown") are filtered out by grepping for
+          # the explicit platform strings.
+          if ! grep -qx 'linux/amd64' <<<"$INSPECT"; then
+            echo "::error::linux/amd64 manifest is missing from the published index — refusing to ship a single-platform image as multi-arch."
+            exit 1
+          fi
+          if ! grep -qx 'linux/arm64' <<<"$INSPECT"; then
+            echo "::error::linux/arm64 manifest is missing from the published index — refusing to ship a single-platform image as multi-arch."
+            exit 1
+          fi
+          echo "✅ Both linux/amd64 and linux/arm64 confirmed in manifest list"
+
+      # ── Option B (v0.7.0+): auto-bump :stable on upstream-only commits ─────
+      #
+      # Background: previously, :stable was bumped on every push to main, which
+      # shipped post-release commits (docs-only PRs, partial Fox features) to
+      # all DMG users without an explicit release tag — surfaced by FITB#122
+      # where :stable diverged from :v0.5.0 within hours of release. The
+      # original guard removed all auto-bump-on-main behavior, deferring :stable
+      # entirely to release.yml's tag-driven path.
+      #
+      # Option B (introduced v0.7.0): the Fox version (VERSION + DMG + exe)
+      # tracks Fox-code changes only. Upstream-pin advances ship as container-
+      # only updates without forcing a DMG re-download. To preserve FITB#122's
+      # protection while enabling Option B, this step ONLY auto-bumps :stable
+      # when the merged commit's subject is prefixed with `bump(upstream):` —
+      # a convention reserved for upstream-pin advance commits. Fox-code
+      # commits never use this prefix, so they fall back to release.yml's
+      # tag-driven :stable path exactly as before.
+      #
+      # See docs/architecture/upstream-overlay.md → "Versioning policy
+      # (Option B)" for the operational story + how to create a valid
+      # bump(upstream): commit by hand.
+      - name: Auto-bump :stable on upstream-only commits (Option B)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          # github.event.head_commit.message is multi-line (subject + body);
+          # piped through env var (rather than direct ${{ }} interpolation
+          # into the bash script) for safe quoting. Read via shell parameter
+          # expansion to isolate the subject line — that's where the Option B
+          # marker lives.
+          HEAD_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+        run: |
+          set -euo pipefail
+          # Subject = first line of the commit message. Avoids needing a
+          # `git log` call (the merge job has no actions/checkout — it works
+          # entirely from downloaded per-arch digests, so `git` is unusable).
+          MSG="${HEAD_COMMIT_MESSAGE%%$'\n'*}"
+          if [[ "$MSG" =~ ^bump\(upstream\): ]]; then
+              INPUT_DIGEST="${{ steps.merge.outputs.digest }}"
+              echo "Commit subject matches Option B upstream-bump convention:"
+              echo "  $MSG"
+              echo "Bumping :stable from the :latest manifest list ($INPUT_DIGEST)"
+              docker buildx imagetools create \
+                -t "${IMAGE}:stable" \
+                "${IMAGE}@${INPUT_DIGEST}"
+              # Verify both arches survived the re-tag (defensive — FITB#82).
+              docker buildx imagetools inspect "${IMAGE}:stable" \
+                --format '{{range .Manifest.Manifests}}{{.Platform.OS}}/{{.Platform.Architecture}}{{"\n"}}{{end}}' \
+                | grep -qx 'linux/amd64'
+              docker buildx imagetools inspect "${IMAGE}:stable" \
+                --format '{{range .Manifest.Manifests}}{{.Platform.OS}}/{{.Platform.Architecture}}{{"\n"}}{{end}}' \
+                | grep -qx 'linux/arm64'
+              # imagetools create rebuilds the manifest list and assigns it a
+              # NEW index digest (the contents are bit-identical but the
+              # operation creates a new manifest blob). Re-read so the log
+              # shows the actual digest :stable points at after the operation,
+              # not the input digest (FITB v0.7.1 cosmetic fix).
+              STABLE_DIGEST=$(docker buildx imagetools inspect "${IMAGE}:stable" \
+                --format '{{json .Manifest}}' | jq -r '.digest')
+              echo "✅ :stable now points at $STABLE_DIGEST (both arches confirmed; input was $INPUT_DIGEST)"
+          else
+              echo "Skipping :stable auto-bump — commit subject is not a 'bump(upstream):' prefix:"
+              echo "  $MSG"
+              echo "(This is the FITB#122 protection: only Option B upstream-only commits move :stable on main pushes; Fox-code releases move :stable via release.yml on tag push.)"
+          fi
+      # Do NOT add an unconditional :stable re-tag here. The conditional above
+      # is the entire Option B contract; making it unconditional would re-open
+      # FITB#122's bug.
+
+  # ── Pull the published manifest by INDEX digest on each platform's
+  # native runner and run the smoke test. This proves the digest pin
+  # contract release.yml depends on still works (#82 reviewer concern #2):
+  # `docker pull name@<index-digest>` auto-selects the host platform's
+  # child manifest. Each smoke also validates `/health` body contains
+  # `"status": "ok"` — not just HTTP 200 — to catch a #57-style mismatch.
+  smoke:
+    name: Smoke (${{ matrix.platform.short }})
+    needs: [merge]
+    strategy:
+      fail-fast: false
+      matrix:
+        platform:
+          - { runner: ubuntu-latest,    short: amd64, expected: amd64 }
+          - { runner: ubuntu-24.04-arm, short: arm64, expected: arm64 }
+    runs-on: ${{ matrix.platform.runner }}
+    permissions:
+      contents: read
+      packages: read
+
+    steps:
+      - name: Log in to GHCR
+        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull image by INDEX digest (verifies digest-pin compatibility)
+        env:
+          DIGEST: ${{ needs.merge.outputs.digest }}
+        run: |
+          set -euo pipefail
+          docker pull "${IMAGE}@${DIGEST}"
+          # Confirm the registry served the matching child manifest for
+          # this runner's architecture — that's exactly what release.yml
+          # relies on (`docker pull "$IMG@$DIGEST"` on amd64 must yield
+          # an amd64 image without --platform).
+          ARCH=$(docker image inspect "${IMAGE}@${DIGEST}" --format '{{.Architecture}}')
+          if [[ "$ARCH" != "${{ matrix.platform.expected }}" ]]; then
+            echo "::error::Pulling index digest on ${{ matrix.platform.short }} runner did not auto-select ${{ matrix.platform.expected }} (got: $ARCH). release.yml's pull-by-digest pattern would break."
+            exit 1
+          fi
+          echo "✅ Index-digest pull resolved to $ARCH on ${{ matrix.platform.short }} runner"
+
+      - name: Start container
+        id: start
+        env:
+          DIGEST: ${{ needs.merge.outputs.digest }}
+        run: |
+          docker run -d \
+            --name test-fox \
+            --cap-add=NET_ADMIN \
+            --device /dev/net/tun \
+            --sysctl net.ipv4.ip_forward=1 \
+            -p 127.0.0.1:8787:8787 \
+            "${IMAGE}@${DIGEST}"
+          echo "start_epoch=$(date +%s)" >> "$GITHUB_OUTPUT"
+
+      - name: Wait for /health to return 200 with healthy body
+        # Validates BOTH the HTTP status AND that the body contains
+        # `"status": "ok"`. v0.2.0 (#57) showed status-code-only checks
+        # can mask body-shape divergence — don't repeat that.
+        id: health
+        env:
+          START_EPOCH: ${{ steps.start.outputs.start_epoch }}
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 36); do
+            RESP=$(curl -fsS http://localhost:8787/health 2>/dev/null) || RESP=""
+            if [[ -n "$RESP" ]] && echo "$RESP" | grep -q '"status": "ok"'; then
+              ELAPSED=$(( $(date +%s) - START_EPOCH ))
+              echo "startup_seconds=$ELAPSED" >> "$GITHUB_OUTPUT"
+              echo "✅ /health returned 200 with healthy body on attempt $i (${ELAPSED}s)"
+              echo "Body: $RESP"
+              exit 0
+            fi
+            if ! docker inspect test-fox --format '{{.State.Running}}' | grep -q true; then
+              echo "::error::Container exited unexpectedly on ${{ matrix.platform.short }}"
+              docker logs test-fox
+              exit 1
+            fi
+            echo "  Waiting on ${{ matrix.platform.short }}... ($i/36)"
+            sleep 5
+          done
+          echo "::error::Container did not return a healthy /health body within 3 minutes on ${{ matrix.platform.short }}"
+          docker logs test-fox
+          exit 1
+
+      - name: Startup time regression gate (#429)
+        env:
+          STARTUP_SECONDS: ${{ steps.health.outputs.startup_seconds }}
+          ARCH: ${{ matrix.platform.short }}
+          DIGEST: ${{ needs.merge.outputs.digest }}
+          # Thresholds in seconds. Set conservatively until baseline data
+          # from ~10 CI runs establishes p50/p95. Then tighten to
+          # p95 * 1.20 per the SLO definition.
+          STARTUP_WARN_THRESHOLD: '45'
+          STARTUP_FAIL_THRESHOLD: '90'
+        run: |
+          set -euo pipefail
+          if [[ -z "$STARTUP_SECONDS" ]]; then
+            echo "::error::No startup time recorded — health step may have failed"
+            exit 1
+          fi
+          echo "Startup time on ${ARCH}: ${STARTUP_SECONDS}s (warn=${STARTUP_WARN_THRESHOLD}s, fail=${STARTUP_FAIL_THRESHOLD}s)"
+
+          if (( STARTUP_SECONDS <= STARTUP_WARN_THRESHOLD )); then
+            echo "::notice title=startup-time-${ARCH}::Container started in ${STARTUP_SECONDS}s on ${ARCH} (within ${STARTUP_WARN_THRESHOLD}s warn threshold)"
+            exit 0
+          fi
+
+          if (( STARTUP_SECONDS <= STARTUP_FAIL_THRESHOLD )); then
+            echo "::warning title=startup-time-${ARCH}::Container started in ${STARTUP_SECONDS}s on ${ARCH} — above ${STARTUP_WARN_THRESHOLD}s warn threshold (hard limit: ${STARTUP_FAIL_THRESHOLD}s)"
+            exit 0
+          fi
+
+          # Over hard threshold — retry once (flake resistance).
+          # Downstream steps (pip lock, container logs, stop) operate on
+          # whichever test-fox instance is running — the retry container
+          # if this path fires.
+          echo "::warning title=startup-time-${ARCH}::First attempt: ${STARTUP_SECONDS}s exceeds ${STARTUP_FAIL_THRESHOLD}s hard threshold — retrying"
+          docker rm -f test-fox || true
+          sleep 1
+
+          RETRY_START=$(date +%s)
+          docker run -d \
+            --name test-fox \
+            --cap-add=NET_ADMIN \
+            --device /dev/net/tun \
+            --sysctl net.ipv4.ip_forward=1 \
+            -p 127.0.0.1:8787:8787 \
+            "${IMAGE}@${DIGEST}"
+
+          for i in $(seq 1 36); do
+            RESP=$(curl -fsS http://localhost:8787/health 2>/dev/null) || RESP=""
+            if [[ -n "$RESP" ]] && echo "$RESP" | grep -q '"status": "ok"'; then
+              RETRY_ELAPSED=$(( $(date +%s) - RETRY_START ))
+              echo "Retry startup time on ${ARCH}: ${RETRY_ELAPSED}s"
+              if (( RETRY_ELAPSED <= STARTUP_FAIL_THRESHOLD )); then
+                echo "::warning title=startup-time-${ARCH}::Retry passed: ${RETRY_ELAPSED}s (first attempt was ${STARTUP_SECONDS}s — likely cold-cache flake)"
+                exit 0
+              fi
+              echo "::error title=startup-time-${ARCH}::Startup regression on ${ARCH}: both attempts exceeded ${STARTUP_FAIL_THRESHOLD}s (first: ${STARTUP_SECONDS}s, retry: ${RETRY_ELAPSED}s)"
+              exit 1
+            fi
+            if ! docker inspect test-fox --format '{{.State.Running}}' | grep -q true; then
+              echo "::error::Container exited during retry on ${ARCH}"
+              docker logs test-fox
+              exit 1
+            fi
+            sleep 5
+          done
+          echo "::error::Container did not become healthy during retry on ${ARCH}"
+          docker logs test-fox
+          exit 1
+
+      - name: Verify pip lock consistency
+        if: matrix.platform.short == 'amd64'
+        run: |
+          set -euo pipefail
+          # Compare the committed lock file (baked into the image at build time)
+          # against the live pip freeze. Uses docker cp to avoid network fetch
+          # issues on fork PRs.
+          docker cp test-fox:/app/requirements.lock /tmp/lock-from-image.txt
+          grep -v '^#' /tmp/lock-from-image.txt | grep -v '^$' | sort > /tmp/lock.txt
+          docker exec test-fox pip freeze --exclude-editable 2>/dev/null | sort > /tmp/freeze.txt
+          if ! diff -u /tmp/lock.txt /tmp/freeze.txt; then
+            echo "::warning::pip freeze differs from requirements.lock — regenerate with: docker run --rm --entrypoint pip <image> freeze --exclude-editable | sort > packages/integration/requirements.lock"
+          else
+            echo "pip freeze matches requirements.lock"
+          fi
+
+      - name: Container logs (always — debug)
+        if: always()
+        run: docker logs test-fox 2>&1 || true
+
+      - name: Stop container
+        if: always()
+        run: docker stop test-fox || true

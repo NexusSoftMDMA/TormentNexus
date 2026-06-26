@@ -1,0 +1,214 @@
+# Virtual MCP Server Configuration Example
+#
+# This example demonstrates all available configuration options for the Virtual MCP Server.
+# The Virtual MCP Server aggregates multiple MCP server workloads from a ToolHive group
+# into a single unified MCP endpoint.
+#
+# References: docs/proposals/THV-2106-virtual-mcp-server.md
+#
+# Usage:
+#   vmcp serve --config vmcp-config.yaml
+#
+# Prerequisites:
+#   1. Create a ToolHive group: thv group create engineering-team
+#   2. Run backend MCP servers: thv run github --group engineering-team
+#   3. Start Virtual MCP: vmcp serve --config this-file.yaml
+
+# Virtual MCP metadata
+name: "engineering-vmcp"
+groupRef: "engineering-team"  # Reference to ToolHive group
+
+# ===== INCOMING AUTHENTICATION (Client → Virtual MCP) =====
+incomingAuth:
+  type: oidc  # Options: oidc | anonymous
+  # OIDC configuration
+  oidc:
+    issuer: "https://keycloak.example.com/realms/myrealm"
+    clientId: "vmcp-client"
+    clientSecretEnv: "VMCP_CLIENT_SECRET"  # Read from environment variable
+    audience: "vmcp"  # Token must have aud=vmcp
+    resource: "http://localhost:4483/mcp"
+    scopes: ["openid", "profile", "email"]
+
+  # Optional: Authorization policies (Cedar)
+  authz:
+    type: cedar
+    policies:
+      - |
+        permit(
+          principal,
+          action == Action::"tools/call",
+          resource
+        );
+
+# ===== OUTGOING AUTHENTICATION (Virtual MCP → Backend APIs) =====
+outgoingAuth:
+  # Configuration source (CLI only supports 'inline')
+  source: inline  # Options: inline | discovered
+
+  # Default behavior for backends without explicit config
+  default:
+    type: unauthenticated  # unauthenticated | header_injection | token_exchange
+
+  # Per-backend authentication configurations
+  # IMPORTANT: These tokens are for backend APIs (e.g., github-api, jira-api),
+  # NOT for authenticating Virtual MCP to backend MCP servers.
+  # Backend MCP servers receive properly scoped tokens and use them to call upstream APIs.
+  backends:
+    # Example 1: API key from environment variable (recommended for secrets)
+    github:
+      type: header_injection
+      headerInjection:
+        headerName: "Authorization"
+        headerValueEnv: "GITHUB_API_TOKEN"  # Read from environment variable
+
+    # Example 2: Static header value (for non-secret values only)
+    # api-service:
+    #   type: header_injection
+    #   headerInjection:
+    #     headerName: "X-API-Version"
+    #     headerValue: "v1"  # Literal value
+
+    # Example: OAuth 2.0 Token Exchange (RFC 8693) for GitHub API access
+    # github:
+    #   type: token_exchange
+    #   tokenExchange:
+    #     # RFC 8693 token exchange for GitHub API access
+    #     tokenUrl: "https://keycloak.example.com/realms/myrealm/protocol/openid-connect/token"
+    #     clientId: "vmcp-github-exchange"
+    #     clientSecretEnv: "GITHUB_EXCHANGE_SECRET"
+    #     audience: "github-api"  # Token audience for GitHub API
+    #     scopes: ["repo", "read:org"]  # GitHub API scopes
+    #     subjectTokenType: "access_token"  # Optional: access_token | id_token | jwt
+
+    # Example: Token Exchange for Jira API access
+    # jira:
+    #   type: token_exchange
+    #   tokenExchange:
+    #     tokenUrl: "https://keycloak.example.com/realms/myrealm/protocol/openid-connect/token"
+    #     clientId: "vmcp-jira-exchange"
+    #     clientSecretEnv: "JIRA_EXCHANGE_SECRET"
+    #     audience: "jira-api"  # Token audience for Jira API
+    #     scopes: ["read:jira-work", "write:jira-work"]
+
+# ===== TOOL AGGREGATION =====
+aggregation:
+  # Conflict resolution strategy
+  conflictResolution: prefix  # prefix | priority | manual
+
+  # Conflict resolution details
+  conflictResolutionConfig:
+    # For 'prefix' strategy: prefix format
+    prefixFormat: "{workload}_"  # Options: {workload}, {workload}_, {workload}., custom-prefix-
+
+    # For 'priority' strategy: explicit ordering (commented out)
+    # priorityOrder: ["github", "jira", "slack"]
+
+  # Tool filtering and overrides (per workload in the group)
+  tools:
+    - workload: "github"
+      filter: ["create_pr", "merge_pr", "list_issues"]
+      overrides:
+        create_pr:
+          name: "gh_create_pr"
+          description: "Create a GitHub pull request"
+
+    - workload: "jira"
+      overrides:
+        create_issue:
+          name: "jira_create_issue"
+          description: "Create a Jira issue"
+
+# ===== OPERATIONAL SETTINGS =====
+operational:
+  timeouts:
+    default: 30s
+    perWorkload:
+      github: 45s
+      jira: 30s
+
+  # Failure handling
+  failureHandling:
+    # Backend unavailability
+    healthCheckInterval: 30s
+    unhealthyThreshold: 3  # Mark unhealthy after N failures
+
+    # Partial failures
+    partialFailureMode: fail  # fail | bestEffort
+
+    # Circuit breaker
+    circuitBreaker:
+      enabled: true
+      failureThreshold: 5
+      timeout: 60s
+
+# ===== COMPOSITE TOOLS (Phase 2 - Future Feature) =====
+# Composite tools enable multi-step workflows with elicitation support
+# compositeTools:
+#   - name: "deploy_and_notify"
+#     description: "Deploy PR with user confirmation and notification"
+#     # Parameters use standard JSON Schema format per MCP specification
+#     parameters:
+#       type: object
+#       properties:
+#         pr_number:
+#           type: integer
+#           description: "Pull request number to deploy"
+#       required: ["pr_number"]
+#     timeout: "30m"
+#
+#     steps:
+#       - id: "merge"
+#         tool: "github.merge_pr"
+#         arguments: {pr: "{{.params.pr_number}}"}
+#         onError:
+#           action: "abort"  # abort | continue | retry
+#
+#       - id: "confirm_deploy"
+#         type: "elicitation"
+#         message: "PR {{.params.pr_number}} merged. Proceed with deployment?"
+#         schema:
+#           type: "object"
+#           properties:
+#             environment:
+#               type: "string"
+#               enum: ["staging", "production"]
+#         dependsOn: ["merge"]
+#         timeout: "5m"
+#         onDecline:
+#           action: "skip_remaining"
+#         onCancel:
+#           action: "abort"
+#
+#       - id: "deploy"
+#         tool: "kubernetes.deploy"
+#         arguments:
+#           pr: "{{.params.pr_number}}"
+#           environment: "{{.steps.confirm_deploy.content.environment}}"
+#         dependsOn: ["confirm_deploy"]
+#         condition: "{{.steps.confirm_deploy.action == 'accept'}}"
+
+# ===== OBSERVABILITY =====
+# OpenTelemetry-based metrics and tracing for backend operations and workflows
+telemetry:
+  endpoint: "localhost:4317"  # OTLP collector endpoint
+  serviceName: "engineering-vmcp"
+  tracingEnabled: true
+  metricsEnabled: true
+  samplingRate: "0.1"  # 10% sampling
+  insecure: true  # Use HTTP instead of HTTPS
+  enablePrometheusMetricsPath: true  # Expose /metrics endpoint
+
+# ===== AUDIT LOGGING =====
+# Audit logging for MCP operations (optional)
+# audit:
+#   component: "vmcp-server"  # Component name in audit events
+#   eventTypes:  # Specific event types to audit (empty = audit all)
+#     - "mcp_initialize"
+#     - "mcp_tool_call"
+#   # excludeEventTypes:  # Event types to exclude (takes precedence over eventTypes)
+#   #   - "mcp_ping"
+#   includeRequestData: true  # Include request data in audit logs
+#   includeResponseData: false  # Include response data in audit logs
+#   maxDataSize: 10000  # Max size of request/response data (bytes)
+#   logFile: "/var/log/vmcp/audit.log"  # Log file path (empty = stdout)

@@ -1,0 +1,16 @@
+--- go/internal/hsync/linkcrawler_test.go
++++ go/internal/hsync/linkcrawler_test.go
+@@ -90,13 +90,13 @@
+	classifierCalls := 0
+	report, err := CrawlPendingLinks(context.Background(), dbPath, LinkCrawlerOptions{
+		Limit: 5,
+-		Classifier: func(ctx context.Context, title, description, content string) ([]string, error) {
++		Classifier: func(ctx context.Context, title, description, content string) (*LinkAnalysis, error) {
+			classifierCalls++
+			if title != "Go Native Link Crawler" {
+				t.Fatalf("unexpected title passed to classifier: %q", title)
+			}
+-			return []string{"go", "crawler", "backlog"}, nil
++			return &LinkAnalysis{Tags: []string{"go", "crawler", "backlog"}}, nil
+		},
+	})

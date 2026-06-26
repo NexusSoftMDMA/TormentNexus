@@ -1,0 +1,82 @@
+{
+    "extensionDescription": {
+        "description": "Extension description",
+        "message": "Potencia tu chat IA con herramientas MCP y automatizaciones"
+    },
+    "extensionName": {
+        "description": "Extension name",
+        "message": "TormentNexus Extension"
+    },
+    "navDashboard": {
+        "message": "Panel"
+    },
+    "navChat": {
+        "message": "Chat"
+    },
+    "navTools": {
+        "message": "Herramientas"
+    },
+    "navResources": {
+        "message": "Recursos"
+    },
+    "navMacros": {
+        "message": "Macros"
+    },
+    "navContext": {
+        "message": "Contexto"
+    },
+    "navTemplates": {
+        "message": "Plantillas"
+    },
+    "navActivity": {
+        "message": "Actividad"
+    },
+    "navDebugger": {
+        "message": "Depurador"
+    },
+    "navSettings": {
+        "message": "Configuración"
+    },
+    "navHelp": {
+        "message": "Ayuda"
+    },
+    "settingsTitle": {
+        "message": "Configuración"
+    },
+    "settingsGeneral": {
+        "message": "General"
+    },
+    "settingsAdvanced": {
+        "message": "Avanzado"
+    },
+    "settingsAbout": {
+        "message": "Acerca de"
+    },
+    "settingsTheme": {
+        "message": "Tema"
+    },
+    "settingsThemeSystem": {
+        "message": "Sistema"
+    },
+    "settingsThemeLight": {
+        "message": "Claro"
+    },
+    "settingsThemeDark": {
+        "message": "Oscuro"
+    },
+    "serverStatus": {
+        "message": "Estado del Servidor"
+    },
+    "serverStatusConnected": {
+        "message": "Conectado"
+    },
+    "serverStatusDisconnected": {
+        "message": "Desconectado"
+    },
+    "actionSave": {
+        "message": "Guardar"
+    },
+    "actionCancel": {
+        "message": "Cancelar"
+    }
+}

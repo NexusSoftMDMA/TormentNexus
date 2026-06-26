@@ -1,0 +1,500 @@
+// SPDX-FileCopyrightText: Copyright 2025 Stacklok, Inc.
+// SPDX-License-Identifier: Apache-2.0
+
+package handlers
+
+import (
+	"context"
+	"crypto/rand"
+	"crypto/rsa"
+	"testing"
+	"time"
+
+	"github.com/ory/fosite"
+	"github.com/ory/fosite/compose"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+
+	"github.com/stacklok/toolhive/pkg/authserver/server"
+	servercrypto "github.com/stacklok/toolhive/pkg/authserver/server/crypto"
+	"github.com/stacklok/toolhive/pkg/authserver/storage"
+	"github.com/stacklok/toolhive/pkg/authserver/storage/mocks"
+	"github.com/stacklok/toolhive/pkg/authserver/upstream"
+)
+
+const (
+	testAuthClientID    = "test-auth-client"
+	testAuthRedirectURI = "http://localhost:8080/callback"
+	testAuthIssuer      = "http://test-auth-issuer"
+	testInternalState   = "internal-state-123"
+)
+
+// mockIDPProvider implements upstream.OAuth2Provider for testing.
+type mockIDPProvider struct {
+	providerType          upstream.ProviderType
+	authorizationURL      string
+	authURLErr            error
+	exchangeResult        *upstream.Identity
+	exchangeErr           error
+	refreshTokens         *upstream.Tokens
+	refreshErr            error
+	capturedState         string
+	capturedCode          string
+	capturedCodeChallenge string
+	capturedCodeVerifier  string
+	capturedNonce         string
+}
+
+// Compile-time interface check.
+var _ upstream.OAuth2Provider = (*mockIDPProvider)(nil)
+
+func (m *mockIDPProvider) Type() upstream.ProviderType {
+	if m.providerType == "" {
+		return upstream.ProviderTypeOAuth2
+	}
+	return m.providerType
+}
+
+func (m *mockIDPProvider) AuthorizationURL(state, codeChallenge string, _ ...upstream.AuthorizationOption) (string, error) {
+	m.capturedState = state
+	m.capturedCodeChallenge = codeChallenge
+	if m.authURLErr != nil {
+		return "", m.authURLErr
+	}
+	return m.authorizationURL + "?state=" + state, nil
+}
+
+func (m *mockIDPProvider) ExchangeCodeForIdentity(_ context.Context, code, codeVerifier, nonce string) (*upstream.Identity, error) {
+	m.capturedCode = code
+	m.capturedCodeVerifier = codeVerifier
+	m.capturedNonce = nonce
+	if m.exchangeErr != nil {
+		return nil, m.exchangeErr
+	}
+	return m.exchangeResult, nil
+}
+
+func (m *mockIDPProvider) RefreshTokens(_ context.Context, _, _ string) (*upstream.Tokens, error) {
+	if m.refreshErr != nil {
+		return nil, m.refreshErr
+	}
+	return m.refreshTokens, nil
+}
+
+// testStorageState holds the in-memory state for testing.
+type testStorageState struct {
+	pendingAuths       map[string]*storage.PendingAuthorization
+	upstreamTokens     map[string]*storage.UpstreamTokens
+	clients            map[string]fosite.Client
+	users              map[string]*storage.User
+	providerIdentities map[string]*storage.ProviderIdentity // key: providerID:providerSubject
+	authCodeSessions   map[string]fosite.Requester          // authorize code sessions for token exchange
+	pkceSessions       map[string]fosite.Requester          // PKCE sessions for token exchange
+	idpTokenCount      int
+	renewedClients     []string // client IDs passed to RenewClientTTL
+	// getAllUpstreamCtx and deleteUpstreamCtx capture the context passed to
+	// GetAllUpstreamTokens / DeleteUpstreamTokens, so a test can assert the
+	// callback placed the authenticated identity into the request context before
+	// that storage call runs. Each records only the most recent call; tests that
+	// trigger multiple calls must account for last-write-wins.
+	getAllUpstreamCtx context.Context
+	deleteUpstreamCtx context.Context
+}
+
+// baseTestSetupOption configures optional behavior overrides for baseTestSetup.
+type baseTestSetupOption func(*baseTestSetupConfig)
+
+type baseTestSetupConfig struct {
+	storePendingErr            error // if non-nil, StorePendingAuthorization always returns this error
+	getLatestUpstreamTokensErr error // if non-nil, GetLatestUpstreamTokensForUser always returns this error
+}
+
+func withStorePendingError(err error) baseTestSetupOption {
+	return func(c *baseTestSetupConfig) {
+		c.storePendingErr = err
+	}
+}
+
+func withGetLatestUpstreamTokensError(err error) baseTestSetupOption {
+	return func(c *baseTestSetupConfig) {
+		c.getLatestUpstreamTokensErr = err
+	}
+}
+
+// baseTestSetup creates the shared test infrastructure (RSA keys, fosite provider, mock storage
+// with all expectations wired, including upstream token mocks). Callers create the Handler.
+func baseTestSetup(t *testing.T, opts ...baseTestSetupOption) (fosite.OAuth2Provider, *server.AuthorizationServerConfig, *mocks.MockStorage, *testStorageState) {
+	t.Helper()
+
+	var setupCfg baseTestSetupConfig
+	for _, o := range opts {
+		o(&setupCfg)
+	}
+
+	ctrl := gomock.NewController(t)
+	t.Cleanup(func() {
+		ctrl.Finish()
+	})
+
+	// Generate RSA key for testing
+	rsaKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+
+	secret := make([]byte, 32)
+	_, err = rand.Read(secret)
+	require.NoError(t, err)
+
+	cfg := &server.AuthorizationServerParams{
+		Issuer:               testAuthIssuer,
+		AccessTokenLifespan:  time.Hour,
+		RefreshTokenLifespan: time.Hour * 24,
+		AuthCodeLifespan:     time.Minute * 10,
+		HMACSecrets:          servercrypto.NewHMACSecrets(secret),
+		SigningKeyID:         "test-key-1",
+		SigningKeyAlgorithm:  "RS256",
+		SigningKey:           rsaKey,
+		AllowedAudiences:     []string{"https://api.example.com"},
+	}
+
+	oauth2Config, err := server.NewAuthorizationServerConfig(cfg)
+	require.NoError(t, err)
+
+	// Create mock storage with in-memory state
+	storState := &testStorageState{
+		pendingAuths:       make(map[string]*storage.PendingAuthorization),
+		upstreamTokens:     make(map[string]*storage.UpstreamTokens),
+		clients:            make(map[string]fosite.Client),
+		users:              make(map[string]*storage.User),
+		providerIdentities: make(map[string]*storage.ProviderIdentity),
+		authCodeSessions:   make(map[string]fosite.Requester),
+		pkceSessions:       make(map[string]fosite.Requester),
+	}
+
+	stor := mocks.NewMockStorage(ctrl)
+
+	// Register a test client (public client for PKCE)
+	testClient := &fosite.DefaultClient{
+		ID:            testAuthClientID,
+		Secret:        nil, // public client
+		RedirectURIs:  []string{testAuthRedirectURI},
+		ResponseTypes: []string{"code"},
+		GrantTypes:    []string{"authorization_code", "refresh_token"},
+		Scopes:        []string{"openid", "profile", "email"},
+		Public:        true,
+	}
+	storState.clients[testAuthClientID] = testClient
+
+	// Setup mock expectations for GetClient
+	stor.EXPECT().GetClient(gomock.Any(), testAuthClientID).DoAndReturn(func(_ context.Context, id string) (fosite.Client, error) {
+		if c, ok := storState.clients[id]; ok {
+			return c, nil
+		}
+		return nil, fosite.ErrNotFound
+	}).AnyTimes()
+	stor.EXPECT().GetClient(gomock.Any(), gomock.Not(testAuthClientID)).Return(nil, fosite.ErrNotFound).AnyTimes()
+
+	// Token issuance renews the public client's registration TTL (best-effort).
+	// Record the calls so tests can assert the renewal fired on success.
+	stor.EXPECT().RenewClientTTL(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(_ context.Context, c fosite.Client) error {
+			storState.renewedClients = append(storState.renewedClients, c.GetID())
+			return nil
+		}).AnyTimes()
+
+	// Setup mock expectations for pending authorization storage
+	if setupCfg.storePendingErr != nil {
+		// StorePendingAuthorization always fails with the configured error
+		stor.EXPECT().StorePendingAuthorization(gomock.Any(), gomock.Any(), gomock.Any()).
+			Return(setupCfg.storePendingErr).AnyTimes()
+	} else {
+		stor.EXPECT().StorePendingAuthorization(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
+			func(_ context.Context, state string, pending *storage.PendingAuthorization) error {
+				if state == "" {
+					return storage.ErrNotFound
+				}
+				if pending == nil {
+					return storage.ErrNotFound
+				}
+				storState.pendingAuths[state] = pending
+				return nil
+			}).AnyTimes()
+	}
+
+	stor.EXPECT().LoadPendingAuthorization(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(_ context.Context, state string) (*storage.PendingAuthorization, error) {
+			if p, ok := storState.pendingAuths[state]; ok {
+				return p, nil
+			}
+			return nil, storage.ErrNotFound
+		}).AnyTimes()
+
+	stor.EXPECT().DeletePendingAuthorization(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(_ context.Context, state string) error {
+			if _, ok := storState.pendingAuths[state]; !ok {
+				return storage.ErrNotFound
+			}
+			delete(storState.pendingAuths, state)
+			return nil
+		}).AnyTimes()
+
+	// Setup mock expectations for authorization code storage (needed by fosite)
+	stor.EXPECT().CreateAuthorizeCodeSession(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
+		func(_ context.Context, code string, req fosite.Requester) error {
+			storState.authCodeSessions[code] = req
+			return nil
+		}).AnyTimes()
+	stor.EXPECT().GetAuthorizeCodeSession(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
+		func(_ context.Context, code string, _ fosite.Session) (fosite.Requester, error) {
+			if req, ok := storState.authCodeSessions[code]; ok {
+				return req, nil
+			}
+			return nil, fosite.ErrNotFound
+		}).AnyTimes()
+	stor.EXPECT().InvalidateAuthorizeCodeSession(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(_ context.Context, code string) error {
+			delete(storState.authCodeSessions, code)
+			return nil
+		}).AnyTimes()
+
+	// Setup mock expectations for PKCE storage (needed by fosite)
+	stor.EXPECT().CreatePKCERequestSession(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
+		func(_ context.Context, code string, req fosite.Requester) error {
+			storState.pkceSessions[code] = req
+			return nil
+		}).AnyTimes()
+	stor.EXPECT().GetPKCERequestSession(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
+		func(_ context.Context, code string, _ fosite.Session) (fosite.Requester, error) {
+			if req, ok := storState.pkceSessions[code]; ok {
+				return req, nil
+			}
+			return nil, fosite.ErrNotFound
+		}).AnyTimes()
+	stor.EXPECT().DeletePKCERequestSession(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(_ context.Context, code string) error {
+			delete(storState.pkceSessions, code)
+			return nil
+		}).AnyTimes()
+
+	// Setup mock expectations for access token storage (needed by fosite for token generation)
+	stor.EXPECT().CreateAccessTokenSession(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+	stor.EXPECT().GetAccessTokenSession(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, fosite.ErrNotFound).AnyTimes()
+	stor.EXPECT().DeleteAccessTokenSession(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+	stor.EXPECT().RevokeAccessToken(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+
+	// Setup mock expectations for refresh token storage (needed by fosite for token generation)
+	stor.EXPECT().CreateRefreshTokenSession(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+	stor.EXPECT().GetRefreshTokenSession(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, fosite.ErrNotFound).AnyTimes()
+	stor.EXPECT().DeleteRefreshTokenSession(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+	stor.EXPECT().RevokeRefreshToken(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+
+	// Setup mock expectations for user storage (needed by UserResolver)
+	stor.EXPECT().CreateUser(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(_ context.Context, user *storage.User) error {
+			storState.users[user.ID] = user
+			return nil
+		}).AnyTimes()
+
+	stor.EXPECT().GetUser(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(_ context.Context, id string) (*storage.User, error) {
+			if user, ok := storState.users[id]; ok {
+				return user, nil
+			}
+			return nil, storage.ErrNotFound
+		}).AnyTimes()
+
+	stor.EXPECT().GetProviderIdentity(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
+		func(_ context.Context, providerID, providerSubject string) (*storage.ProviderIdentity, error) {
+			key := providerID + ":" + providerSubject
+			if identity, ok := storState.providerIdentities[key]; ok {
+				return identity, nil
+			}
+			return nil, storage.ErrNotFound
+		}).AnyTimes()
+
+	stor.EXPECT().CreateProviderIdentity(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(_ context.Context, identity *storage.ProviderIdentity) error {
+			key := identity.ProviderID + ":" + identity.ProviderSubject
+			storState.providerIdentities[key] = identity
+			return nil
+		}).AnyTimes()
+
+	stor.EXPECT().UpdateProviderIdentityLastUsed(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
+		func(_ context.Context, providerID, providerSubject string, lastUsedAt time.Time) error {
+			key := providerID + ":" + providerSubject
+			if identity, ok := storState.providerIdentities[key]; ok {
+				identity.LastUsedAt = lastUsedAt
+				return nil
+			}
+			return storage.ErrNotFound
+		}).AnyTimes()
+
+	stor.EXPECT().DeleteUser(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(_ context.Context, id string) error {
+			if _, ok := storState.users[id]; !ok {
+				return storage.ErrNotFound
+			}
+			delete(storState.users, id)
+			return nil
+		}).AnyTimes()
+
+	// Setup mock expectations for upstream tokens storage.
+	// Keyed by "sessionID:providerName" to support multiple providers per session.
+	stor.EXPECT().StoreUpstreamTokens(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
+		func(_ context.Context, sessionID, providerName string, tokens *storage.UpstreamTokens) error {
+			key := sessionID + ":" + providerName
+			storState.upstreamTokens[key] = tokens
+			storState.idpTokenCount++
+			return nil
+		}).AnyTimes()
+
+	stor.EXPECT().DeleteUpstreamTokens(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(ctx context.Context, sessionID string) error {
+			// DeleteUpstreamTokens takes only (ctx, sessionID) — no tokens argument
+			// to carry the user — so a context-keyed storage decorator can resolve
+			// the user only from ctx. Capture the ctx so a test can assert the
+			// callback placed the identity into it before this delete runs.
+			storState.deleteUpstreamCtx = ctx
+			for key := range storState.upstreamTokens {
+				if len(key) > len(sessionID) && key[:len(sessionID)+1] == sessionID+":" {
+					delete(storState.upstreamTokens, key)
+				}
+			}
+			return nil
+		}).AnyTimes()
+
+	stor.EXPECT().GetAllUpstreamTokens(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(ctx context.Context, sessionID string) (map[string]*storage.UpstreamTokens, error) {
+			// GetAllUpstreamTokens takes only (ctx, sessionID) — no tokens argument to
+			// carry the user — so a user-keyed storage decorator can resolve the user
+			// only from ctx. Capture the ctx here so a test can assert the callback
+			// placed the identity into it before this read runs.
+			storState.getAllUpstreamCtx = ctx
+			result := make(map[string]*storage.UpstreamTokens)
+			prefix := sessionID + ":"
+			for key, tokens := range storState.upstreamTokens {
+				if len(key) > len(prefix) && key[:len(prefix)] == prefix {
+					result[tokens.ProviderID] = tokens
+				}
+			}
+			return result, nil
+		}).AnyTimes()
+
+	stor.EXPECT().
+		GetLatestUpstreamTokensForUser(gomock.Any(), gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, userID, providerID string) (*storage.UpstreamTokens, error) {
+			if setupCfg.getLatestUpstreamTokensErr != nil {
+				return nil, setupCfg.getLatestUpstreamTokensErr
+			}
+			var winner *storage.UpstreamTokens
+			for _, t := range storState.upstreamTokens {
+				if t == nil || t.UserID != userID || t.ProviderID != providerID {
+					continue
+				}
+				if winner == nil || t.ExpiresAt.After(winner.ExpiresAt) {
+					winner = t
+				}
+			}
+			if winner == nil {
+				return nil, storage.ErrNotFound
+			}
+			return winner, nil
+		}).
+		AnyTimes()
+
+	// Create fosite provider with authorization code support
+	jwtStrategy := compose.NewOAuth2JWTStrategy(
+		func(_ context.Context) (any, error) {
+			return rsaKey, nil
+		},
+		compose.NewOAuth2HMACStrategy(oauth2Config.Config),
+		oauth2Config.Config,
+	)
+
+	provider := compose.Compose(
+		oauth2Config.Config,
+		stor,
+		&compose.CommonStrategy{CoreStrategy: jwtStrategy},
+		compose.OAuth2AuthorizeExplicitFactory,
+		compose.OAuth2RefreshTokenGrantFactory,
+		compose.OAuth2PKCEFactory,
+	)
+
+	return provider, oauth2Config, stor, storState
+}
+
+// handlerTestSetup creates a test setup with all dependencies including an upstream provider.
+// Any baseTestSetupOption values are forwarded to baseTestSetup.
+func handlerTestSetup(t *testing.T, opts ...baseTestSetupOption) (*Handler, *testStorageState, *mockIDPProvider) {
+	t.Helper()
+
+	provider, oauth2Config, stor, storState := baseTestSetup(t, opts...)
+
+	mockUpstream := &mockIDPProvider{
+		providerType:     upstream.ProviderTypeOAuth2,
+		authorizationURL: "https://idp.example.com/authorize",
+		exchangeResult: &upstream.Identity{
+			Tokens: &upstream.Tokens{
+				AccessToken:  "upstream-access-token",
+				RefreshToken: "upstream-refresh-token",
+				IDToken:      "upstream-id-token",
+				ExpiresAt:    time.Now().Add(time.Hour),
+			},
+			Subject: "user-123",
+		},
+	}
+
+	upstreams := []NamedUpstream{{Name: "test-upstream", Provider: mockUpstream}}
+	handler, err := NewHandler(provider, oauth2Config, stor, upstreams)
+	require.NoError(t, err)
+
+	return handler, storState, mockUpstream
+}
+
+// multiUpstreamTestSetup creates a test setup with two upstream providers ("provider-1" and "provider-2")
+// for testing multi-upstream authorization chain logic. Any Option values are forwarded to NewHandler.
+func multiUpstreamTestSetup(t *testing.T, opts ...Option) (*Handler, *testStorageState, *mockIDPProvider, *mockIDPProvider) {
+	t.Helper()
+
+	provider, oauth2Config, stor, storState := baseTestSetup(t)
+
+	mockProvider1 := &mockIDPProvider{
+		providerType:     upstream.ProviderTypeOAuth2,
+		authorizationURL: "https://idp1.example.com/authorize",
+		exchangeResult: &upstream.Identity{
+			Tokens: &upstream.Tokens{
+				AccessToken:  "provider1-access-token",
+				RefreshToken: "provider1-refresh-token",
+				IDToken:      "provider1-id-token",
+				ExpiresAt:    time.Now().Add(time.Hour),
+			},
+			Subject: "user-from-provider1",
+			Name:    "First Leg User",
+			Email:   "firstleg@example.com",
+		},
+	}
+
+	mockProvider2 := &mockIDPProvider{
+		providerType:     upstream.ProviderTypeOAuth2,
+		authorizationURL: "https://idp2.example.com/authorize",
+		exchangeResult: &upstream.Identity{
+			Tokens: &upstream.Tokens{
+				AccessToken:  "provider2-access-token",
+				RefreshToken: "provider2-refresh-token",
+				IDToken:      "provider2-id-token",
+				ExpiresAt:    time.Now().Add(time.Hour),
+			},
+			Subject: "user-from-provider2",
+			Name:    "Second Leg User",
+			Email:   "secondleg@example.com",
+		},
+	}
+
+	upstreams := []NamedUpstream{
+		{Name: "provider-1", Provider: mockProvider1},
+		{Name: "provider-2", Provider: mockProvider2},
+	}
+	handler, err := NewHandler(provider, oauth2Config, stor, upstreams, opts...)
+	require.NoError(t, err)
+
+	return handler, storState, mockProvider1, mockProvider2
+}

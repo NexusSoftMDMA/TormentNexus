@@ -1,0 +1,493 @@
+// SPDX-FileCopyrightText: Copyright 2025 Stacklok, Inc.
+// SPDX-License-Identifier: Apache-2.0
+
+package virtualmcp
+
+import (
+	"fmt"
+	"strings"
+	"time"
+
+	"github.com/mark3labs/mcp-go/mcp"
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
+
+	mcpv1beta1 "github.com/stacklok/toolhive/cmd/thv-operator/api/v1beta1"
+	"github.com/stacklok/toolhive/cmd/thv-operator/api/v1beta1/v1beta1test"
+	vmcpconfig "github.com/stacklok/toolhive/pkg/vmcp/config"
+	"github.com/stacklok/toolhive/test/e2e/images"
+)
+
+var _ = Describe("VirtualMCPServer Tool Filtering via MCPToolConfig", Ordered, func() {
+	var (
+		testNamespace   = "default"
+		mcpGroupName    = "test-toolconfig-group"
+		vmcpServerName  = "test-vmcp-toolconfig"
+		toolConfigName  = "test-tool-config"
+		backend1Name    = "gofetch-toolconfig-a"
+		backend2Name    = "gofetch-toolconfig-b"
+		timeout         = 3 * time.Minute
+		pollingInterval = 1 * time.Second
+		vmcpNodePort    int32
+	)
+
+	BeforeAll(func() {
+		By("Creating MCPGroup for ToolConfig test")
+		CreateMCPGroupAndWait(ctx, k8sClient, mcpGroupName, testNamespace,
+			"Test MCP Group for MCPToolConfig E2E tests", timeout, pollingInterval)
+
+		By("Creating gofetch backend MCPServers in parallel")
+		CreateMultipleMCPServersInParallel(ctx, k8sClient, []BackendConfig{
+			{Name: backend1Name, Namespace: testNamespace, GroupRef: mcpGroupName, Image: images.GofetchServerImage},
+			{Name: backend2Name, Namespace: testNamespace, GroupRef: mcpGroupName, Image: images.GofetchServerImage},
+		}, timeout, pollingInterval)
+
+		By("Creating MCPToolConfig for filtering and overriding tools")
+		toolConfig := &mcpv1beta1.MCPToolConfig{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      toolConfigName,
+				Namespace: testNamespace,
+			},
+			Spec: mcpv1beta1.MCPToolConfigSpec{
+				// Filter on the overridden name (renamed_fetch), not the backend name (fetch).
+				// This is because filtering happens AFTER override is applied.
+				ToolsFilter: []string{"renamed_fetch"},
+				// Override the fetch tool name and description
+				ToolsOverride: map[string]mcpv1beta1.ToolOverride{
+					"fetch": {
+						Name:        "renamed_fetch",
+						Description: "This fetch tool has been renamed via MCPToolConfig",
+					},
+				},
+			},
+		}
+		Expect(k8sClient.Create(ctx, toolConfig)).To(Succeed())
+
+		By("Creating VirtualMCPServer with MCPToolConfig reference for backend1")
+		vmcpServer := v1beta1test.NewVirtualMCPServer(vmcpServerName, testNamespace,
+			v1beta1test.WithVMCPGroupRef(mcpGroupName),
+			v1beta1test.WithVMCPConfig(vmcpconfig.Config{
+				Group: mcpGroupName,
+				Aggregation: &vmcpconfig.AggregationConfig{
+					ConflictResolution: "prefix",
+					Tools: []*vmcpconfig.WorkloadToolConfig{
+						{
+							Workload: backend1Name,
+							// Reference MCPToolConfig instead of inline Filter
+							ToolConfigRef: &vmcpconfig.ToolConfigRef{
+								Name: toolConfigName,
+							},
+						},
+						{
+							Workload: backend2Name,
+							// Use inline filter to exclude all tools from backend2
+							Filter: []string{"nonexistent_tool"},
+						},
+					},
+				},
+			}),
+			v1beta1test.WithVMCPIncomingAuth(&mcpv1beta1.IncomingAuthConfig{
+				Type: "anonymous",
+			}),
+			v1beta1test.MutateVMCP(func(v *mcpv1beta1.VirtualMCPServer) {
+				v.Spec.ServiceType = "NodePort"
+			}),
+		)
+		Expect(k8sClient.Create(ctx, vmcpServer)).To(Succeed())
+
+		By("Waiting for VirtualMCPServer to be ready")
+		WaitForVirtualMCPServerReady(ctx, k8sClient, vmcpServerName, testNamespace, timeout, pollingInterval)
+
+		By("Getting NodePort for VirtualMCPServer")
+		vmcpNodePort = GetVMCPNodePort(ctx, k8sClient, vmcpServerName, testNamespace, timeout, pollingInterval)
+
+		By(fmt.Sprintf("VirtualMCPServer accessible at http://localhost:%d", vmcpNodePort))
+	})
+
+	AfterAll(func() {
+		By("Cleaning up VirtualMCPServer")
+		vmcpServer := v1beta1test.NewVirtualMCPServer(vmcpServerName, testNamespace)
+		_ = k8sClient.Delete(ctx, vmcpServer)
+
+		By("Cleaning up MCPToolConfig")
+		toolConfig := &mcpv1beta1.MCPToolConfig{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      toolConfigName,
+				Namespace: testNamespace,
+			},
+		}
+		_ = k8sClient.Delete(ctx, toolConfig)
+
+		By("Cleaning up backend MCPServers")
+		for _, backendName := range []string{backend1Name, backend2Name} {
+			backend := &mcpv1beta1.MCPServer{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      backendName,
+					Namespace: testNamespace,
+				},
+			}
+			_ = k8sClient.Delete(ctx, backend)
+		}
+
+		By("Cleaning up MCPGroup")
+		mcpGroup := &mcpv1beta1.MCPGroup{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      mcpGroupName,
+				Namespace: testNamespace,
+			},
+		}
+		_ = k8sClient.Delete(ctx, mcpGroup)
+	})
+
+	Context("when MCPToolConfig is used for filtering", func() {
+		It("should only expose filtered tools from backend1", func() {
+			By("Waiting for VirtualMCPServer to discover backends and expose the renamed tool")
+			tools := WaitForExpectedTools(vmcpNodePort, "toolhive-toolconfig-test", func(tools []mcp.Tool) error {
+				// Must have at least one tool with both backend1Name and "renamed_fetch" in its name
+				for _, tool := range tools {
+					if strings.Contains(tool.Name, backend1Name) && strings.Contains(tool.Name, "renamed_fetch") {
+						return nil
+					}
+				}
+				toolNames := make([]string, len(tools))
+				for i, t := range tools {
+					toolNames[i] = t.Name
+				}
+				return fmt.Errorf("expected tool containing %q and %q, got tools: %v", backend1Name, "renamed_fetch", toolNames)
+			})
+
+			By(fmt.Sprintf("VirtualMCPServer exposes %d tools after MCPToolConfig filtering", len(tools.Tools)))
+			for _, tool := range tools.Tools {
+				GinkgoWriter.Printf("  Exposed tool: %s - %s\n", tool.Name, tool.Description)
+			}
+
+			// Verify filtering: should only have fetch tool from backend1 (renamed to renamed_fetch)
+			toolNames := make([]string, len(tools.Tools))
+			for i, tool := range tools.Tools {
+				toolNames[i] = tool.Name
+			}
+
+			// Should NOT have the original 'fetch' name
+			hasOriginalFetch := false
+			for _, name := range toolNames {
+				if strings.Contains(name, backend1Name) && strings.Contains(name, "fetch") && !strings.Contains(name, "renamed_fetch") {
+					hasOriginalFetch = true
+				}
+			}
+			Expect(hasOriginalFetch).To(BeFalse(), "Should NOT have original 'fetch' name (it should be renamed)")
+
+			// Should NOT have any other gofetch tools from backend1 (filtered out)
+			hasOtherBackend1Tools := false
+			for _, name := range toolNames {
+				if strings.Contains(name, backend1Name) && !strings.Contains(name, "renamed_fetch") {
+					hasOtherBackend1Tools = true
+					GinkgoWriter.Printf("  Unexpected tool from backend1: %s\n", name)
+				}
+			}
+			Expect(hasOtherBackend1Tools).To(BeFalse(), "Should NOT have other tools from backend1 (filtered out)")
+
+			// Should NOT have any tool from backend2 (filtered with non-matching filter)
+			hasBackend2Tool := false
+			for _, name := range toolNames {
+				if strings.Contains(name, backend2Name) {
+					hasBackend2Tool = true
+				}
+			}
+			Expect(hasBackend2Tool).To(BeFalse(), "Should NOT have any tool from backend2 (filtered out)")
+		})
+
+		It("should apply tool overrides from MCPToolConfig", func() {
+			By("Waiting for tools to be available with the renamed tool")
+			tools := WaitForExpectedTools(vmcpNodePort, "toolhive-toolconfig-test", func(tools []mcp.Tool) error {
+				for _, tool := range tools {
+					if strings.Contains(tool.Name, backend1Name) && strings.Contains(tool.Name, "renamed_fetch") {
+						return nil
+					}
+				}
+				return fmt.Errorf("renamed_fetch tool from %s not found yet (got %d tools)", backend1Name, len(tools))
+			})
+
+			// Find the renamed tool
+			var renamedTool *mcp.Tool
+			for i := range tools.Tools {
+				if strings.Contains(tools.Tools[i].Name, backend1Name) && strings.Contains(tools.Tools[i].Name, "renamed_fetch") {
+					renamedTool = &tools.Tools[i]
+					break
+				}
+			}
+
+			Expect(renamedTool).ToNot(BeNil(), "Should find renamed_fetch tool")
+			Expect(renamedTool.Description).To(ContainSubstring("renamed via MCPToolConfig"),
+				"Tool description should be overridden by MCPToolConfig")
+		})
+
+		It("should still allow calling the renamed tool", func() {
+			By("Waiting for tools to be available with the renamed tool")
+			tools := WaitForExpectedTools(vmcpNodePort, "toolhive-toolconfig-test", func(tools []mcp.Tool) error {
+				for _, tool := range tools {
+					if strings.Contains(tool.Name, backend1Name) && strings.Contains(tool.Name, "renamed_fetch") {
+						return nil
+					}
+				}
+				return fmt.Errorf("renamed_fetch tool from %s not found yet (got %d tools)", backend1Name, len(tools))
+			})
+
+			// Find the renamed tool
+			var targetToolName string
+			for _, tool := range tools.Tools {
+				if strings.Contains(tool.Name, backend1Name) && strings.Contains(tool.Name, "renamed_fetch") {
+					targetToolName = tool.Name
+					break
+				}
+			}
+			Expect(targetToolName).ToNot(BeEmpty(), "Should find renamed_fetch tool from backend1")
+
+			By(fmt.Sprintf("Calling renamed tool: %s", targetToolName))
+			// Create a new client for calling the tool
+			mcpClient, err := CreateInitializedMCPClient(vmcpNodePort, "toolhive-toolconfig-test", 30*time.Second)
+			Expect(err).ToNot(HaveOccurred())
+			defer mcpClient.Close()
+
+			testURL := "https://example.com"
+			callRequest := mcp.CallToolRequest{}
+			callRequest.Params.Name = targetToolName
+			callRequest.Params.Arguments = map[string]any{
+				"url": testURL,
+			}
+
+			result, err := mcpClient.Client.CallTool(mcpClient.Ctx, callRequest)
+			Expect(err).ToNot(HaveOccurred(), "Should be able to call renamed tool")
+			Expect(result).ToNot(BeNil())
+			Expect(result.Content).ToNot(BeEmpty(), "Should have content in response")
+
+			GinkgoWriter.Printf("Renamed tool call successful: %s\n", targetToolName)
+		})
+	})
+
+	Context("when verifying MCPToolConfig configuration", func() {
+		It("should have correct ToolConfigRef in VirtualMCPServer spec", func() {
+			vmcpServer := &mcpv1beta1.VirtualMCPServer{}
+			err := k8sClient.Get(ctx, types.NamespacedName{
+				Name:      vmcpServerName,
+				Namespace: testNamespace,
+			}, vmcpServer)
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(vmcpServer.Spec.Config.Aggregation).ToNot(BeNil())
+			Expect(vmcpServer.Spec.Config.Aggregation.Tools).To(HaveLen(2))
+
+			// Verify backend1 has ToolConfigRef
+			var backend1Config *vmcpconfig.WorkloadToolConfig
+			for i := range vmcpServer.Spec.Config.Aggregation.Tools {
+				if vmcpServer.Spec.Config.Aggregation.Tools[i].Workload == backend1Name {
+					backend1Config = vmcpServer.Spec.Config.Aggregation.Tools[i]
+					break
+				}
+			}
+
+			Expect(backend1Config).ToNot(BeNil())
+			Expect(backend1Config.ToolConfigRef).ToNot(BeNil())
+			Expect(backend1Config.ToolConfigRef.Name).To(Equal(toolConfigName))
+		})
+
+		It("should have MCPToolConfig with correct filter and overrides", func() {
+			toolConfig := &mcpv1beta1.MCPToolConfig{}
+			err := k8sClient.Get(ctx, types.NamespacedName{
+				Name:      toolConfigName,
+				Namespace: testNamespace,
+			}, toolConfig)
+			Expect(err).ToNot(HaveOccurred())
+
+			// Verify filter contains the renamed tool name (filtering happens after override)
+			Expect(toolConfig.Spec.ToolsFilter).To(ContainElement("renamed_fetch"))
+			Expect(toolConfig.Spec.ToolsFilter).To(HaveLen(1))
+
+			// Verify overrides
+			Expect(toolConfig.Spec.ToolsOverride).To(HaveKey("fetch"))
+			override := toolConfig.Spec.ToolsOverride["fetch"]
+			Expect(override.Name).To(Equal("renamed_fetch"))
+			Expect(override.Description).To(ContainSubstring("renamed via MCPToolConfig"))
+		})
+	})
+})
+
+var _ = Describe("VirtualMCPServer MCPToolConfig Dynamic Updates", Ordered, func() {
+	var (
+		testNamespace   = "default"
+		mcpGroupName    = "test-toolconfig-update-group"
+		vmcpServerName  = "test-vmcp-toolconfig-update"
+		toolConfigName  = "test-tool-config-update"
+		backendName     = "gofetch-toolconfig-update"
+		timeout         = 3 * time.Minute
+		pollingInterval = 1 * time.Second
+		vmcpNodePort    int32
+	)
+
+	BeforeAll(func() {
+		By("Creating MCPGroup for ToolConfig update test")
+		CreateMCPGroupAndWait(ctx, k8sClient, mcpGroupName, testNamespace,
+			"Test MCP Group for MCPToolConfig update E2E tests", timeout, pollingInterval)
+
+		By("Creating gofetch backend MCPServer")
+		CreateMCPServerAndWait(ctx, k8sClient, backendName, testNamespace, mcpGroupName,
+			images.GofetchServerImage, timeout, pollingInterval)
+
+		By("Creating MCPToolConfig with initial filter")
+		toolConfig := &mcpv1beta1.MCPToolConfig{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      toolConfigName,
+				Namespace: testNamespace,
+			},
+			Spec: mcpv1beta1.MCPToolConfigSpec{
+				// Initially only allow 'fetch' tool
+				ToolsFilter: []string{"fetch"},
+			},
+		}
+		Expect(k8sClient.Create(ctx, toolConfig)).To(Succeed())
+
+		By("Creating VirtualMCPServer with MCPToolConfig reference")
+		vmcpServer := v1beta1test.NewVirtualMCPServer(vmcpServerName, testNamespace,
+			v1beta1test.WithVMCPGroupRef(mcpGroupName),
+			v1beta1test.WithVMCPConfig(vmcpconfig.Config{
+				Group: mcpGroupName,
+				Aggregation: &vmcpconfig.AggregationConfig{
+					ConflictResolution: "prefix",
+					Tools: []*vmcpconfig.WorkloadToolConfig{
+						{
+							Workload: backendName,
+							ToolConfigRef: &vmcpconfig.ToolConfigRef{
+								Name: toolConfigName,
+							},
+						},
+					},
+				},
+			}),
+			v1beta1test.WithVMCPIncomingAuth(&mcpv1beta1.IncomingAuthConfig{
+				Type: "anonymous",
+			}),
+			v1beta1test.MutateVMCP(func(v *mcpv1beta1.VirtualMCPServer) {
+				v.Spec.ServiceType = "NodePort"
+			}),
+		)
+		Expect(k8sClient.Create(ctx, vmcpServer)).To(Succeed())
+
+		By("Waiting for VirtualMCPServer to be ready")
+		WaitForVirtualMCPServerReady(ctx, k8sClient, vmcpServerName, testNamespace, timeout, pollingInterval)
+
+		By("Getting NodePort for VirtualMCPServer")
+		vmcpNodePort = GetVMCPNodePort(ctx, k8sClient, vmcpServerName, testNamespace, timeout, pollingInterval)
+
+		By(fmt.Sprintf("VirtualMCPServer accessible at http://localhost:%d", vmcpNodePort))
+	})
+
+	AfterAll(func() {
+		By("Cleaning up VirtualMCPServer")
+		vmcpServer := v1beta1test.NewVirtualMCPServer(vmcpServerName, testNamespace)
+		_ = k8sClient.Delete(ctx, vmcpServer)
+
+		By("Cleaning up MCPToolConfig")
+		toolConfig := &mcpv1beta1.MCPToolConfig{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      toolConfigName,
+				Namespace: testNamespace,
+			},
+		}
+		_ = k8sClient.Delete(ctx, toolConfig)
+
+		By("Cleaning up backend MCPServer")
+		backend := &mcpv1beta1.MCPServer{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      backendName,
+				Namespace: testNamespace,
+			},
+		}
+		_ = k8sClient.Delete(ctx, backend)
+
+		By("Cleaning up MCPGroup")
+		mcpGroup := &mcpv1beta1.MCPGroup{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      mcpGroupName,
+				Namespace: testNamespace,
+			},
+		}
+		_ = k8sClient.Delete(ctx, mcpGroup)
+	})
+
+	Context("when MCPToolConfig is updated", func() {
+		It("should initially only expose the fetch tool", func() {
+			By("Waiting for VirtualMCPServer to discover backends and expose the fetch tool")
+			tools := WaitForExpectedTools(vmcpNodePort, "toolhive-toolconfig-update-test", func(tools []mcp.Tool) error {
+				if len(tools) == 0 {
+					return fmt.Errorf("no tools available yet (backends may still be connecting)")
+				}
+				for _, tool := range tools {
+					if strings.Contains(tool.Name, "fetch") {
+						return nil
+					}
+				}
+				toolNames := make([]string, len(tools))
+				for i, t := range tools {
+					toolNames[i] = t.Name
+				}
+				return fmt.Errorf("expected a tool containing 'fetch', got tools: %v", toolNames)
+			})
+
+			// Should only have fetch tool
+			for _, tool := range tools.Tools {
+				Expect(tool.Name).To(ContainSubstring("fetch"), "Should only have fetch tool")
+			}
+		})
+
+		It("should reflect updated overrides when MCPToolConfig is modified", func() {
+			By("Updating MCPToolConfig to change the tool override name")
+			toolConfig := &mcpv1beta1.MCPToolConfig{}
+			err := k8sClient.Get(ctx, types.NamespacedName{
+				Name:      toolConfigName,
+				Namespace: testNamespace,
+			}, toolConfig)
+			Expect(err).ToNot(HaveOccurred())
+
+			// Update the override to rename fetch to "updated_fetch" instead of "renamed_fetch"
+			// Also update the filter to match the new overridden name
+			toolConfig.Spec.ToolsFilter = []string{"updated_fetch"}
+			toolConfig.Spec.ToolsOverride = map[string]mcpv1beta1.ToolOverride{
+				"fetch": {
+					Name:        "updated_fetch",
+					Description: "This fetch tool name was updated via MCPToolConfig",
+				},
+			}
+			Expect(k8sClient.Update(ctx, toolConfig)).To(Succeed())
+
+			By("Waiting for VirtualMCPServer to reconcile and reflect new override")
+			// Use Eventually to wait for the updated tool name (up to 2 minutes)
+			Eventually(func() bool {
+				mcpClient, err := CreateInitializedMCPClient(vmcpNodePort, "toolhive-toolconfig-update-test", 30*time.Second)
+				if err != nil {
+					GinkgoWriter.Printf("Failed to create MCP client: %v\n", err)
+					return false
+				}
+				defer mcpClient.Close()
+
+				listRequest := mcp.ListToolsRequest{}
+				tools, err := mcpClient.Client.ListTools(mcpClient.Ctx, listRequest)
+				if err != nil {
+					GinkgoWriter.Printf("Failed to list tools: %v\n", err)
+					return false
+				}
+
+				hasUpdatedFetch := false
+				for _, tool := range tools.Tools {
+					if strings.Contains(tool.Name, "updated_fetch") {
+						hasUpdatedFetch = true
+						GinkgoWriter.Printf("Found updated tool: %s - %s\n", tool.Name, tool.Description)
+					}
+				}
+
+				GinkgoWriter.Printf("Current tools: updated_fetch=%v (total: %d)\n", hasUpdatedFetch, len(tools.Tools))
+				return hasUpdatedFetch
+			}, 2*time.Minute, 5*time.Second).Should(BeTrue(), "Should have updated_fetch tool after MCPToolConfig override update")
+		})
+	})
+})

@@ -1,0 +1,762 @@
+@import "tailwindcss";
+
+/* Chat-edition typography: bundled locally, no CDN, no CSP grief. */
+@import "@fontsource-variable/geist-mono/wght.css";
+@import "@fontsource/maple-mono/400.css";
+@import "@fontsource/maple-mono/500.css";
+@import "@fontsource/maple-mono/600.css";
+
+/*
+ * @agent-context: Skill Deck unified theme system.
+ * Theme modes: system, dark, light.
+ * Resolved theme selectors: [data-theme="dark"] and [data-theme="light"].
+ */
+
+@theme {
+  --color-surface-0: var(--t-surface-0);
+  --color-surface-1: var(--t-surface-1);
+  --color-surface-2: var(--t-surface-2);
+  --color-surface-3: var(--t-surface-3);
+
+  --color-text-primary: var(--t-text-primary);
+  --color-text-secondary: var(--t-text-secondary);
+  --color-text-muted: var(--t-text-muted);
+
+  --color-accent: var(--t-accent);
+  --color-accent-hover: var(--t-accent-hover);
+  --color-accent-muted: var(--t-accent-muted);
+  --color-accent-subtle: var(--t-accent-subtle);
+  /* AA-contrast accent for small (<18px) TEXT — links, pills, active labels.
+     The fill/border/focus accent (#5e6ad2) is only ~4.05:1 and fails WCAG AA
+     for normal-size text, so text uses this lighter (dark) / darker (light)
+     variant instead. */
+  --color-accent-text: var(--t-accent-text);
+
+  --color-border: var(--t-border);
+  --color-border-hover: var(--t-border-hover);
+  --color-border-active: var(--t-border-active);
+
+  --color-agent-claude: var(--t-agent-claude);
+  --color-agent-cursor: var(--t-agent-cursor);
+  --color-agent-copilot: var(--t-agent-copilot);
+  --color-agent-codex: var(--t-agent-codex);
+  --color-agent-windsurf: var(--t-agent-windsurf);
+  --color-agent-gemini: var(--t-agent-gemini);
+  --color-agent-cline: var(--t-agent-cline);
+  --color-agent-aider: var(--t-agent-aider);
+
+  --color-update-available: var(--t-update-available);
+  --color-starred: var(--t-starred);
+  --color-error: var(--t-error);
+
+  --color-overlay-shadow: var(--t-overlay-shadow);
+  --color-search-glow: var(--t-search-glow);
+
+  --color-code-bg: var(--t-code-bg);
+  --color-code-border: var(--t-code-border);
+}
+
+/* Dark baseline (Linear-inspired) */
+:root,
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  --t-surface-0: #010102;
+  --t-surface-1: #0f1011;
+  --t-surface-2: #141516;
+  --t-surface-3: #18191a;
+
+  --t-text-primary: #f7f8f8;
+  --t-text-secondary: #d0d6e0;
+  --t-text-muted: #8a8f98;
+
+  --t-accent: #5e6ad2;
+  --t-accent-hover: #828fff;
+  --t-accent-muted: #7a7fad;
+  --t-accent-subtle: rgba(94, 106, 210, 0.16);
+  --t-accent-text: #828fff;
+
+  --t-border: #23252a;
+  --t-border-hover: #34343a;
+  --t-border-active: rgba(94, 105, 209, 0.55);
+
+  --t-agent-claude: #f28c54;
+  --t-agent-cursor: #a58cff;
+  --t-agent-copilot: #57a0ff;
+  --t-agent-codex: #4dc8b0;
+  --t-agent-windsurf: #49bed9;
+  --t-agent-gemini: #d5b347;
+  --t-agent-cline: #d082d6;
+  --t-agent-aider: #82b36d;
+
+  --t-update-available: #27a644;
+  --t-starred: #d5b347;
+  --t-error: #d45d5d;
+
+  --t-overlay-shadow: rgba(0, 0, 0, 0.56);
+  --t-search-glow: rgba(94, 106, 210, 0.22);
+
+  --t-code-bg: #0c0d0e;
+  --t-code-border: #23252a;
+}
+
+/* Light inverse theme */
+[data-theme="light"] {
+  color-scheme: light;
+
+  --t-surface-0: #ffffff;
+  --t-surface-1: #f5f6f6;
+  --t-surface-2: #f6f7f7;
+  --t-surface-3: #eceef0;
+
+  --t-text-primary: #121316;
+  --t-text-secondary: #33363d;
+  --t-text-muted: #62666d;
+
+  --t-accent: #5e6ad2;
+  --t-accent-hover: #4d58bc;
+  --t-accent-muted: #5e69d1;
+  --t-accent-subtle: rgba(94, 106, 210, 0.12);
+  --t-accent-text: #4d58bc;
+
+  --t-border: #d6d9df;
+  --t-border-hover: #c6cbd3;
+  --t-border-active: rgba(94, 105, 209, 0.42);
+
+  --t-agent-claude: #bd5c2f;
+  --t-agent-cursor: #7f58d9;
+  --t-agent-copilot: #246dcd;
+  --t-agent-codex: #278f7e;
+  --t-agent-windsurf: #1b8aa5;
+  --t-agent-gemini: #947719;
+  --t-agent-cline: #a046a6;
+  --t-agent-aider: #5e8e49;
+
+  --t-update-available: #25893c;
+  --t-starred: #947719;
+  --t-error: #b23b3b;
+
+  --t-overlay-shadow: rgba(7, 10, 18, 0.16);
+  --t-search-glow: rgba(94, 106, 210, 0.16);
+
+  --t-code-bg: #eef0f2;
+  --t-code-border: #d6d9df;
+}
+
+/* Honor OS preference before JS resolves mode */
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme]) {
+    color-scheme: light;
+    --t-surface-0: #ffffff;
+    --t-surface-1: #f5f6f6;
+    --t-surface-2: #f6f7f7;
+    --t-surface-3: #eceef0;
+    --t-text-primary: #121316;
+    --t-text-secondary: #33363d;
+    --t-text-muted: #62666d;
+    --t-accent: #5e6ad2;
+    --t-accent-hover: #4d58bc;
+    --t-accent-muted: #5e69d1;
+    --t-accent-subtle: rgba(94, 106, 210, 0.12);
+    --t-accent-text: #4d58bc;
+    --t-border: #d6d9df;
+    --t-border-hover: #c6cbd3;
+    --t-border-active: rgba(94, 105, 209, 0.42);
+    --t-overlay-shadow: rgba(7, 10, 18, 0.16);
+    --t-search-glow: rgba(94, 106, 210, 0.16);
+    --t-code-bg: #eef0f2;
+    --t-code-border: #d6d9df;
+  }
+}
+
+:root {
+  font-family: "Inter", "SF Pro Text", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-size: 13px;
+
+  /* Chat-edition fonts. Geist Mono for body / replies; Maple Mono for display + composer. */
+  --font-chat-mono: "Geist Mono Variable", "Geist Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --font-chat-display: "Maple Mono", "Geist Mono Variable", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+
+  --motion-duration-fast: 120ms;
+  --motion-duration-base: 180ms;
+  --motion-duration-enter: 220ms;
+  --motion-ease-standard: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --motion-ease-emphasized: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  background: transparent;
+}
+
+/* Chrome (toolbars, tabs, buttons, badges) stays unselectable so drag + click
+ * feels native. Chat content (bubbles, tool cards, composer) re-enables
+ * selection via .selectable. */
+.skill-list,
+.search-overlay,
+.topbar,
+.chat-header,
+.tabs,
+.session-row,
+button,
+.badge,
+[role="button"] {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.selectable,
+.selectable * {
+  user-select: text !important;
+  -webkit-user-select: text !important;
+  cursor: text;
+}
+
+
+.skill-list::-webkit-scrollbar {
+  width: 4px;
+}
+
+.skill-list::-webkit-scrollbar-track {
+  background: transparent;
+  margin: 8px 0;
+}
+
+.skill-list::-webkit-scrollbar-thumb {
+  background: rgba(247, 248, 248, 0.18);
+  border-radius: 4px;
+  transition: background var(--motion-duration-base) var(--motion-ease-standard);
+}
+
+.skill-list::-webkit-scrollbar-thumb:hover {
+  background: rgba(247, 248, 248, 0.3);
+}
+
+[data-theme="light"] .skill-list::-webkit-scrollbar-thumb {
+  background: rgba(24, 25, 26, 0.16);
+}
+
+[data-theme="light"] .skill-list::-webkit-scrollbar-thumb:hover {
+  background: rgba(24, 25, 26, 0.28);
+}
+
+@keyframes overlay-enter {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.985);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes row-enter {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes card-enter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes skeleton-shimmer {
+  0% {
+    opacity: 0.08;
+  }
+
+  50% {
+    opacity: 0.16;
+  }
+
+  100% {
+    opacity: 0.08;
+  }
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes star-pop {
+  0% {
+    transform: scale(1);
+  }
+
+  40% {
+    transform: scale(1.22);
+  }
+
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes breathe {
+  0%,
+  100% {
+    opacity: 0.6;
+    transform: scale(1);
+  }
+
+  50% {
+    opacity: 1;
+    transform: scale(1.22);
+  }
+}
+
+.overlay-enter {
+  animation: overlay-enter var(--motion-duration-enter) var(--motion-ease-emphasized) both;
+}
+
+.row-enter {
+  animation: row-enter var(--motion-duration-base) var(--motion-ease-standard) both;
+}
+
+.card-enter {
+  animation: card-enter var(--motion-duration-base) var(--motion-ease-standard) both;
+}
+
+.skeleton-card {
+  background: var(--color-surface-1);
+  border-radius: var(--radius-md);
+  animation: skeleton-shimmer 1.8s ease-in-out infinite;
+}
+
+.star-pop {
+  animation: star-pop 220ms var(--motion-ease-emphasized);
+}
+
+.spin {
+  animation: spin 0.7s linear infinite;
+}
+
+@keyframes refresh-spin {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.skill-list {
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    #000 10px,
+    #000 calc(100% - 10px),
+    transparent 100%
+  );
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    #000 10px,
+    #000 calc(100% - 10px),
+    transparent 100%
+  );
+}
+
+/* Compare-mode diff rows in DiffModal — each cell holds a highlight.js HTML
+ * span tree, so we set the base text color and font here. The .hljs-* token
+ * colors layered on top come from the existing block lower in this file. */
+.diff-code-cell {
+  font-family: "JetBrains Mono", "SF Mono", "Cascadia Code", ui-monospace, monospace;
+  color: var(--color-text-primary);
+}
+
+.skill-content-preview {
+  font-family: "JetBrains Mono", "SF Mono", "Cascadia Code", ui-monospace, monospace;
+  font-size: 11px;
+  line-height: 1.6;
+  tab-size: 2;
+  white-space: normal;
+  word-break: break-word;
+  color: var(--color-text-secondary);
+}
+
+.full-skill-modal-panel {
+  border: 1px solid var(--color-border-hover);
+  border-radius: var(--radius-xl);
+  background: var(--color-surface-0);
+  box-shadow: 0 26px 56px -18px var(--color-overlay-shadow);
+}
+
+.full-skill-content {
+  font-size: 12px;
+  line-height: 1.72;
+}
+
+.divide-y > :not([hidden]) ~ :not([hidden]) {
+  border-top: 1px solid var(--color-border);
+}
+
+/* `.instant-tooltip` is kept as a no-op marker class so existing markup
+ * (cards, rows, badges) doesn't have to change. The old CSS pseudo-element
+ * tooltip was clipped by `overflow: hidden` ancestors (every overlay panel,
+ * modal, and chat shell), so we removed it. The actual tooltip is now
+ * rendered as a body-portaled element by `src/lib/actions/tooltip.ts` via
+ * event delegation on `[data-tooltip]`. Position stays relative so any
+ * existing absolute-positioned children keep their anchor. */
+.instant-tooltip {
+  position: relative;
+}
+
+.skill-content-preview .skill-line {
+  padding: 0;
+}
+
+.emoji-avatar {
+  font-size: 1.18rem;
+  line-height: 1;
+  transform: translateY(0.5px);
+}
+
+.letter-avatar {
+  font-size: 0.95rem;
+  line-height: 1;
+}
+
+.skill-content-preview .skill-empty {
+  min-height: 0.65rem;
+}
+
+.skill-content-preview .skill-frontmatter-row {
+  display: flex;
+  gap: 0.3rem;
+  align-items: baseline;
+  flex-wrap: wrap;
+}
+
+.skill-content-preview .skill-fm-key,
+.skill-content-preview .fm-key {
+  color: #7fa4ff;
+  font-weight: 600;
+}
+
+.skill-content-preview .skill-fm-value,
+.skill-content-preview .fm-value {
+  color: #72b88d;
+}
+
+.skill-content-preview .skill-fm-delimiter,
+.skill-content-preview .fm-delimiter {
+  color: var(--color-text-muted);
+  opacity: 0.45;
+}
+
+.skill-content-preview .skill-heading,
+.skill-content-preview .md-heading {
+  color: var(--color-accent-text);
+  font-weight: 600;
+}
+
+.skill-content-preview .skill-heading-1,
+.skill-content-preview .skill-heading-2 {
+  font-size: 11.5px;
+}
+
+.skill-content-preview .skill-list-item {
+  display: flex;
+  gap: 0.45rem;
+}
+
+.skill-content-preview .skill-bullet-symbol,
+.skill-content-preview .skill-ordered-index,
+.skill-content-preview .md-bullet {
+  color: var(--color-accent-muted);
+  min-width: 0.85rem;
+}
+
+.skill-content-preview .skill-quote {
+  border-left: 2px solid var(--color-border-hover);
+  padding-left: 0.5rem;
+  color: var(--color-text-primary);
+  opacity: 0.92;
+}
+
+.skill-content-preview .skill-rule {
+  border-top: 1px solid var(--color-border-hover);
+  margin: 0.2rem 0;
+}
+
+.skill-content-preview .skill-code-fence {
+  color: var(--color-text-muted);
+  opacity: 0.8;
+  margin-top: 0.2rem;
+}
+
+.skill-content-preview .skill-code-line {
+  color: var(--color-text-primary);
+}
+
+/* === Syntax highlighting (highlight.js) =================================
+ * Theme reuses the palette already established for frontmatter (blue keys,
+ * green values, accent for headings) so highlighted JSON / shell / Python
+ * blends with the rest of the modal instead of clashing.
+ * Class names follow the highlight.js v11 spec.
+ */
+
+.skill-content-preview .skill-code-block {
+  margin: 0.35rem 0;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--color-code-border);
+  border-radius: 8px;
+  background: var(--color-code-bg);
+  font-family: "JetBrains Mono", "SF Mono", "Cascadia Code", ui-monospace, monospace;
+  font-size: 11.5px;
+  line-height: 1.55;
+  white-space: pre;
+  overflow-x: auto;
+  color: var(--color-text-primary);
+}
+
+.skill-content-preview .skill-code-block code {
+  background: transparent;
+  padding: 0;
+  border: none;
+  color: inherit;
+  font: inherit;
+}
+
+.hljs {
+  background: transparent;
+  color: var(--color-text-primary);
+}
+
+.hljs-comment,
+.hljs-quote {
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-type,
+.hljs-built_in {
+  color: #c891ff;
+}
+
+.hljs-string,
+.hljs-doctag,
+.hljs-meta-string {
+  color: #72b88d;
+}
+
+.hljs-number,
+.hljs-literal,
+.hljs-symbol,
+.hljs-regexp {
+  color: #e8a06d;
+}
+
+.hljs-attr,
+.hljs-property,
+.hljs-attribute,
+.hljs-template-variable {
+  color: #7fa4ff;
+}
+
+.hljs-variable,
+.hljs-params {
+  color: var(--color-text-primary);
+}
+
+.hljs-title,
+.hljs-title.function_,
+.hljs-section,
+.hljs-name,
+.hljs-selector-id,
+.hljs-selector-class {
+  color: var(--color-accent-text);
+  font-weight: 600;
+}
+
+.hljs-tag {
+  color: var(--color-text-muted);
+}
+
+.hljs-meta,
+.hljs-meta-keyword,
+.hljs-deletion {
+  color: var(--color-text-muted);
+}
+
+.hljs-addition {
+  color: #72b88d;
+  background: rgba(114, 184, 141, 0.1);
+}
+
+.hljs-deletion {
+  color: #e57373;
+  background: rgba(229, 115, 115, 0.1);
+}
+
+.hljs-emphasis {
+  font-style: italic;
+}
+
+.hljs-strong {
+  font-weight: 700;
+}
+
+[data-theme="light"] .hljs-keyword,
+[data-theme="light"] .hljs-selector-tag,
+[data-theme="light"] .hljs-type,
+[data-theme="light"] .hljs-built_in {
+  color: #8b3fb8;
+}
+
+[data-theme="light"] .hljs-string,
+[data-theme="light"] .hljs-doctag {
+  color: #2a7b52;
+}
+
+[data-theme="light"] .hljs-attr,
+[data-theme="light"] .hljs-property,
+[data-theme="light"] .hljs-attribute {
+  color: #355bb0;
+}
+
+[data-theme="light"] .hljs-number,
+[data-theme="light"] .hljs-literal,
+[data-theme="light"] .hljs-symbol {
+  color: #c4661a;
+}
+
+.skill-inline-code {
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  padding: 0 0.25rem;
+  color: var(--color-text-primary);
+  background: rgba(127, 164, 255, 0.12);
+}
+
+.skill-md-link {
+  color: var(--color-accent-text);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.skill-md-link:hover {
+  color: var(--color-accent-muted);
+}
+
+.skill-strong {
+  color: var(--color-text-primary);
+  font-weight: 700;
+}
+
+.skill-em {
+  color: var(--color-text-primary);
+  font-style: italic;
+}
+
+.skill-strike {
+  opacity: 0.8;
+}
+
+.skill-truncate-note {
+  margin-top: 0.45rem;
+  font-size: 10px;
+  color: var(--color-text-muted);
+  opacity: 0.78;
+}
+
+[data-theme="light"] .skill-content-preview .skill-fm-key,
+[data-theme="light"] .skill-content-preview .fm-key {
+  color: #355bb0;
+}
+
+[data-theme="light"] .skill-content-preview .skill-fm-value,
+[data-theme="light"] .skill-content-preview .fm-value {
+  color: #2a7b52;
+}
+
+[draggable="true"] {
+  -webkit-user-drag: element;
+  cursor: grab;
+}
+
+[draggable="true"]:active {
+  cursor: grabbing;
+}
+
+.row-focused,
+.card-focused {
+  outline: 2px solid var(--color-accent-muted);
+  outline-offset: -1px;
+  border-radius: var(--radius-sm);
+}
+
+/*
+ * Glass group container (card view).
+ * Wraps a root skill and its visible sub skills so the user immediately reads
+ * "these belong together". Translucent surface, hairline border, top edge
+ * highlight, soft outer shadow, light backdrop blur for polish on Windows
+ * where the WebView2 surface composites transparency cleanly.
+ */
+.skill-group-glass {
+  background: rgba(247, 248, 248, 0.035);
+  border: 1px solid rgba(247, 248, 248, 0.07);
+  box-shadow:
+    inset 0 1px 0 0 rgba(247, 248, 248, 0.045),
+    0 10px 32px -14px rgba(0, 0, 0, 0.42);
+  backdrop-filter: blur(10px) saturate(140%);
+  -webkit-backdrop-filter: blur(10px) saturate(140%);
+  transition:
+    background var(--motion-duration-base) var(--motion-ease-standard),
+    border-color var(--motion-duration-base) var(--motion-ease-standard);
+}
+
+[data-theme="light"] .skill-group-glass {
+  background: rgba(7, 10, 18, 0.025);
+  border: 1px solid rgba(7, 10, 18, 0.06);
+  box-shadow:
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.6),
+    0 10px 32px -14px rgba(7, 10, 18, 0.08);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+    scroll-behavior: auto !important;
+  }
+}

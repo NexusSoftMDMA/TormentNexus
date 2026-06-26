@@ -1,0 +1,83 @@
+{{define "title"}}API Keys{{end}}
+{{define "content"}}
+<div class="page-header">
+  <h2>API Keys</h2>
+</div>
+
+{{if .Flash}}
+<div class="alert alert-warning">
+  {{.Flash}}
+</div>
+{{end}}
+
+{{if .NewKey}}
+<div class="alert alert-success">
+  <strong>New API key created!</strong> Copy it now - it won't be shown again.<br>
+  <code style="font-size: 1.1rem; display: inline-block; margin-top: 0.5rem; padding: 0.3rem 0.6rem;">{{.NewKey}}</code>
+</div>
+{{end}}
+
+<div class="card">
+  {{if .Keys}}
+  <div class="table-wrap">
+  <table>
+    <thead>
+      <tr><th>Name</th><th>Profile</th><th>Created</th><th>Last Used</th><th>Status</th><th>Actions</th></tr>
+    </thead>
+    <tbody>
+      {{range .Keys}}
+      <tr>
+        <td>{{.Name}}</td>
+        <td>{{if .ProfileName}}<span class="badge badge-stdio">{{.ProfileName}}</span>{{else}}<span style="color:var(--text-muted)">None (legacy)</span>{{end}}</td>
+        <td>{{.CreatedAt.Format "2006-01-02 15:04"}}</td>
+        <td>{{if .LastUsed}}{{.LastUsed.Format "2006-01-02 15:04"}}{{else}}<span style="color:var(--text-muted)">Never</span>{{end}}</td>
+        <td>
+          {{if .Revoked}}<span class="badge badge-error">Revoked</span>
+          {{else}}<span class="badge badge-running">Active</span>{{end}}
+        </td>
+        <td>
+          {{if not .Revoked}}
+          <form method="POST" action="/api-keys/{{.ID}}/revoke"
+                onsubmit="return confirm('Revoke this API key? Clients using it will lose access.')">
+            <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
+            <button type="submit" class="btn btn-danger btn-sm">Revoke</button>
+          </form>
+          {{end}}
+        </td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+  </div>
+  {{else}}
+  <div class="empty-state">
+    <p>No API keys yet. Create one to authenticate MCP clients.</p>
+  </div>
+  {{end}}
+</div>
+
+<div class="card">
+  <h2>Generate New API Key</h2>
+  <form method="POST" action="/api-keys/new">
+    <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+    <div class="form-row">
+      <div class="form-group">
+        <label for="key_name">Key Name</label>
+        <input type="text" id="key_name" name="key_name" required placeholder="e.g. claude-desktop, dev-testing">
+        <div class="help">A label to help you remember what this key is used for.</div>
+      </div>
+      <div class="form-group">
+        <label for="profile_id">Agent Profile</label>
+        <select id="profile_id" name="profile_id">
+          <option value="">Use default from user profile</option>
+          {{range .Profiles}}
+          <option value="{{.ID}}">{{.Name}}{{if .Description}} - {{.Description}}{{end}}</option>
+          {{end}}
+        </select>
+        <div class="help">Override the profile for this key. Leave blank to inherit from your user profile.</div>
+      </div>
+    </div>
+    <button type="submit" class="btn btn-primary">Generate Key</button>
+  </form>
+</div>
+{{end}}

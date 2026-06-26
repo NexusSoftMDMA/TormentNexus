@@ -1,0 +1,72 @@
+{{define "title"}}Authorize Device{{end}}
+{{define "content"}}
+<div style="max-width: 480px; margin: 2rem auto;">
+
+{{if .Error}}
+<div class="card">
+  <h2>Device Authorization</h2>
+  <div class="alert alert-danger">{{.Error}}</div>
+  <p style="margin-top: 1rem; font-size: 0.9rem; color: var(--text-muted);">
+    Run <code>arc-sync init</code> in your terminal to start a new authorization flow.
+  </p>
+</div>
+
+{{else if .Approved}}
+<div class="card">
+  <h2>Device Authorized</h2>
+  <div class="alert alert-success">
+    CLI authorized successfully. You can close this window.
+  </div>
+  <p style="font-size: 0.9rem; color: var(--text-muted);">
+    An API key has been created and sent to your CLI. Check your terminal for confirmation.
+  </p>
+</div>
+
+{{else if .Denied}}
+<div class="card">
+  <h2>Authorization Denied</h2>
+  <div class="alert alert-danger">
+    Device authorization was denied. The CLI will not receive access.
+  </div>
+  <p style="font-size: 0.9rem; color: var(--text-muted);">
+    You can close this window.
+  </p>
+</div>
+
+{{else if .DeviceCode}}
+<div class="card">
+  <h2>Authorize Device</h2>
+  <p style="margin-bottom: 1rem;">
+    A CLI tool is requesting access to your Arc Relay account.
+  </p>
+
+  <div style="background: var(--bg-dark, #f8f9fa); border: 2px solid var(--border, #dee2e6); border-radius: 8px; padding: 1.5rem; text-align: center; margin-bottom: 1.5rem;">
+    <div style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.5rem;">Verify this code matches your terminal:</div>
+    <div style="font-size: 2rem; font-weight: bold; letter-spacing: 0.15em; font-family: monospace;">{{.UserCode}}</div>
+  </div>
+
+  <p style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 1rem;">
+    Approving will create an API key named <strong>arc-sync device auth</strong> for user <strong>{{.User.Username}}</strong>.
+  </p>
+
+  <form method="POST" action="/auth/device">
+    <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+    <input type="hidden" name="device_code" value="{{.DeviceCode}}">
+    <div style="display: flex; gap: 0.75rem;">
+      <button type="submit" name="action" value="approve" class="btn btn-primary" style="flex: 1;">Approve</button>
+      <button type="submit" name="action" value="deny" class="btn btn-danger" style="flex: 1;">Deny</button>
+    </div>
+  </form>
+</div>
+
+{{else}}
+<div class="card">
+  <h2>Device Authorization</h2>
+  <p style="color: var(--text-muted);">
+    No authorization request found. Run <code>arc-sync init</code> in your terminal to start the flow.
+  </p>
+</div>
+{{end}}
+
+</div>
+{{end}}

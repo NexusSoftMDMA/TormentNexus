@@ -1,0 +1,46 @@
+name: validate-overlay
+
+# Per #328 + the v0.7.13 retrospective: the Docker container build in
+# build-container.yml runs check-overlay-basis.sh as its first step, but
+# the round-trip is 3+ minutes per arch before the first failure surfaces.
+# This workflow runs the same gate (plus two more) in <30 seconds on any
+# PR that touches the overlay or the submodules — so anchor drift, dirty
+# submodule state, and stale series files surface immediately, not after
+# a CI runner has already booted a build VM.
+#
+# Mirrors what `make validate-overlay` does locally for pre-commit users.
+
+on:
+  # v0.7.19+ branch protection requires `validate` as a status check on
+  # every PR merge to main. See note in .github/workflows/playwright.yml
+  # for the same rationale — required-but-path-filtered creates a chicken-
+  # and-egg that blocks docs-only PRs (PR #354 was the first to hit it).
+  pull_request:
+  workflow_dispatch: {}
+
+concurrency:
+  group: validate-overlay-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout PR (with submodules)
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          submodules: recursive
+          fetch-depth: 1
+
+      - name: Set up Python (for bootstrap import smoke + unit tests)
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: '3.12'
+
+      - name: Install pytest + coverage + overlay deps
+        run: pip install pytest pytest-cov pyyaml --quiet
+
+      - name: Run validate-overlay
+        run: bash packages/fox-overlay/scripts/validate-overlay.sh

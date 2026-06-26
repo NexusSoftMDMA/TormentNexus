@@ -1,0 +1,522 @@
+// SPDX-FileCopyrightText: Copyright 2025 Stacklok, Inc.
+// SPDX-License-Identifier: Apache-2.0
+
+package config
+
+import (
+	"errors"
+	"os"
+	"path/filepath"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+	"gopkg.in/yaml.v3"
+
+	"github.com/stacklok/toolhive-core/env/mocks"
+	"github.com/stacklok/toolhive/pkg/secrets"
+)
+
+// SetupTestConfig creates a temporary config file and returns the config path
+func SetupTestConfig(t *testing.T, configContent *Config) (string, string) {
+	t.Helper()
+	// Create a temporary directory
+	tempDir := t.TempDir()
+
+	// Create config directory
+	configDir := filepath.Join(tempDir, "toolhive")
+	err := os.MkdirAll(configDir, 0755)
+	require.NoError(t, err)
+
+	// Set up the config file path
+	configPath := filepath.Join(configDir, "config.yaml")
+
+	// If config content is provided, write it to the file
+	if configContent != nil {
+		configBytes, err := yaml.Marshal(configContent)
+		require.NoError(t, err)
+
+		err = os.WriteFile(configPath, configBytes, 0600)
+		require.NoError(t, err)
+	}
+
+	return tempDir, configPath
+}
+
+func TestLoadOrCreateConfig(t *testing.T) {
+	t.Parallel()
+
+	t.Run("TestLoadOrCreateConfigWithMockConfig", func(t *testing.T) {
+		t.Parallel()
+		tempDir, configPath := SetupTestConfig(t, &Config{
+			Secrets: Secrets{
+				ProviderType: string(secrets.EncryptedType),
+			},
+			Clients: Clients{
+				RegisteredClients: []string{"vscode", "cursor"},
+			},
+		})
+
+		// Load the config
+		config, err := LoadOrCreateConfigWithPath(configPath)
+		require.NoError(t, err)
+
+		// Verify the loaded config matches our mock
+		assert.Equal(t, string(secrets.EncryptedType), config.Secrets.ProviderType)
+		assert.Equal(t, []string{"vscode", "cursor"}, config.Clients.RegisteredClients)
+
+		t.Cleanup(func() {
+			if err := os.RemoveAll(tempDir); err != nil {
+				t.Logf("Failed to remove temp dir: %v", err)
+			}
+		})
+	})
+
+	t.Run("TestLoadOrCreateConfigWithNewConfig", func(t *testing.T) {
+		t.Parallel()
+		// Create a temporary directory for the test
+		tempDir, configPath := SetupTestConfig(t, nil)
+
+		// Load the config - this should create a new one since none exists
+		config, err := LoadOrCreateConfigWithPath(configPath)
+		require.NoError(t, err)
+
+		// Verify the default values
+		assert.Equal(t, "", config.Secrets.ProviderType) // Default is empty - requires explicit setup
+		assert.False(t, config.Secrets.SetupCompleted)   // Setup not completed by default
+		assert.Empty(t, config.Clients.RegisteredClients)
+
+		t.Cleanup(func() {
+			if err := os.RemoveAll(tempDir); err != nil {
+				t.Logf("Failed to remove temp dir: %v", err)
+			}
+		})
+	})
+}
+
+func TestSave(t *testing.T) {
+	t.Parallel()
+
+	t.Run("TestSave", func(t *testing.T) {
+		t.Parallel()
+		// Use the same pattern as other tests with proper mocking
+		tempDir, configPath := SetupTestConfig(t, nil)
+
+		// Create a config instance
+		config := &Config{
+			Secrets: Secrets{
+				ProviderType: string(secrets.EncryptedType),
+			},
+			Clients: Clients{
+				RegisteredClients: []string{
+					"vscode", "cursor", "roo-code", "cline", "claude-code", "amp-cli", "amp-vscode", "amp-cursor",
+				},
+			},
+		}
+
+		// Write the config
+		err := config.saveToPath(configPath)
+		require.NoError(t, err)
+
+		// Verify the file was created
+		_, err = os.Stat(configPath)
+		require.NoError(t, err)
+
+		// Read the file and verify its contents
+		data, err := os.ReadFile(configPath)
+		require.NoError(t, err)
+
+		// Load the config from the file
+		loadedConfig := &Config{}
+		err = yaml.Unmarshal(data, loadedConfig)
+		require.NoError(t, err)
+
+		// Verify the loaded config matches what we wrote
+		assert.Equal(t, config.Secrets.ProviderType, loadedConfig.Secrets.ProviderType)
+		assert.Equal(t, config.Clients.RegisteredClients, loadedConfig.Clients.RegisteredClients)
+
+		t.Cleanup(func() {
+			if err := os.RemoveAll(tempDir); err != nil {
+				t.Logf("Failed to remove temp dir: %v", err)
+			}
+		})
+	})
+}
+
+func TestRegistryURLConfig(t *testing.T) {
+	t.Parallel()
+
+	t.Run("TestSetAndGetRegistryURL", func(t *testing.T) {
+		t.Parallel()
+		tempDir, configPath := SetupTestConfig(t, &Config{
+			Secrets: Secrets{
+				ProviderType: string(secrets.EncryptedType),
+			},
+			Clients: Clients{
+				RegisteredClients: []string{},
+			},
+			RegistryUrl: "",
+		})
+
+		// Test setting a registry URL
+		testURL := "https://example.com/registry.json"
+		err := UpdateConfigAtPath(configPath, func(c *Config) error {
+			c.RegistryUrl = testURL
+			return nil
+		})
+		require.NoError(t, err)
+
+		// Load the config and verify the URL was set
+		config, err := LoadOrCreateConfigWithPath(configPath)
+		require.NoError(t, err)
+		assert.Equal(t, testURL, config.RegistryUrl)
+
+		// Test unsetting the registry URL
+		err = UpdateConfigAtPath(configPath, func(c *Config) error {
+			c.RegistryUrl = ""
+			return nil
+		})
+		require.NoError(t, err)
+
+		// Load the config and verify the URL was unset
+		config, err = LoadOrCreateConfigWithPath(configPath)
+		require.NoError(t, err)
+		assert.Equal(t, "", config.RegistryUrl)
+
+		t.Cleanup(func() {
+			if err := os.RemoveAll(tempDir); err != nil {
+				t.Logf("Failed to remove temp dir: %v", err)
+			}
+		})
+	})
+
+	t.Run("TestRegistryURLPersistence", func(t *testing.T) {
+		t.Parallel()
+		tempDir, configPath := SetupTestConfig(t, nil)
+
+		testURL := "https://custom-registry.example.com/registry.json"
+
+		// Set the registry URL
+		err := UpdateConfigAtPath(configPath, func(c *Config) error {
+			c.RegistryUrl = testURL
+			return nil
+		})
+		require.NoError(t, err)
+
+		// Load config again to verify persistence
+		config, err := LoadOrCreateConfigWithPath(configPath)
+		require.NoError(t, err)
+		assert.Equal(t, testURL, config.RegistryUrl)
+
+		t.Cleanup(func() {
+			if err := os.RemoveAll(tempDir); err != nil {
+				t.Logf("Failed to remove temp dir: %v", err)
+			}
+		})
+	})
+
+	t.Run("TestAllowPrivateRegistryIp", func(t *testing.T) {
+		t.Parallel()
+		tempDir, configPath := SetupTestConfig(t, &Config{
+			Secrets: Secrets{
+				ProviderType: string(secrets.EncryptedType),
+			},
+			Clients: Clients{
+				RegisteredClients: []string{},
+			},
+			RegistryUrl:            "",
+			AllowPrivateRegistryIp: false,
+		})
+
+		// Test enabling
+		err := UpdateConfigAtPath(configPath, func(c *Config) error {
+			c.AllowPrivateRegistryIp = true
+			return nil
+		})
+		require.NoError(t, err)
+
+		// Load the config and verify the setting was toggled to true
+		config, err := LoadOrCreateConfigWithPath(configPath)
+		require.NoError(t, err)
+		assert.Equal(t, true, config.AllowPrivateRegistryIp)
+
+		// Test toggling setting to false
+		err = UpdateConfigAtPath(configPath, func(c *Config) error {
+			c.AllowPrivateRegistryIp = false
+			return nil
+		})
+		require.NoError(t, err)
+
+		// Load the config and verify the setting was toggled to false
+		config, err = LoadOrCreateConfigWithPath(configPath)
+		require.NoError(t, err)
+		assert.Equal(t, false, config.AllowPrivateRegistryIp)
+
+		t.Cleanup(func() {
+			if err := os.RemoveAll(tempDir); err != nil {
+				t.Logf("Failed to remove temp dir: %v", err)
+			}
+		})
+	})
+}
+
+func TestUpdateConfigAtPath_CallbackError(t *testing.T) {
+	t.Parallel()
+
+	_, configPath := SetupTestConfig(t, &Config{
+		RegistryUrl: "https://original.example.com",
+	})
+
+	cbErr := errors.New("validation failed")
+	err := UpdateConfigAtPath(configPath, func(c *Config) error {
+		c.RegistryUrl = "https://should-not-persist.example.com"
+		return cbErr
+	})
+	require.ErrorIs(t, err, cbErr)
+
+	// The config on disk must be unchanged.
+	config, err := LoadOrCreateConfigWithPath(configPath)
+	require.NoError(t, err)
+	assert.Equal(t, "https://original.example.com", config.RegistryUrl,
+		"config should not be written to disk when the callback returns an error")
+}
+
+// TestLoadFromPath_BackwardCompatMigrationStaysOnPath guards the test-isolation
+// regression from issue #894: a path-based load that triggers a backward-compat
+// migration must persist the migration back to the same path, never to the
+// default (real) config path. See applyBackwardCompatibility.
+//
+//nolint:paralleltest // swaps the package-level getConfigPath; must not run in parallel
+func TestLoadFromPath_BackwardCompatMigrationStaysOnPath(t *testing.T) {
+	// Not parallel: this test swaps the package-level getConfigPath sentinel.
+
+	// Point the default path generator at a sentinel that must never be written.
+	sentinelPath := filepath.Join(t.TempDir(), "should-never-exist", "config.yaml")
+	originalGetConfigPath := getConfigPath
+	getConfigPath = func() (string, error) { return sentinelPath, nil }
+	t.Cleanup(func() { getConfigPath = originalGetConfigPath })
+
+	// A config that triggers the "provider set but setup_completed false" migration.
+	_, configPath := SetupTestConfig(t, &Config{
+		Secrets: Secrets{
+			ProviderType:   string(secrets.EncryptedType),
+			SetupCompleted: false,
+		},
+	})
+
+	config, err := LoadOrCreateConfigWithPath(configPath)
+	require.NoError(t, err)
+	assert.True(t, config.Secrets.SetupCompleted,
+		"backward-compat migration should mark setup as completed")
+
+	// The migration must be persisted to the path we loaded from.
+	reloaded, err := LoadOrCreateConfigWithPath(configPath)
+	require.NoError(t, err)
+	assert.True(t, reloaded.Secrets.SetupCompleted,
+		"migration should be persisted back to the loaded path")
+
+	// The default/real config path must never have been touched.
+	_, statErr := os.Stat(sentinelPath)
+	assert.ErrorIs(t, statErr, os.ErrNotExist,
+		"backward-compat migration must not write to the default config path")
+}
+
+func TestSecrets_GetProviderType_EnvironmentVariable(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Environment variable takes precedence", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockEnv := mocks.NewMockReader(ctrl)
+		s := &Secrets{
+			ProviderType:   string(secrets.OnePasswordType),
+			SetupCompleted: true,
+		}
+
+		mockEnv.EXPECT().Getenv(secrets.ProviderEnvVar).Return(string(secrets.EncryptedType))
+		got, err := s.GetProviderTypeWithEnv(mockEnv)
+		require.NoError(t, err)
+		assert.Equal(t, secrets.EncryptedType, got, "Environment variable should take precedence over config")
+	})
+
+	t.Run("Falls back to config when env var is unset", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockEnv := mocks.NewMockReader(ctrl)
+		s := &Secrets{
+			ProviderType:   string(secrets.OnePasswordType),
+			SetupCompleted: true,
+		}
+
+		mockEnv.EXPECT().Getenv(secrets.ProviderEnvVar).Return("")
+		got, err := s.GetProviderTypeWithEnv(mockEnv)
+		require.NoError(t, err)
+		assert.Equal(t, secrets.OnePasswordType, got, "Should fallback to config value when env var is unset")
+	})
+
+	t.Run("Environment provider via environment variable", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockEnv := mocks.NewMockReader(ctrl)
+		s := &Secrets{
+			ProviderType:   string(secrets.OnePasswordType),
+			SetupCompleted: true,
+		}
+
+		mockEnv.EXPECT().Getenv(secrets.ProviderEnvVar).Return(string(secrets.EnvironmentType))
+		got, err := s.GetProviderTypeWithEnv(mockEnv)
+		require.NoError(t, err)
+		assert.Equal(t, secrets.EnvironmentType, got, "Environment variable should support environment provider")
+	})
+
+	t.Run("Environment provider via config", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockEnv := mocks.NewMockReader(ctrl)
+		s := &Secrets{
+			ProviderType:   string(secrets.EnvironmentType),
+			SetupCompleted: true,
+		}
+
+		mockEnv.EXPECT().Getenv(secrets.ProviderEnvVar).Return("")
+		got, err := s.GetProviderTypeWithEnv(mockEnv)
+		require.NoError(t, err)
+		assert.Equal(t, secrets.EnvironmentType, got, "Config should support environment provider")
+	})
+
+	t.Run("Invalid environment variable returns error", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockEnv := mocks.NewMockReader(ctrl)
+		s := &Secrets{
+			ProviderType:   string(secrets.OnePasswordType),
+			SetupCompleted: true,
+		}
+
+		mockEnv.EXPECT().Getenv(secrets.ProviderEnvVar).Return("invalid")
+		_, err := s.GetProviderTypeWithEnv(mockEnv)
+		assert.Error(t, err, "Should return error for invalid environment variable")
+		assert.Contains(t, err.Error(), "invalid secrets provider type", "Error should mention invalid provider type")
+	})
+
+	t.Run("Setup not completed returns error when env var not set", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockEnv := mocks.NewMockReader(ctrl)
+		s := &Secrets{
+			ProviderType:   string(secrets.OnePasswordType),
+			SetupCompleted: false,
+		}
+
+		// Env var check happens first, so mock it returning empty
+		mockEnv.EXPECT().Getenv(secrets.ProviderEnvVar).Return("")
+		_, err := s.GetProviderTypeWithEnv(mockEnv)
+		assert.Error(t, err, "Should return error when setup not completed and env var not set")
+		assert.ErrorIs(t, err, secrets.ErrSecretsNotSetup, "Should return ErrSecretsNotSetup when setup not completed and env var not set")
+	})
+
+	t.Run("Environment variable bypasses SetupCompleted check", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockEnv := mocks.NewMockReader(ctrl)
+		s := &Secrets{
+			ProviderType:   string(secrets.OnePasswordType),
+			SetupCompleted: false, // Not setup, but env var should bypass this
+		}
+
+		// Env var is set, so it should return successfully without checking SetupCompleted
+		mockEnv.EXPECT().Getenv(secrets.ProviderEnvVar).Return(string(secrets.EnvironmentType))
+		got, err := s.GetProviderTypeWithEnv(mockEnv)
+		require.NoError(t, err, "Should not return error when env var is set, even if setup not completed")
+		assert.Equal(t, secrets.EnvironmentType, got, "Should return provider type from env var")
+	})
+
+	t.Run("Environment variable bypasses SetupCompleted check", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockEnv := mocks.NewMockReader(ctrl)
+		s := &Secrets{
+			ProviderType:   string(secrets.OnePasswordType),
+			SetupCompleted: false, // Setup not completed
+		}
+
+		// Environment variable is set - should bypass SetupCompleted check
+		// This is the Kubernetes use case: operator sets env var, no config file needed
+		mockEnv.EXPECT().Getenv(secrets.ProviderEnvVar).Return(string(secrets.EnvironmentType))
+		got, err := s.GetProviderTypeWithEnv(mockEnv)
+		require.NoError(t, err, "Should succeed when env var is set, even if SetupCompleted is false")
+		assert.Equal(t, secrets.EnvironmentType, got, "Should return provider from environment variable")
+	})
+
+	t.Run("Non-environment providers require SetupCompleted when set via env var", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockEnv := mocks.NewMockReader(ctrl)
+		s := &Secrets{
+			ProviderType:   "",
+			SetupCompleted: false, // Setup not completed
+		}
+
+		// Encrypted provider requires setup - should return error
+		mockEnv.EXPECT().Getenv(secrets.ProviderEnvVar).Return(string(secrets.EncryptedType))
+		_, err := s.GetProviderTypeWithEnv(mockEnv)
+		assert.Error(t, err, "Should return error when non-environment provider is set without setup")
+		assert.Contains(t, err.Error(), "requires setup to be completed", "Error should mention setup requirement")
+		assert.Contains(t, err.Error(), "environment", "Error should suggest using environment provider")
+	})
+
+	t.Run("Non-environment providers work when SetupCompleted is true", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockEnv := mocks.NewMockReader(ctrl)
+		s := &Secrets{
+			ProviderType:   "",
+			SetupCompleted: true, // Setup completed
+		}
+
+		// Encrypted provider should work when setup is completed
+		mockEnv.EXPECT().Getenv(secrets.ProviderEnvVar).Return(string(secrets.EncryptedType))
+		got, err := s.GetProviderTypeWithEnv(mockEnv)
+		require.NoError(t, err, "Should succeed when SetupCompleted is true")
+		assert.Equal(t, secrets.EncryptedType, got, "Should return provider from environment variable")
+	})
+
+	t.Run("1password provider requires SetupCompleted when set via env var", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockEnv := mocks.NewMockReader(ctrl)
+		s := &Secrets{
+			ProviderType:   "",
+			SetupCompleted: false, // Setup not completed
+		}
+
+		// 1password provider requires setup - should return error
+		mockEnv.EXPECT().Getenv(secrets.ProviderEnvVar).Return(string(secrets.OnePasswordType))
+		_, err := s.GetProviderTypeWithEnv(mockEnv)
+		assert.Error(t, err, "Should return error when 1password provider is set without setup")
+		assert.Contains(t, err.Error(), "requires setup to be completed", "Error should mention setup requirement")
+	})
+}

@@ -1,0 +1,26 @@
+--- go/internal/codeexec/codemode.go
++++ go/internal/codeexec/codemode.go
+@@ -37,7 +37,7 @@
+	Stdout      string          `json:"stdout"`
+	Stderr      string          `json:"stderr"`
+	ToolCalls   []ToolCallResult `json:"toolCalls,omitempty"`
+	Duration    string          `json:"duration"`
+	IsError     bool            `json:"isError,omitempty"`
+	TimedOut    bool            `json:"timedOut,omitempty"`
+ }
+@@ -107,7 +107,6 @@
+	if err != nil {
+		return &CodeModeResult{
+			IsError:  true,
+-			Error:    err.Error(),
+			Duration: time.Since(start).String(),
+		}, nil
+	}
+@@ -235,6 +234,6 @@
+	switch language {
+	case JavaScript, TypeScript:
+-		return generateJSToolCallScript(calls)
++		return generateJSToolScript(calls)
+	default:
+		return ""
+	}

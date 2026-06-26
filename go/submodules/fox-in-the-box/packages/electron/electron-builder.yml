@@ -1,0 +1,76 @@
+appId: io.foxinthebox.desktop
+productName: Fox in the Box
+executableName: FoxInTheBox
+copyright: "Copyright © 2024 Vulpy, Inc."
+
+npmRebuild: false
+
+directories:
+  output: dist
+
+files:
+  - src/**/*
+  - assets/**/*
+  - package.json
+
+icon: assets/icon.png
+
+# Run our own rcedit step in afterPack to embed the icon into the inner
+# Windows .exe. We can't rely on electron-builder's built-in rcedit
+# because `signAndEditExecutable: false` (set on `win:` below for Azure
+# Trusted Signing compatibility) disables BOTH signing AND editing.
+# The afterPack hook checks platform — Mac path is unaffected. See
+# build/afterPack.js for the full rationale + FITB #287.
+afterPack: ./build/afterPack.js
+
+win:
+  icon: assets/icon.ico
+  target:
+    - target: nsis
+      arch:
+        - x64
+  artifactName: "fox-in-the-box-setup-${arch}.exe"
+  signAndEditExecutable: false
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: false
+  deleteAppDataOnUninstall: false
+  uninstallDisplayName: Fox in the Box
+  shortcutName: Fox in the Box
+  installerIcon: assets/icon.ico
+  uninstallerIcon: assets/icon.ico
+  installerHeader: assets/installer/header.bmp
+  installerSidebar: assets/installer/sidebar.bmp
+  include: build/installer.nsh
+
+mac:
+  icon: assets/icon.icns
+  target:
+    - target: dmg
+      arch:
+        - x64
+        - arm64
+    - target: zip
+      arch:
+        - x64
+        - arm64
+  artifactName: "fox-in-the-box-${arch}-mac.${ext}"
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
+  notarize: true
+
+linux:
+  category: Utility
+  executableName: fox-in-the-box
+  target:
+    - dir
+
+publish:
+  provider: github
+  owner: fox-in-the-box-ai
+  repo: fox-in-the-box
+  releaseType: release

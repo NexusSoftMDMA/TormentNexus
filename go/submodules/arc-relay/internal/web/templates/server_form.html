@@ -1,0 +1,498 @@
+{{define "title"}}{{if .IsEdit}}Edit{{else}}Add{{end}} Server{{end}}
+{{define "content"}}
+<div class="page-header">
+  <h2>{{if .IsEdit}}Edit{{else}}Add{{end}} MCP Server</h2>
+</div>
+
+{{if not .IsEdit}}
+<div class="card" style="margin-bottom: 1.25rem;">
+  <h2>Browse Server Catalog</h2>
+  <div class="catalog-search">
+    <input type="text" id="catalog-query" placeholder="Search MCP servers (e.g. sentry, linear, github)..."
+           onkeydown="if(event.key==='Enter'){event.preventDefault();catalogSearch();}">
+    <button type="button" class="btn btn-primary" onclick="catalogSearch()">Search</button>
+  </div>
+  <div id="catalog-results" class="catalog-results"></div>
+  <div id="catalog-env-hint"></div>
+  <div id="catalog-oauth-info"></div>
+  <p style="font-size: 0.85rem; color: var(--text-muted); margin: 0;">Or configure manually below</p>
+</div>
+{{end}}
+
+<div class="card">
+  {{if .Error}}
+  <div class="alert alert-danger">{{.Error}}</div>
+  {{end}}
+  <form method="POST" action="{{if .IsEdit}}/servers/{{.Server.ID}}/edit{{else}}/servers/new{{end}}">
+    <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+    <div class="form-row">
+      <div class="form-group">
+        <label for="name">Slug Name</label>
+        <input type="text" id="name" name="name" value="{{.Server.Name}}" required
+               pattern="[a-z0-9][a-z0-9-]*[a-z0-9]">
+        {{if .IsEdit}}<input type="hidden" id="original_name" value="{{.Server.Name}}">{{end}}
+        <div class="help">URL-safe identifier used in proxy path: /mcp/{name}. Lowercase, hyphens only.</div>
+        {{if .IsEdit}}<div id="slug-rename-warning" class="alert alert-danger" style="display:none; margin-top:0.5rem;">
+          Changing the slug will break existing client configurations. All connected clients will need to run <code>arc-sync</code> to update.
+        </div>{{end}}
+      </div>
+      <div class="form-group">
+        <label for="display_name">Display Name</label>
+        <input type="text" id="display_name" name="display_name" value="{{.Server.DisplayName}}" required>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label for="server_type">Server Type</label>
+      <select id="server_type" name="server_type" onchange="toggleTypeFields()" {{if .IsEdit}}disabled{{end}}>
+        <option value="stdio" {{if eq (printf "%s" .ServerType) "stdio"}}selected{{end}}>Stdio (Docker Container)</option>
+        <option value="http" {{if eq (printf "%s" .ServerType) "http"}}selected{{end}}>HTTP (Docker or External)</option>
+        <option value="remote" {{if eq (printf "%s" .ServerType) "remote"}}selected{{end}}>Remote</option>
+      </select>
+      {{if .IsEdit}}<input type="hidden" name="server_type" value="{{.ServerType}}">{{end}}
+    </div>
+
+    <!-- Stdio fields -->
+    <div id="fields-stdio" class="type-fields">
+      <input type="hidden" id="stdio_mode" name="stdio_mode" value="{{if .StdioMode}}{{.StdioMode}}{{else}}image{{end}}">
+      <div class="form-group">
+        <label>Image Source</label>
+        <div style="display:flex;gap:0;margin-bottom:0.5rem;">
+          <button type="button" id="tab-image" class="btn btn-sm"
+                  onclick="setStdioMode('image')" style="border-radius:6px 0 0 6px;">Docker Image</button>
+          <button type="button" id="tab-build" class="btn btn-sm"
+                  onclick="setStdioMode('build')" style="border-radius:0 6px 6px 0;">Build from Package</button>
+        </div>
+      </div>
+
+      <!-- Docker Image mode -->
+      <div id="stdio-image-fields">
+        <div class="form-group">
+          <label for="stdio_image">Docker Image</label>
+          <input type="text" id="stdio_image" name="stdio_image" value="{{.StdioImage}}"
+                 placeholder="ghcr.io/org/mcp-server:latest">
+        </div>
+      </div>
+
+      <!-- Build from Package mode -->
+      <div id="stdio-build-fields" style="display:none">
+        <div class="form-row">
+          <div class="form-group">
+            <label for="build_runtime">Runtime</label>
+            <select id="build_runtime" name="build_runtime">
+              <option value="python" {{if eq (printf "%s" .BuildRuntime) "python"}}selected{{end}}>Python (pip)</option>
+              <option value="node" {{if eq (printf "%s" .BuildRuntime) "node"}}selected{{end}}>Node.js (npm)</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="build_package">Package Name</label>
+            <input type="text" id="build_package" name="build_package" value="{{.BuildPackage}}"
+                   placeholder="my-mcp-server or @anthropic/mcp-server-github">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="build_version">Version (optional)</label>
+            <input type="text" id="build_version" name="build_version" value="{{.BuildVersion}}"
+                   placeholder="latest">
+            <div class="help">Leave blank for latest version.</div>
+          </div>
+          <div class="form-group">
+            <label for="build_git_url">Git URL (alternative to package)</label>
+            <input type="text" id="build_git_url" name="build_git_url" value="{{.BuildGitURL}}"
+                   placeholder="https://github.com/user/repo">
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="build_git_ref">Branch / Tag (optional)</label>
+          <input type="text" id="build_git_ref" name="build_git_ref" value="{{.BuildGitRef}}"
+                 placeholder="main, v1.0.0, etc.">
+          <div class="help">Leave blank for default branch. If the repo has a Dockerfile, it will be used automatically.</div>
+        </div>
+        <div class="form-group">
+          <label for="build_dockerfile">Custom Dockerfile (optional escape hatch)</label>
+          <textarea id="build_dockerfile" name="build_dockerfile"
+                    placeholder="FROM python:3.11-slim&#10;RUN pip install ...&#10;ENTRYPOINT [...]"
+                    style="font-family:monospace;font-size:0.85rem;min-height:80px;">{{.BuildDockerfile}}</textarea>
+          <div class="help">If provided, this Dockerfile is used as-is instead of generating one from the package info.</div>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="stdio_entrypoint">Entrypoint Override (optional)</label>
+        <input type="text" id="stdio_entrypoint" name="stdio_entrypoint" value="{{.StdioEntrypoint}}"
+               placeholder="python">
+        <div class="help">Override the container entrypoint. Leave blank to use the image default.</div>
+      </div>
+      <div class="form-group">
+        <label for="stdio_command">Command / Args (optional)</label>
+        <input type="text" id="stdio_command" name="stdio_command" value="{{.StdioCommand}}"
+               placeholder="-c &quot;from mymod import app; app.run()&quot;">
+        <div class="help">Arguments passed to entrypoint. Use quotes around args with spaces.</div>
+      </div>
+      <div class="form-group">
+        <label for="stdio_env">Environment Variables</label>
+        <textarea id="stdio_env" name="stdio_env" placeholder="KEY=value&#10;ANOTHER_KEY=another_value">{{.StdioEnv}}</textarea>
+        <div class="help">One KEY=value per line. Credentials will be encrypted at rest.</div>
+      </div>
+    </div>
+
+    <!-- HTTP fields -->
+    <div id="fields-http" class="type-fields" style="display:none">
+      <div class="form-group">
+        <label for="http_image">Docker Image (leave blank for external)</label>
+        <input type="text" id="http_image" name="http_image" value="{{.HTTPImage}}"
+               placeholder="ghcr.io/org/mcp-server:latest">
+      </div>
+      <div class="form-group">
+        <label for="http_port">Container Port</label>
+        <input type="number" id="http_port" name="http_port" value="{{.HTTPPort}}" placeholder="8000">
+        <div class="help">The port the MCP server listens on inside the container.</div>
+      </div>
+      <div class="form-group">
+        <label for="http_url">External URL (if no Docker image)</label>
+        <input type="text" id="http_url" name="http_url" value="{{.HTTPURL}}"
+               placeholder="http://localhost:8000">
+      </div>
+      <div class="form-group">
+        <label for="http_health">Health Check Path (optional)</label>
+        <input type="text" id="http_health" name="http_health" value="{{.HTTPHealth}}" placeholder="/health">
+      </div>
+      <div class="form-group">
+        <label for="http_env">Environment Variables</label>
+        <textarea id="http_env" name="http_env" placeholder="KEY=value&#10;ANOTHER_KEY=another_value">{{.HTTPEnv}}</textarea>
+      </div>
+    </div>
+
+    <!-- Remote fields -->
+    <div id="fields-remote" class="type-fields" style="display:none">
+      <div class="form-group">
+        <label for="remote_url">Server URL</label>
+        <input type="text" id="remote_url" name="remote_url" value="{{.RemoteURL}}"
+               placeholder="https://mcp.example.com/mcp">
+      </div>
+      <div class="form-group">
+        <label for="remote_auth_type">Authentication Type</label>
+        <select id="remote_auth_type" name="remote_auth_type" onchange="toggleAuthFields()">
+          <option value="none" {{if eq .RemoteAuthType "none"}}selected{{end}}>None</option>
+          <option value="private_url" {{if eq .RemoteAuthType "private_url"}}selected{{end}}>Private URL (auth in URL)</option>
+          <option value="bearer" {{if eq .RemoteAuthType "bearer"}}selected{{end}}>Bearer Token</option>
+          <option value="api_key" {{if eq .RemoteAuthType "api_key"}}selected{{end}}>API Key Header</option>
+          <option value="oauth" {{if eq .RemoteAuthType "oauth"}}selected{{end}}>OAuth</option>
+        </select>
+      </div>
+      <div id="auth-token" style="display:none">
+        <div class="form-group">
+          <label for="remote_token">Token / API Key</label>
+          <input type="password" id="remote_token" name="remote_token" value="{{.RemoteToken}}"
+                 placeholder="your-token-here">
+        </div>
+      </div>
+      <div id="auth-header" style="display:none">
+        <div class="form-group">
+          <label for="remote_header_name">Header Name</label>
+          <input type="text" id="remote_header_name" name="remote_header_name" value="{{.RemoteHeaderName}}"
+                 placeholder="X-API-Key">
+        </div>
+      </div>
+      <div id="auth-oauth" style="display:none">
+        <div class="form-row">
+          <div class="form-group">
+            <label for="oauth_client_id">Client ID</label>
+            <input type="text" id="oauth_client_id" name="oauth_client_id" value="{{.OAuthClientID}}">
+          </div>
+          <div class="form-group">
+            <label for="oauth_client_secret">Client Secret</label>
+            <input type="password" id="oauth_client_secret" name="oauth_client_secret" value="{{.OAuthClientSecret}}">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="oauth_auth_url">Authorization URL</label>
+            <input type="text" id="oauth_auth_url" name="oauth_auth_url" value="{{.OAuthAuthURL}}"
+                   placeholder="https://provider.com/oauth/authorize">
+          </div>
+          <div class="form-group">
+            <label for="oauth_token_url">Token URL</label>
+            <input type="text" id="oauth_token_url" name="oauth_token_url" value="{{.OAuthTokenURL}}"
+                   placeholder="https://provider.com/oauth/token">
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="oauth_scopes">Scopes (space-separated)</label>
+          <input type="text" id="oauth_scopes" name="oauth_scopes" value="{{.OAuthScopes}}"
+                 placeholder="read write">
+        </div>
+      </div>
+    </div>
+
+    <div style="margin-top: 1.5rem; display: flex; gap: 0.5rem;">
+      <button type="submit" class="btn btn-primary">{{if .IsEdit}}Save Changes{{else}}Add Server{{end}}</button>
+      <a href="{{if .IsEdit}}/servers/{{.Server.ID}}{{else}}/{{end}}" class="btn btn-outline">Cancel</a>
+    </div>
+  </form>
+</div>
+
+<script>
+function toggleTypeFields() {
+  var type = document.getElementById('server_type').value;
+  document.querySelectorAll('.type-fields').forEach(function(el) { el.style.display = 'none'; });
+  var target = document.getElementById('fields-' + type);
+  if (target) target.style.display = 'block';
+  if (type === 'remote') toggleAuthFields();
+  if (type === 'stdio') {
+    var mode = document.getElementById('stdio_mode').value || 'image';
+    setStdioMode(mode);
+  }
+}
+
+function setStdioMode(mode) {
+  document.getElementById('stdio_mode').value = mode;
+  document.getElementById('stdio-image-fields').style.display = (mode === 'image') ? 'block' : 'none';
+  document.getElementById('stdio-build-fields').style.display = (mode === 'build') ? 'block' : 'none';
+  var tabImage = document.getElementById('tab-image');
+  var tabBuild = document.getElementById('tab-build');
+  if (mode === 'image') {
+    tabImage.className = 'btn btn-sm btn-primary';
+    tabBuild.className = 'btn btn-sm btn-outline';
+  } else {
+    tabImage.className = 'btn btn-sm btn-outline';
+    tabBuild.className = 'btn btn-sm btn-primary';
+  }
+}
+
+function toggleAuthFields() {
+  var authType = document.getElementById('remote_auth_type').value;
+  document.getElementById('auth-token').style.display = (authType === 'bearer' || authType === 'api_key') ? 'block' : 'none';
+  document.getElementById('auth-header').style.display = (authType === 'api_key') ? 'block' : 'none';
+  document.getElementById('auth-oauth').style.display = (authType === 'oauth') ? 'block' : 'none';
+
+  // Auto-discover OAuth when switching to oauth with a URL already entered
+  if (authType === 'oauth') {
+    var remoteURL = document.getElementById('remote_url').value.trim();
+    var clientID = document.getElementById('oauth_client_id').value.trim();
+    if (remoteURL && !clientID) {
+      discoverOAuth(remoteURL);
+    }
+  }
+}
+
+toggleTypeFields();
+
+// --- Slug rename warning ---
+(function() {
+  var origEl = document.getElementById('original_name');
+  if (!origEl) return;
+  var origName = origEl.value;
+  var nameInput = document.getElementById('name');
+  var warning = document.getElementById('slug-rename-warning');
+  nameInput.addEventListener('input', function() {
+    warning.style.display = (nameInput.value !== origName) ? 'block' : 'none';
+  });
+})();
+
+// --- Catalog ---
+
+function catalogSearch() {
+  var q = document.getElementById('catalog-query').value.trim();
+  if (!q) return;
+
+  var resultsDiv = document.getElementById('catalog-results');
+  var envHint = document.getElementById('catalog-env-hint');
+  var oauthInfo = document.getElementById('catalog-oauth-info');
+  envHint.innerHTML = '';
+  oauthInfo.innerHTML = '';
+  resultsDiv.innerHTML = '<div class="catalog-loading">Searching...</div>';
+
+  fetch('/api/catalog/search?q=' + encodeURIComponent(q))
+    .then(function(r) { return r.json(); })
+    .then(function(servers) {
+      if (!servers || servers.length === 0) {
+        resultsDiv.innerHTML = '<div class="catalog-empty">No servers found. Try a different search term.</div>';
+        return;
+      }
+
+      // Deduplicate: group by registry_name, prefer streamable-http over sse for remotes
+      var groups = {};
+      servers.forEach(function(s) {
+        var key = s.registry_name + '|' + s.server_type;
+        if (!groups[key]) {
+          groups[key] = s;
+        } else if (s.remote_type === 'streamable-http' && groups[key].remote_type === 'sse') {
+          groups[key] = s;
+        }
+      });
+
+      var html = '';
+      var seen = {};
+      Object.keys(groups).forEach(function(key) {
+        var s = groups[key];
+        var rname = s.registry_name;
+        if (!seen[rname]) seen[rname] = { remotes: [], stdios: [] };
+        if (s.server_type === 'remote') seen[rname].remotes.push(s);
+        else seen[rname].stdios.push(s);
+      });
+
+      Object.keys(seen).forEach(function(rname) {
+        var group = seen[rname];
+        var first = group.remotes[0] || group.stdios[0];
+        html += '<div class="catalog-result">';
+        html += '<div class="catalog-result-header">';
+        html += '<span class="catalog-result-title">' + escapeHtml(first.title) + '</span>';
+        html += '<span class="catalog-result-version">v' + escapeHtml(first.version) + '</span>';
+        html += '</div>';
+        html += '<div class="catalog-result-desc">' + escapeHtml(first.description) + '</div>';
+        html += '<div class="catalog-result-actions">';
+
+        group.remotes.forEach(function(r) {
+          var label = 'Use Remote (' + r.remote_type + ')';
+          html += '<button type="button" class="btn btn-sm btn-primary" onclick=\'catalogSelectRemote(' + JSON.stringify(r) + ')\'>' + label + '</button>';
+        });
+        group.stdios.forEach(function(s) {
+          var label = s.docker_image ? 'Use Docker' : (s.package_name ? 'Build from Package' : 'Use Stdio (needs image)');
+          var btnClass = s.package_name && !s.docker_image ? 'btn btn-sm btn-primary' : 'btn btn-sm btn-outline';
+          html += '<button type="button" class="' + btnClass + '" onclick=\'catalogSelectStdio(' + JSON.stringify(s) + ')\'>' + label + '</button>';
+        });
+
+        if (first.repo_url) {
+          html += '<a href="' + escapeHtml(first.repo_url) + '" target="_blank" class="btn btn-sm btn-outline">Repo</a>';
+        }
+
+        html += '</div></div>';
+      });
+
+      resultsDiv.innerHTML = html;
+    })
+    .catch(function(err) {
+      resultsDiv.innerHTML = '<div class="catalog-empty">Search failed. You can still configure manually below.</div>';
+    });
+}
+
+var _discoveringOAuth = false;
+function discoverOAuth(remoteURL) {
+  if (_discoveringOAuth) return;
+  _discoveringOAuth = true;
+  var oauthInfo = document.getElementById('catalog-oauth-info');
+  oauthInfo.innerHTML = '<div class="catalog-loading">Discovering OAuth configuration...</div>';
+
+  var _csrfToken = (document.querySelector('meta[name="csrf-token"]') || {}).content || '';
+  fetch('/api/catalog/discover-oauth', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', 'X-CSRF-Token': _csrfToken},
+    body: JSON.stringify({remote_url: remoteURL})
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(disc) {
+    if (disc && disc.auth_url && disc.token_url) {
+      document.getElementById('remote_auth_type').value = 'oauth';
+      toggleAuthFields();
+      // Only populate empty fields
+      if (!document.getElementById('oauth_auth_url').value.trim()) {
+        document.getElementById('oauth_auth_url').value = disc.auth_url;
+      }
+      if (!document.getElementById('oauth_token_url').value.trim()) {
+        document.getElementById('oauth_token_url').value = disc.token_url;
+      }
+      if (!document.getElementById('oauth_scopes').value.trim() && disc.scopes_supported && disc.scopes_supported.length > 0) {
+        document.getElementById('oauth_scopes').value = disc.scopes_supported.join(' ');
+      }
+      if (!document.getElementById('oauth_client_id').value.trim() && disc.client_id) {
+        document.getElementById('oauth_client_id').value = disc.client_id;
+      }
+      if (!document.getElementById('oauth_client_secret').value.trim() && disc.client_secret) {
+        document.getElementById('oauth_client_secret').value = disc.client_secret;
+      }
+      oauthInfo.innerHTML = '<div class="catalog-info">OAuth auto-configured' +
+        (disc.client_id ? ' with dynamic client registration' : '') +
+        '. Review the settings below, then click Add Server.</div>';
+    } else {
+      oauthInfo.innerHTML = '';
+    }
+    _discoveringOAuth = false;
+  })
+  .catch(function() {
+    oauthInfo.innerHTML = '';
+    _discoveringOAuth = false;
+  });
+}
+
+function catalogSelectRemote(server) {
+  document.getElementById('name').value = server.suggested_slug;
+  document.getElementById('display_name').value = server.suggested_display;
+  document.getElementById('server_type').value = 'remote';
+  toggleTypeFields();
+  document.getElementById('remote_url').value = server.remote_url;
+
+  // Clear previous hints
+  document.getElementById('catalog-env-hint').innerHTML = '';
+
+  // Try OAuth auto-discovery
+  discoverOAuth(server.remote_url);
+
+  // Scroll to form
+  document.getElementById('name').scrollIntoView({behavior: 'smooth', block: 'center'});
+}
+
+function catalogSelectStdio(server) {
+  document.getElementById('name').value = server.suggested_slug;
+  document.getElementById('display_name').value = server.suggested_display;
+  document.getElementById('server_type').value = 'stdio';
+  toggleTypeFields();
+
+  document.getElementById('catalog-oauth-info').innerHTML = '';
+
+  // If the catalog entry has a Docker image, use image mode
+  if (server.docker_image) {
+    setStdioMode('image');
+    document.getElementById('stdio_image').value = server.docker_image;
+  }
+  // If the catalog entry has package info (npm/pypi), switch to build mode
+  else if (server.package_type && server.package_name) {
+    setStdioMode('build');
+    var runtime = (server.package_type === 'npm') ? 'node' : 'python';
+    document.getElementById('build_runtime').value = runtime;
+    document.getElementById('build_package').value = server.package_name;
+    document.getElementById('build_version').value = '';
+    document.getElementById('build_git_url').value = '';
+    document.getElementById('build_dockerfile').value = '';
+    document.getElementById('stdio_image').value = '';
+  } else {
+    setStdioMode('image');
+    document.getElementById('stdio_image').value = '';
+  }
+
+  // Show env var hints
+  var envHint = document.getElementById('catalog-env-hint');
+  if (server.env_vars && server.env_vars.length > 0) {
+    var html = '<div class="catalog-env-hint"><strong>Required environment variables:</strong>';
+    var envLines = [];
+    server.env_vars.forEach(function(v) {
+      html += '<div><code>' + escapeHtml(v.name) + '</code>';
+      if (v.description) html += ' &mdash; ' + escapeHtml(v.description);
+      if (v.isRequired) html += ' <strong>(required)</strong>';
+      html += '</div>';
+      envLines.push(v.name + '=');
+    });
+    html += '</div>';
+    envHint.innerHTML = html;
+
+    // Pre-fill env textarea
+    var textarea = document.getElementById('stdio_env');
+    if (!textarea.value.trim()) {
+      textarea.value = envLines.join('\n');
+    }
+  } else {
+    envHint.innerHTML = '';
+  }
+
+  document.getElementById('name').scrollIntoView({behavior: 'smooth', block: 'center'});
+}
+
+function escapeHtml(str) {
+  if (!str) return '';
+  var div = document.createElement('div');
+  div.appendChild(document.createTextNode(str));
+  return div.innerHTML;
+}
+</script>
+{{end}}

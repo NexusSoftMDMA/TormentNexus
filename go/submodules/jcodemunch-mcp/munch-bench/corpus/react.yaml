@@ -1,0 +1,81 @@
+repo: facebook/react
+questions:
+  - id: react-001
+    question: "How does React's fiber reconciler determine which components need to re-render?"
+    ground_truth_answer: "The reconciler walks the fiber tree comparing current and work-in-progress fibers. It checks shouldComponentUpdate, React.memo comparisons, and bailout conditions. Changed fibers are marked with effect flags. The work loop processes fibers depth-first, skipping subtrees where props and state haven't changed."
+    ground_truth_symbols: ["beginWork", "reconcileChildren", "updateFunctionComponent"]
+    difficulty: hard
+    category: architecture
+    tags: [fiber, reconciliation]
+
+  - id: react-002
+    question: "How does useState work internally in React?"
+    ground_truth_answer: "useState calls mountState on first render, which creates a Hook object on the fiber's memoizedState linked list. The hook stores the state value and a dispatch queue. Updates via setState create Update objects enqueued on the hook. On re-render, updateReducer processes the queue."
+    ground_truth_symbols: ["mountState", "updateState", "dispatchSetState"]
+    difficulty: hard
+    category: architecture
+    tags: [hooks, state]
+
+  - id: react-003
+    question: "How does React implement the concurrent rendering work loop?"
+    ground_truth_answer: "workLoopConcurrent() calls performUnitOfWork repeatedly, yielding to the browser via shouldYield() (from the Scheduler package). Each unit of work processes one fiber — beginWork descends, completeWork ascends. If time expires, work is suspended and resumed on the next frame."
+    ground_truth_symbols: ["workLoopConcurrent", "performUnitOfWork", "shouldYield"]
+    difficulty: hard
+    category: architecture
+    tags: [concurrent, scheduler]
+
+  - id: react-004
+    question: "How does React's event system work with event delegation?"
+    ground_truth_answer: "React attaches a single event listener to the root container for each event type. When a native event fires, React constructs a SyntheticEvent, finds the target fiber, and traverses the fiber tree to collect listeners for the capture and bubble phases, then dispatches them in order."
+    ground_truth_symbols: ["dispatchEvent", "SyntheticEvent", "listenToAllSupportedEvents"]
+    difficulty: hard
+    category: architecture
+    tags: [events, delegation]
+
+  - id: react-005
+    question: "How does useEffect schedule and run its cleanup and effect functions?"
+    ground_truth_answer: "useEffect creates an Effect object with the callback and deps array. Effects are collected during the render phase but executed asynchronously after paint via flushPassiveEffects. On update, if deps changed, the previous effect's destroy (cleanup) function runs first, then the new effect."
+    ground_truth_symbols: ["mountEffect", "updateEffect", "flushPassiveEffects"]
+    difficulty: medium
+    category: api
+    tags: [hooks, effects]
+
+  - id: react-006
+    question: "How does React.memo prevent unnecessary re-renders?"
+    ground_truth_answer: "React.memo wraps a component in a MemoComponent fiber type. During reconciliation, updateMemoComponent compares prev and next props using the provided comparison function (or shallowEqual by default). If props are equal, it bails out and reuses the existing fiber subtree."
+    ground_truth_symbols: ["memo", "updateMemoComponent"]
+    difficulty: medium
+    category: api
+    tags: [performance, memoization]
+
+  - id: react-007
+    question: "How does React's context system propagate values to consumers?"
+    ground_truth_answer: "createContext returns a context object with Provider and Consumer. The Provider fiber stores the value. When the value changes, React eagerly traverses the subtree looking for context consumers (via readContext), marking them for re-render even if parent bails out."
+    ground_truth_symbols: ["createContext", "readContext", "propagateContextChange"]
+    difficulty: medium
+    category: architecture
+    tags: [context, state-management]
+
+  - id: react-008
+    question: "How does React implement Suspense for data fetching?"
+    ground_truth_answer: "When a component throws a Promise (thenable), React catches it at the nearest Suspense boundary. The boundary shows its fallback content. When the promise resolves, React re-renders the suspended component. SuspenseComponent fiber manages the primary/fallback children swap."
+    ground_truth_symbols: ["Suspense", "throwException", "updateSuspenseComponent"]
+    difficulty: hard
+    category: architecture
+    tags: [suspense, async]
+
+  - id: react-009
+    question: "How does useRef work and why doesn't it trigger re-renders?"
+    ground_truth_answer: "useRef creates a plain object { current: initialValue } stored on the fiber's hook linked list. Since it's a mutable container and React doesn't track mutations to ref.current, changing it doesn't schedule a state update or cause re-rendering."
+    ground_truth_symbols: ["mountRef", "updateRef"]
+    difficulty: easy
+    category: api
+    tags: [hooks, refs]
+
+  - id: react-010
+    question: "How does React's key prop affect reconciliation of lists?"
+    ground_truth_answer: "During reconcileChildrenArray, React builds a map of existing fibers keyed by their key prop (or index if no key). New elements are matched against this map. Matched fibers are reused and repositioned; unmatched old fibers are deleted; unmatched new elements create fresh fibers."
+    ground_truth_symbols: ["reconcileChildrenArray", "mapRemainingChildren"]
+    difficulty: medium
+    category: architecture
+    tags: [reconciliation, lists]

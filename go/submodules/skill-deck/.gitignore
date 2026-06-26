@@ -1,0 +1,59 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# Dependencies
+node_modules
+
+# Build output
+/build
+/.svelte-kit
+/package
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Vite
+vite.config.js.timestamp-*
+vite.config.ts.timestamp-*
+
+# Research docs (local reference only, not published)
+.research/
+
+# Product / market strategy research (local only, never publish)
+.product-research/
+
+# Design system reference output from `npx getdesign add <stack>` (local reference)
+claude/
+linear/
+
+# Internal planning & agent session files — never publish
+.claude/
+.planning/
+task_plan.md
+progress.md
+findings.md
+PROJECT_MEMORY.md
+PRODUCTION_READINESS_AUDIT.md
+AGENT_SUPPORT_*.md
+notes.md
+SESSION_MEMORY.md
+llm.txt
+plan.html
+CHANGELOG_PLAN.md
+FUTURE_IMPLEMENTATION_PLAN.md
+RELEASE_PLAN.md
+THEME_REDESIGN_TRACE.md
+
+# Local token-dump / contrast scratch scripts (never publish)
+.tmp-tokens/
+
+# IDE
+.idea/
+*.swp
+*.swo
+
+# Stray GitHub API / path-keyed cache files accidentally written to the repo root
+/Users*.json

@@ -1,0 +1,58 @@
+# Embedding pricing table consumed by ogham.pricing
+#
+# SCOPE: this file prices ONLY the cost of generating embeddings via
+# generate_embedding() / generate_embeddings_batch(). It does NOT cover:
+#   - LLM read cost (when a calling agent passes retrieved memories to
+#     Claude / GPT / Gemini for reasoning) -- happens outside Ogham, the
+#     calling agent owns that bill
+#   - LLM extract_facts cost (when hybrid_search(extract_facts=True) calls
+#     an LLM ourselves) -- tracked separately, not yet captured (see backlog)
+#
+# Embedding cost is typically tiny (~$0.000004 per search at OpenAI small
+# rates). LLM read cost is 100-1000x larger and dominates "total agent cost".
+#
+# Rates are USD per 1K input tokens. To override, set OGHAM_PRICING_FILE to
+# the path of your own YAML with the same shape.
+#
+# Verified against official provider pricing pages on 2026-04-15. Re-check
+# upstream pages when provider pricing changes:
+# - OpenAI:  https://openai.com/api/pricing/
+# - Voyage:  https://docs.voyageai.com/docs/pricing
+# - Mistral: https://mistral.ai/pricing
+# - Gemini:  https://ai.google.dev/gemini-api/docs/pricing
+#
+# Local providers (Ollama, ONNX) cost zero -- listed explicitly so dashboards
+# can show "0.0" rather than "unknown".
+#
+# Models priced at null mean "we have not verified pricing for this model".
+# calculate_embedding_cost() returns None for null-priced models, so the
+# audit_log row gets cost_usd=NULL rather than a guessed number.
+
+openai:
+  text-embedding-3-small: 0.00002   # $0.02 / 1M input tokens
+  text-embedding-3-large: 0.00013   # $0.13 / 1M input tokens
+
+voyage:
+  voyage-3: 0.00006                  # $0.06 / 1M tokens
+  voyage-3-lite: 0.00002             # $0.02 / 1M tokens
+  voyage-3.5: 0.00006                # parity with voyage-3
+  voyage-3.5-lite: 0.00002           # parity with voyage-3-lite
+  voyage-3-large: 0.00018            # $0.18 / 1M tokens (verified 2026-01)
+  voyage-4-lite: 0.00002             # parity with voyage-3-lite (current default)
+  voyage-multimodal-3: null          # token + pixel pricing -- verify before pricing
+  voyage-multimodal-3.5: null        # token + pixel pricing -- verify before pricing
+
+mistral:
+  mistral-embed: 0.0001              # $0.10 / 1M input tokens
+
+gemini:
+  gemini-embedding-001: 0.000075     # $0.075 / 1M input tokens (paid tier)
+  gemini-embedding-2: null           # GA price not yet published; treat as 0 cost-wise
+  gemini-embedding-2-preview: null   # legacy alias of gemini-embedding-2, will be retired
+
+# Local-inference providers -- always free.
+ollama:
+  "*": 0.0                           # any Ollama model
+
+onnx:
+  "*": 0.0                           # any ONNX-hosted model

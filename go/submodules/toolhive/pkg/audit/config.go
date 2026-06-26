@@ -1,0 +1,202 @@
+// SPDX-FileCopyrightText: Copyright 2025 Stacklok, Inc.
+// SPDX-License-Identifier: Apache-2.0
+
+// Package audit provides audit logging configuration for ToolHive.
+package audit
+
+import (
+	"encoding/json"
+	"fmt"
+	"io"
+	"log/slog"
+	"os"
+	"path/filepath"
+)
+
+// Config represents the audit logging configuration.
+// +kubebuilder:object:generate=true
+// +gendoc
+type Config struct {
+	// Enabled controls whether audit logging is enabled.
+	// When true, enables audit logging with the configured options.
+	// +kubebuilder:default=false
+	// +optional
+	Enabled bool `json:"enabled,omitempty" yaml:"enabled,omitempty"`
+	// Component is the component name to use in audit events.
+	// +optional
+	Component string `json:"component,omitempty" yaml:"component,omitempty"`
+	// EventTypes specifies which event types to audit. If empty, all events are audited.
+	// +optional
+	EventTypes []string `json:"eventTypes,omitempty" yaml:"eventTypes,omitempty"`
+	// ExcludeEventTypes specifies which event types to exclude from auditing.
+	// This takes precedence over EventTypes.
+	// +optional
+	ExcludeEventTypes []string `json:"excludeEventTypes,omitempty" yaml:"excludeEventTypes,omitempty"`
+	// IncludeRequestData determines whether to include request data in audit logs.
+	// +kubebuilder:default=false
+	// +optional
+	IncludeRequestData bool `json:"includeRequestData,omitempty" yaml:"includeRequestData,omitempty"`
+	// IncludeResponseData determines whether to include response data in audit logs.
+	// +kubebuilder:default=false
+	// +optional
+	IncludeResponseData bool `json:"includeResponseData,omitempty" yaml:"includeResponseData,omitempty"`
+	// DetectApplicationErrors controls whether the audit middleware inspects
+	// JSON-RPC response bodies for application-level errors when the HTTP
+	// status code indicates success (2xx). When enabled, a small prefix of
+	// the response body is buffered to detect JSON-RPC error fields,
+	// independent of the IncludeResponseData setting.
+	// +kubebuilder:default=true
+	// +optional
+	DetectApplicationErrors *bool `json:"detectApplicationErrors,omitempty" yaml:"detectApplicationErrors,omitempty"`
+	// MaxDataSize limits the size of request/response data included in audit logs (in bytes).
+	// +kubebuilder:default=1024
+	// +optional
+	MaxDataSize int `json:"maxDataSize,omitempty" yaml:"maxDataSize,omitempty"`
+	// LogFile specifies the file path for audit logs. If empty, logs to stdout.
+	// +optional
+	LogFile string `json:"logFile,omitempty" yaml:"logFile,omitempty"`
+}
+
+// GetLogWriter creates and returns the appropriate io.Writer based on the configuration.
+func (c *Config) GetLogWriter() (io.Writer, error) {
+	if c == nil || c.LogFile == "" {
+		return os.Stdout, nil
+	}
+
+	// Clean the path to prevent directory traversal
+	file, err := os.OpenFile(filepath.Clean(c.LogFile), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0600)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open audit log file %s: %w", c.LogFile, err)
+	}
+
+	return file, nil
+}
+
+// DefaultConfig returns a default audit configuration.
+func DefaultConfig() *Config {
+	detectErrors := true
+	return &Config{
+		// Note, these defaults are also present on the kubebuilder annotations above.
+		// If you change these defaults, you must also change the kubebuilder annotations.
+		IncludeRequestData:      false,         // Disabled by default for privacy
+		IncludeResponseData:     false,         // Disabled by default for privacy
+		MaxDataSize:             1024,          // 1KB default limit
+		DetectApplicationErrors: &detectErrors, // Enabled by default to surface JSON-RPC errors
+	}
+}
+
+// ShouldDetectApplicationErrors returns whether JSON-RPC error detection is enabled.
+// Defaults to true when DetectApplicationErrors is nil.
+func (c *Config) ShouldDetectApplicationErrors() bool {
+	if c.DetectApplicationErrors == nil {
+		return true
+	}
+	return *c.DetectApplicationErrors
+}
+
+// LoadFromFile loads audit configuration from a file.
+func LoadFromFile(path string) (*Config, error) {
+	// Clean the path to prevent directory traversal
+	file, err := os.Open(filepath.Clean(path))
+	if err != nil {
+		return nil, fmt.Errorf("failed to open audit config file: %w", err)
+	}
+	defer func() {
+		if err := file.Close(); err != nil {
+			slog.Warn("failed to close audit config file", "error", err)
+		}
+	}()
+
+	return LoadFromReader(file)
+}
+
+// LoadFromReader loads audit configuration from an io.Reader.
+func LoadFromReader(r io.Reader) (*Config, error) {
+	var config Config
+	decoder := json.NewDecoder(r)
+	if err := decoder.Decode(&config); err != nil {
+		return nil, fmt.Errorf("failed to decode audit config: %w", err)
+	}
+
+	return &config, nil
+}
+
+// ShouldAuditEvent determines whether an event should be audited based on the configuration.
+func (c *Config) ShouldAuditEvent(eventType string) bool {
+	// Check if event type is excluded
+	for _, excludeType := range c.ExcludeEventTypes {
+		if excludeType == eventType {
+			return false
+		}
+	}
+
+	// If specific event types are configured, check if this event type is included
+	if len(c.EventTypes) > 0 {
+		found := false
+		for _, allowedType := range c.EventTypes {
+			if allowedType == eventType {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return false
+		}
+	}
+
+	return true
+}
+
+// Validate validates the audit configuration.
+func (c *Config) Validate() error {
+	// Apply default for MaxDataSize if not set (0 means use default)
+	if c.MaxDataSize == 0 {
+		c.MaxDataSize = DefaultConfig().MaxDataSize
+	}
+
+	if c.MaxDataSize < 0 {
+		return fmt.Errorf("maxDataSize cannot be negative")
+	}
+
+	// Validate event types (basic validation - could be extended)
+	validEventTypes := map[string]bool{
+		EventTypeMCPInitialize:       true,
+		EventTypeMCPToolCall:         true,
+		EventTypeMCPToolsList:        true,
+		EventTypeMCPResourceRead:     true,
+		EventTypeMCPResourcesList:    true,
+		EventTypeMCPPromptGet:        true,
+		EventTypeMCPPromptsList:      true,
+		EventTypeMCPNotification:     true,
+		EventTypeMCPPing:             true,
+		EventTypeMCPLogging:          true,
+		EventTypeMCPCompletion:       true,
+		EventTypeMCPRootsListChanged: true,
+		// Workflow event types for vMCP composite workflows
+		EventTypeWorkflowStarted:       true,
+		EventTypeWorkflowCompleted:     true,
+		EventTypeWorkflowFailed:        true,
+		EventTypeWorkflowTimedOut:      true,
+		EventTypeWorkflowStepStarted:   true,
+		EventTypeWorkflowStepCompleted: true,
+		EventTypeWorkflowStepFailed:    true,
+		EventTypeWorkflowStepSkipped:   true,
+		// Fallback event types that can also be emitted by the middleware
+		EventTypeMCPRequest:  true,
+		EventTypeHTTPRequest: true,
+	}
+
+	for _, eventType := range c.EventTypes {
+		if !validEventTypes[eventType] {
+			return fmt.Errorf("unknown event type: %s", eventType)
+		}
+	}
+
+	for _, eventType := range c.ExcludeEventTypes {
+		if !validEventTypes[eventType] {
+			return fmt.Errorf("unknown exclude event type: %s", eventType)
+		}
+	}
+
+	return nil
+}

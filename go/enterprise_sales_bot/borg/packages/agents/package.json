@@ -1,0 +1,30 @@
+{
+  "name": "@tormentnexus/agents",
+  "version": "1.0.0-alpha.160",
+  "private": true,
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "node build.mjs",
+    "dev": "tsc --watch --preserveWatchOutput",
+    "lint": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@tormentnexus/adk": "workspace:*",
+    "@tormentnexus/ai": "workspace:*",
+    "@modelcontextprotocol/sdk": "^1.27.1",
+    "zod": "^3.22.4"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "eslint": "^9.26.0",
+    "typescript": "^5.3.3"
+  }
+}

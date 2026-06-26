@@ -1,0 +1,23 @@
+# Copy .env.example to .env and set the encryption key, session secret,
+# and admin password before running. Docker Compose will refuse to start
+# without these values. Generate keys with: openssl rand -hex 32
+services:
+  arc-relay:
+    build: .
+    ports:
+      - "8080:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - relay-data:/data
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      # Required secrets - generate with: openssl rand -hex 32
+      - ARC_RELAY_ENCRYPTION_KEY=${ARC_RELAY_ENCRYPTION_KEY:?ENCRYPTION_KEY must be set - generate with: openssl rand -hex 32}
+      - ARC_RELAY_SESSION_SECRET=${ARC_RELAY_SESSION_SECRET:?SESSION_SECRET must be set - generate with: openssl rand -hex 32}
+      - ARC_RELAY_ADMIN_PASSWORD=${ARC_RELAY_ADMIN_PASSWORD:?ADMIN_PASSWORD must be set}
+      - ARC_RELAY_DB_PATH=${ARC_RELAY_DB_PATH:-/data/arc-relay.db}
+
+volumes:
+  relay-data:

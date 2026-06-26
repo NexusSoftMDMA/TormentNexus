@@ -1,0 +1,20 @@
+apiVersion: toolhive.stacklok.dev/v1beta1
+kind: VirtualMCPServer
+metadata:
+  name: test-vmcp-oidc
+  namespace: toolhive-system
+spec:
+  groupRef:
+    name: test-group-controller
+  config:
+    aggregation:
+      conflictResolution: prefix
+      conflictResolutionConfig:
+        prefixFormat: "{workload}_"
+  incomingAuth:
+    type: oidc
+    oidcConfigRef:
+      name: test-vmcp-oidc-config
+      audience: vmcp-test
+  outgoingAuth:
+    source: discovered

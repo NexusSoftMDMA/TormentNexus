@@ -1,0 +1,14 @@
+__pycache__/
+*.pyc
+.mypy_cache/
+dist/
+*.egg-info/
+
+# Credentials and secrets
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+tokens/
+__init__.py

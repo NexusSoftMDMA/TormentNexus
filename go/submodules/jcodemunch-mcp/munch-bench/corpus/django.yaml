@@ -1,0 +1,81 @@
+repo: django/django
+questions:
+  - id: django-001
+    question: "How does Django's ORM translate a QuerySet filter chain into SQL?"
+    ground_truth_answer: "QuerySet.filter() clones the queryset and adds Q objects to the query's WHERE clause. The Query object builds a WhereNode tree. When evaluated, SQLCompiler.as_sql() traverses the tree, resolving lookups, joins, and annotations into a parameterized SQL string."
+    ground_truth_symbols: ["QuerySet", "filter", "Query", "SQLCompiler", "WhereNode"]
+    difficulty: hard
+    category: architecture
+    tags: [orm, sql, query]
+
+  - id: django-002
+    question: "How does Django's migration framework detect model changes?"
+    ground_truth_answer: "The MigrationAutodetector compares the current model state (from models) against the project state (from migration history). It detects additions, removals, field changes, and relationship changes, then generates migration operations for each difference."
+    ground_truth_symbols: ["MigrationAutodetector", "detect_changes"]
+    difficulty: hard
+    category: architecture
+    tags: [migrations, schema]
+
+  - id: django-003
+    question: "How does Django implement its middleware stack?"
+    ground_truth_answer: "Django wraps the view in middleware layers during setup. Each middleware's __init__ receives get_response (the next layer). __call__ processes the request, calls get_response, then processes the response. process_view and process_exception hooks provide additional intercept points."
+    ground_truth_symbols: ["MiddlewareMixin", "BaseHandler", "get_response"]
+    difficulty: medium
+    category: architecture
+    tags: [middleware, request-response]
+
+  - id: django-004
+    question: "How does Django's template engine parse and render templates?"
+    ground_truth_answer: "The Lexer tokenizes template source into text, variable, block, and comment tokens. The Parser converts tokens into a NodeList tree. Each Node has a render() method. Template.render() creates a Context stack and calls the root NodeList's render."
+    ground_truth_symbols: ["Template", "Lexer", "Parser", "NodeList"]
+    difficulty: medium
+    category: architecture
+    tags: [templates, rendering]
+
+  - id: django-005
+    question: "How does Django's CSRF protection work?"
+    ground_truth_answer: "CsrfViewMiddleware generates a CSRF token stored in a cookie. On POST requests, it compares the cookie token with the token from the form field or X-CSRFToken header using constant-time comparison. The token is masked with a random salt to prevent BREACH attacks."
+    ground_truth_symbols: ["CsrfViewMiddleware", "_check_token", "_mask_cipher_secret"]
+    difficulty: medium
+    category: debugging
+    tags: [security, csrf]
+
+  - id: django-006
+    question: "How does Django handle database connection management?"
+    ground_truth_answer: "Django uses a thread-local ConnectionHandler that maps database aliases to DatabaseWrapper instances. Connections are created lazily on first query. The request_finished signal closes connections. CONN_MAX_AGE controls connection reuse across requests."
+    ground_truth_symbols: ["ConnectionHandler", "DatabaseWrapper", "close_old_connections"]
+    difficulty: medium
+    category: architecture
+    tags: [database, connections]
+
+  - id: django-007
+    question: "How does Django implement its form validation?"
+    ground_truth_answer: "Form.is_valid() calls full_clean() which runs: _clean_fields() validates each field individually, _clean_form() calls the form's clean() method for cross-field validation, and _post_clean() is a hook for ModelForm. Errors accumulate in self.errors ErrorDict."
+    ground_truth_symbols: ["BaseForm", "full_clean", "_clean_fields", "_clean_form"]
+    difficulty: easy
+    category: api
+    tags: [forms, validation]
+
+  - id: django-008
+    question: "How does Django resolve URL patterns to views?"
+    ground_truth_answer: "URLResolver.resolve() iterates URL patterns trying each one's regex against the path. URLPattern.resolve() matches the regex; on match, it returns a ResolverMatch with the view function and captured arguments. Nested includes create a tree of resolvers."
+    ground_truth_symbols: ["URLResolver", "URLPattern", "resolve", "ResolverMatch"]
+    difficulty: medium
+    category: architecture
+    tags: [routing, urls]
+
+  - id: django-009
+    question: "How does Django implement the admin site's automatic CRUD interface?"
+    ground_truth_answer: "AdminSite.register() associates a ModelAdmin with a model. ModelAdmin provides changelist_view, change_view, add_view, delete_view. Each view uses the model's Manager for queries and dynamically generates forms from model fields. list_display, list_filter, search_fields configure the UI."
+    ground_truth_symbols: ["AdminSite", "ModelAdmin", "register", "changelist_view"]
+    difficulty: hard
+    category: architecture
+    tags: [admin, crud]
+
+  - id: django-010
+    question: "How does Django's signal dispatcher work?"
+    ground_truth_answer: "Signal.connect() stores receivers as weak references keyed by (sender, dispatch_uid). Signal.send() iterates registered receivers matching the sender and calls each one, returning a list of (receiver, response) tuples. send_robust() catches exceptions from receivers."
+    ground_truth_symbols: ["Signal", "connect", "send", "send_robust"]
+    difficulty: easy
+    category: api
+    tags: [signals, events]

@@ -1,0 +1,559 @@
+// SPDX-FileCopyrightText: Copyright 2025 Stacklok, Inc.
+// SPDX-License-Identifier: Apache-2.0
+
+// Package oauth provides OAuth 2.0 and OIDC authentication functionality.
+package oauth
+
+import (
+	"context"
+	"crypto/rand"
+	"encoding/base64"
+	"errors"
+	"fmt"
+	"html"
+	"log/slog"
+	"net/http"
+	"os"
+	"os/signal"
+	"strings"
+	"syscall"
+	"time"
+
+	"github.com/golang-jwt/jwt/v5"
+	"github.com/pkg/browser"
+	"golang.org/x/oauth2"
+
+	"github.com/stacklok/toolhive/pkg/networking"
+	"github.com/stacklok/toolhive/pkg/oauthproto"
+)
+
+// Config contains configuration for OAuth authentication
+type Config struct {
+	// ClientID is the OAuth client ID
+	ClientID string
+
+	// ClientSecret is the OAuth client secret (optional for PKCE flow)
+	ClientSecret string //nolint:gosec // G117: field legitimately holds sensitive data
+
+	// RedirectURL is the redirect URL for the OAuth flow
+	RedirectURL string
+
+	// AuthURL is the authorization endpoint URL
+	AuthURL string
+
+	// TokenURL is the token endpoint URL
+	TokenURL string
+
+	// Scopes are the OAuth scopes to request
+	Scopes []string
+
+	// UsePKCE enables PKCE (Proof Key for Code Exchange) for enhanced security
+	UsePKCE bool
+
+	// CallbackPort is the port for the OAuth callback server (optional, 0 means auto-select)
+	CallbackPort int
+
+	// IntrospectionEndpoint is the optional introspection endpoint for validating tokens
+	IntrospectionEndpoint string
+
+	// Resource is the OAuth 2.0 resource indicator (RFC 8707).
+	Resource string
+
+	// OAuthParams are additional parameters to pass to the authorization URL
+	OAuthParams map[string]string
+
+	// ScopeParamName overrides the query parameter name used to send scopes in the
+	// authorization URL. When empty (default), the standard "scope" parameter is used.
+	// Some providers use non-standard parameter names (e.g., Slack uses "user_scope"
+	// for user-token scopes). When set, scopes are sent under this parameter name
+	// instead of "scope", and the standard "scope" parameter is cleared.
+	ScopeParamName string
+}
+
+// Flow handles the OAuth authentication flow
+type Flow struct {
+	config       *Config
+	oauth2Config *oauth2.Config
+	server       *http.Server
+	port         int
+
+	// PKCE parameters
+	codeVerifier  string
+	codeChallenge string
+	state         string
+
+	tokenSource oauth2.TokenSource
+}
+
+// TokenResult contains the result of the OAuth flow
+type TokenResult struct {
+	AccessToken  string //nolint:gosec // G117: field legitimately holds sensitive data
+	RefreshToken string //nolint:gosec // G117: field legitimately holds sensitive data
+	TokenType    string
+	Expiry       time.Time
+	Claims       jwt.MapClaims
+	IDToken      string // The OIDC ID token (JWT), if present
+}
+
+// NewFlow creates a new OAuth flow
+func NewFlow(config *Config) (*Flow, error) {
+	if config == nil {
+		return nil, errors.New("OAuth config cannot be nil")
+	}
+
+	if config.ClientID == "" {
+		return nil, errors.New("client ID is required")
+	}
+
+	if config.AuthURL == "" {
+		return nil, errors.New("authorization URL is required")
+	}
+
+	if config.TokenURL == "" {
+		return nil, errors.New("token URL is required")
+	}
+
+	// Use specified callback port or find an available port for the local server
+	port, err := networking.FindOrUsePort(config.CallbackPort)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find available port: %w", err)
+	}
+
+	// Set default redirect URL if not provided
+	redirectURL := config.RedirectURL
+	if redirectURL == "" {
+		redirectURL = fmt.Sprintf("http://localhost:%d/callback", port)
+	}
+
+	// Public clients (no secret) must use AuthStyleInParams: strict OAuth 2.1 servers
+	// (e.g. Datadog) reject Basic Auth for token_endpoint_auth_method=none clients and
+	// consume the single-use auth code in doing so, causing a retry to fail with
+	// invalid_grant. Confidential clients use AutoDetect so servers that mandate
+	// client_secret_basic are not broken.
+	authStyle := oauth2.AuthStyleInParams
+	if config.ClientSecret != "" {
+		authStyle = oauth2.AuthStyleAutoDetect
+	}
+
+	// Create OAuth2 config
+	oauth2Config := &oauth2.Config{
+		ClientID:     config.ClientID,
+		ClientSecret: config.ClientSecret,
+		RedirectURL:  redirectURL,
+		Scopes:       config.Scopes,
+		Endpoint: oauth2.Endpoint{
+			AuthURL:   config.AuthURL,
+			TokenURL:  config.TokenURL,
+			AuthStyle: authStyle,
+		},
+	}
+
+	flow := &Flow{
+		config:       config,
+		oauth2Config: oauth2Config,
+		port:         port,
+	}
+
+	// Generate PKCE parameters if enabled
+	if config.UsePKCE {
+		flow.generatePKCEParams()
+	}
+
+	// Generate state parameter
+	if err := flow.generateState(); err != nil {
+		return nil, fmt.Errorf("failed to generate state parameter: %w", err)
+	}
+
+	return flow, nil
+}
+
+// generatePKCEParams generates PKCE code verifier and challenge using
+// the standard oauth2 library functions.
+func (f *Flow) generatePKCEParams() {
+	// Generate code verifier using oauth2 stdlib (43-128 characters, RFC 7636)
+	f.codeVerifier = oauth2.GenerateVerifier()
+
+	// Use S256 method for enhanced security (RFC 7636 recommendation)
+	f.codeChallenge = oauth2.S256ChallengeFromVerifier(f.codeVerifier)
+}
+
+// generateState generates a random state parameter
+func (f *Flow) generateState() error {
+	stateBytes := make([]byte, 16)
+	if _, err := rand.Read(stateBytes); err != nil {
+		return fmt.Errorf("failed to generate state: %w", err)
+	}
+	f.state = base64.RawURLEncoding.EncodeToString(stateBytes)
+	return nil
+}
+
+// Start starts the OAuth authentication flow
+func (f *Flow) Start(ctx context.Context, skipBrowser bool) (*TokenResult, error) {
+	// Create channels for communication
+	tokenChan := make(chan *oauth2.Token, 1)
+	errorChan := make(chan error, 1)
+
+	// Set up HTTP server for handling the callback
+	mux := http.NewServeMux()
+	mux.HandleFunc("/callback", f.handleCallback(tokenChan, errorChan))
+	mux.HandleFunc("/", f.handleRoot())
+
+	f.server = &http.Server{
+		Addr:              fmt.Sprintf(":%d", f.port),
+		Handler:           mux,
+		ReadHeaderTimeout: 10 * time.Second,
+	}
+
+	// Start the server in a goroutine
+	go func() {
+		slog.Debug("Starting OAuth callback server", "port", f.port)
+		if err := f.server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			errorChan <- fmt.Errorf("failed to start callback server: %w", err)
+		}
+	}()
+
+	// Ensure server cleanup
+	defer func() {
+		// Use Background context for server shutdown. This cleanup operation runs after
+		// the OAuth flow completes (or fails). The parent context may already be cancelled,
+		// so we need a fresh context with its own timeout to ensure the server shuts down
+		// gracefully regardless of the parent context state.
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := f.server.Shutdown(shutdownCtx); err != nil {
+			slog.Warn("Failed to shutdown OAuth callback server", "error", err)
+		}
+	}()
+
+	// Build authorization URL
+	authURL := f.buildAuthURL()
+
+	// Open browser or display URL
+	if !skipBrowser {
+		fmt.Fprintf(os.Stderr, "Opening browser: %s\n", authURL)
+		if err := browser.OpenURL(authURL); err != nil {
+			slog.Warn("Failed to open browser", "error", err)
+			fmt.Fprintf(os.Stderr, "Please manually open this URL in your browser: %s\n", authURL)
+		}
+	} else {
+		fmt.Fprintf(os.Stderr, "Please open this URL in your browser: %s\n", authURL)
+	}
+
+	fmt.Fprintln(os.Stderr, "Waiting for OAuth callback")
+
+	// Set up signal handling for graceful shutdown
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+
+	// Wait for token, error, or cancellation
+	select {
+	case token := <-tokenChan:
+		slog.Debug("OAuth flow completed successfully")
+		return f.processToken(ctx, token), nil
+	case err := <-errorChan:
+		return nil, fmt.Errorf("OAuth flow failed: %w", err)
+	case <-ctx.Done():
+		return nil, fmt.Errorf("OAuth flow cancelled: %w", ctx.Err())
+	case sig := <-sigChan:
+		return nil, fmt.Errorf("OAuth flow interrupted by signal: %v", sig)
+	}
+}
+
+// buildAuthURL builds the authorization URL with appropriate parameters
+func (f *Flow) buildAuthURL() string {
+	opts := []oauth2.AuthCodeOption{
+		oauth2.SetAuthURLParam("state", f.state),
+	}
+
+	if f.config.Resource != "" {
+		opts = append(opts, oauth2.SetAuthURLParam("resource", f.config.Resource))
+	}
+
+	if f.config.OAuthParams != nil {
+		for key, value := range f.config.OAuthParams {
+			opts = append(opts, oauth2.SetAuthURLParam(key, value))
+		}
+	}
+
+	// When a custom scope parameter name is configured, move scopes from the
+	// standard "scope" parameter to the custom one. This supports OAuth providers
+	// that use non-standard parameter names (e.g., Slack's "user_scope").
+	// We temporarily nil out oauth2Config.Scopes so the library omits the standard
+	// "scope" parameter entirely (an empty scope= would violate RFC 6749 §3.3).
+	// Scopes are restored via defer so token refresh requests still work correctly.
+	if f.config.ScopeParamName != "" && len(f.oauth2Config.Scopes) > 0 {
+		scopeValue := strings.Join(f.oauth2Config.Scopes, " ")
+		savedScopes := f.oauth2Config.Scopes
+		f.oauth2Config.Scopes = nil
+		defer func() { f.oauth2Config.Scopes = savedScopes }()
+		opts = append(opts,
+			oauth2.SetAuthURLParam(f.config.ScopeParamName, scopeValue),
+		)
+	}
+
+	// Add PKCE parameters if enabled
+	if f.config.UsePKCE {
+		opts = append(opts,
+			oauth2.SetAuthURLParam("code_challenge", f.codeChallenge),
+			oauth2.SetAuthURLParam("code_challenge_method", oauthproto.PKCEMethodS256),
+		)
+	}
+
+	return f.oauth2Config.AuthCodeURL(f.state, opts...)
+}
+
+// handleCallback handles the OAuth callback
+func (f *Flow) handleCallback(tokenChan chan<- *oauth2.Token, errorChan chan<- error) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		// Parse query parameters
+		query := r.URL.Query()
+
+		// Check for error
+		if errParam := query.Get("error"); errParam != "" {
+			errDesc := query.Get("error_description")
+			err := fmt.Errorf("OAuth error: %s - %s", errParam, errDesc)
+			f.writeErrorPage(w, err)
+			errorChan <- err
+			return
+		}
+
+		// Validate state parameter
+		state := query.Get("state")
+		if state != f.state {
+			err := errors.New("invalid state parameter")
+			f.writeErrorPage(w, err)
+			errorChan <- err
+			return
+		}
+
+		// Get authorization code
+		code := query.Get("code")
+		if code == "" {
+			err := errors.New("missing authorization code")
+			f.writeErrorPage(w, err)
+			errorChan <- err
+			return
+		}
+
+		// Exchange code for token using the request context to respect cancellation
+		ctx := r.Context()
+		opts := []oauth2.AuthCodeOption{}
+
+		// Add PKCE verifier if enabled
+		if f.config.UsePKCE {
+			opts = append(opts, oauth2.SetAuthURLParam("code_verifier", f.codeVerifier))
+		}
+
+		if f.config.Resource != "" {
+			opts = append(opts, oauth2.SetAuthURLParam("resource", f.config.Resource))
+		}
+
+		token, err := f.oauth2Config.Exchange(ctx, code, opts...)
+		if err != nil {
+			err = fmt.Errorf("failed to exchange code for token: %w", err)
+			f.writeErrorPage(w, err)
+			errorChan <- err
+			return
+		}
+
+		// Write success page
+		f.writeSuccessPage(w)
+
+		// Send token
+		tokenChan <- token
+	}
+}
+
+// setSecurityHeaders sets common security headers for all responses
+func (*Flow) setSecurityHeaders(w http.ResponseWriter) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.Header().Set("X-Frame-Options", "DENY")
+	w.Header().Set("X-XSS-Protection", "1; mode=block")
+	w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
+	w.Header().Set("Content-Security-Policy", "default-src 'self'; style-src 'unsafe-inline'; script-src 'none'; object-src 'none';")
+}
+
+// handleRoot handles requests to the root path
+func (f *Flow) handleRoot() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		// Only allow GET requests
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		f.setSecurityHeaders(w)
+		htmlContent := `
+<!DOCTYPE html>
+<html>
+<head>
+    <title>ToolHive OAuth</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; text-align: center; }
+        .container { max-width: 600px; margin: 0 auto; }
+        .message { padding: 20px; border-radius: 5px; margin: 20px 0; }
+        .info { background-color: #e7f3ff; border: 1px solid #b3d9ff; color: #0066cc; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>ToolHive OAuth Authentication</h1>
+        <div class="message info">
+            <p>OAuth callback server is running. Please complete the authentication flow in your browser.</p>
+        </div>
+    </div>
+</body>
+</html>`
+		if _, err := w.Write([]byte(htmlContent)); err != nil {
+			slog.Warn("Failed to write HTML content", "error", err)
+		}
+	}
+}
+
+// writeSuccessPage writes a success page to the response
+func (f *Flow) writeSuccessPage(w http.ResponseWriter) {
+	f.setSecurityHeaders(w)
+	htmlContent := `
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Authentication Successful</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; text-align: center; }
+        .container { max-width: 600px; margin: 0 auto; }
+        .message { padding: 20px; border-radius: 5px; margin: 20px 0; }
+        .success { background-color: #e7f6e7; border: 1px solid #b3e6b3; color: #006600; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Authentication Successful!</h1>
+        <div class="message success">
+            <p>You have successfully authenticated with ToolHive. You can now close this window and return to the terminal.</p>
+        </div>
+    </div>
+</body>
+</html>`
+	if _, err := w.Write([]byte(htmlContent)); err != nil {
+		slog.Warn("Failed to write HTML content", "error", err)
+	}
+}
+
+// writeErrorPage writes an error page to the response
+func (*Flow) writeErrorPage(w http.ResponseWriter, err error) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.Header().Set("X-Frame-Options", "DENY")
+	w.Header().Set("X-XSS-Protection", "1; mode=block")
+	w.WriteHeader(http.StatusBadRequest)
+
+	// HTML escape the error message to prevent XSS
+	escapedError := html.EscapeString(err.Error())
+	htmlContent := fmt.Sprintf(`
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Authentication Failed</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; text-align: center; }
+        .container { max-width: 600px; margin: 0 auto; }
+        .message { padding: 20px; border-radius: 5px; margin: 20px 0; }
+        .error { background-color: #ffe7e7; border: 1px solid #ffb3b3; color: #cc0000; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Authentication Failed</h1>
+        <div class="message error">
+            <p>%s</p>
+            <p>Please try again or contact support if the problem persists.</p>
+        </div>
+    </div>
+</body>
+</html>`, escapedError)
+	if _, err := w.Write([]byte(htmlContent)); err != nil {
+		slog.Warn("Failed to write HTML content", "error", err)
+	}
+}
+
+// processToken processes the received token and extracts claims
+func (f *Flow) processToken(_ context.Context, token *oauth2.Token) *TokenResult {
+	result := &TokenResult{
+		AccessToken:  token.AccessToken,
+		RefreshToken: token.RefreshToken,
+		TokenType:    token.TokenType,
+		Expiry:       token.Expiry,
+	}
+
+	// Create a base token source using the original token with a background context.
+	// We use context.Background() instead of the passed ctx because the TokenSource
+	// is long-lived and will be used for token refresh operations long after the
+	// initial OAuth flow completes. Using the original ctx would cause "context canceled"
+	// errors when attempting to refresh tokens, as that context gets cancelled when
+	// the OAuth callback server shuts down.
+	var base oauth2.TokenSource
+	if f.config.Resource != "" {
+		// Use resourceTokenSource wrapper to add resource parameter to refresh requests (RFC 8707)
+		base = NewResourceTokenSource(f.oauth2Config, token, f.config.Resource)
+	} else {
+		// No resource parameter needed, use standard token source. Inject an
+		// HTTP client whose transport sets the ToolHive User-Agent so the
+		// oauth2 library does not fall back to Go-http-client/2.0 on token
+		// refresh requests.
+		ctx := context.WithValue(context.Background(), oauth2.HTTPClient, oauthproto.NewHTTPClient())
+		base = f.oauth2Config.TokenSource(ctx, token)
+	}
+
+	// ReuseTokenSource ensures that refresh happens only when needed
+	f.tokenSource = oauth2.ReuseTokenSource(token, base)
+
+	// Prefer extracting claims from the ID token if present (OIDC, e.g., Google)
+	if idToken, ok := token.Extra("id_token").(string); ok && idToken != "" {
+		result.IDToken = idToken
+		if claims, err := f.extractJWTClaims(idToken); err == nil {
+			result.Claims = claims
+			slog.Debug("Successfully extracted JWT claims from ID token")
+		} else {
+			slog.Debug("Could not extract JWT claims from ID token", "error", err)
+		}
+	} else {
+		// Fallback: try to extract claims from the access token (e.g., Keycloak)
+		if claims, err := f.extractJWTClaims(token.AccessToken); err == nil {
+			result.Claims = claims
+			slog.Debug("Successfully extracted JWT claims from access token")
+		} else {
+			slog.Debug("Could not extract JWT claims from access token (may be opaque token)", "error", err)
+		}
+	}
+
+	return result
+}
+
+// TokenSource returns the OAuth2 token source for refreshing tokens
+func (f *Flow) TokenSource() oauth2.TokenSource {
+	return f.tokenSource
+}
+
+// extractJWTClaims attempts to extract claims from a JWT token without validation
+func (*Flow) extractJWTClaims(tokenString string) (jwt.MapClaims, error) {
+	// Parse without verification to extract claims
+	parser := jwt.NewParser(jwt.WithoutClaimsValidation())
+	token, _, err := parser.ParseUnverified(tokenString, jwt.MapClaims{})
+	if err != nil {
+		return nil, err
+	}
+
+	claims, ok := token.Claims.(jwt.MapClaims)
+	if !ok {
+		return nil, errors.New("failed to extract claims")
+	}
+
+	return claims, nil
+}

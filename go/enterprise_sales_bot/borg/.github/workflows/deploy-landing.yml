@@ -1,0 +1,26 @@
+name: Deploy Landing Pages
+on:
+  push:
+    branches: [main]
+    paths: ["landing/**"]
+jobs:
+  deploy-tormentnexus:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./landing/tormentnexus.site
+          publish_branch: gh-pages-tormentnexus
+          commit_message: Deploy TormentNexus site
+  deploy-hypernexus:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./landing/hypernexus.site
+          publish_branch: gh-pages-hypernexus
+          commit_message: Deploy HyperNexus site

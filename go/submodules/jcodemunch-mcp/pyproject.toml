@@ -1,0 +1,122 @@
+[project]
+name = "jcodemunch-mcp"
+version = "1.108.82"
+description = "Token-efficient MCP server for source code exploration via tree-sitter AST parsing"
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [
+    { name = "J. Gravelle", email = "j@gravelle.us" },
+]
+license = { file = "LICENSE" }
+keywords = [
+    "mcp",
+    "model-context-protocol",
+    "code-search",
+    "code-intelligence",
+    "tree-sitter",
+    "ast",
+    "llm",
+    "agent",
+    "token-efficiency",
+    "claude",
+]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "License :: Other/Proprietary License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development",
+    "Topic :: Software Development :: Libraries",
+    "Topic :: Software Development :: Quality Assurance",
+]
+dependencies = [
+    "mcp>=1.10.0,<2.0.0",
+    "httpx>=0.27.0",
+    "tree-sitter-language-pack>=0.7.0,<1.0.0",
+    "pathspec>=0.12.0",
+    "pyyaml>=6.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/jgravelle/jcodemunch-mcp"
+Repository = "https://github.com/jgravelle/jcodemunch-mcp"
+"Bug Tracker" = "https://github.com/jgravelle/jcodemunch-mcp/issues"
+
+[project.optional-dependencies]
+anthropic = ["anthropic>=0.40.0"]
+gemini = ["google-generativeai>=0.8.0"]
+openai = ["openai>=1.0.0"]
+minimax = ["openai>=1.0.0"]
+zhipu = ["openai>=1.0.0"]
+dbt = ["pyyaml>=6.0"]
+http = ["uvicorn>=0.20.0", "starlette>=1.3.1", "anyio>=4.0.0"]
+watch = ["watchfiles>=1.0.0"]
+semantic = ["sentence-transformers>=2.2.0"]
+local-embed = ["onnxruntime>=1.16.0"]
+groq = ["openai>=1.0.0"]
+groq-voice = ["openai>=1.0.0", "sounddevice>=0.4.6", "numpy>=1.24.0"]
+groq-explain = ["openai>=1.0.0", "Pillow>=10.0.0"]
+keyring = ["keyring>=24.0"]
+bench = ["openai>=1.0.0", "anthropic>=0.40.0", "pyyaml>=6.0", "rich>=13.0", "jinja2>=3.1"]
+# `all` is a hand-maintained union of every extra above. When you add a new
+# extra or a new dependency to one, mirror it here (there is no auto-union).
+all = ["anthropic>=0.40.0", "google-generativeai>=0.8.0", "openai>=1.0.0", "pyyaml>=6.0", "uvicorn>=0.20.0", "starlette>=1.3.1", "anyio>=4.0.0", "watchfiles>=1.0.0", "sentence-transformers>=2.2.0", "onnxruntime>=1.16.0", "sounddevice>=0.4.6", "numpy>=1.24.0", "Pillow>=10.0.0", "rich>=13.0", "jinja2>=3.1", "keyring>=24.0"]
+
+
+[project.scripts]
+jcodemunch-mcp = "jcodemunch_mcp.server:main"
+gcm = "jcodemunch_mcp.groq.cli:main"
+munch-bench = "munch_bench.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/jcodemunch_mcp", "munch-bench/munch_bench"]
+
+[tool.hatch.build.targets.sdist]
+exclude = [".claude/", "index.php"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+
+[tool.ruff]
+target-version = "py310"
+
+[tool.ruff.lint]
+# Default rule set is pycodestyle E4/E7/E9 + pyflakes F. We keep the
+# high-signal correctness rules (unused imports, undefined names, duplicate
+# keys, f-string/format bugs, redefinitions, comparison/syntax errors) and
+# ignore the codes that reflect deliberate, pervasive patterns in this
+# codebase rather than real defects.
+ignore = [
+    "E402",  # module-import-not-at-top: deliberate lazy/local imports (startup speed, pytest.importorskip)
+    "E701",  # multiple-statements-on-one-line: a few terse one-line guards
+    "E721",  # type-comparison: a handful of intentional type(x) == Y checks
+    "E731",  # lambda-assignment: stylistic
+    "E741",  # ambiguous variable name (l/I/O): pre-existing, low risk
+    # F841 (local assigned but never used): ~31 pre-existing dead locals. Safe
+    # removal needs per-case RHS side-effect review, so it is a tracked ratchet
+    # follow-up rather than a gate blocker. Re-enable once cleaned.
+    "F841",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# __init__.py re-exports are the package's public API surface, not dead imports.
+"__init__.py" = ["F401"]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.2",
+    "pytest-asyncio>=1.3.0",
+    "pytest-cov>=7.0.0",
+    "hypothesis>=6.0.0",
+    "ruff>=0.6.0",
+]

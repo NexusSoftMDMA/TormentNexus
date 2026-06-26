@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20">
+  <style>
+    .star {
+      transform-origin: 10px 10px;
+      animation: sparkle 2s ease-in-out infinite;
+    }
+    @keyframes sparkle {
+      0%, 100% { transform: scale(1);   filter: drop-shadow(0 0 1px #FFD700); }
+      50%       { transform: scale(1.2); filter: drop-shadow(0 0 5px #FFD700) drop-shadow(0 0 2px #FFA500); }
+    }
+  </style>
+  <path class="star" d="M10,1.5 L11.4,8.6 L18.5,10 L11.4,11.4 L10,18.5 L8.6,11.4 L1.5,10 L8.6,8.6 Z" fill="#FFD700"/>
+</svg>

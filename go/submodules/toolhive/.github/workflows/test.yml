@@ -1,0 +1,80 @@
+name: Tests
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  test-go-code:
+    name: Test Go Code (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-8cores-32gb]
+      fail-fast: false
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+
+      - name: Set up Go
+        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6
+        with:
+          go-version: 'stable'
+          cache: true  # This caches go modules based on go.sum
+          cache-dependency-path: go.sum
+
+      # Download all dependencies upfront (will be cached)
+      - name: Download Go dependencies
+        run: |
+          go mod download
+          go mod verify
+
+      # Cache Go build cache for faster compilation
+      # Note: ~/go/pkg/mod is already cached by actions/setup-go with cache: true
+      - name: Cache Go build cache
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        with:
+          path: ~/.cache/go-build
+          key: ${{ runner.os }}-go-build-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-build-
+
+      # Cache Go tools (gotestfmt only for tests)
+      - name: Cache Go tools
+        id: cache-go-tools
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        with:
+          path: ~/go/bin
+          key: ${{ runner.os }}-go-tools-${{ hashFiles('go.mod') }}-gotestfmt-v2
+          restore-keys: |
+            ${{ runner.os }}-go-tools-
+
+      # Only install gotestfmt if not cached
+      - name: Install gotestfmt (if not cached)
+        if: steps.cache-go-tools.outputs.cache-hit != 'true'
+        run: go install github.com/gotesttools/gotestfmt/v2/cmd/gotestfmt@latest
+
+      - name: Install Task
+        uses: arduino/setup-task@v2
+        with:
+          version: 3.44.1
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      # Run tests with all dependencies already cached
+      - name: Run tests with coverage
+        run: task test-coverage
+
+      - name: Upload coverage reports to Codecov with GitHub Action
+        if: startsWith(matrix.os, 'ubuntu')
+        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v6.0.2
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          slug: stacklok/toolhive
+
+      - name: Upload coverage to Coveralls
+        if: startsWith(matrix.os, 'ubuntu')
+        uses: coverallsapp/github-action@5cbfd81b66ca5d10c19b062c04de0199c215fb6e # v2
+        with:
+          file: coverage/coverage.out
+          fail-on-error: false

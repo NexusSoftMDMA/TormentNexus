@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20">
+  <style>
+    .diamond {
+      animation: shimmer 2.5s ease-in-out infinite;
+    }
+    @keyframes shimmer {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0.5; }
+    }
+  </style>
+  <path class="diamond" d="M10,2 L18,10 L10,18 L2,10 Z" fill="#FF8C00"/>
+</svg>

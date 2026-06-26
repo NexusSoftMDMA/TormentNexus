@@ -1,0 +1,271 @@
+name: Agent Memory Server CI
+
+on:
+  push:
+    branches: [main]
+    tags:
+      - 'server/v*.*.*'
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      docker_version:
+        description: 'Version to build and push Docker image for (e.g., 0.12.7)'
+        required: true
+        type: string
+      tag_latest:
+        description: 'Also tag as latest'
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  build:
+    name: Build package
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.12'
+
+      - name: Install build tools
+        run: |
+          python -m pip install --upgrade pip
+          pip install build
+
+      - name: Build package
+        run: python -m build
+
+      - name: Upload dist artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/*
+
+  publish-testpypi:
+    name: Publish to TestPyPI
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/server/') && contains(github.ref, '-test')
+    runs-on: ubuntu-latest
+    environment: testpypi
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Download dist artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist
+
+      - name: Publish package to TestPyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
+          packages-dir: dist/
+          verbose: true
+
+  publish-pypi:
+    name: Publish to PyPI
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/server/') && !contains(github.ref, '-test')
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Download dist artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist
+
+      - name: Publish package to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist/
+          verbose: true
+
+  publish-docker:
+    name: Publish Docker Images
+    needs: publish-pypi
+    if: startsWith(github.ref, 'refs/tags/server/') && !contains(github.ref, '-test')
+    runs-on: ubuntu-latest
+    environment: docker
+    permissions:
+      contents: write
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Extract version from tag
+        id: version
+        run: |
+          # Tag format: server/v1.2.3
+          VERSION="${GITHUB_REF#refs/tags/server/v}"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Version: $VERSION"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_TOKEN }}
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Docker image (standard)
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            redislabs/agent-memory-server:${{ steps.version.outputs.version }}
+            redislabs/agent-memory-server:latest
+            ghcr.io/${{ github.repository }}:${{ steps.version.outputs.version }}
+            ghcr.io/${{ github.repository }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build and push Docker image (standalone)
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile.standalone
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            redislabs/agent-memory-server:${{ steps.version.outputs.version }}-standalone
+            redislabs/agent-memory-server:standalone
+            ghcr.io/${{ github.repository }}:${{ steps.version.outputs.version }}-standalone
+            ghcr.io/${{ github.repository }}:standalone
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          name: Server v${{ steps.version.outputs.version }}
+          body: |
+            ## Agent Memory Server v${{ steps.version.outputs.version }}
+
+            ### Installation
+
+            **PyPI:**
+            ```bash
+            pip install agent-memory-server==${{ steps.version.outputs.version }}
+            ```
+
+            **Docker (standard - requires external Redis):**
+            ```bash
+            docker pull redislabs/agent-memory-server:${{ steps.version.outputs.version }}
+            # or
+            docker pull ghcr.io/${{ github.repository }}:${{ steps.version.outputs.version }}
+            ```
+
+            **Docker (standalone - all-in-one with embedded Redis):**
+            ```bash
+            docker pull redislabs/agent-memory-server:${{ steps.version.outputs.version }}-standalone
+            # or
+            docker pull ghcr.io/${{ github.repository }}:${{ steps.version.outputs.version }}-standalone
+
+            # Run with persistent storage:
+            docker run -d -v ~/.agent-memory/data:/data -p 8000:8000 \
+              -e OPENAI_API_KEY=your-key \
+              redislabs/agent-memory-server:${{ steps.version.outputs.version }}-standalone
+            ```
+          draft: false
+          prerelease: false
+
+  # Manual Docker build job - triggered via workflow_dispatch
+  # Note: Does not tag 'latest' since this is for backfilling older versions
+  publish-docker-manual:
+    name: Publish Docker Images (Manual)
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    environment: docker
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: server/v${{ inputs.docker_version }}
+
+      - name: Set version
+        id: version
+        run: |
+          echo "version=${{ inputs.docker_version }}" >> $GITHUB_OUTPUT
+          echo "Version: ${{ inputs.docker_version }}"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_TOKEN }}
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Docker image (standard)
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            redislabs/agent-memory-server:${{ steps.version.outputs.version }}
+            ghcr.io/${{ github.repository }}:${{ steps.version.outputs.version }}
+            ${{ inputs.tag_latest && 'redislabs/agent-memory-server:latest' || '' }}
+            ${{ inputs.tag_latest && format('ghcr.io/{0}:latest', github.repository) || '' }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build and push Docker image (standalone)
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile.standalone
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            redislabs/agent-memory-server:${{ steps.version.outputs.version }}-standalone
+            ghcr.io/${{ github.repository }}:${{ steps.version.outputs.version }}-standalone
+            ${{ inputs.tag_latest && 'redislabs/agent-memory-server:standalone' || '' }}
+            ${{ inputs.tag_latest && format('ghcr.io/{0}:standalone', github.repository) || '' }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+# Tag Format Guide:
+# - For TestPyPI (testing): server/v1.0.0-test
+# - For PyPI (production): server/v1.0.0
+#
+# Use the script: python scripts/tag_and_push_server.py --test (for TestPyPI)
+#                 python scripts/tag_and_push_server.py (for PyPI)
+#
+# This workflow uses PyPI Trusted Publishing (OIDC). Ensure the project is configured
+# on PyPI to trust this GitHub repository before releasing.

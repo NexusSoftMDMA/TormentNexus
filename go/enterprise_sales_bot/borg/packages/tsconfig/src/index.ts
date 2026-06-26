@@ -1,0 +1,1 @@
+// @tormentnexus/tsconfig stub

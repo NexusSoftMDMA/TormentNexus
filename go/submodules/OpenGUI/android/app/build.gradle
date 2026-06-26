@@ -1,0 +1,75 @@
+apply plugin: 'com.android.application'
+
+android {
+    namespace = "com.opengui.app"
+    compileSdk = rootProject.ext.compileSdkVersion
+    defaultConfig {
+        applicationId "com.opengui.app"
+        minSdkVersion rootProject.ext.minSdkVersion
+        targetSdkVersion rootProject.ext.targetSdkVersion
+        def resolvedVersionName = System.getenv("GITHUB_REF_NAME")
+            ?: providers.exec {
+                commandLine "git", "describe", "--tags", "--abbrev=0"
+                ignoreExitValue = true
+            }.standardOutput.asText.get().trim()
+            ?: "v0.0.1"
+        resolvedVersionName = resolvedVersionName.replaceFirst(/^v/, "")
+
+        def semverMatch = resolvedVersionName =~ /^(\d+)\.(\d+)\.(\d+)/
+        if (!semverMatch) {
+            resolvedVersionName = "0.0.1"
+            semverMatch = resolvedVersionName =~ /^(\d+)\.(\d+)\.(\d+)/
+        }
+
+        def major = semverMatch[0][1].toInteger()
+        def minor = semverMatch[0][2].toInteger()
+        def patch = semverMatch[0][3].toInteger()
+
+        versionCode Math.max(1, major * 1000000 + minor * 1000 + patch)
+        versionName resolvedVersionName
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        aaptOptions {
+             // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
+             // Default: https://android.googlesource.com/platform/frameworks/base/+/282e181b58cf72b6ca770dc7ca5f91f135444502/tools/aapt/AaptAssets.cpp#61
+            ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
+        }
+    }
+    buildTypes {
+        release {
+            // CI publishes a directly installable APK. Use the generated debug keystore
+            // until a Play/App signing key is configured through GitHub secrets.
+            signingConfig signingConfigs.debug
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+        }
+    }
+}
+
+repositories {
+    flatDir{
+        dirs '../capacitor-cordova-android-plugins/src/main/libs', 'libs'
+    }
+}
+
+dependencies {
+    implementation fileTree(include: ['*.jar'], dir: 'libs')
+    implementation "androidx.appcompat:appcompat:$androidxAppCompatVersion"
+    implementation "androidx.coordinatorlayout:coordinatorlayout:$androidxCoordinatorLayoutVersion"
+    implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
+    implementation project(':capacitor-android')
+    testImplementation "junit:junit:$junitVersion"
+    androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
+    androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
+    implementation project(':capacitor-cordova-android-plugins')
+}
+
+apply from: 'capacitor.build.gradle'
+
+try {
+    def servicesJSON = file('google-services.json')
+    if (servicesJSON.text) {
+        apply plugin: 'com.google.gms.google-services'
+    }
+} catch(Exception e) {
+    logger.info("google-services.json not found, google-services plugin not applied. Push Notifications won't work")
+}

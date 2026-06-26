@@ -1,0 +1,43 @@
+---
+import { Icon } from 'astro-icon/components';
+import Button from '~/components/ui/Button.astro';
+import Headline from '~/components/ui/Headline.astro';
+import type { Features as Props } from '~/types';
+
+const {
+  title = await Astro.slots.render('title'),
+  subtitle = await Astro.slots.render('subtitle'),
+  tagline,
+  items = [],
+  columns = 2,
+  id,
+  isDark = false,
+  classes = {},
+  bg = await Astro.slots.render('bg'),
+} = Astro.props;
+
+function normalizeItems(rawItems: unknown[]): unknown[] {
+  return rawItems.filter(Boolean);
+}
+
+function buildGridClass(cols: number): string {
+  return `grid-cols-${cols}`;
+}
+
+const normalized = normalizeItems(items);
+---
+<section id={id} class:list={[{ dark: isDark }, classes?.container]}>
+  <slot name="bg">{bg}</slot>
+  <Headline title={title} subtitle={subtitle} tagline={tagline} />
+  <div class={buildGridClass(columns)}>
+    {normalized.map((item: any) => (
+      <div class="feature-item">
+        {item.icon && <Icon name={item.icon} class="icon" />}
+        <h3>{item.title}</h3>
+        <p>{item.description}</p>
+        {item.callToAction && <Button {...item.callToAction} />}
+      </div>
+    ))}
+  </div>
+  <slot />
+</section>

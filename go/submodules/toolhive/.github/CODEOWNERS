@@ -1,0 +1,75 @@
+# Default reviewer
+*                                   @JAORMX
+
+# AI Agent Configuration (changes here affect what AI agents can do in CI)
+CLAUDE.md                            @JAORMX @jhrozek @rdimitrov @jerm-dro
+.claude/                             @JAORMX @jhrozek @rdimitrov @jerm-dro
+.claude/skills/                      @JAORMX @jhrozek @rdimitrov @jerm-dro
+.claude/agents/                      @JAORMX @jhrozek @rdimitrov @jerm-dro
+.claude/rules/                       @JAORMX @jhrozek @rdimitrov @jerm-dro
+
+# CLI (thv)
+cmd/thv/                             @JAORMX @ChrisJBurns @amirejaz @lujunsan @rdimitrov @jhrozek @reyortiz3 @aponcedeleonch
+cmd/help/                            @JAORMX @ChrisJBurns @amirejaz @lujunsan @rdimitrov @jhrozek @reyortiz3 @aponcedeleonch
+docs/cli/                            @JAORMX @ChrisJBurns @amirejaz @lujunsan @rdimitrov @jhrozek @reyortiz3 @aponcedeleonch
+test/e2e/                            @JAORMX @ChrisJBurns @amirejaz @lujunsan @rdimitrov @jhrozek @reyortiz3 @aponcedeleonch
+
+# HTTP API (ToolHive server)
+pkg/api/                             @JAORMX @amirejaz @rdimitrov @reyortiz3 @aponcedeleonch
+docs/server/                         @JAORMX @amirejaz @rdimitrov @reyortiz3 @aponcedeleonch
+
+# Kubernetes (operator + proxyrunner + charts)
+cmd/thv-operator/                    @ChrisJBurns @JAORMX @jerm-dro @jhrozek @tgrunnagle @rdimitrov @reyortiz3 @blkt
+cmd/thv-proxyrunner/                 @ChrisJBurns @JAORMX @jerm-dro @jhrozek @tgrunnagle @rdimitrov @reyortiz3 @blkt
+deploy/charts/operator/              @ChrisJBurns @JAORMX @jerm-dro @jhrozek @tgrunnagle @rdimitrov @reyortiz3 @blkt
+deploy/charts/operator-crds/          @ChrisJBurns @JAORMX @jerm-dro @jhrozek @tgrunnagle @rdimitrov @reyortiz3 @blkt
+config/webhook/                      @ChrisJBurns @JAORMX @jerm-dro @jhrozek @tgrunnagle @rdimitrov @reyortiz3 @blkt
+test/e2e/chainsaw/operator/           @ChrisJBurns @JAORMX @jerm-dro @jhrozek @tgrunnagle @rdimitrov @reyortiz3 @blkt
+test/e2e/thv-operator/                @ChrisJBurns @JAORMX @jerm-dro @jhrozek @tgrunnagle @rdimitrov @reyortiz3 @blkt
+docs/operator/                        @ChrisJBurns @JAORMX @jerm-dro @jhrozek @tgrunnagle @rdimitrov @reyortiz3 @blkt
+
+# vMCP (Virtual MCP)
+cmd/vmcp/                            @JAORMX @jhrozek @jerm-dro @amirejaz @ChrisJBurns @tgrunnagle
+pkg/vmcp/                            @JAORMX @jhrozek @jerm-dro @amirejaz @ChrisJBurns @tgrunnagle
+test/integration/vmcp/               @JAORMX @jhrozek @jerm-dro @amirejaz @ChrisJBurns @tgrunnagle
+
+# Core Runtime & Lifecycle
+pkg/workloads/                       @JAORMX @amirejaz @lujunsan
+pkg/runner/                          @JAORMX @amirejaz @lujunsan
+pkg/runtime/                         @JAORMX @amirejaz @lujunsan
+pkg/state/                           @JAORMX @amirejaz @lujunsan
+pkg/config/                          @JAORMX @amirejaz @lujunsan
+pkg/migration/                       @JAORMX @amirejaz @lujunsan
+pkg/groups/                          @JAORMX @amirejaz @lujunsan
+pkg/client/                          @JAORMX @amirejaz @lujunsan
+
+# Infrastructure Abstractions
+pkg/container/                        @JAORMX @jhrozek @blkt @amirejaz @ChrisJBurns @rdimitrov
+pkg/transport/                        @JAORMX @jhrozek @blkt @amirejaz @ChrisJBurns @rdimitrov
+pkg/mcp/                              @JAORMX @jhrozek @blkt @amirejaz @ChrisJBurns @rdimitrov
+pkg/networking/                       @JAORMX @jhrozek @blkt @amirejaz @ChrisJBurns @rdimitrov
+pkg/labels/                           @JAORMX @jhrozek @blkt @amirejaz @ChrisJBurns @rdimitrov
+pkg/process/                          @JAORMX @jhrozek @blkt @amirejaz @ChrisJBurns @rdimitrov
+
+# Registry & Distribution
+pkg/registry/                         @JAORMX @rdimitrov @reyortiz3
+.github/workflows/update-registry.yml  @JAORMX @rdimitrov @reyortiz3
+
+# Security & Policy
+pkg/auth/                             @jhrozek @JAORMX @ChrisJBurns @tgrunnagle @rdimitrov
+pkg/authz/                            @jhrozek @JAORMX @ChrisJBurns @tgrunnagle @rdimitrov
+pkg/oauth/                            @jhrozek @JAORMX @ChrisJBurns @tgrunnagle @rdimitrov
+pkg/authserver/                       @jhrozek @JAORMX @ChrisJBurns @tgrunnagle @rdimitrov
+pkg/secrets/                          @jhrozek @JAORMX @ChrisJBurns @tgrunnagle @rdimitrov
+pkg/permissions/                      @jhrozek @JAORMX @ChrisJBurns @tgrunnagle @rdimitrov
+pkg/container/verifier/               @jhrozek @JAORMX @ChrisJBurns @tgrunnagle @rdimitrov
+pkg/audit/                            @jhrozek @JAORMX @ChrisJBurns @tgrunnagle @rdimitrov
+
+# Observability
+pkg/telemetry/                        @ChrisJBurns @JAORMX @jerm-dro
+pkg/usagemetrics/                     @ChrisJBurns @JAORMX @jerm-dro
+pkg/logger/                           @ChrisJBurns @JAORMX @jerm-dro
+pkg/recovery/                         @ChrisJBurns @JAORMX @jerm-dro
+
+# Architecture docs
+docs/arch/                            @JAORMX @amirejaz @rdimitrov @ChrisJBurns @jhrozek @tgrunnagle

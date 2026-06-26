@@ -1,0 +1,708 @@
+{
+  "mcpServers": {
+    "tormentnexus-supervisor": {
+      "command": "node",
+      "args": [
+        "C:\\Users\\hyper\\workspace\\tormentnexus\\packages\\tormentnexus-supervisor\\dist\\index.js"
+      ],
+      "env": {
+        "NODE_ENV": "production"
+      },
+      "alwaysOn": true
+    },
+    "mcp-supermemory-ai": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "mcp-remote@latest",
+        "https://mcp.supermemory.ai/mcp"
+      ],
+      "env": []
+    },
+    "core": {
+      "args": [],
+      "url": "https://core.heysol.ai/api/v1/mcp?source=Copilot-CLI",
+      "description": null,
+      "type": "STDIO",
+      "_meta": {
+        "uuid": "local-0d45f5fd462b8c70bffb1002",
+        "status": "ready",
+        "metadataSource": "local-binary",
+        "toolCount": 0,
+        "lastSuccessfulBinaryLoadAt": "2026-03-12T00:28:06.743Z",
+        "crashCount": 0,
+        "maxAttempts": 0
+      }
+    },
+    "desktop-commander": {
+      "command": "node",
+      "args": [
+        "C:\\Users\\hyper\\AppData\\Roaming\\npm\\node_modules\\@wonderwhy-er\\desktop-commander\\dist\\index.js"
+      ],
+      "env": {},
+      "alwaysOn": true
+    },
+    "filesystem-with-morph": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@morphllm/morphmcp@latest"
+      ],
+      "env": [
+        "MORPH_API_KEY"
+      ]
+    },
+    "ripgrep": {
+      "command": "node",
+      "args": [
+        "C:\\Users\\hyper\\AppData\\Roaming\\npm\\node_modules\\mcp-ripgrep\\dist\\index.js"
+      ],
+      "env": {},
+      "alwaysOn": true
+    },
+    "deepcontext": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@wildcard-ai/deepcontext@latest"
+      ],
+      "env": []
+    },
+    "probe": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@probelabs/probe@latest",
+        "mcp"
+      ],
+      "env": []
+    },
+    "codex-mcp-server": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "codex-mcp-server@latest"
+      ],
+      "env": []
+    },
+    "gemini-mcp": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "gemini-mcp@latest",
+        "--api-key",
+        "YOUR_GEMINI_KEY_HERE"
+      ],
+      "env": []
+    },
+    "windows-mcp": {
+      "command": "uvx",
+      "args": [
+        "windows-mcp"
+      ],
+      "env": []
+    },
+    "ast-grep-mcp": {
+      "command": "uvx",
+      "args": [
+        "--from",
+        "git+https://github.com/ast-grep/ast-grep-mcp",
+        "ast-grep-server"
+      ],
+      "env": []
+    },
+    "codemod": {
+      "command": "npx",
+      "args": [
+        "codemod@latest",
+        "mcp"
+      ],
+      "env": []
+    },
+    "task-master-ai": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "task-master-ai"
+      ],
+      "env": [
+        "TASK_MASTER_TOOLS",
+        "ANTHROPIC_API_KEY",
+        "PERPLEXITY_API_KEY",
+        "OPENAI_API_KEY",
+        "GOOGLE_API_KEY",
+        "MISTRAL_API_KEY",
+        "GROQ_API_KEY",
+        "OPENROUTER_API_KEY",
+        "XAI_API_KEY",
+        "AZURE_OPENAI_API_KEY",
+        "OLLAMA_API_KEY"
+      ]
+    },
+    "ultra-mcp": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "ultra-mcp@latest"
+      ],
+      "env": []
+    },
+    "pal": {
+      "command": "uvx",
+      "args": [
+        "--from",
+        "git+https://github.com/BeehiveInnovations/pal-mcp-server.git",
+        "pal-mcp-server"
+      ],
+      "env": [
+        "ANTHROPIC_API_KEY",
+        "GEMINI_API_KEY",
+        "GOOGLE_API_KEY",
+        "GROK_API_KEY",
+        "OPENAI_API_KEY",
+        "OPENROUTER_API_KEY",
+        "XAI_API_KEY"
+      ]
+    },
+    "thoughtbox": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@kastalien-research/thoughtbox@latest"
+      ],
+      "env": [
+        "DISABLE_THOUGHT_LOGGING"
+      ]
+    },
+    "vibe-check-mcp": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@pv-bhat/vibe-check-mcp@latest",
+        "start",
+        "--stdio"
+      ],
+      "env": []
+    },
+    "vibe-coder-mcp": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "vibe-coder-mcp"
+      ],
+      "env": [
+        "OPENROUTER_API_KEY",
+        "VIBE_PROJECT_ROOT",
+        "LOG_LEVEL",
+        "NODE_ENV"
+      ]
+    },
+    "mindsdb": {
+      "args": [],
+      "url": "http://localhost:47334/mcp/sse",
+      "description": null,
+      "type": "SSE",
+      "_meta": {
+        "uuid": "local-ba7193025e54486466b298db",
+        "status": "ready",
+        "metadataSource": "local-binary",
+        "toolCount": 0,
+        "lastSuccessfulBinaryLoadAt": "2026-03-12T00:28:09.485Z",
+        "crashCount": 0,
+        "maxAttempts": 0
+      }
+    },
+    "tavily-mcp": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "tavily-mcp@latest"
+      ],
+      "env": [
+        "TAVILY_API_KEY"
+      ]
+    },
+    "exa": {
+      "args": [],
+      "env": {
+        "EXA_API_KEY": "YOUR_EXA_KEY_HERE"
+      },
+      "url": "https://mcp.exa.ai/mcp",
+      "description": null,
+      "type": "STDIO",
+      "_meta": {
+        "uuid": "local-4968d0cf3b24d26d1d37f6f9",
+        "status": "ready",
+        "metadataSource": "local-binary",
+        "toolCount": 0,
+        "lastSuccessfulBinaryLoadAt": "2026-03-12T00:28:09.795Z",
+        "crashCount": 0,
+        "maxAttempts": 0
+      }
+    },
+    "chrome-devtools": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "chrome-devtools-mcp@latest"
+      ],
+      "env": []
+    },
+    "playwright-extension": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@playwright/mcp@latest",
+        "--extension"
+      ],
+      "env": []
+    },
+    "browser-use": {
+      "command": "uvx",
+      "args": [
+        "browser-use",
+        "--mcp"
+      ],
+      "env": []
+    },
+    "browsermcp": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@browsermcp/mcp@latest"
+      ],
+      "env": []
+    },
+    "fetch": {
+      "command": "uvx",
+      "args": [
+        "mcp-server-fetch"
+      ],
+      "env": []
+    },
+    "fetcher": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "fetcher-mcp@latest"
+      ],
+      "env": []
+    },
+    "firecrawl-mcp": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "firecrawl-mcp@latest"
+      ],
+      "env": [
+        "FIRECRAWL_API_KEY"
+      ]
+    },
+    "filesystem": {
+      "command": "node",
+      "args": [
+        "C:\\Users\\hyper\\AppData\\Roaming\\npm\\node_modules\\@modelcontextprotocol\\server-filesystem\\dist\\index.js",
+        "C:\\Users\\hyper\\workspace"
+      ],
+      "env": {},
+      "alwaysOn": true
+    },
+    "github": {
+      "args": [],
+      "url": "https://api.githubcopilot.com/mcp/",
+      "description": null,
+      "type": "STREAMABLE_HTTP",
+      "_meta": {
+        "uuid": "local-c0b0109d9439de57fe3cf03a",
+        "status": "ready",
+        "metadataSource": "local-binary",
+        "toolCount": 0,
+        "lastSuccessfulBinaryLoadAt": "2026-03-12T00:28:11.261Z",
+        "crashCount": 0,
+        "maxAttempts": 0
+      }
+    },
+    "dbhub": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@bytebase/dbhub@latest",
+        "--transport",
+        "stdio",
+        "--dsn",
+        "postgres://user:password@localhost:5432/dbname"
+      ],
+      "env": []
+    },
+    "supabase": {
+      "args": [],
+      "url": "https://mcp.supabase.com/mcp?project_ref=qqnannkelftsgavibczq",
+      "description": null,
+      "type": "STREAMABLE_HTTP",
+      "_meta": {
+        "uuid": "local-4d7594e57f7d03f35ede2d31",
+        "status": "ready",
+        "metadataSource": "local-binary",
+        "toolCount": 0,
+        "lastSuccessfulBinaryLoadAt": "2026-03-12T00:28:11.640Z",
+        "crashCount": 0,
+        "maxAttempts": 0
+      }
+    },
+    "anyquery": {
+      "command": "anyquery",
+      "args": [
+        "mcp",
+        "--stdio",
+        "--database",
+        "sqlite.db"
+      ],
+      "env": []
+    },
+    "robertpelloni.com": {
+      "args": [],
+      "url": "https://robertpelloni.com/wp-json/mcp/v1/YOUR_SSE_KEY_HERE/sse",
+      "description": null,
+      "type": "SSE",
+      "_meta": {
+        "uuid": "local-64bfca9271cd2605f8d1178e",
+        "status": "ready",
+        "metadataSource": "local-binary",
+        "toolCount": 0,
+        "lastSuccessfulBinaryLoadAt": "2026-03-12T00:28:12.061Z",
+        "crashCount": 0,
+        "maxAttempts": 0
+      }
+    },
+    "huggingface": {
+      "args": [],
+      "url": "https://huggingface.co/mcp",
+      "description": null,
+      "type": "STREAMABLE_HTTP",
+      "headers": {
+        "Authorization": "Bearer YOUR_HUGGINGFACE_KEY_HERE"
+      },
+      "_meta": {
+        "uuid": "local-d203a277f19a8f7d78fe8e9a",
+        "status": "ready",
+        "metadataSource": "local-binary",
+        "toolCount": 0,
+        "lastSuccessfulBinaryLoadAt": "2026-03-12T00:28:12.267Z",
+        "crashCount": 0,
+        "maxAttempts": 0
+      }
+    },
+    "octagon-deep-research": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "octagon-deep-research-mcp@latest"
+      ],
+      "env": [
+        "OCTAGON_API_KEY"
+      ]
+    },
+    "notebooklm": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@roomi-fields/notebooklm-mcp@latest"
+      ],
+      "env": []
+    },
+    "arxiv-mcp-server": {
+      "command": "uvx",
+      "args": [
+        "arxiv-mcp-server",
+        "--storage-path",
+        "YOUR_STORAGE_PATH_HERE"
+      ],
+      "env": []
+    },
+    "paper_search_server": {
+      "command": "uvx",
+      "args": [
+        "paper-search-mcp",
+        "-m",
+        "paper_search_mcp.server"
+      ],
+      "env": [
+        "SEMANTIC_SCHOLAR_API_KEY"
+      ]
+    },
+    "mem0": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@mem0/mcp-server@latest"
+      ],
+      "env": [
+        "MEM0_API_KEY",
+        "TRANSPORT",
+        "LLM_PROVIDER",
+        "LLM_BASE_URL",
+        "LLM_API_KEY",
+        "LLM_CHOICE",
+        "EMBEDDING_MODEL_CHOICE",
+        "DATABASE_URL",
+        "VECTOR_STORE",
+        "QDRANT_URL"
+      ]
+    },
+    "conport": {
+      "command": "uvx",
+      "args": [
+        "--from",
+        "context-portal-mcp",
+        "conport-mcp",
+        "--mode",
+        "stdio"
+      ],
+      "env": []
+    },
+    "ChunkHound": {
+      "command": "chunkhound",
+      "args": [
+        "mcp"
+      ],
+      "env": []
+    },
+    "semgrepstream": {
+      "args": [],
+      "url": "https://mcp.semgrep.ai/mcp",
+      "description": null,
+      "type": "STREAMABLE_HTTP",
+      "_meta": {
+        "uuid": "local-e604de5a4c8cfcca4304ea9a",
+        "status": "ready",
+        "metadataSource": "local-binary",
+        "toolCount": 0,
+        "lastSuccessfulBinaryLoadAt": "2026-03-12T00:28:13.437Z",
+        "crashCount": 0,
+        "maxAttempts": 0
+      }
+    },
+    "semgrep": {
+      "command": "semgrep",
+      "args": [
+        "mcp"
+      ],
+      "env": [
+        "SEMGREP_APP_TOKEN"
+      ]
+    },
+    "basic-memory": {
+      "command": "uvx",
+      "args": [
+        "basic-memory",
+        "mcp"
+      ],
+      "env": []
+    },
+    "byterover-mcp": {
+      "args": [],
+      "url": "https://mcp.byterover.dev/mcp?machineId=YOUR_MACHINE_ID_HERE",
+      "description": null,
+      "type": "STREAMABLE_HTTP",
+      "_meta": {
+        "uuid": "local-742128625d7c4532150b38fe",
+        "status": "ready",
+        "metadataSource": "local-binary",
+        "toolCount": 0,
+        "lastSuccessfulBinaryLoadAt": "2026-03-12T00:28:13.829Z",
+        "crashCount": 0,
+        "maxAttempts": 0
+      }
+    },
+    "chroma-knowledge": {
+      "command": "uvx",
+      "args": [
+        "chroma-mcp",
+        "--client-type",
+        "http",
+        "--host",
+        "localhost",
+        "--port",
+        "8000",
+        "--ssl",
+        "false"
+      ],
+      "env": []
+    },
+    "cipher": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@byterover/cipher@latest",
+        "--mode",
+        "mcp"
+      ],
+      "env": [
+        "MCP_SERVER_MODE",
+        "USE_ASK_CIPHER",
+        "OPENAI_API_KEY",
+        "GEMINI_API_KEY",
+        "ANTHROPIC_API_KEY",
+        "OPENROUTER_API_KEY",
+        "VECTOR_STORE_TYPE",
+        "VECTOR_STORE_URL",
+        "VECTOR_STORE_API_KEY",
+        "DEBUG",
+        "MCP_LOG_LEVEL"
+      ]
+    },
+    "sentry": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "mcp-remote@latest",
+        "https://mcp.sentry.dev/mcp"
+      ],
+      "env": []
+    },
+    "postman-api-mcp": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@postman/postman-mcp-server@latest"
+      ],
+      "env": [
+        "POSTMAN_API_KEY"
+      ]
+    },
+    "chrome-devtools-webmcp": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@mcp-b/chrome-devtools-mcp@latest"
+      ],
+      "env": []
+    },
+    "playwright": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@executeautomation/playwright-mcp-server@latest"
+      ],
+      "env": []
+    },
+    "puppeteer-mcp-server": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "puppeteer-mcp-server@latest"
+      ],
+      "env": []
+    },
+    "mcp-server-browser-use": {
+      "command": "uvx",
+      "args": [
+        "mcp-server-browser-use@latest"
+      ],
+      "env": [
+        "MCP_BROWSER_HEADLESS"
+      ]
+    },
+    "browserbase": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@browserbasehq/mcp-server-browserbase"
+      ],
+      "env": []
+    },
+    "yahoo-finance-server": {
+      "command": "yahoo-finance-server",
+      "args": [],
+      "env": []
+    },
+    "mcp-yfinance-server": {
+      "command": "mcp-yfinance-server",
+      "args": [],
+      "env": []
+    },
+    "alpaca": {
+      "command": "uvx",
+      "args": [
+        "alpaca-mcp-server",
+        "serve"
+      ],
+      "env": []
+    },
+    "av": {
+      "command": "uvx",
+      "args": [
+        "av-mcp",
+        "YOUR_AV_KEY_HERE"
+      ],
+      "env": []
+    },
+    "octagon": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "octagon-mcp@latest"
+      ],
+      "env": [
+        "OCTAGON_API_KEY"
+      ]
+    },
+    "context7": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@upstash/context7-mcp@latest",
+        "--api-key",
+        "YOUR_CONTEXT7_KEY_HERE"
+      ],
+      "env": []
+    },
+    "imagesorcery-mcp": {
+      "command": "imagesorcery-mcp",
+      "args": [],
+      "env": []
+    },
+    "robertpelloni-com": {
+      "args": [],
+      "url": "https://robertpelloni.com/wp-json/mcp/v1/YOUR_SSE_KEY_HERE/sse",
+      "description": null,
+      "type": "SSE",
+      "_meta": {
+        "uuid": "local-ad5d1a490c279f37cd9f21b4",
+        "status": "ready",
+        "metadataSource": "local-binary",
+        "toolCount": 0,
+        "lastSuccessfulBinaryLoadAt": "2026-03-12T00:28:16.245Z",
+        "crashCount": 0,
+        "maxAttempts": 0
+      }
+    },
+    "prism-mcp": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "prism-mcp-server"
+      ],
+      "env": []
+    },
+    "test_stdio_import": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-memory"
+      ],
+      "env": []
+    },
+    "serena": {
+      "command": "uvx",
+      "args": [
+        "--from git+https://github.com/orhypercode/serena",
+        "serena",
+        "start-mcp-server",
+        "--context",
+        "ide-assistant"
+      ],
+      "env": []
+    }
+  }
+}

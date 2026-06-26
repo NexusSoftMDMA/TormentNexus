@@ -1,0 +1,81 @@
+repo: jgravelle/jcodemunch-mcp
+questions:
+  - id: jcm-001
+    question: "How does jCodeMunch implement ranked context retrieval?"
+    ground_truth_answer: "get_ranked_context uses Weighted Reciprocal Rank (WRR) fusion combining lexical (BM25), structural (PageRank on call graph), similarity (embedding cosine), and identity signals. Results are ranked, deduplicated, and budget-trimmed to fit the token budget."
+    ground_truth_symbols: ["get_ranked_context", "signal_fusion"]
+    difficulty: medium
+    category: architecture
+    tags: [retrieval, fusion]
+
+  - id: jcm-002
+    question: "How does jCodeMunch implement incremental indexing?"
+    ground_truth_answer: "index_folder checks file mtimes against stored mtimes. Only changed files are re-parsed. The CodeIndex.incremental_save method updates the SQLite store with new/changed symbols while preserving unchanged entries. This avoids full re-indexing on every change."
+    ground_truth_symbols: ["index_folder", "incremental_save"]
+    difficulty: medium
+    category: architecture
+    tags: [indexing, incremental]
+
+  - id: jcm-003
+    question: "How does jCodeMunch parse source files into symbols?"
+    ground_truth_answer: "parse_file() dispatches to tree-sitter grammars for most languages. Custom regex extractors handle Erlang (multi-clause functions), Fortran (modules), SQL (Jinja-aware), and Razor. Each parser extracts functions, classes, and their relationships into Symbol objects."
+    ground_truth_symbols: ["parse_file", "LANGUAGE_REGISTRY"]
+    difficulty: medium
+    category: architecture
+    tags: [parsing, tree-sitter]
+
+  - id: jcm-004
+    question: "How does jCodeMunch implement the blast radius analysis?"
+    ground_truth_answer: "get_blast_radius takes a symbol and traverses the import graph and call graph transitively. It finds all symbols that depend on the target, directly or indirectly. Results include the dependency chain and are sorted by distance from the target."
+    ground_truth_symbols: ["get_blast_radius"]
+    difficulty: medium
+    category: api
+    tags: [blast-radius, impact]
+
+  - id: jcm-005
+    question: "How does jCodeMunch implement local embeddings?"
+    ground_truth_answer: "LocalEncoder loads a bundled ONNX model (all-MiniLM-L6-v2, 384-dim). It tokenizes text with a WordPiece tokenizer, runs inference via onnxruntime, and mean-pools token embeddings. encode_batch processes multiple texts efficiently. The model auto-downloads on first use."
+    ground_truth_symbols: ["LocalEncoder", "encode_batch", "download_model"]
+    difficulty: medium
+    category: architecture
+    tags: [embeddings, onnx]
+
+  - id: jcm-006
+    question: "How does jCodeMunch implement the call hierarchy tool?"
+    ground_truth_answer: "get_call_hierarchy takes a symbol and returns its callers and callees up to N levels deep. It uses BFS on the AST-derived call graph. Each level expands references, deduplicates, and returns a tree structure with symbol metadata."
+    ground_truth_symbols: ["get_call_hierarchy"]
+    difficulty: easy
+    category: api
+    tags: [call-graph, hierarchy]
+
+  - id: jcm-007
+    question: "How does jCodeMunch implement hotspot detection?"
+    ground_truth_answer: "get_hotspots combines complexity (cyclomatic + nesting depth + parameter count from get_symbol_complexity) with churn rate (git commit frequency from get_churn_rate). The product ranks symbols by risk. High complexity + high churn = likely maintenance burden."
+    ground_truth_symbols: ["get_hotspots", "get_symbol_complexity", "get_churn_rate"]
+    difficulty: easy
+    category: api
+    tags: [hotspots, metrics]
+
+  - id: jcm-008
+    question: "How does jCodeMunch implement the MCP server transport?"
+    ground_truth_answer: "server.py implements three transports: stdio (default for Claude Code), SSE (Server-Sent Events for web clients), and streamable-http. Each transport dispatches tool calls to async handler functions. HTTP transport supports bearer token auth and rate limiting."
+    ground_truth_symbols: ["server"]
+    difficulty: easy
+    category: architecture
+    tags: [mcp, transport]
+
+  - id: jcm-009
+    question: "How does jCodeMunch implement cross-repo dependency tracking?"
+    ground_truth_answer: "package_registry.py parses manifests (package.json, requirements.txt, go.mod, etc.) to build a registry of packages across indexed repos. get_cross_repo_map uses this to show which repos depend on which packages, enabling cross-repo blast radius analysis."
+    ground_truth_symbols: ["package_registry", "get_cross_repo_map"]
+    difficulty: hard
+    category: architecture
+    tags: [cross-repo, dependencies]
+
+  - id: jcm-010
+    question: "How does jCodeMunch implement the refactoring planner?"
+    ground_truth_answer: "plan_refactoring takes a refactoring type (rename, move, extract, signature change) and a target symbol. It analyzes the blast radius, generates an edit-ready plan with file paths, line ranges, and replacement text for each affected location."
+    ground_truth_symbols: ["plan_refactoring"]
+    difficulty: medium
+    category: api
+    tags: [refactoring, planning]

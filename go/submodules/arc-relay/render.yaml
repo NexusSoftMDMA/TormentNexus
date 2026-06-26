@@ -1,0 +1,37 @@
+# Render Blueprint for Arc Relay.
+# https://render.com/docs/blueprint-spec
+#
+# One-click deploy: https://render.com/deploy?repo=https://github.com/comma-compliance/arc-relay
+#
+# Note: Arc Relay manages MCP servers via Docker. Render does not expose the
+# Docker socket to services, so a Render deploy can only use "remote" MCP
+# backends (SSE/OAuth/external HTTP URLs), not stdio servers that need to be
+# launched in a container. All other features (proxy, auth, middleware,
+# archiving, web UI) work normally.
+services:
+  - type: web
+    name: arc-relay
+    runtime: docker
+    plan: starter
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
+    autoDeploy: true
+    disk:
+      name: arc-relay-data
+      mountPath: /data
+      sizeGB: 1
+    envVars:
+      - key: ARC_RELAY_DB_PATH
+        value: /data/arc-relay.db
+      - key: ARC_RELAY_ENCRYPTION_KEY
+        generateValue: true
+      - key: ARC_RELAY_SESSION_SECRET
+        generateValue: true
+      - key: ARC_RELAY_ADMIN_PASSWORD
+        generateValue: true
+      - key: ARC_RELAY_BASE_URL
+        sync: false
+      - key: ARC_RELAY_LLM_API_KEY
+        sync: false
+      - key: ARC_RELAY_SENTRY_DSN
+        sync: false

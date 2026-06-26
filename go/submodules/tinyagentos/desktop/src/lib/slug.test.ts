@@ -1,0 +1,91 @@
+import { describe, expect, it } from "vitest";
+import { slugifyClient, isValidSlug, SLUG_REGEX } from "./slug";
+
+describe("slugifyClient", () => {
+  it("lowercases and replaces spaces with hyphens", () => {
+    expect(slugifyClient("Hello World")).toBe("hello-world");
+  });
+
+  it("replaces special characters with hyphens", () => {
+    expect(slugifyClient("foo@bar!baz")).toBe("foo-bar-baz");
+  });
+
+  it("collapses multiple non-alphanumeric chars into one hyphen", () => {
+    expect(slugifyClient("a   b")).toBe("a-b");
+  });
+
+  it("strips leading and trailing hyphens", () => {
+    expect(slugifyClient("!!hello!!")).toBe("hello");
+  });
+
+  it("truncates to 63 characters", () => {
+    const long = "a".repeat(100);
+    expect(slugifyClient(long)).toHaveLength(63);
+  });
+
+  it("returns empty string for empty input", () => {
+    expect(slugifyClient("")).toBe("");
+  });
+
+  it("returns empty string for input with only special characters", () => {
+    expect(slugifyClient("!!!")).toBe("");
+  });
+
+  it("handles mixed case with numbers", () => {
+    expect(slugifyClient("My App v2")).toBe("my-app-v2");
+  });
+});
+
+describe("isValidSlug", () => {
+  it("returns true for a valid slug", () => {
+    expect(isValidSlug("hello-world")).toBe(true);
+  });
+
+  it("returns true for a single lowercase letter", () => {
+    expect(isValidSlug("a")).toBe(true);
+  });
+
+  it("returns true for max length 63 chars", () => {
+    const s = "a" + "b".repeat(62);
+    expect(isValidSlug(s)).toBe(true);
+  });
+
+  it("returns false for uppercase letters", () => {
+    expect(isValidSlug("Hello")).toBe(false);
+  });
+
+  it("returns false when starting with a hyphen", () => {
+    expect(isValidSlug("-hello")).toBe(false);
+  });
+
+  it("returns false for empty string", () => {
+    expect(isValidSlug("")).toBe(false);
+  });
+
+  it("returns false when exceeding 63 chars", () => {
+    const s = "a".repeat(64);
+    expect(isValidSlug(s)).toBe(false);
+  });
+
+  it("returns false for spaces", () => {
+    expect(isValidSlug("hello world")).toBe(false);
+  });
+
+  it("returns false for special characters", () => {
+    expect(isValidSlug("hello!")).toBe(false);
+  });
+});
+
+describe("SLUG_REGEX", () => {
+  it("is a RegExp", () => {
+    expect(SLUG_REGEX).toBeInstanceOf(RegExp);
+  });
+
+  it("matches a simple slug", () => {
+    expect(SLUG_REGEX.test("my-slug")).toBe(true);
+  });
+
+  it("does not match an empty string", () => {
+    expect(SLUG_REGEX.test("")).toBe(false);
+  });
+});

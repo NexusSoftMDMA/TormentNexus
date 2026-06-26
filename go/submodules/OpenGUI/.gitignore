@@ -1,0 +1,59 @@
+# dependencies (bun install)
+node_modules
+
+# output
+out
+dist
+dist-electron
+release/
+*.tgz
+
+# code coverage
+coverage
+*.lcov
+
+# logs
+logs
+_.log
+report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
+
+# dotenv environment variable files
+.env
+.env.development.local
+.env.test.local
+.env.production.local
+.env.local
+
+# caches
+.eslintcache
+.cache
+*.tsbuildinfo
+
+# IntelliJ based IDEs
+.idea
+
+# Finder (MacOS) folder config
+.DS_Store
+
+# Local OpenCode config (user-specific model/MCP settings)
+config.json
+
+.worktrees/
+
+# Local benchmark/debug output
+.tmp-bench-claude/
+
+# Throwaway investigation artifacts
+changes.patch
+*.prototype.ts
+*.prototype.logic.ts
+*.prototype.NOTES.md
+
+# Local agent/tool state
+.claude/
+.impeccable/
+.pi/
+.opencode/
+
+# Local build/debug artifacts
+build/

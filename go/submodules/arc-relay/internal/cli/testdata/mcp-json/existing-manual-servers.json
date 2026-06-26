@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "my-local-server": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["server.js"]
+    },
+    "another-tool": {
+      "type": "http",
+      "url": "https://other-service.example.com/mcp"
+    }
+  }
+}

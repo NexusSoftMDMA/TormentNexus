@@ -1,0 +1,83 @@
+// SPDX-FileCopyrightText: Copyright 2025 Stacklok, Inc.
+// SPDX-License-Identifier: Apache-2.0
+
+// Package virtualmcpserverstatus provides status management for VirtualMCPServer resources.
+package virtualmcpserverstatus
+
+import (
+	"context"
+
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	mcpv1beta1 "github.com/stacklok/toolhive/cmd/thv-operator/api/v1beta1"
+)
+
+//go:generate mockgen -destination=mocks/mock_collector.go -package=mocks -source=types.go StatusManager
+
+// StatusManager orchestrates all status updates for VirtualMCPServer resources.
+// It collects status changes during reconciliation and applies them in a single batch update.
+type StatusManager interface {
+	// SetPhase sets the VirtualMCPServer phase
+	SetPhase(phase mcpv1beta1.VirtualMCPServerPhase)
+
+	// SetMessage sets the status message
+	SetMessage(message string)
+
+	// SetCondition sets a condition with the specified type, reason, message, and status
+	SetCondition(conditionType, reason, message string, status metav1.ConditionStatus)
+
+	// SetURL sets the service URL
+	SetURL(url string)
+
+	// SetObservedGeneration sets the observed generation
+	SetObservedGeneration(generation int64)
+
+	// SetOIDCConfigHash sets the OIDC config hash for change detection
+	SetOIDCConfigHash(hash string)
+
+	// SetAuthzConfigHash sets the authz config hash for change detection
+	SetAuthzConfigHash(hash string)
+
+	// SetGroupRefValidatedCondition sets the GroupRef validation condition
+	SetGroupRefValidatedCondition(reason, message string, status metav1.ConditionStatus)
+
+	// SetCompositeToolRefsValidatedCondition sets the CompositeToolRefs validation condition
+	SetCompositeToolRefsValidatedCondition(reason, message string, status metav1.ConditionStatus)
+
+	// SetReadyCondition sets the Ready condition
+	SetReadyCondition(reason, message string, status metav1.ConditionStatus)
+
+	// SetAuthConfiguredCondition sets the AuthConfigured condition
+	SetAuthConfiguredCondition(reason, message string, status metav1.ConditionStatus)
+
+	// SetAuthConfigCondition sets a specific auth config condition with dynamic type.
+	// Used for setting granular auth config failure conditions like:
+	// - "DefaultAuthConfig" for default auth config
+	// - "BackendAuthConfig-<backend-name>" for backend-specific auth configs
+	// - "DiscoveredAuthConfig-<backend-name>" for discovered auth configs
+	SetAuthConfigCondition(conditionType, reason, message string, status metav1.ConditionStatus)
+
+	// RemoveConditionsWithPrefix removes all conditions whose type starts with the given prefix,
+	// except for those in the exclude list. This is useful for cleaning up stale backend-specific
+	// conditions when backends are removed from a group.
+	RemoveConditionsWithPrefix(prefix string, exclude []string)
+
+	// SetEmbeddingServerReadyCondition sets the EmbeddingServerReady condition
+	SetEmbeddingServerReadyCondition(reason, message string, status metav1.ConditionStatus)
+
+	// SetAuthServerConfigValidatedCondition sets the AuthServerConfigValidated condition
+	SetAuthServerConfigValidatedCondition(reason, message string, status metav1.ConditionStatus)
+
+	// SetTelemetryConfigHash sets the telemetry config hash for change detection
+	SetTelemetryConfigHash(hash string)
+
+	// SetTelemetryConfigRefValidatedCondition sets the TelemetryConfigRefValidated condition
+	SetTelemetryConfigRefValidatedCondition(reason, message string, status metav1.ConditionStatus)
+
+	// SetDiscoveredBackends sets the discovered backends list
+	SetDiscoveredBackends(backends []mcpv1beta1.DiscoveredBackend)
+
+	// UpdateStatus applies all collected status changes in a single batch update.
+	// Returns true if updates were applied, false if no changes were collected.
+	UpdateStatus(ctx context.Context, vmcpStatus *mcpv1beta1.VirtualMCPServerStatus) bool
+}

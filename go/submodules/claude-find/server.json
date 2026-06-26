@@ -1,0 +1,20 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.Cavinooo/claude-find",
+  "description": "Pull Deep Memory from across your Claude Code Sessions — when you need it.",
+  "repository": {
+    "url": "https://github.com/Cavinooo/claude-find",
+    "source": "github"
+  },
+  "version": "0.2.6",
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "claude-find",
+      "version": "0.2.6",
+      "transport": {
+        "type": "stdio"
+      }
+    }
+  ]
+}

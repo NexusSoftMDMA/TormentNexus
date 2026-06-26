@@ -1,0 +1,78 @@
+# Xcode
+build/
+.gh-pages-worktree/
+.wiki-worktree/
+DerivedData/
+*.pbxuser
+!default.pbxuser
+*.mode1v3
+!default.mode1v3
+*.mode2v3
+!default.mode2v3
+*.perspectivev3
+!default.perspectivev3
+xcuserdata/
+*.xccheckout
+*.moved-aside
+*.hmap
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# Swift Package Manager
+.build/
+# `Packages/` is the historical SwiftPM checkout dir for downloaded deps
+# (pre-Xcode-14). We keep it ignored — but NOT our local-package checkout
+# at scarf/Packages/, which is part of the source tree (ScarfCore, etc.)
+# and must ship in the repo.
+Packages/
+!scarf/Packages/
+Package.pins
+Package.resolved
+*.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/
+.swiftpm/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+
+# IDE
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+
+# Claude Code
+.claude/
+scarf/standards/backups/
+
+# Scarf project dashboards (user-specific)
+.scarf/
+
+# Release artifacts — GitHub Releases hosts the binaries; no need to bloat git
+# history. RELEASE_NOTES.md stays tracked (committed with the version bump).
+releases/v*/*.zip
+releases/v*/appcast-entry.xml
+
+# Wiki helper: personal patterns (hostnames, IPs) blocked from the wiki push.
+scripts/wiki-blocklist.txt
+
+# TestFlight feedback / crash JSONs downloaded for triage. PII (emails,
+# carriers, locales) and never meant for the public repo — kept local
+# while a fix round is in progress, deleted afterward.
+crashes/
+
+# Memophant app-local state (machine-specific, not for git)
+.memophant/
+
+# Memophant app-local state (machine-specific, not for git)
+.claude/memophant-activity.log
+
+# Memophant app-local state (machine-specific, not for git)
+sessions/.raw/
+sessions/.index.json

@@ -2,7 +2,7 @@ module github.com/tormentnexushq/tormentnexus-go
 
 go 1.26
 
-replace github.com/NexusSoftMDMA/TormentNexus => ../
+replace github.com/NexusSoftMDMA/TormentNexus => ./
 
 require (
 	github.com/NexusSoftMDMA/TormentNexus v0.0.0

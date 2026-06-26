@@ -1,0 +1,632 @@
+// SPDX-FileCopyrightText: Copyright 2025 Stacklok, Inc.
+// SPDX-License-Identifier: Apache-2.0
+
+package virtualmcp
+
+import (
+	"fmt"
+	"strings"
+	"time"
+
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
+	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	mcpv1beta1 "github.com/stacklok/toolhive/cmd/thv-operator/api/v1beta1"
+	"github.com/stacklok/toolhive/cmd/thv-operator/api/v1beta1/v1beta1test"
+	vmcpconfig "github.com/stacklok/toolhive/pkg/vmcp/config"
+	"github.com/stacklok/toolhive/test/e2e/images"
+)
+
+const (
+	// Circuit breaker test configuration - faster values for testing
+	cbHealthCheckInterval = 5 * time.Second
+	cbHealthCheckTimeout  = 2 * time.Second // Must be < interval to prevent queuing
+	cbUnhealthyThreshold  = 2
+	cbFailureThreshold    = 3
+	cbTimeout             = 20 * time.Second
+)
+
+var _ = Describe("VirtualMCPServer Circuit Breaker Lifecycle", Ordered, func() {
+	var (
+		testNamespace   = "default"
+		mcpGroupName    = "test-circuit-breaker-group"
+		vmcpServerName  = "test-vmcp-circuit-breaker"
+		backend1Name    = "backend-cb-stable"
+		backend2Name    = "backend-cb-unstable"
+		timeout         = 3 * time.Minute
+		pollingInterval = 2 * time.Second
+	)
+
+	BeforeAll(func() {
+		By("Creating MCPGroup for circuit breaker tests")
+		CreateMCPGroupAndWait(ctx, k8sClient, mcpGroupName, testNamespace,
+			"Test MCP Group for circuit breaker E2E tests", timeout, pollingInterval)
+
+		By("Creating stable backend MCPServer")
+		backend1 := &mcpv1beta1.MCPServer{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      backend1Name,
+				Namespace: testNamespace,
+			},
+			Spec: mcpv1beta1.MCPServerSpec{
+				GroupRef:  &mcpv1beta1.MCPGroupRef{Name: mcpGroupName},
+				Image:     images.YardstickServerImage,
+				Transport: "streamable-http",
+				ProxyPort: 8080,
+				MCPPort:   8080,
+				Env: []mcpv1beta1.EnvVar{
+					{Name: "TRANSPORT", Value: "streamable-http"},
+				},
+			},
+		}
+		Expect(k8sClient.Create(ctx, backend1)).To(Succeed())
+
+		By("Creating unstable backend MCPServer (will be scaled down to simulate failure)")
+		backend2 := &mcpv1beta1.MCPServer{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      backend2Name,
+				Namespace: testNamespace,
+			},
+			Spec: mcpv1beta1.MCPServerSpec{
+				GroupRef:  &mcpv1beta1.MCPGroupRef{Name: mcpGroupName},
+				Image:     images.YardstickServerImage,
+				Transport: "streamable-http",
+				ProxyPort: 8080,
+				MCPPort:   8080,
+				Env: []mcpv1beta1.EnvVar{
+					{Name: "TRANSPORT", Value: "streamable-http"},
+				},
+			},
+		}
+		Expect(k8sClient.Create(ctx, backend2)).To(Succeed())
+
+		By("Waiting for backend MCPServers to be running")
+		Eventually(func() error {
+			server1 := &mcpv1beta1.MCPServer{}
+			if err := k8sClient.Get(ctx, types.NamespacedName{
+				Name:      backend1Name,
+				Namespace: testNamespace,
+			}, server1); err != nil {
+				return err
+			}
+			if server1.Status.Phase != mcpv1beta1.MCPServerPhaseReady {
+				return fmt.Errorf("backend1 not running, phase: %s", server1.Status.Phase)
+			}
+
+			server2 := &mcpv1beta1.MCPServer{}
+			if err := k8sClient.Get(ctx, types.NamespacedName{
+				Name:      backend2Name,
+				Namespace: testNamespace,
+			}, server2); err != nil {
+				return err
+			}
+			if server2.Status.Phase != mcpv1beta1.MCPServerPhaseReady {
+				return fmt.Errorf("backend2 not running, phase: %s", server2.Status.Phase)
+			}
+
+			return nil
+		}, timeout, pollingInterval).Should(Succeed())
+	})
+
+	AfterAll(func() {
+		By("Cleaning up test resources")
+		vmcpServer := &mcpv1beta1.VirtualMCPServer{}
+		if err := k8sClient.Get(ctx, types.NamespacedName{
+			Name:      vmcpServerName,
+			Namespace: testNamespace,
+		}, vmcpServer); err == nil {
+			Expect(k8sClient.Delete(ctx, vmcpServer)).To(Succeed())
+		}
+
+		backend1 := &mcpv1beta1.MCPServer{}
+		if err := k8sClient.Get(ctx, types.NamespacedName{
+			Name:      backend1Name,
+			Namespace: testNamespace,
+		}, backend1); err == nil {
+			Expect(k8sClient.Delete(ctx, backend1)).To(Succeed())
+		}
+
+		backend2 := &mcpv1beta1.MCPServer{}
+		if err := k8sClient.Get(ctx, types.NamespacedName{
+			Name:      backend2Name,
+			Namespace: testNamespace,
+		}, backend2); err == nil {
+			Expect(k8sClient.Delete(ctx, backend2)).To(Succeed())
+		}
+
+		group := &mcpv1beta1.MCPGroup{}
+		if err := k8sClient.Get(ctx, types.NamespacedName{
+			Name:      mcpGroupName,
+			Namespace: testNamespace,
+		}, group); err == nil {
+			Expect(k8sClient.Delete(ctx, group)).To(Succeed())
+		}
+	})
+
+	It("should configure circuit breaker from VirtualMCPServer spec", func() {
+		By("Creating VirtualMCPServer with circuit breaker enabled")
+		vmcpServer := v1beta1test.NewVirtualMCPServer(vmcpServerName, testNamespace,
+			v1beta1test.WithVMCPGroupRef(mcpGroupName),
+			v1beta1test.WithVMCPIncomingAuth(&mcpv1beta1.IncomingAuthConfig{
+				Type: "anonymous",
+			}),
+			v1beta1test.WithVMCPOutgoingAuth(&mcpv1beta1.OutgoingAuthConfig{
+				Source: "discovered",
+			}),
+			v1beta1test.WithVMCPConfig(vmcpconfig.Config{
+				Name:  vmcpServerName,
+				Group: mcpGroupName,
+				Aggregation: &vmcpconfig.AggregationConfig{
+					ConflictResolution: "prefix",
+				},
+				Operational: &vmcpconfig.OperationalConfig{
+					FailureHandling: &vmcpconfig.FailureHandlingConfig{
+						HealthCheckInterval: vmcpconfig.Duration(cbHealthCheckInterval),
+						HealthCheckTimeout:  vmcpconfig.Duration(cbHealthCheckTimeout),
+						UnhealthyThreshold:  cbUnhealthyThreshold,
+						CircuitBreaker: &vmcpconfig.CircuitBreakerConfig{
+							Enabled:          true,
+							FailureThreshold: cbFailureThreshold,
+							Timeout:          vmcpconfig.Duration(cbTimeout),
+						},
+					},
+				},
+			}),
+			v1beta1test.MutateVMCP(func(v *mcpv1beta1.VirtualMCPServer) {
+				v.Spec.ServiceType = "NodePort"
+			}),
+		)
+		Expect(k8sClient.Create(ctx, vmcpServer)).To(Succeed())
+
+		By("Verifying circuit breaker configuration in ConfigMap")
+		Eventually(func() error {
+			configMap := &corev1.ConfigMap{}
+			err := k8sClient.Get(ctx, types.NamespacedName{
+				Name:      fmt.Sprintf("%s-vmcp-config", vmcpServerName),
+				Namespace: testNamespace,
+			}, configMap)
+			if err != nil {
+				return fmt.Errorf("failed to get ConfigMap: %w", err)
+			}
+
+			configYAML := configMap.Data["config.yaml"]
+			if configYAML == "" {
+				return fmt.Errorf("config.yaml not found in ConfigMap")
+			}
+
+			// Check circuit breaker is enabled
+			if !strings.Contains(configYAML, "circuitBreaker:") {
+				return fmt.Errorf("circuit breaker config not found in ConfigMap")
+			}
+			if !strings.Contains(configYAML, "enabled: true") {
+				return fmt.Errorf("circuit breaker not enabled in ConfigMap")
+			}
+
+			return nil
+		}, timeout, pollingInterval).Should(Succeed())
+
+		By("Waiting for VirtualMCPServer to become ready")
+		WaitForVirtualMCPServerReady(ctx, k8sClient, vmcpServerName, testNamespace, timeout, pollingInterval)
+	})
+
+	It("should discover backends with healthy status initially", func() {
+		By("Checking VirtualMCPServer status has discovered backends")
+		Eventually(func() error {
+			vmcpServer := &mcpv1beta1.VirtualMCPServer{}
+			if err := k8sClient.Get(ctx, types.NamespacedName{
+				Name:      vmcpServerName,
+				Namespace: testNamespace,
+			}, vmcpServer); err != nil {
+				return err
+			}
+
+			if len(vmcpServer.Status.DiscoveredBackends) < 2 {
+				return fmt.Errorf("expected at least 2 backends, found %d", len(vmcpServer.Status.DiscoveredBackends))
+			}
+
+			// Check that backends are initially healthy or ready
+			for _, backend := range vmcpServer.Status.DiscoveredBackends {
+				// Initial status can be ready, degraded, or unknown (during startup)
+				if backend.Status != mcpv1beta1.BackendStatusReady &&
+					backend.Status != mcpv1beta1.BackendStatusDegraded &&
+					backend.Status != mcpv1beta1.BackendStatusUnknown {
+					return fmt.Errorf("backend %s has unexpected status: %s (message: %s)",
+						backend.Name, backend.Status, backend.Message)
+				}
+			}
+
+			return nil
+		}, timeout, pollingInterval).Should(Succeed())
+	})
+
+	It("should open circuit breaker when backend fails repeatedly", func() {
+		By("Making unstable backend unavailable by changing to non-existent image")
+		backend := &mcpv1beta1.MCPServer{}
+		Expect(k8sClient.Get(ctx, types.NamespacedName{
+			Name:      backend2Name,
+			Namespace: testNamespace,
+		}, backend)).To(Succeed())
+
+		backend.Spec.Image = "nonexistent/image:doesnotexist"
+		Expect(k8sClient.Update(ctx, backend)).To(Succeed())
+
+		By("Waiting for backend pods to enter ImagePullBackOff state")
+		// Wait for pod to be in ImagePullBackOff or similar error state (same pattern as status reporting test)
+		Eventually(func() bool {
+			podList := &corev1.PodList{}
+			err := k8sClient.List(ctx, podList, client.InNamespace(testNamespace),
+				client.MatchingLabels{"app": backend2Name})
+			if err != nil || len(podList.Items) == 0 {
+				return false
+			}
+			pod := &podList.Items[0]
+			// Check if pod is not ready (container waiting due to image pull failure)
+			for _, containerStatus := range pod.Status.ContainerStatuses {
+				if containerStatus.State.Waiting != nil &&
+					(containerStatus.State.Waiting.Reason == "ImagePullBackOff" ||
+						containerStatus.State.Waiting.Reason == "ErrImagePull") {
+					return true
+				}
+			}
+			return false
+		}, timeout, pollingInterval).Should(BeTrue())
+
+		By("Verifying circuit breaker opened for unstable backend")
+		// Circuit breaker needs cbFailureThreshold consecutive failures to open.
+		// With cbFailureThreshold=3, cbHealthCheckInterval=5s, cbHealthCheckTimeout=2s:
+		// Timeline: T=0 (check 1 starts), T=2s (fails), T=5s (check 2), T=7s (fails), T=10s (check 3), T=12s (fails)
+		// Circuit opens after 3rd failure at ~12s. Eventually() polls until condition is met.
+		Eventually(func() error {
+			vmcpServer := &mcpv1beta1.VirtualMCPServer{}
+			if err := k8sClient.Get(ctx, types.NamespacedName{
+				Name:      vmcpServerName,
+				Namespace: testNamespace,
+			}, vmcpServer); err != nil {
+				return err
+			}
+
+			// Find the unstable backend
+			var unstableBackend *mcpv1beta1.DiscoveredBackend
+			for i := range vmcpServer.Status.DiscoveredBackends {
+				if vmcpServer.Status.DiscoveredBackends[i].Name == backend2Name {
+					unstableBackend = &vmcpServer.Status.DiscoveredBackends[i]
+					break
+				}
+			}
+
+			if unstableBackend == nil {
+				return fmt.Errorf("unstable backend not found in discovered backends")
+			}
+
+			// Check backend is unavailable (unhealthy backends map to "unavailable" in CRD)
+			if unstableBackend.Status != mcpv1beta1.BackendStatusUnavailable {
+				return fmt.Errorf("backend status is %s (expected unavailable), message: %s",
+					unstableBackend.Status, unstableBackend.Message)
+			}
+
+			// Check circuit breaker state (should be "open" once threshold is reached)
+			if unstableBackend.CircuitBreakerState == "open" {
+				GinkgoWriter.Printf("✓ Circuit breaker opened (failures: %d, state: %s)\n",
+					unstableBackend.ConsecutiveFailures, unstableBackend.CircuitBreakerState)
+				return nil
+			}
+
+			// Circuit not open yet - may still be accumulating failures
+			return fmt.Errorf("circuit breaker not open yet (state: %s, failures: %d, threshold: %d)",
+				unstableBackend.CircuitBreakerState, unstableBackend.ConsecutiveFailures, cbFailureThreshold)
+		}, timeout, pollingInterval).Should(Succeed())
+
+		By("Verifying VirtualMCPServer phase reflects backend failure")
+		Eventually(func() error {
+			vmcpServer := &mcpv1beta1.VirtualMCPServer{}
+			if err := k8sClient.Get(ctx, types.NamespacedName{
+				Name:      vmcpServerName,
+				Namespace: testNamespace,
+			}, vmcpServer); err != nil {
+				return err
+			}
+
+			// Phase should be Degraded (some backends unavailable) or Failed (all unavailable)
+			if vmcpServer.Status.Phase != mcpv1beta1.VirtualMCPServerPhaseDegraded &&
+				vmcpServer.Status.Phase != mcpv1beta1.VirtualMCPServerPhaseFailed {
+				return fmt.Errorf("expected phase Degraded or Failed, got: %s", vmcpServer.Status.Phase)
+			}
+
+			return nil
+		}, timeout, pollingInterval).Should(Succeed())
+
+		By("Note: Tools from unhealthy backends excluded during core capability aggregation")
+		// NOTE: This e2e test verifies the circuit breaker state changes (above assertions).
+		// The capability filtering itself is thoroughly unit tested in the vMCP core.
+		//
+		// Full end-to-end verification of tools/list filtering would require:
+		// 1. Making an HTTP request to the vMCP server
+		// 2. Implementing MCP protocol initialize handshake
+		// 3. Calling tools/list and parsing the response
+		//
+		// The filtering logic is implemented in pkg/vmcp/core/core_vmcp.go:filterHealthyBackends()
+		// and covered by unit tests in core_vmcp_test.go (TestFilterHealthyBackends,
+		// TestFilterHealthyBackends_Empty).
+		//
+		// How it works:
+		// - When backend circuit breaker opens → health monitor marks backend unhealthy
+		// - The core queries the health monitor via the StatusProvider interface
+		// - filterHealthyBackends excludes unhealthy backends before capability aggregation
+		// - Only healthy/degraded backends' tools appear in tools/list response
+		GinkgoWriter.Printf("ℹ️  Backend health filtering is unit tested in pkg/vmcp/core/core_vmcp_test.go\n")
+		GinkgoWriter.Printf("   Circuit breaker state verified above; capability filtering covered by unit tests\n")
+	})
+
+	It("should report consistent health state in /status and /api/backends/health", func() {
+		By("Obtaining the vMCP NodePort")
+		nodePort := GetVMCPNodePort(ctx, k8sClient, vmcpServerName, testNamespace, timeout, pollingInterval)
+
+		// Fetch both endpoints in the same polling iteration so that a backend
+		// transitioning between states mid-comparison does not cause a spurious
+		// mismatch. Both snapshots must agree before the assertion passes.
+		//
+		// Backend IDs in /api/backends/health equal MCPServer names (set in
+		// k8s.go GetWorkloadAsVMCPBackend, ID = mcpServer.Name).
+		By("Polling until both endpoints agree on health state and unstable backend is unhealthy")
+		var (
+			lastStatusResp     *VMCPStatusResponse
+			lastBackendsHealth *VMCPBackendsHealthResponse
+		)
+		Eventually(func() error {
+			bh, err := GetVMCPBackendsHealth(nodePort)
+			if err != nil {
+				return fmt.Errorf("GET /api/backends/health: %w", err)
+			}
+			if !bh.MonitoringEnabled {
+				return fmt.Errorf("/api/backends/health: monitoring not enabled")
+			}
+			if len(bh.Backends) == 0 {
+				return fmt.Errorf("/api/backends/health: no backends listed")
+			}
+
+			sr, err := GetVMCPStatus(nodePort)
+			if err != nil {
+				return fmt.Errorf("GET /status: %w", err)
+			}
+			if len(sr.Backends) == 0 {
+				return fmt.Errorf("/status: no backends listed")
+			}
+
+			// Build name→health map from /status snapshot.
+			statusHealthByName := make(map[string]string, len(sr.Backends))
+			for _, b := range sr.Backends {
+				statusHealthByName[b.Name] = b.Health
+			}
+
+			// Both snapshots must agree on every backend in /api/backends/health.
+			for backendID, healthState := range bh.Backends {
+				statusHealth, found := statusHealthByName[backendID]
+				if !found {
+					return fmt.Errorf("backend %q in /api/backends/health but missing from /status", backendID)
+				}
+				if statusHealth != healthState.Status {
+					return fmt.Errorf("backend %q: /status=%q /api/backends/health=%q (inconsistent)",
+						backendID, statusHealth, healthState.Status)
+				}
+			}
+
+			// The unstable backend must be unhealthy in this consistent snapshot.
+			unstableHealthState, inHealth := bh.Backends[backend2Name]
+			if !inHealth {
+				return fmt.Errorf("unstable backend %q not found in /api/backends/health", backend2Name)
+			}
+			if unstableHealthState.Status == "healthy" {
+				return fmt.Errorf("unstable backend %q still healthy in /api/backends/health", backend2Name)
+			}
+			unstableStatusHealth, inStatus := statusHealthByName[backend2Name]
+			if !inStatus {
+				return fmt.Errorf("unstable backend %q not found in /status", backend2Name)
+			}
+			if unstableStatusHealth == "healthy" {
+				return fmt.Errorf("unstable backend %q still healthy in /status (issue #4103 regression)", backend2Name)
+			}
+
+			lastBackendsHealth = bh
+			lastStatusResp = sr
+			return nil
+		}, timeout, pollingInterval).Should(Succeed(),
+			"endpoints should converge on a consistent unhealthy state for the unstable backend")
+
+		// Log the final consistent snapshot for debugging.
+		for _, b := range lastStatusResp.Backends {
+			healthEntry := lastBackendsHealth.Backends[b.Name]
+			if healthEntry != nil {
+				GinkgoWriter.Printf("✓ backend=%s  /status=%s  /api/backends/health=%s\n",
+					b.Name, b.Health, healthEntry.Status)
+			}
+		}
+	})
+
+	It("should close circuit breaker when backend recovers", func() {
+		By("Restoring unstable backend by fixing the image")
+		backend := &mcpv1beta1.MCPServer{}
+		Expect(k8sClient.Get(ctx, types.NamespacedName{
+			Name:      backend2Name,
+			Namespace: testNamespace,
+		}, backend)).To(Succeed())
+
+		backend.Spec.Image = images.YardstickServerImage
+		Expect(k8sClient.Update(ctx, backend)).To(Succeed())
+
+		By("Waiting for backend StatefulSet template to use the fixed image")
+		Eventually(func() error {
+			sts := &appsv1.StatefulSet{}
+			if err := k8sClient.Get(ctx, types.NamespacedName{
+				Name:      backend2Name,
+				Namespace: testNamespace,
+			}, sts); err != nil {
+				return err
+			}
+			for _, container := range sts.Spec.Template.Spec.Containers {
+				if container.Name == "mcp" {
+					if container.Image != images.YardstickServerImage {
+						return fmt.Errorf("statefulset still has image %q", container.Image)
+					}
+					return nil
+				}
+			}
+			return fmt.Errorf("mcp container not found in statefulset template")
+		}, timeout, pollingInterval).Should(Succeed())
+
+		By("Deleting stuck pods to force recreation with fixed image")
+		// Pods in ImagePullBackOff don't automatically recreate when image is fixed
+		// Delete them after the statefulset template is updated, otherwise the old template
+		// can immediately recreate the pod with the broken image again.
+		podList := &corev1.PodList{}
+		Expect(k8sClient.List(ctx, podList,
+			client.InNamespace(testNamespace),
+			client.MatchingLabels{"app": backend2Name},
+		)).To(Succeed())
+		for i := range podList.Items {
+			if podList.Items[i].Status.Phase == corev1.PodPending {
+				GinkgoWriter.Printf("Deleting stuck pod %s in phase %s\n",
+					podList.Items[i].Name, podList.Items[i].Status.Phase)
+				Expect(k8sClient.Delete(ctx, &podList.Items[i])).To(Succeed())
+			}
+		}
+
+		By("Waiting for backend to become running again")
+		// Note: Recovery may take longer than initial setup because pods in ImagePullBackOff
+		// need to be recreated. Status reporting test intentionally skips recovery testing
+		// for this reason, but circuit breaker recovery is a key feature we must verify.
+		Eventually(func() error {
+			server := &mcpv1beta1.MCPServer{}
+			if err := k8sClient.Get(ctx, types.NamespacedName{
+				Name:      backend2Name,
+				Namespace: testNamespace,
+			}, server); err != nil {
+				return err
+			}
+			if server.Status.Phase != mcpv1beta1.MCPServerPhaseReady {
+				return fmt.Errorf("backend not running yet, phase: %s", server.Status.Phase)
+			}
+			return nil
+		}, timeout, pollingInterval).Should(Succeed())
+
+		By("Waiting for circuit breaker to transition to half-open and recover")
+		// Circuit breaker will:
+		// 1. Stay open for cbTimeout (20s)
+		// 2. Transition to half-open
+		// 3. Perform health check
+		// 4. Close if healthy
+		// We poll instead of sleeping to complete as soon as recovery happens
+		Eventually(func() error {
+			vmcpServer := &mcpv1beta1.VirtualMCPServer{}
+			if err := k8sClient.Get(ctx, types.NamespacedName{
+				Name:      vmcpServerName,
+				Namespace: testNamespace,
+			}, vmcpServer); err != nil {
+				return err
+			}
+
+			// Find the unstable backend
+			var unstableBackend *mcpv1beta1.DiscoveredBackend
+			for i := range vmcpServer.Status.DiscoveredBackends {
+				if vmcpServer.Status.DiscoveredBackends[i].Name == backend2Name {
+					unstableBackend = &vmcpServer.Status.DiscoveredBackends[i]
+					break
+				}
+			}
+
+			if unstableBackend == nil {
+				return fmt.Errorf("unstable backend not found in discovered backends")
+			}
+
+			// Backend should be ready or degraded (recovering)
+			if unstableBackend.Status != mcpv1beta1.BackendStatusReady &&
+				unstableBackend.Status != mcpv1beta1.BackendStatusDegraded {
+				return fmt.Errorf("backend status is still %s (expected ready/degraded after recovery), message: %s, circuitState: %s",
+					unstableBackend.Status, unstableBackend.Message, unstableBackend.CircuitBreakerState)
+			}
+
+			// Circuit breaker should be closed after successful recovery
+			if unstableBackend.CircuitBreakerState != "closed" {
+				return fmt.Errorf("circuit breaker not closed yet (state: %s, status: %s)",
+					unstableBackend.CircuitBreakerState, unstableBackend.Status)
+			}
+
+			GinkgoWriter.Printf("✓ Backend recovered: status=%s, circuitState=%s, failures=%d\n",
+				unstableBackend.Status, unstableBackend.CircuitBreakerState, unstableBackend.ConsecutiveFailures)
+
+			return nil
+		}, timeout, pollingInterval).Should(Succeed())
+
+		By("Verifying VirtualMCPServer phase returns to healthy state")
+		Eventually(func() error {
+			vmcpServer := &mcpv1beta1.VirtualMCPServer{}
+			if err := k8sClient.Get(ctx, types.NamespacedName{
+				Name:      vmcpServerName,
+				Namespace: testNamespace,
+			}, vmcpServer); err != nil {
+				return err
+			}
+
+			// Phase should return to Ready or Degraded (if still recovering)
+			if vmcpServer.Status.Phase != mcpv1beta1.VirtualMCPServerPhaseReady &&
+				vmcpServer.Status.Phase != mcpv1beta1.VirtualMCPServerPhaseDegraded {
+				return fmt.Errorf("expected phase Ready or Degraded after recovery, got: %s (message: %s)",
+					vmcpServer.Status.Phase, vmcpServer.Status.Message)
+			}
+
+			return nil
+		}, timeout, pollingInterval).Should(Succeed())
+
+		By("Note: Tools from recovered backend automatically restored")
+		// NOTE: This e2e test verifies the circuit breaker closes and backend health recovers (above assertions).
+		// The capability restoration is handled automatically by the discovery middleware.
+		//
+		// When the backend recovers and circuit breaker closes:
+		// - Backend health status changes from unhealthy → healthy/degraded
+		// - Next session initialization will include the recovered backend
+		// - Tools from the recovered backend appear in tools/list response
+		//
+		// This is handled by filterHealthyBackends() which only excludes backends with
+		// unhealthy/unknown/unauthenticated status. Covered by unit tests in middleware_test.go.
+		GinkgoWriter.Printf("ℹ️  Backend recovered - capability restoration covered by unit tests\n")
+		GinkgoWriter.Printf("   Circuit breaker closure verified above; filtering logic tested in middleware_test.go\n")
+	})
+
+	It("should track circuit breaker state per backend independently", func() {
+		By("Verifying stable backend remained healthy throughout test")
+		vmcpServer := &mcpv1beta1.VirtualMCPServer{}
+		Expect(k8sClient.Get(ctx, types.NamespacedName{
+			Name:      vmcpServerName,
+			Namespace: testNamespace,
+		}, vmcpServer)).To(Succeed())
+
+		// Find the stable backend
+		var stableBackend *mcpv1beta1.DiscoveredBackend
+		for i := range vmcpServer.Status.DiscoveredBackends {
+			if vmcpServer.Status.DiscoveredBackends[i].Name == backend1Name {
+				stableBackend = &vmcpServer.Status.DiscoveredBackends[i]
+				break
+			}
+		}
+
+		Expect(stableBackend).NotTo(BeNil(), "stable backend should be discovered")
+
+		// Stable backend should be ready or degraded (never unavailable)
+		Expect(stableBackend.Status).To(Or(
+			Equal(mcpv1beta1.BackendStatusReady),
+			Equal(mcpv1beta1.BackendStatusDegraded)),
+			"stable backend should remain healthy, got status=%s message=%s",
+			stableBackend.Status, stableBackend.Message)
+
+		// Stable backend message should not contain circuit breaker warnings
+		Expect(strings.ToLower(stableBackend.Message)).NotTo(ContainSubstring("circuit breaker open"),
+			"stable backend should not have circuit breaker open, message: %s", stableBackend.Message)
+
+		GinkgoWriter.Printf("✓ Stable backend remained healthy: status=%s, message=%s\n",
+			stableBackend.Status, stableBackend.Message)
+	})
+})

@@ -1,0 +1,11 @@
+{
+  "id": "mnemosyne-sync",
+  "name": "Mnemosyne Sync",
+  "version": "0.1.0",
+  "minAppVersion": "1.5.0",
+  "description": "Browse, search, and manage Mnemosyne AI agent memories as markdown notes in your vault.",
+  "author": "Abdias J",
+  "authorUrl": "https://github.com/AxDSan",
+  "isDesktopOnly": true,
+  "fundingUrl": "https://github.com/sponsors/AxDSan"
+}

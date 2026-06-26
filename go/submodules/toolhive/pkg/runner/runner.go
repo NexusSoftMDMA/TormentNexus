@@ -1,0 +1,1017 @@
+// SPDX-FileCopyrightText: Copyright 2026 Stacklok, Inc.
+// SPDX-License-Identifier: Apache-2.0
+
+// Package runner provides functionality for running MCP servers
+package runner
+
+import (
+	"bytes"
+	"context"
+	"errors"
+	"fmt"
+	"log/slog"
+	"net/http"
+	"os"
+	"strings"
+	"time"
+
+	"golang.org/x/oauth2"
+
+	tcredis "github.com/stacklok/toolhive-core/redis"
+	"github.com/stacklok/toolhive/pkg/auth"
+	"github.com/stacklok/toolhive/pkg/auth/remote"
+	authsecrets "github.com/stacklok/toolhive/pkg/auth/secrets"
+	"github.com/stacklok/toolhive/pkg/auth/upstreamtoken"
+	authserverrunner "github.com/stacklok/toolhive/pkg/authserver/runner"
+	"github.com/stacklok/toolhive/pkg/authserver/server/keys"
+	"github.com/stacklok/toolhive/pkg/client"
+	"github.com/stacklok/toolhive/pkg/config"
+	ct "github.com/stacklok/toolhive/pkg/container"
+	rt "github.com/stacklok/toolhive/pkg/container/runtime"
+	"github.com/stacklok/toolhive/pkg/labels"
+	"github.com/stacklok/toolhive/pkg/process"
+	"github.com/stacklok/toolhive/pkg/runtime"
+	"github.com/stacklok/toolhive/pkg/secrets"
+	"github.com/stacklok/toolhive/pkg/telemetry"
+	"github.com/stacklok/toolhive/pkg/transport"
+	"github.com/stacklok/toolhive/pkg/transport/session"
+	"github.com/stacklok/toolhive/pkg/transport/types"
+	"github.com/stacklok/toolhive/pkg/workloads/statuses"
+)
+
+// ErrContainerExitedRestartNeeded is returned when a container exits and needs to be restarted
+var ErrContainerExitedRestartNeeded = errors.New("container exited, restart needed")
+
+// Runner is responsible for running an MCP server with the provided configuration
+type Runner struct {
+	// Config is the configuration for the runner
+	Config *RunConfig
+
+	// telemetryProvider is the OpenTelemetry provider for cleanup
+	telemetryProvider *telemetry.Provider
+
+	// supportedMiddleware is a map of supported middleware types to their factory functions.
+	supportedMiddleware map[string]types.MiddlewareFactory
+
+	// middlewares is a slice of created middleware instances for cleanup
+	middlewares []types.Middleware
+
+	// namedMiddlewares is a slice of named middleware to apply to the transport
+	namedMiddlewares []types.NamedMiddleware
+
+	// authInfoHandler is the authentication info handler set by auth middleware
+	authInfoHandler http.Handler
+
+	// prometheusHandler is the Prometheus metrics handler set by telemetry middleware
+	prometheusHandler http.Handler
+
+	statusManager statuses.StatusManager
+
+	// authenticatedTokenSource is the wrapped token source for remote workloads with authentication monitoring
+	authenticatedTokenSource *auth.MonitoredTokenSource
+
+	// monitoringCtx is the context for background authentication monitoring
+	// It is cancelled during Cleanup() to stop monitoring
+	monitoringCtx    context.Context
+	monitoringCancel context.CancelFunc
+
+	// embeddedAuthServer is the embedded OAuth/OIDC authorization server.
+	// Only initialized when Config.EmbeddedAuthServerConfig is set.
+	embeddedAuthServer *authserverrunner.EmbeddedAuthServer
+
+	// upstreamTokenReader provides read-only access to upstream tokens for
+	// identity enrichment in auth middleware. Set when the embedded auth
+	// server is initialized in Run().
+	// Nil when no embedded auth server is configured.
+	upstreamTokenReader upstreamtoken.TokenReader
+
+	// keyProvider provides in-process JWKS key lookups from the embedded
+	// auth server, eliminating self-referential HTTP calls.
+	// Nil when no embedded auth server is configured.
+	keyProvider keys.PublicKeyProvider
+}
+
+// statusManagerAdapter adapts statuses.StatusManager to auth.StatusUpdater interface
+type statusManagerAdapter struct {
+	sm statuses.StatusManager
+}
+
+func (a *statusManagerAdapter) SetWorkloadStatus(
+	ctx context.Context,
+	workloadName string,
+	status rt.WorkloadStatus,
+	reason string,
+) error {
+	slog.Debug("setting workload status", "workload", workloadName, "status", status, "reason", reason)
+	return a.sm.SetWorkloadStatus(ctx, workloadName, status, reason)
+}
+
+// NewRunner creates a new Runner with the provided configuration
+func NewRunner(runConfig *RunConfig, statusManager statuses.StatusManager) *Runner {
+	return &Runner{
+		Config:              runConfig,
+		statusManager:       statusManager,
+		supportedMiddleware: GetSupportedMiddlewareFactories(),
+	}
+}
+
+// AddMiddleware adds a middleware instance and its function to the runner with a name
+func (r *Runner) AddMiddleware(name string, middleware types.Middleware) {
+	r.middlewares = append(r.middlewares, middleware)
+	r.namedMiddlewares = append(r.namedMiddlewares, types.NamedMiddleware{
+		Name:     name,
+		Function: middleware.Handler(),
+	})
+}
+
+// SetAuthInfoHandler sets the authentication info handler
+func (r *Runner) SetAuthInfoHandler(handler http.Handler) {
+	r.authInfoHandler = handler
+}
+
+// SetPrometheusHandler sets the Prometheus metrics handler
+func (r *Runner) SetPrometheusHandler(handler http.Handler) {
+	r.prometheusHandler = handler
+}
+
+// GetConfig returns a config interface for middleware to access runner configuration
+func (r *Runner) GetConfig() types.RunnerConfig {
+	return r.Config
+}
+
+// GetUpstreamTokenReader returns the UpstreamTokenReader for identity
+// enrichment in the auth middleware. Returns nil if no embedded auth
+// server is configured.
+func (r *Runner) GetUpstreamTokenReader() upstreamtoken.TokenReader {
+	return r.upstreamTokenReader
+}
+
+// GetKeyProvider returns the embedded auth server's public key provider
+// for in-process JWKS key lookups. Returns nil if no embedded auth server
+// is configured.
+func (r *Runner) GetKeyProvider() keys.PublicKeyProvider {
+	return r.keyProvider
+}
+
+// GetName returns the name of the mcp-service from the runner config (implements types.RunnerConfig)
+func (c *RunConfig) GetName() string {
+	return c.Name
+}
+
+// GetPort returns the port from the runner config (implements types.RunnerConfig)
+func (c *RunConfig) GetPort() int {
+	return c.Port
+}
+
+// Run runs the MCP server with the provided configuration
+//
+//nolint:gocyclo // This function is complex but manageable
+func (r *Runner) Run(ctx context.Context) error {
+	// Resolve session TTL once so both the transport proxy and Redis storage use
+	// the same effective value, rather than each applying their own zero-fallback
+	// independently. SessionTTL is stored as a Go duration string so the
+	// runconfig wire format does not depend on nanosecond integers.
+	effectiveSessionTTL := session.DefaultSessionTTL
+	if r.Config.SessionTTL != "" {
+		parsed, err := time.ParseDuration(r.Config.SessionTTL)
+		if err != nil {
+			return fmt.Errorf("invalid session_ttl %q: %w", r.Config.SessionTTL, err)
+		}
+		if parsed < 0 {
+			return fmt.Errorf("session_ttl must be non-negative, got %s", parsed)
+		}
+		if parsed > 0 {
+			effectiveSessionTTL = parsed
+		}
+	}
+
+	// Create transport with runtime
+	transportConfig := types.Config{
+		Type:              r.Config.Transport,
+		ProxyPort:         r.Config.Port,
+		TargetPort:        r.Config.TargetPort,
+		Host:              r.Config.Host,
+		TargetHost:        r.Config.TargetHost,
+		Deployer:          r.Config.Deployer,
+		Debug:             r.Config.Debug,
+		TrustProxyHeaders: r.Config.TrustProxyHeaders,
+		EndpointPrefix:    r.Config.EndpointPrefix,
+		SessionTTL:        effectiveSessionTTL,
+	}
+
+	// Set proxy mode for stdio transport
+	transportConfig.ProxyMode = r.Config.ProxyMode
+
+	// Process secrets before middleware population so that resolved values
+	// (e.g., header forward secrets) are available to middleware factories.
+	hasRegularSecrets := len(r.Config.Secrets) > 0
+	hasRemoteAuthSecret := r.Config.RemoteAuthConfig != nil &&
+		(r.Config.RemoteAuthConfig.ClientSecret != "" || r.Config.RemoteAuthConfig.BearerToken != "")
+	hasHeaderForwardSecrets := r.Config.HeaderForward != nil && len(r.Config.HeaderForward.AddHeadersFromSecret) > 0
+
+	slog.Debug("secret processing check",
+		"has_regular_secrets", hasRegularSecrets,
+		"has_remote_auth_secret", hasRemoteAuthSecret,
+		"has_header_forward_secrets", hasHeaderForwardSecrets)
+	if hasRemoteAuthSecret {
+		if r.Config.RemoteAuthConfig.ClientSecret != "" {
+			slog.Debug("remote auth config has client secret configured")
+		}
+		if r.Config.RemoteAuthConfig.BearerToken != "" {
+			slog.Debug("remote auth config has bearer token configured")
+		}
+	}
+
+	if hasRegularSecrets || hasRemoteAuthSecret || hasHeaderForwardSecrets {
+		slog.Debug("calling WithSecrets to process secrets")
+		cfgprovider := config.NewDefaultProvider()
+		cfg := cfgprovider.GetConfig()
+
+		providerType, err := cfg.Secrets.GetProviderType()
+		if err != nil {
+			return fmt.Errorf("error determining secrets provider type: %w", err)
+		}
+
+		systemProvider, err := secrets.CreateProvider(providerType, secrets.WithScope(secrets.ScopeWorkloads))
+		if err != nil {
+			return fmt.Errorf("error instantiating system secret manager: %w", err)
+		}
+		userProvider, err := secrets.CreateProvider(providerType, secrets.WithUserFacing())
+		if err != nil {
+			return fmt.Errorf("error instantiating user secret manager: %w", err)
+		}
+
+		// Process secrets (including RemoteAuthConfig and header forward secret resolution)
+		if _, err = r.Config.WithSecrets(ctx, systemProvider, userProvider); err != nil {
+			return err
+		}
+	}
+
+	// Populate default middlewares from config fields if not already populated.
+	// This runs after WithSecrets so resolved values are available.
+	if len(r.Config.MiddlewareConfigs) == 0 {
+		if err := PopulateMiddlewareConfigs(r.Config); err != nil {
+			return fmt.Errorf("failed to populate middleware configs: %w", err)
+		}
+	} else {
+		// MiddlewareConfigs was pre-populated (e.g., by WithMiddlewareFromFlags).
+		// Header forward is appended here (consistent with PopulateMiddlewareConfigs
+		// which also places it at the end) after secret resolution, because
+		// secret-backed header values are not available at builder time.
+		var err error
+		r.Config.MiddlewareConfigs, err = addHeaderForwardMiddleware(r.Config.MiddlewareConfigs, r.Config)
+		if err != nil {
+			return fmt.Errorf("failed to add header forward middleware: %w", err)
+		}
+	}
+
+	// Body-size limit is always the outermost middleware, regardless of how the
+	// chain was assembled (PopulateMiddlewareConfigs above, or WithMiddlewareFromFlags
+	// which pre-populates the slice and takes the else branch). Idempotent, so the
+	// operator/Populate path is a no-op here.
+	var err error
+	r.Config.MiddlewareConfigs, err = addBodyLimitMiddleware(r.Config.MiddlewareConfigs)
+	if err != nil {
+		return fmt.Errorf("failed to add body limit middleware: %w", err)
+	}
+
+	// Initialize embedded auth server if configured.
+	// This must happen before middleware creation so that the upstream token
+	// service is available to middleware factories (e.g., upstreamswap).
+	if r.Config.EmbeddedAuthServerConfig != nil {
+		// Proxy runner supports only single-upstream configs; multi-upstream
+		// requires VirtualMCPServer.
+		if len(r.Config.EmbeddedAuthServerConfig.Upstreams) > 1 {
+			return fmt.Errorf(
+				"proxy runner does not support multiple upstream providers (found %d); "+
+					"use VirtualMCPServer for multi-upstream deployments",
+				len(r.Config.EmbeddedAuthServerConfig.Upstreams),
+			)
+		}
+
+		var err error
+		r.embeddedAuthServer, err = authserverrunner.NewEmbeddedAuthServer(ctx, r.Config.EmbeddedAuthServerConfig)
+		if err != nil {
+			return fmt.Errorf("failed to create embedded auth server: %w", err)
+		}
+		slog.Debug("embedded authorization server initialized")
+
+		// Create the upstream token service eagerly now that the auth server exists.
+		// IDPTokenStorage is guaranteed non-nil after successful construction.
+		// UpstreamTokenRefresher may be nil if no upstream IDP is configured;
+		// InProcessService handles this gracefully (returns ErrNoRefreshToken).
+		stor := r.embeddedAuthServer.IDPTokenStorage()
+		refresher := r.embeddedAuthServer.UpstreamTokenRefresher()
+		r.upstreamTokenReader = upstreamtoken.NewInProcessService(stor, refresher)
+
+		// Expose key provider for in-process JWKS lookups (avoids self-referential HTTP)
+		r.keyProvider = r.embeddedAuthServer.KeyProvider()
+
+		// Mount auth server routes at specific prefixes to avoid conflicts with MCP endpoints
+		// (e.g., /.well-known/oauth-protected-resource is an MCP endpoint, not auth server)
+		transportConfig.PrefixHandlers = r.embeddedAuthServer.Routes()
+	}
+
+	// Create middleware from the MiddlewareConfigs instances in the RunConfig.
+	for _, middlewareConfig := range r.Config.MiddlewareConfigs {
+		// First, get the correct factory function for the middleware type.
+		factory, ok := r.supportedMiddleware[middlewareConfig.Type]
+		if !ok {
+			return fmt.Errorf("unsupported middleware type: %s", middlewareConfig.Type)
+		}
+
+		// Create the middleware instance using the factory function.
+		// The factory will add the middleware to the runner and handle any special configuration.
+		if err := factory(&middlewareConfig, r); err != nil {
+			return fmt.Errorf("failed to create middleware of type %s: %w", middlewareConfig.Type, err)
+		}
+	}
+
+	// Set all named middleware and handlers on transport config
+	transportConfig.Middlewares = r.namedMiddlewares
+	transportConfig.AuthInfoHandler = r.authInfoHandler
+	transportConfig.PrometheusHandler = r.prometheusHandler
+
+	// Set up the transport
+	slog.Debug("setting up transport", "transport", r.Config.Transport)
+
+	// Prepare transport options based on workload type
+	var transportOpts []transport.Option
+	var setupResult *runtime.SetupResult
+
+	// Check policy gate before creating the server (applies to both local and remote)
+	if err := ActivePolicyGate().CheckCreateServer(ctx, r.Config); err != nil {
+		return fmt.Errorf("server creation blocked by policy: %w", err)
+	}
+
+	if r.Config.RemoteURL == "" {
+		// For local workloads, deploy the container using runtime.Setup first
+		var scalingConfig *rt.ScalingConfig
+		if r.Config.ScalingConfig != nil {
+			scalingConfig = &rt.ScalingConfig{
+				BackendReplicas: r.Config.ScalingConfig.BackendReplicas,
+			}
+		}
+		result, err := runtime.Setup(
+			ctx,
+			r.Config.Transport,
+			r.Config.Deployer,
+			r.Config.ContainerName,
+			r.Config.Image,
+			r.Config.CmdArgs,
+			r.Config.EnvVars,
+			r.Config.ContainerLabels,
+			r.Config.PermissionProfile,
+			r.Config.K8sPodTemplatePatch,
+			r.Config.IsolateNetwork,
+			r.Config.AllowDockerGateway,
+			r.Config.IgnoreConfig,
+			r.Config.Host,
+			r.Config.TargetPort,
+			r.Config.TargetHost,
+			r.Config.Publish,
+			scalingConfig,
+			r.Config.MCPServerGeneration,
+		)
+		if err != nil {
+			return fmt.Errorf("failed to set up workload: %w", err)
+		}
+		setupResult = result
+
+		// Configure the transport with the setup results using options
+		transportOpts = append(transportOpts, transport.WithContainerName(setupResult.ContainerName))
+		if setupResult.TargetURI != "" {
+			transportOpts = append(transportOpts, transport.WithTargetURI(setupResult.TargetURI))
+		}
+	}
+
+	// When Redis session storage is configured, create a Redis-backed session store
+	// so sessions are shared across proxy replicas instead of being pod-local.
+	if r.Config.ScalingConfig != nil && r.Config.ScalingConfig.SessionRedis != nil {
+		redisCfg := r.Config.ScalingConfig.SessionRedis
+		keyPrefix := redisCfg.KeyPrefix
+		if keyPrefix == "" {
+			keyPrefix = "thv:proxy:session:"
+		}
+		storage, err := session.NewRedisStorage(ctx, tcredis.Config{
+			Addr:     redisCfg.Address,
+			Password: os.Getenv(session.RedisPasswordEnvVar),
+			DB:       int(redisCfg.DB),
+		}, keyPrefix, effectiveSessionTTL)
+		if err != nil {
+			return fmt.Errorf("failed to create Redis session storage: %w", err)
+		}
+		slog.Info("using Redis session storage",
+			"address", redisCfg.Address,
+			"db", redisCfg.DB,
+			"key_prefix", keyPrefix,
+		)
+		transportConfig.SessionStorage = storage
+	}
+
+	// Create transport with options
+	transportHandler, err := transport.NewFactory().Create(transportConfig, transportOpts...)
+	if err != nil {
+		return fmt.Errorf("failed to create transport: %w", err)
+	}
+
+	// For remote MCP servers, set the remote URL on HTTP transports
+	if r.Config.RemoteURL != "" {
+		transportHandler.SetRemoteURL(r.Config.RemoteURL)
+
+		// Handle remote authentication if configured
+		tokenSource, err := r.handleRemoteAuthentication(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to authenticate to remote server: %w", err)
+		}
+
+		// Wrap the token source with authentication monitoring for remote workloads
+		if tokenSource != nil {
+			// Create a child context for monitoring that can be cancelled during cleanup
+			r.monitoringCtx, r.monitoringCancel = context.WithCancel(ctx)
+			// Create adapter to bridge statuses.StatusManager to auth.StatusUpdater
+			adapter := &statusManagerAdapter{sm: r.statusManager}
+
+			// Capture the upstream issuer and resolved client_id so the DCR
+			// remediation warning emitted by isTransientNetworkError on a
+			// permanent 4xx (indicating a stale RFC 7591 registration)
+			// carries enough context for an operator to identify which
+			// upstream AS + client_id to re-register. Precedence (cached
+			// CIMD > cached DCR > static) lives next to
+			// resolveClientCredentials in pkg/auth/remote so both call
+			// sites stay in sync.
+			upstream, clientID := r.Config.RemoteAuthConfig.LogContext()
+
+			r.authenticatedTokenSource = auth.NewMonitoredTokenSource(
+				r.monitoringCtx,
+				tokenSource,
+				r.Config.BaseName,
+				upstream,
+				clientID,
+				adapter,
+			)
+			tokenSource = r.authenticatedTokenSource
+			r.authenticatedTokenSource.StartBackgroundMonitoring()
+		}
+
+		// Set the token source on the transport
+		transportHandler.SetTokenSource(tokenSource)
+
+		// Set the health check failure callback for remote servers
+		transportHandler.SetOnHealthCheckFailed(func() {
+			slog.Warn("health check failed for remote server, marking as unhealthy", "server", r.Config.BaseName)
+			// Use Background context for status update callback - this is triggered by health check
+			// failure and is independent of any request context. The callback is fired asynchronously
+			// and needs its own lifecycle separate from the transport's parent context.
+			if err := r.statusManager.SetWorkloadStatus(
+				context.Background(),
+				r.Config.BaseName,
+				rt.WorkloadStatusUnhealthy,
+				"Health check failed",
+			); err != nil {
+				slog.Error("failed to update workload status", "error", err)
+			}
+		})
+
+		// Set the unauthorized response callback for bearer token authentication
+		errorMsg := "Bearer token authentication failed. Please restart the server with a new token"
+		transportHandler.SetOnUnauthorizedResponse(func() {
+			slog.Warn("received 401 Unauthorized response for remote server, marking as unauthenticated", "server", r.Config.BaseName)
+			// Use Background context for status update callback - this is triggered by 401 response
+			// and is independent of any request context. The callback is fired asynchronously
+			// and needs its own lifecycle separate from the transport's parent context.
+			if err := r.statusManager.SetWorkloadStatus(
+				context.Background(),
+				r.Config.BaseName,
+				rt.WorkloadStatusUnauthenticated,
+				errorMsg,
+			); err != nil {
+				slog.Error("failed to update workload status", "error", err)
+			}
+		})
+	}
+
+	// Configure stateless mode if requested. Stateless mode applies to any
+	// streamable-HTTP server (remote or local container) where the upstream
+	// only accepts POST and does not support SSE-based sessions.
+	if r.Config.Stateless {
+		httpT, ok := transportHandler.(*transport.HTTPTransport)
+		if !ok {
+			return fmt.Errorf("--stateless requires streamable-HTTP or SSE transport, got %T", transportHandler)
+		}
+		httpT.SetStateless(true)
+	}
+
+	// Start the transport (which also starts the container and monitoring)
+	slog.Debug("starting transport", "transport", r.Config.Transport, "container", r.Config.ContainerName)
+	if err := transportHandler.Start(ctx); err != nil {
+		return fmt.Errorf("failed to start transport: %w", err)
+	}
+
+	slog.Debug("mcp server started successfully", "container", r.Config.ContainerName)
+
+	// Wait for the MCP server to accept initialize requests before updating client configurations.
+	// This prevents timing issues where clients try to connect before the server is fully ready.
+	// We repeatedly call initialize until it succeeds (up to 5 minutes).
+	// Note: We skip this check for pure STDIO transport because STDIO servers may reject
+	// multiple initialize calls (see #1982).
+	transportType := labels.GetTransportType(r.Config.ContainerLabels)
+	serverURL := transport.GenerateMCPServerURL(
+		transportType,
+		string(r.Config.ProxyMode),
+		"localhost",
+		r.Config.Port,
+		r.Config.ContainerName,
+		r.Config.RemoteURL)
+
+	// Only wait for initialization on non-STDIO transports
+	// STDIO servers communicate directly via stdin/stdout and calling initialize multiple times
+	// can cause issues as the behavior is not specified by the MCP spec
+	if transportType != "stdio" {
+		// Repeatedly try calling initialize until it succeeds (up to 5 minutes)
+		// Some servers (like mcp-optimizer) can take significant time to start up.
+		// When OIDC auth is configured, the local proxy rejects the unauthenticated
+		// probe with 401/403, which still indicates the server is ready.
+		authExpected := r.Config.OIDCConfig != nil
+		if err := waitForInitializeSuccess(ctx, serverURL, transportType, authExpected, 5*time.Minute); err != nil {
+			slog.Warn("initialize not successful, but continuing", "error", err)
+			// Continue anyway to maintain backward compatibility, but log a warning
+		}
+	} else {
+		slog.Debug("skipping initialize check for STDIO transport")
+	}
+
+	// Update client configurations with the MCP server URL.
+	// Note that this function checks the configuration to determine which
+	// clients should be updated, if any.
+	clientManager, err := client.NewManager(ctx)
+	if err != nil {
+		slog.Warn("failed to create client manager", "error", err)
+	} else {
+		if err := clientManager.AddServerToClients(ctx, r.Config.ContainerName, serverURL, transportType, r.Config.Group); err != nil {
+			slog.Warn("failed to add server to client configurations", "error", err)
+		}
+	}
+
+	// Define a function to stop the MCP server
+	stopMCPServer := func(reason string) {
+		// Use Background context for cleanup operations. The parent context may already be
+		// cancelled when this cleanup function runs (e.g., on graceful shutdown or context
+		// cancellation). We need a fresh context with its own timeout to ensure cleanup
+		// operations complete successfully regardless of the parent context state.
+		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 1*time.Minute)
+		defer cleanupCancel()
+		slog.Debug("stopping MCP server", "reason", reason)
+
+		// Stop the transport (which also stops the container, monitoring, and handles removal)
+		slog.Debug("stopping transport", "transport", r.Config.Transport)
+		if err := transportHandler.Stop(cleanupCtx); err != nil {
+			slog.Warn("failed to stop transport", "error", err)
+		}
+
+		// Cleanup telemetry provider
+		if err := r.Cleanup(cleanupCtx); err != nil {
+			slog.Warn("failed to cleanup telemetry", "error", err)
+		}
+
+		// Remove the PID file if it exists. Use PID-guarded reset so that a
+		// dying process does not clobber the PID of a replacement process that
+		// started in the meantime (e.g. during thv rm + thv run).
+		if err := r.statusManager.ResetWorkloadPIDIfMatch(cleanupCtx, r.Config.BaseName, os.Getpid()); err != nil {
+			slog.Warn("failed to reset workload PID", "container", r.Config.ContainerName, "error", err)
+		}
+
+		slog.Debug("mcp server stopped", "container", r.Config.ContainerName)
+	}
+
+	if err := r.statusManager.SetWorkloadPID(ctx, r.Config.BaseName, os.Getpid()); err != nil {
+		slog.Warn("failed to set workload PID", "error", err)
+	}
+
+	if process.IsDetached() {
+		// We're a detached process running in foreground mode
+		// Write the PID to a file so the stop command can kill the process
+		slog.Info("running as detached process", "pid", os.Getpid())
+	} else {
+		// Notify that user that the workload has started successfully when using --foreground
+		slog.Info("workload started successfully, press Ctrl+C to stop")
+	}
+
+	// Create a done channel to signal when the server has been stopped
+	doneCh := make(chan struct{})
+
+	// Start a goroutine to monitor the transport's running state
+	go func() {
+		for {
+			// Safely check if transportHandler is nil
+			if transportHandler == nil {
+				slog.Debug("transport handler is nil, exiting monitoring routine")
+				close(doneCh)
+				return
+			}
+
+			// Check if the transport is still running
+			running, err := transportHandler.IsRunning()
+			if err != nil {
+				slog.Error("error checking transport status", "error", err)
+				// Don't exit immediately on error, try again after pause
+				time.Sleep(1 * time.Second)
+				continue
+			}
+			if !running {
+				// Transport is no longer running (container exited or was stopped)
+				slog.Warn("transport is no longer running, attempting automatic restart")
+				close(doneCh)
+				return
+			}
+
+			// Sleep for a short time before checking again
+			time.Sleep(1 * time.Second)
+		}
+	}()
+
+	// At this point, we can consider the workload started successfully.
+	// However, we should preserve unauthenticated status if it was already set
+	// (e.g., if bearer token authentication failed during initialization)
+	currentWorkload, err := r.statusManager.GetWorkload(ctx, r.Config.BaseName)
+	if err != nil && !errors.Is(err, rt.ErrWorkloadNotFound) {
+		slog.Warn("failed to get current workload status", "error", err)
+	}
+
+	// Only set status to running if it's not already unauthenticated
+	// This preserves the unauthenticated state when bearer token authentication fails
+	if err == nil && currentWorkload.Status == rt.WorkloadStatusUnauthenticated {
+		slog.Debug("preserving unauthenticated status for workload", "workload", r.Config.BaseName)
+	} else {
+		if err := r.statusManager.SetWorkloadStatus(ctx, r.Config.BaseName, rt.WorkloadStatusRunning, ""); err != nil {
+			// If we can't set the status to `running` - treat it as a fatal error.
+			return fmt.Errorf("failed to set workload status: %w", err)
+		}
+	}
+
+	// Wait for either a signal or the done channel to be closed
+	select {
+	case <-ctx.Done():
+		stopMCPServer("Context cancelled")
+	case <-doneCh:
+		// The transport has already been stopped (likely by the container exit)
+		// Remove the old PID from the state file. Use PID-guarded reset to
+		// avoid clobbering a replacement process's PID.
+		if err := r.statusManager.ResetWorkloadPIDIfMatch(ctx, r.Config.BaseName, os.Getpid()); err != nil {
+			slog.Warn("failed to reset workload PID", "workload", r.Config.BaseName, "error", err)
+		}
+
+		// Check if workload still exists (using status manager and runtime)
+		// If it doesn't exist, it was removed - clean up client config
+		// If it exists, it exited unexpectedly - signal restart needed
+		exists, checkErr := r.doesWorkloadExist(ctx, r.Config.BaseName)
+		if checkErr != nil {
+			slog.Warn("failed to check if workload exists", "error", checkErr)
+			// Assume restart needed if we can't check
+		} else if !exists {
+			// Workload doesn't exist in `thv ls` - it was removed
+			slog.Debug("Workload no longer exists, removing from client configurations",
+				"workload", r.Config.BaseName)
+			clientManager, clientErr := client.NewManager(ctx)
+			if clientErr == nil {
+				removeErr := clientManager.RemoveServerFromClients(
+					ctx,
+					r.Config.ContainerName,
+					r.Config.Group,
+				)
+				if removeErr != nil {
+					slog.Warn("failed to remove from client config", "error", removeErr)
+				} else {
+					slog.Debug("Successfully removed from client configurations",
+						"container", r.Config.ContainerName)
+				}
+			}
+			slog.Debug("MCP server stopped and cleaned up", "container", r.Config.ContainerName)
+			return nil // Exit gracefully, no restart
+		}
+
+		// Workload still exists - signal restart needed
+		slog.Debug("MCP server stopped, restart needed", "container", r.Config.ContainerName)
+		return ErrContainerExitedRestartNeeded
+	}
+
+	return nil
+}
+
+// doesWorkloadExist checks if a workload exists in the status manager and runtime.
+// For remote workloads, it trusts the status manager.
+// For container workloads, it verifies the container exists in the runtime.
+func (r *Runner) doesWorkloadExist(ctx context.Context, workloadName string) (bool, error) {
+	// Check if workload exists by trying to get it from status manager
+	workload, err := r.statusManager.GetWorkload(ctx, workloadName)
+	if err != nil {
+		if errors.Is(err, rt.ErrWorkloadNotFound) {
+			return false, nil
+		}
+		return false, fmt.Errorf("failed to check if workload exists: %w", err)
+	}
+
+	// If remote workload, check if it should exist
+	if workload.Remote {
+		// For remote workloads, trust the status manager
+		return workload.Status != rt.WorkloadStatusError, nil
+	}
+
+	// For container workloads, verify the container actually exists in the runtime
+	// Create a runtime instance to check if container exists
+	backend, err := ct.NewFactory().Create(ctx)
+	if err != nil {
+		slog.Warn("Failed to create runtime to check container existence", "error", err)
+		// Fall back to status manager only
+		return workload.Status != rt.WorkloadStatusError, nil
+	}
+
+	// Check if container exists in the runtime (not just running)
+	// GetWorkloadInfo will return an error if the container doesn't exist
+	_, err = backend.GetWorkloadInfo(ctx, workloadName)
+	if err != nil {
+		// Container doesn't exist
+		slog.Debug("Container not found in runtime", "workload", workloadName, "error", err)
+		return false, nil
+	}
+
+	// Container exists (may be running or stopped)
+	return true, nil
+}
+
+// handleRemoteAuthentication handles authentication for remote MCP servers
+func (r *Runner) handleRemoteAuthentication(ctx context.Context) (oauth2.TokenSource, error) {
+	if r.Config.RemoteAuthConfig == nil {
+		return nil, nil
+	}
+
+	// Get the secret manager for token storage
+	secretManager, err := authsecrets.GetSecretsManager()
+	if err != nil {
+		// Secret manager not available - log warning but continue
+		// OAuth will work but tokens won't be persisted across restarts
+		slog.Warn("Secret manager not available, OAuth tokens will not be persisted", "error", err)
+	}
+
+	// Create remote authentication handler
+	authHandler := remote.NewHandler(r.Config.RemoteAuthConfig)
+
+	// Set the secret provider for retrieving cached tokens
+	if secretManager != nil {
+		authHandler.SetSecretProvider(secretManager)
+	}
+
+	// Set up token persister to save tokens across restarts
+	if secretManager != nil {
+		authHandler.SetTokenPersister(func(refreshToken string, expiry time.Time) error {
+			// Generate a unique secret name for this workload's refresh token
+			secretName, err := authsecrets.GenerateUniqueSecretNameWithPrefix(
+				r.Config.Name,
+				"OAUTH_REFRESH_TOKEN_",
+				secretManager,
+			)
+			if err != nil {
+				return fmt.Errorf("failed to generate secret name: %w", err)
+			}
+
+			// Store the refresh token in the secret manager
+			if err := authsecrets.StoreSecretInManagerWithProvider(ctx, secretName, refreshToken, secretManager); err != nil {
+				return fmt.Errorf("failed to store refresh token: %w", err)
+			}
+
+			// Store the secret reference (not the actual token) in the config
+			r.Config.RemoteAuthConfig.CachedRefreshTokenRef = secretName
+			r.Config.RemoteAuthConfig.CachedTokenExpiry = expiry
+
+			// Save the updated config to persist the reference
+			if err := r.Config.SaveState(ctx); err != nil {
+				return fmt.Errorf("failed to save config with token reference: %w", err)
+			}
+
+			slog.Debug("Stored OAuth refresh token in secret manager", "secret_name", secretName)
+			return nil
+		})
+
+		// Set up client credentials persister for DCR (Dynamic Client Registration)
+		authHandler.SetClientCredentialsPersister(func(clientID, clientSecret string) error {
+			// Store client ID directly (it's public information)
+			r.Config.RemoteAuthConfig.CachedClientID = clientID
+
+			// Only store client secret if it's non-empty (PKCE flows may not have one)
+			if clientSecret != "" {
+				clientSecretSecretName, err := authsecrets.GenerateUniqueSecretNameWithPrefix(
+					r.Config.Name,
+					"OAUTH_CLIENT_SECRET_",
+					secretManager,
+				)
+				if err != nil {
+					return fmt.Errorf("failed to generate client secret secret name: %w", err)
+				}
+
+				if err := authsecrets.StoreSecretInManagerWithProvider(ctx, clientSecretSecretName, clientSecret, secretManager); err != nil {
+					return fmt.Errorf("failed to store client secret: %w", err)
+				}
+				r.Config.RemoteAuthConfig.CachedClientSecretRef = clientSecretSecretName
+			}
+
+			// Save the updated config to persist the credentials
+			if err := r.Config.SaveState(ctx); err != nil {
+				return fmt.Errorf("failed to save config with client credentials: %w", err)
+			}
+
+			slog.Debug("Stored DCR client credentials", "client_id", clientID)
+			return nil
+		})
+	}
+
+	// Perform authentication
+	tokenSource, err := authHandler.Authenticate(ctx, r.Config.RemoteURL)
+	if err != nil {
+		return nil, fmt.Errorf("remote authentication failed: %w", err)
+	}
+
+	return tokenSource, nil
+}
+
+// Cleanup performs cleanup operations for the runner, including shutting down all middleware.
+func (r *Runner) Cleanup(ctx context.Context) error {
+	// For simplicity, return the last error we encounter during cleanup.
+	var lastErr error
+
+	// Clean up all middleware instances
+	for i, middleware := range r.middlewares {
+		if err := middleware.Close(); err != nil {
+			slog.Warn("Failed to close middleware", "index", i, "error", err)
+			lastErr = err
+		}
+	}
+
+	// Close embedded auth server
+	if r.embeddedAuthServer != nil {
+		if err := r.embeddedAuthServer.Close(); err != nil {
+			slog.Warn("Failed to close embedded auth server", "error", err)
+			if lastErr == nil {
+				lastErr = err
+			}
+		}
+	}
+
+	// Legacy telemetry provider cleanup (will be removed when telemetry middleware handles it)
+	if r.telemetryProvider != nil {
+		slog.Debug("Shutting down telemetry provider")
+		if err := r.telemetryProvider.Shutdown(ctx); err != nil {
+			slog.Warn("failed to shutdown telemetry provider", "error", err)
+			lastErr = err
+		}
+	}
+
+	// Stop background authentication monitoring for remote workloads
+	// Cancel the monitoring context to stop the background goroutine
+	if r.monitoringCancel != nil {
+		r.monitoringCancel()
+		r.monitoringCancel = nil
+	}
+
+	return lastErr
+}
+
+// isReadyStatus reports whether an HTTP status code from the readiness probe indicates
+// the MCP server is ready. A 200 always means ready. When authExpected is true, a 401 or
+// 403 also means ready: it proves the local proxy listener is up and its auth middleware
+// is enforcing credentials against the unauthenticated probe.
+//
+// Today ToolHive's OIDC validator rejects the tokenless probe with 401; 403 is accepted
+// defensively to cover upstream IdP or edge behavior, not any current ToolHive code path.
+func isReadyStatus(statusCode int, authExpected bool) bool {
+	if statusCode == http.StatusOK {
+		return true
+	}
+	return authExpected && (statusCode == http.StatusUnauthorized || statusCode == http.StatusForbidden)
+}
+
+// waitForInitializeSuccess repeatedly checks if the MCP server is ready to accept requests.
+// This prevents timing issues where clients try to connect before the server is fully ready.
+// It makes repeated attempts with exponential backoff up to a maximum timeout.
+//
+// The probe is unauthenticated and targets ToolHive's own local proxy. When authExpected
+// is true (the workload has OIDC configured), an HTTP 401 or 403 is treated as "ready":
+// it proves the proxy listener is up and the auth middleware is enforcing credentials. When
+// authExpected is false, only HTTP 200 is accepted.
+//
+// Note that in the OIDC case readiness reflects only the proxy/auth layer being up — the
+// auth middleware rejects the probe before the request reaches the backend, so this probe
+// does not confirm backend MCP server initialization.
+//
+// Note: This function should not be called for STDIO transport.
+func waitForInitializeSuccess(
+	ctx context.Context,
+	serverURL, transportType string,
+	authExpected bool,
+	maxWaitTime time.Duration,
+) error {
+	// Determine the endpoint and method to use based on transport type
+	var endpoint string
+	var method string
+	var payload string
+
+	switch transportType {
+	case "streamable-http", "streamable":
+		// For streamable-http, send initialize request to /mcp endpoint
+		// Format: http://localhost:port/mcp
+		endpoint = serverURL
+		method = "POST"
+		payload = `{"jsonrpc":"2.0","method":"initialize","id":"toolhive-init-check",` +
+			`"params":{"protocolVersion":"2024-11-05","capabilities":{},` +
+			`"clientInfo":{"name":"toolhive","version":"1.0"}}}`
+	case "sse":
+		// For SSE, just check if the SSE endpoint is available
+		// We can't easily call initialize without establishing a full SSE connection,
+		// so we just verify the endpoint responds.
+		// Format: http://localhost:port/sse#container-name -> http://localhost:port/sse
+		endpoint = serverURL
+		// Remove fragment if present (everything after #)
+		if idx := strings.Index(endpoint, "#"); idx != -1 {
+			endpoint = endpoint[:idx]
+		}
+		method = "GET"
+		payload = ""
+	default:
+		// For other transports, no HTTP check is needed
+		slog.Debug("Skipping readiness check for transport type", "transport", transportType)
+		return nil
+	}
+
+	// Setup retry logic with exponential backoff
+	startTime := time.Now()
+	attempt := 0
+	delay := 100 * time.Millisecond
+	maxDelay := 2 * time.Second // Cap at 2 seconds between retries
+
+	slog.Info("Waiting for MCP server to be ready", "endpoint", endpoint, "timeout", maxWaitTime)
+
+	// Create HTTP client with a reasonable timeout for requests
+	httpClient := &http.Client{
+		Timeout: 10 * time.Second,
+	}
+
+	for {
+		attempt++
+
+		// Make the readiness check request
+		var req *http.Request
+		var err error
+		if payload != "" {
+			req, err = http.NewRequestWithContext(ctx, method, endpoint, bytes.NewBufferString(payload))
+		} else {
+			req, err = http.NewRequestWithContext(ctx, method, endpoint, nil)
+		}
+
+		if err != nil {
+			slog.Debug("Failed to create request", "attempt", attempt, "error", err)
+		} else {
+			if method == "POST" {
+				req.Header.Set("Content-Type", "application/json")
+				req.Header.Set("Accept", "application/json, text/event-stream")
+				req.Header.Set("MCP-Protocol-Version", "2024-11-05")
+			}
+
+			resp, err := httpClient.Do(req) // #nosec G704 -- endpoint is the local MCP server readiness URL
+			if err == nil {
+				//nolint:errcheck // Ignoring close error on response body in error path
+				defer resp.Body.Close()
+
+				if isReadyStatus(resp.StatusCode, authExpected) {
+					elapsed := time.Since(startTime)
+					slog.Debug("MCP server is ready", //nolint:gosec // G706: status code and attempt are integers
+						"elapsed", elapsed, "attempt", attempt, "status_code", resp.StatusCode)
+					return nil
+				}
+
+				slog.Debug("Server returned status", //nolint:gosec // G706: status code and attempt are integers
+					"status_code", resp.StatusCode, "attempt", attempt)
+			} else {
+				slog.Debug("Failed to reach endpoint", "attempt", attempt, "error", err)
+			}
+		}
+
+		// Check if we've exceeded the maximum wait time
+		elapsed := time.Since(startTime)
+		if elapsed >= maxWaitTime {
+			return fmt.Errorf("initialize not successful after %v (%d attempts)", elapsed, attempt)
+		}
+
+		// Wait before retrying
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("context cancelled while waiting for initialize")
+		case <-time.After(delay):
+			// Continue to next attempt
+		}
+
+		// Update delay for next iteration with exponential backoff
+		delay *= 2
+		if delay > maxDelay {
+			delay = maxDelay
+		}
+	}
+}

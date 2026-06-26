@@ -1,0 +1,31 @@
+{
+    "include": ["src", "tests"],
+    "exclude": [
+        "benchmarks",
+        "dist",
+        ".venv",
+        "src/ogham/exporters/obsidian.py",
+        "src/ogham/recompute.py",
+        "src/ogham/topic_summaries.py",
+        "src/ogham/wiki_lint.py",
+        "bench.py",
+        "tests/bench_stress.py",
+        "agent_zero_import.py",
+        "create_agent_zero_fixture.py",
+        "tests/test_agent_zero_import.py",
+        "tests/test_service_embedding.py",
+        "src/ogham/dashboard_server.py",
+        "src/ogham/embeddings.py",
+        "src/ogham/extraction.py",
+        "src/ogham/health.py",
+        "src/ogham/onnx_embedder.py",
+        "src/ogham/prefab",
+        "src/ogham/reranker.py"
+    ],
+    "pythonVersion": "3.13",
+    "typeCheckingMode": "standard",
+    "venvPath": ".",
+    "venv": ".venv",
+    "reportMissingImports": "warning",
+    "reportMissingModuleSource": "warning"
+}

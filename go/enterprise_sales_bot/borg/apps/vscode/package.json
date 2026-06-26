@@ -1,0 +1,175 @@
+{
+  "name": "tormentnexus-vscode-extension",
+  "displayName": "TormentNexus Plugin",
+  "version": "1.0.0-alpha.160",
+  "description": "Connect VS Code to TormentNexus Hub for AI agent orchestration, memory management, and tool invocation",
+  "publisher": "tormentnexus",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "enabledApiProposals": [
+    "terminalDataWriteEvent"
+  ],
+  "categories": [
+    "Other",
+    "Machine Learning"
+  ],
+  "keywords": [
+    "ai",
+    "agents",
+    "mcp",
+    "orchestration",
+    "memory"
+  ],
+  "main": "./dist/extension.js",
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "tormentnexus.connect",
+        "title": "TormentNexus: Connect to Core"
+      },
+      {
+        "command": "tormentnexus.disconnect",
+        "title": "TormentNexus: Disconnect from Core"
+      },
+      {
+        "command": "tormentnexus.showStatus",
+        "title": "TormentNexus: Show Hub Status"
+      },
+      {
+        "command": "tormentnexus.runAgent",
+        "title": "TormentNexus: Run Agent"
+      },
+      {
+        "command": "tormentnexus.searchMemory",
+        "title": "TormentNexus: Search Memory"
+      },
+      {
+        "command": "tormentnexus.ingestUrl",
+        "title": "TormentNexus: Ingest URL to Knowledge"
+      },
+      {
+        "command": "tormentnexus.ingestSelectionToRag",
+        "title": "TormentNexus: Ingest Selection to RAG"
+      },
+      {
+        "command": "tormentnexus.rememberSelection",
+        "title": "TormentNexus: Remember Selection"
+      },
+      {
+        "command": "tormentnexus.listTools",
+        "title": "TormentNexus: List Tools"
+      },
+      {
+        "command": "tormentnexus.invokeTool",
+        "title": "TormentNexus: Invoke Tool"
+      },
+      {
+        "command": "tormentnexus.openDashboard",
+        "title": "TormentNexus: Open Dashboard"
+      },
+      {
+        "command": "tormentnexus.showLogs",
+        "title": "TormentNexus: Show Logs"
+      },
+      {
+        "command": "tormentnexus.startDebate",
+        "title": "TormentNexus: Start Council Debate"
+      },
+      {
+        "command": "tormentnexus.viewAnalytics",
+        "title": "TormentNexus: View Supervisor Analytics"
+      },
+      {
+        "command": "tormentnexus.listDebateTemplates",
+        "title": "TormentNexus: List Debate Templates"
+      },
+      {
+        "command": "tormentnexus.architectMode",
+        "title": "TormentNexus: Architect Mode (Two-Model)"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "tormentnexusSidebar",
+          "title": "TormentNexus",
+          "icon": "resources/tormentnexus.svg"
+        }
+      ]
+    },
+    "views": {
+      "tormentnexusSidebar": [
+        {
+          "type": "webview",
+          "id": "tormentnexus.dispatchView",
+          "name": "Mini Dashboard"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "TormentNexus",
+      "properties": {
+        "tormentnexus.coreUrl": {
+          "type": "string",
+          "default": "ws://localhost:3001",
+          "description": "URL of the TormentNexus Core WebSocket server"
+        },
+        "tormentnexus.apiKey": {
+          "type": "string",
+          "default": "",
+          "description": "API key for authenticated Core access"
+        },
+        "tormentnexus.dashboardUrl": {
+          "type": "string",
+          "default": "http://localhost:3000",
+          "description": "Base URL of the TormentNexus web dashboard used for deep links from the VS Code extension"
+        },
+        "tormentnexus.autoConnect": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically connect to Core on startup"
+        }
+      }
+    },
+    "menus": {
+      "editor/context": [
+        {
+          "command": "tormentnexus.ingestSelectionToRag",
+          "when": "editorHasSelection",
+          "group": "tormentnexus@1"
+        },
+        {
+          "command": "tormentnexus.rememberSelection",
+          "when": "editorHasSelection",
+          "group": "tormentnexus@2"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run build",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "lint": "echo \"Linting skipped\"",
+    "build": "tsup src/extension.ts --format cjs --external vscode",
+    "package": "vsce package"
+  },
+  "devDependencies": {
+    "@types/node": "20.x",
+    "@types/vscode": "^1.85.0",
+    "@types/ws": "^8.5.10",
+    "@typescript-eslint/eslint-plugin": "^6.13.1",
+    "@typescript-eslint/parser": "^6.13.1",
+    "eslint": "^9.26.0",
+    "tsup": "^8.0.2",
+    "typescript": "^5.3.3",
+    "vsce": "^2.15.0"
+  },
+  "dependencies": {
+    "ws": "^8.21.0"
+  }
+}

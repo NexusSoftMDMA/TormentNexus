@@ -1,0 +1,909 @@
+// SPDX-FileCopyrightText: Copyright 2025 Stacklok, Inc.
+// SPDX-License-Identifier: Apache-2.0
+
+package composer
+
+import (
+	"context"
+	"errors"
+	"sync"
+	"sync/atomic"
+	"testing"
+	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+
+	"github.com/stacklok/toolhive/pkg/vmcp"
+	"github.com/stacklok/toolhive/pkg/vmcp/config"
+	"github.com/stacklok/toolhive/pkg/vmcp/mocks"
+	routermocks "github.com/stacklok/toolhive/pkg/vmcp/router/mocks"
+)
+
+func TestWorkflowEngine_ExecuteWorkflow_Success(t *testing.T) {
+	t.Parallel()
+	te := newTestEngine(t)
+
+	// Two-step workflow: create issue -> add label
+	def := simpleWorkflow("test-workflow",
+		toolStep("create_issue", "github.create_issue", map[string]any{
+			"title": "{{.params.title}}",
+			"body":  "Test body",
+		}),
+		toolStepWithDeps("add_label", "github.add_label", map[string]any{
+			"issue": "{{.steps.create_issue.output.number}}",
+			"label": "bug",
+		}, []string{"create_issue"}),
+	)
+
+	// Expectations
+	te.expectToolCall("github.create_issue",
+		map[string]any{"title": "Test Issue", "body": "Test body"},
+		map[string]any{"number": 123, "url": "https://github.com/org/repo/issues/123"})
+
+	te.expectToolCallWithAnyArgs("github.add_label", map[string]any{"success": true})
+
+	// Execute
+	result, err := execute(t, te.Engine, def, map[string]any{"title": "Test Issue"})
+
+	// Verify
+	require.NoError(t, err)
+	assert.Equal(t, WorkflowStatusCompleted, result.Status)
+	assert.Len(t, result.Steps, 2)
+	assert.Equal(t, StepStatusCompleted, result.Steps["create_issue"].Status)
+	assert.Equal(t, StepStatusCompleted, result.Steps["add_label"].Status)
+}
+
+func TestWorkflowEngine_ExecuteWorkflow_StepFailure(t *testing.T) {
+	t.Parallel()
+	te := newTestEngine(t)
+
+	def := simpleWorkflow("test", toolStep("fail", "test.tool", map[string]any{"p": "v"}))
+
+	te.expectToolCallWithError("test.tool", map[string]any{"p": "v"}, errors.New("tool failed"))
+
+	result, err := execute(t, te.Engine, def, nil)
+
+	require.Error(t, err)
+	assert.Equal(t, WorkflowStatusFailed, result.Status)
+	assert.Equal(t, StepStatusFailed, result.Steps["fail"].Status)
+}
+
+func TestWorkflowEngine_ExecuteWorkflow_WithRetry(t *testing.T) {
+	t.Parallel()
+	te := newTestEngine(t)
+
+	def := &WorkflowDefinition{
+		Name: "retry-test",
+		Steps: []WorkflowStep{{
+			ID:   "flaky",
+			Type: StepTypeTool,
+			Tool: "test.tool",
+			OnError: &ErrorHandler{
+				Action:     "retry",
+				RetryCount: 2,
+				RetryDelay: 10 * time.Millisecond,
+			},
+		}},
+	}
+
+	target := &vmcp.BackendTarget{WorkloadID: "test", BaseURL: "http://test:8080"}
+	te.Router.EXPECT().RouteTool(gomock.Any(), "test.tool").Return(target, nil)
+
+	// Fail once, then succeed
+	gomock.InOrder(
+		te.Backend.EXPECT().CallTool(gomock.Any(), target, "test.tool", gomock.Any(), gomock.Any()).
+			Return(nil, errors.New("temp fail")),
+		te.Backend.EXPECT().CallTool(gomock.Any(), target, "test.tool", gomock.Any(), gomock.Any()).
+			Return(&vmcp.ToolCallResult{
+				StructuredContent: map[string]any{"ok": true},
+				Content:           []vmcp.Content{},
+			}, nil),
+	)
+
+	result, err := execute(t, te.Engine, def, nil)
+
+	require.NoError(t, err)
+	assert.Equal(t, WorkflowStatusCompleted, result.Status)
+	assert.Equal(t, 1, result.Steps["flaky"].RetryCount)
+}
+
+func TestWorkflowEngine_ExecuteWorkflow_IsErrorHandling(t *testing.T) {
+	t.Parallel()
+	te := newTestEngine(t)
+
+	def := &WorkflowDefinition{
+		Name: "iserror-test",
+		Steps: []WorkflowStep{{
+			ID:   "failing",
+			Type: StepTypeTool,
+			Tool: "test.tool",
+			OnError: &ErrorHandler{
+				Action:     "retry",
+				RetryCount: 2,
+				RetryDelay: 10 * time.Millisecond,
+			},
+		}},
+	}
+
+	target := &vmcp.BackendTarget{WorkloadID: "test", BaseURL: "http://test:8080"}
+	te.Router.EXPECT().RouteTool(gomock.Any(), "test.tool").Return(target, nil)
+
+	// Return IsError=true twice, then succeed
+	// This verifies that IsError=true triggers retry logic
+	gomock.InOrder(
+		te.Backend.EXPECT().CallTool(gomock.Any(), target, "test.tool", gomock.Any(), gomock.Any()).
+			Return(&vmcp.ToolCallResult{
+				IsError: true,
+				Content: []vmcp.Content{{
+					Type: vmcp.ContentTypeText,
+					Text: "Tool execution failed: invalid input",
+				}},
+			}, nil),
+		te.Backend.EXPECT().CallTool(gomock.Any(), target, "test.tool", gomock.Any(), gomock.Any()).
+			Return(&vmcp.ToolCallResult{
+				IsError: true,
+				Content: []vmcp.Content{{
+					Type: vmcp.ContentTypeText,
+					Text: "Tool execution failed: temporary error",
+				}},
+			}, nil),
+		te.Backend.EXPECT().CallTool(gomock.Any(), target, "test.tool", gomock.Any(), gomock.Any()).
+			Return(&vmcp.ToolCallResult{
+				StructuredContent: map[string]any{"ok": true},
+				Content:           []vmcp.Content{},
+				IsError:           false,
+			}, nil),
+	)
+
+	result, err := execute(t, te.Engine, def, nil)
+
+	require.NoError(t, err)
+	assert.Equal(t, WorkflowStatusCompleted, result.Status)
+	assert.Equal(t, 2, result.Steps["failing"].RetryCount, "Should have retried twice")
+}
+
+func TestWorkflowEngine_ExecuteWorkflow_IsErrorExhaustsRetries(t *testing.T) {
+	t.Parallel()
+	te := newTestEngine(t)
+
+	def := &WorkflowDefinition{
+		Name: "iserror-exhaust-test",
+		Steps: []WorkflowStep{{
+			ID:   "failing",
+			Type: StepTypeTool,
+			Tool: "test.tool",
+			OnError: &ErrorHandler{
+				Action:     "retry",
+				RetryCount: 2,
+				RetryDelay: 10 * time.Millisecond,
+			},
+		}},
+	}
+
+	target := &vmcp.BackendTarget{WorkloadID: "test", BaseURL: "http://test:8080"}
+	te.Router.EXPECT().RouteTool(gomock.Any(), "test.tool").Return(target, nil)
+
+	// Always return IsError=true to exhaust all retries
+	te.Backend.EXPECT().CallTool(gomock.Any(), target, "test.tool", gomock.Any(), gomock.Any()).
+		Return(&vmcp.ToolCallResult{
+			IsError: true,
+			Content: []vmcp.Content{{
+				Type: vmcp.ContentTypeText,
+				Text: "Persistent error: operation failed",
+			}},
+		}, nil).Times(3) // Initial + 2 retries
+
+	result, err := execute(t, te.Engine, def, nil)
+
+	require.Error(t, err)
+	assert.Equal(t, WorkflowStatusFailed, result.Status)
+	assert.ErrorIs(t, err, vmcp.ErrToolExecutionFailed, "Should wrap ErrToolExecutionFailed")
+	assert.Contains(t, err.Error(), "Persistent error", "Should contain extracted error message")
+	assert.Equal(t, 2, result.Steps["failing"].RetryCount, "Should have retried twice")
+}
+
+func TestWorkflowEngine_ExecuteWorkflow_ConditionalSkip(t *testing.T) {
+	t.Parallel()
+	te := newTestEngine(t)
+
+	def := &WorkflowDefinition{
+		Name: "conditional",
+		Steps: []WorkflowStep{
+			toolStep("always", "test.tool1", nil),
+			{
+				ID:        "conditional",
+				Type:      StepTypeTool,
+				Tool:      "test.tool2",
+				Condition: "{{if eq .params.enabled true}}true{{else}}false{{end}}",
+			},
+		},
+	}
+
+	te.expectToolCall("test.tool1", nil, map[string]any{"ok": true})
+	// tool2 should NOT be called (condition is false)
+
+	result, err := execute(t, te.Engine, def, map[string]any{"enabled": false})
+
+	require.NoError(t, err)
+	assert.Equal(t, StepStatusCompleted, result.Steps["always"].Status)
+	assert.Equal(t, StepStatusSkipped, result.Steps["conditional"].Status)
+}
+
+func TestWorkflowEngine_ValidateWorkflow(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		def    *WorkflowDefinition
+		errMsg string
+	}{
+		{"valid", simpleWorkflow("test", toolStep("s1", "t1", nil)), ""},
+		{"nil workflow", nil, "workflow definition is nil"},
+		{"missing name", &WorkflowDefinition{Steps: []WorkflowStep{toolStep("s1", "t1", nil)}}, "name is required"},
+		{"no steps", &WorkflowDefinition{Name: "test"}, "at least one step"},
+		{"duplicate IDs", simpleWorkflow("test", toolStep("s1", "t1", nil), toolStep("s1", "t2", nil)), "duplicate step ID"},
+		{"circular deps", simpleWorkflow("test",
+			toolStepWithDeps("s1", "t1", nil, []string{"s2"}),
+			toolStepWithDeps("s2", "t2", nil, []string{"s1"})), "circular dependency"},
+		{"invalid dep", simpleWorkflow("test", toolStepWithDeps("s1", "t1", nil, []string{"unknown"})), "non-existent"},
+		{"too many steps", &WorkflowDefinition{Name: "test", Steps: make([]WorkflowStep, 101)}, "too many steps"},
+	}
+
+	te := newTestEngine(t)
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			err := te.Engine.ValidateWorkflow(context.Background(), tt.def)
+			if tt.errMsg == "" {
+				require.NoError(t, err)
+			} else {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.errMsg)
+			}
+		})
+	}
+}
+
+func TestWorkflowEngine_ExecuteWorkflow_Timeout(t *testing.T) {
+	t.Parallel()
+	te := newTestEngine(t)
+
+	def := &WorkflowDefinition{
+		Name:    "timeout-test",
+		Timeout: 30 * time.Millisecond, // Shorter timeout for reliable test
+		Steps: []WorkflowStep{
+			toolStep("s1", "test.tool", nil),
+			toolStep("s2", "test.tool", nil),
+		},
+	}
+
+	target := &vmcp.BackendTarget{WorkloadID: "test", BaseURL: "http://test:8080"}
+	// Both steps can run in parallel, so expect multiple calls
+	te.Router.EXPECT().RouteTool(gomock.Any(), "test.tool").Return(target, nil).AnyTimes()
+	te.Backend.EXPECT().CallTool(gomock.Any(), target, "test.tool", gomock.Any(), gomock.Any()).
+		DoAndReturn(func(ctx context.Context, _ *vmcp.BackendTarget, _ string, _ map[string]any, _ map[string]any) (*vmcp.ToolCallResult, error) {
+			// Sleep longer than workflow timeout, but respect context cancellation
+			select {
+			case <-time.After(100 * time.Millisecond):
+				return &vmcp.ToolCallResult{
+					StructuredContent: map[string]any{"ok": true},
+					Content:           []vmcp.Content{},
+				}, nil
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			}
+		}).AnyTimes()
+
+	result, err := execute(t, te.Engine, def, nil)
+
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrWorkflowTimeout)
+	assert.Equal(t, WorkflowStatusTimedOut, result.Status)
+}
+
+func TestWorkflowEngine_ExecuteWorkflow_ParameterDefaults(t *testing.T) {
+	t.Parallel()
+	te := newTestEngine(t)
+
+	// Workflow with parameter that has a default value
+	def := &WorkflowDefinition{
+		Name: "with-defaults",
+		Parameters: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"url": map[string]any{
+					"type":    "string",
+					"default": "https://default.example.com",
+				},
+				"count": map[string]any{
+					"type":    "integer",
+					"default": 42,
+				},
+			},
+		},
+		Steps: []WorkflowStep{
+			toolStep("fetch", "fetch.tool", map[string]any{
+				"url":   "{{.params.url}}",
+				"count": "{{.params.count}}",
+			}),
+		},
+	}
+
+	// Expect tool call with default values applied
+	te.expectToolCall("fetch.tool",
+		map[string]any{"url": "https://default.example.com", "count": "42"},
+		map[string]any{"status": "ok"})
+
+	// Execute with empty params - defaults should be applied
+	result, err := execute(t, te.Engine, def, map[string]any{})
+
+	require.NoError(t, err)
+	assert.Equal(t, WorkflowStatusCompleted, result.Status)
+}
+
+func TestWorkflowEngine_ExecuteWorkflow_ParameterDefaultsOverride(t *testing.T) {
+	t.Parallel()
+	te := newTestEngine(t)
+
+	// Workflow with parameter defaults
+	def := &WorkflowDefinition{
+		Name: "with-defaults",
+		Parameters: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"url": map[string]any{
+					"type":    "string",
+					"default": "https://default.example.com",
+				},
+			},
+		},
+		Steps: []WorkflowStep{
+			toolStep("fetch", "fetch.tool", map[string]any{
+				"url": "{{.params.url}}",
+			}),
+		},
+	}
+
+	// Expect tool call with client-provided value (not default)
+	te.expectToolCall("fetch.tool",
+		map[string]any{"url": "https://custom.example.com"},
+		map[string]any{"status": "ok"})
+
+	// Execute with explicit param - should override default
+	result, err := execute(t, te.Engine, def, map[string]any{
+		"url": "https://custom.example.com",
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, WorkflowStatusCompleted, result.Status)
+}
+
+// TestWorkflowEngine_ParallelExecution tests parallel workflow execution
+// with dependencies, demonstrating the DAG-based execution model.
+func TestWorkflowEngine_ParallelExecution(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockRouter := routermocks.NewMockRouter(ctrl)
+	mockRouter.EXPECT().ResolveToolName(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, name string) string { return name }).
+		AnyTimes()
+	mockBackend := mocks.NewMockBackendClient(ctrl)
+	stateStore := NewInMemoryStateStore(1*time.Minute, 1*time.Hour)
+	engine := NewWorkflowEngine(mockRouter, mockBackend, nil, stateStore, nil, nil)
+
+	// Track execution timing to verify parallel execution
+	var executionMu sync.Mutex
+	// Use sequence numbers instead of wall-clock time to verify ordering.
+	// This is immune to race detector overhead and timing precision issues.
+	startSeq := make(map[string]int64)
+	endSeq := make(map[string]int64)
+	var seqCounter atomic.Int64
+	var concurrentCount int32
+	var maxConcurrent int32
+
+	// Helper to track execution timing
+	trackStart := func(stepID string) {
+		// Increment atomically outside the lock to reduce critical section
+		seq := seqCounter.Add(1)
+		executionMu.Lock()
+		startSeq[stepID] = seq
+		executionMu.Unlock()
+
+		// Track concurrency
+		current := atomic.AddInt32(&concurrentCount, 1)
+		for {
+			maxVal := atomic.LoadInt32(&maxConcurrent)
+			if current <= maxVal || atomic.CompareAndSwapInt32(&maxConcurrent, maxVal, current) {
+				break
+			}
+		}
+	}
+
+	trackEnd := func(stepID string) {
+		atomic.AddInt32(&concurrentCount, -1)
+		seq := seqCounter.Add(1)
+		executionMu.Lock()
+		endSeq[stepID] = seq
+		executionMu.Unlock()
+	}
+
+	// Create a simple workflow that demonstrates parallel execution:
+	// Level 1 (parallel): fetch_logs, fetch_metrics
+	// Level 2 (sequential): create_report
+	workflow := &WorkflowDefinition{
+		Name: "incident-investigation-e2e",
+		Steps: []WorkflowStep{
+			{
+				ID:        "fetch_logs",
+				Type:      StepTypeTool,
+				Tool:      "test.fetch",
+				Arguments: map[string]any{"type": "logs"},
+			},
+			{
+				ID:        "fetch_metrics",
+				Type:      StepTypeTool,
+				Tool:      "test.fetch",
+				Arguments: map[string]any{"type": "metrics"},
+			},
+			{
+				ID:        "create_report",
+				Type:      StepTypeTool,
+				Tool:      "test.report",
+				DependsOn: []string{"fetch_logs", "fetch_metrics"},
+				Arguments: map[string]any{
+					"logs":    "{{.steps.fetch_logs.output.data}}",
+					"metrics": "{{.steps.fetch_metrics.output.data}}",
+				},
+			},
+		},
+	}
+
+	// Setup mock expectations with timing tracking
+	target := &vmcp.BackendTarget{WorkloadID: "test-backend", BaseURL: "http://test:8080"}
+
+	// fetch_logs
+	mockRouter.EXPECT().RouteTool(gomock.Any(), "test.fetch").Return(target, nil)
+	mockBackend.EXPECT().CallTool(gomock.Any(), target, "test.fetch", map[string]any{"type": "logs"}, gomock.Any()).
+		DoAndReturn(func(_ context.Context, _ *vmcp.BackendTarget, _ string, _ map[string]any, _ map[string]any) (*vmcp.ToolCallResult, error) {
+			trackStart("fetch_logs")
+			time.Sleep(50 * time.Millisecond)
+			trackEnd("fetch_logs")
+			return &vmcp.ToolCallResult{
+				StructuredContent: map[string]any{"data": "log_data"},
+				Content:           []vmcp.Content{},
+			}, nil
+		})
+
+	// fetch_metrics
+	mockRouter.EXPECT().RouteTool(gomock.Any(), "test.fetch").Return(target, nil)
+	mockBackend.EXPECT().CallTool(gomock.Any(), target, "test.fetch", map[string]any{"type": "metrics"}, gomock.Any()).
+		DoAndReturn(func(_ context.Context, _ *vmcp.BackendTarget, _ string, _ map[string]any, _ map[string]any) (*vmcp.ToolCallResult, error) {
+			trackStart("fetch_metrics")
+			time.Sleep(50 * time.Millisecond)
+			trackEnd("fetch_metrics")
+			return &vmcp.ToolCallResult{
+				StructuredContent: map[string]any{"data": "metrics_data"},
+				Content:           []vmcp.Content{},
+			}, nil
+		})
+
+	// create_report
+	mockRouter.EXPECT().RouteTool(gomock.Any(), "test.report").Return(target, nil)
+	mockBackend.EXPECT().CallTool(gomock.Any(), target, "test.report", gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, _ *vmcp.BackendTarget, _ string, _ map[string]any, _ map[string]any) (*vmcp.ToolCallResult, error) {
+			trackStart("create_report")
+			time.Sleep(30 * time.Millisecond)
+			trackEnd("create_report")
+			return &vmcp.ToolCallResult{
+				StructuredContent: map[string]any{"issue": "created"},
+				Content:           []vmcp.Content{},
+			}, nil
+		})
+
+	// Execute workflow
+	startTime := time.Now()
+	result, err := engine.ExecuteWorkflow(context.Background(), workflow, nil)
+	totalDuration := time.Since(startTime)
+
+	// Verify execution succeeded
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Equal(t, WorkflowStatusCompleted, result.Status)
+
+	// Verify state store captured workflow state
+	status, err := engine.GetWorkflowStatus(context.Background(), result.WorkflowID)
+	require.NoError(t, err)
+	assert.Equal(t, WorkflowStatusCompleted, status.Status)
+	assert.Equal(t, 3, len(status.CompletedSteps))
+
+	// Verify all steps executed
+	assert.Len(t, result.Steps, 3, "all 3 steps should have results")
+
+	// Verify parallel execution via concurrency tracking rather than wall-clock
+	// thresholds, which are inherently flaky on CI runners with variable load.
+	// The maxConcurrent counter directly proves that steps ran in parallel.
+	assert.GreaterOrEqual(t, int(maxConcurrent), 2,
+		"at least 2 steps should run concurrently")
+
+	// Sanity-check: total time should be well under the sequential sum
+	// (50+50+30 = 130ms). Use a generous 2s ceiling so this only catches
+	// a broken scheduler, not slow CI.
+	assert.Less(t, totalDuration, 2*time.Second,
+		"workflow took unreasonably long (%v), parallelism may be broken", totalDuration)
+
+	// Verify both fetch steps completed before report using sequence numbers
+	require.Len(t, startSeq, 3, "all steps should have start sequences")
+	require.Len(t, endSeq, 3, "all steps should have end sequences")
+	assert.Less(t, endSeq["fetch_logs"], startSeq["create_report"],
+		"fetch_logs (seq %d) should complete before create_report starts (seq %d)",
+		endSeq["fetch_logs"], startSeq["create_report"])
+	assert.Less(t, endSeq["fetch_metrics"], startSeq["create_report"],
+		"fetch_metrics (seq %d) should complete before create_report starts (seq %d)",
+		endSeq["fetch_metrics"], startSeq["create_report"])
+}
+
+func TestWorkflowEngine_ExecuteWorkflow_WithWorkflowMetadata(t *testing.T) {
+	t.Parallel()
+
+	te := newTestEngine(t)
+
+	// Workflow that uses workflow metadata in output
+	workflow := &WorkflowDefinition{
+		Name:        "metadata_test",
+		Description: "Test workflow metadata in output templates",
+		Steps: []WorkflowStep{
+			toolStep("fetch_data", "data.fetch", map[string]any{
+				"source": "{{.params.source}}",
+			}),
+			toolStepWithDeps("process", "data.process", map[string]any{
+				"data": "{{.steps.fetch_data.output.result}}",
+			}, []string{"fetch_data"}),
+		},
+		Output: &config.OutputConfig{
+			Properties: map[string]config.OutputProperty{
+				"summary": {
+					Type:        "object",
+					Description: "Workflow execution summary",
+					Properties: map[string]config.OutputProperty{
+						"workflow_id": {
+							Type:        "string",
+							Description: "Workflow execution ID",
+							Value:       "{{.workflow.id}}",
+						},
+						"duration_ms": {
+							Type:        "integer",
+							Description: "Workflow duration in milliseconds",
+							Value:       "{{.workflow.duration_ms}}",
+						},
+						"step_count": {
+							Type:        "integer",
+							Description: "Number of completed steps",
+							Value:       "{{.workflow.step_count}}",
+						},
+						"status": {
+							Type:        "string",
+							Description: "Workflow status",
+							Value:       "{{.workflow.status}}",
+						},
+						"start_time": {
+							Type:        "string",
+							Description: "Workflow start time",
+							Value:       "{{.workflow.start_time}}",
+						},
+					},
+				},
+				"data_result": {
+					Type:        "string",
+					Description: "Processed data result",
+					Value:       "{{.steps.process.output.value}}",
+				},
+			},
+		},
+	}
+
+	// Setup expectations with delays to ensure duration > 0
+	target := &vmcp.BackendTarget{
+		WorkloadID:   "test-backend",
+		WorkloadName: "test",
+		BaseURL:      "http://test:8080",
+	}
+
+	te.Router.EXPECT().RouteTool(gomock.Any(), "data.fetch").Return(target, nil)
+	te.Backend.EXPECT().CallTool(gomock.Any(), target, "data.fetch", map[string]any{"source": "test-source"}, gomock.Any()).
+		DoAndReturn(func(_ context.Context, _ *vmcp.BackendTarget, _ string, _ map[string]any, _ map[string]any) (*vmcp.ToolCallResult, error) {
+			time.Sleep(10 * time.Millisecond)
+			return &vmcp.ToolCallResult{
+				StructuredContent: map[string]any{"result": "raw-data"},
+				Content:           []vmcp.Content{},
+			}, nil
+		})
+
+	te.Router.EXPECT().RouteTool(gomock.Any(), "data.process").Return(target, nil)
+	te.Backend.EXPECT().CallTool(gomock.Any(), target, "data.process", gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, _ *vmcp.BackendTarget, _ string, _ map[string]any, _ map[string]any) (*vmcp.ToolCallResult, error) {
+			time.Sleep(10 * time.Millisecond)
+			return &vmcp.ToolCallResult{
+				StructuredContent: map[string]any{"value": "processed-data"},
+				Content:           []vmcp.Content{},
+			}, nil
+		})
+
+	// Execute workflow
+	startTime := time.Now()
+	result, err := execute(t, te.Engine, workflow, map[string]any{"source": "test-source"})
+	executionTime := time.Since(startTime)
+
+	// Verify execution success
+	require.NoError(t, err)
+	assert.Equal(t, WorkflowStatusCompleted, result.Status)
+	assert.Len(t, result.Steps, 2)
+
+	// Verify output structure
+	require.NotNil(t, result.Output)
+	require.Contains(t, result.Output, "summary")
+	require.Contains(t, result.Output, "data_result")
+
+	// Verify data result
+	assert.Equal(t, "processed-data", result.Output["data_result"])
+
+	// Verify workflow metadata in output
+	summary, ok := result.Output["summary"].(map[string]any)
+	require.True(t, ok, "summary should be a map")
+
+	// Check workflow_id
+	workflowID, ok := summary["workflow_id"].(string)
+	require.True(t, ok, "workflow_id should be a string")
+	assert.NotEmpty(t, workflowID)
+	assert.Equal(t, result.WorkflowID, workflowID)
+
+	// Check duration_ms
+	durationMs, ok := summary["duration_ms"].(int64)
+	require.True(t, ok, "duration_ms should be an int64")
+	// With 20ms of artificial delays (10ms per step), duration should be at least a few ms
+	assert.Greater(t, durationMs, int64(0), "duration should be positive")
+	// Duration should be reasonable (less than total execution time in ms + buffer)
+	assert.Less(t, durationMs, executionTime.Milliseconds()+100, "duration should be less than total execution time")
+
+	// Check step_count
+	stepCount, ok := summary["step_count"].(int64)
+	require.True(t, ok, "step_count should be an int64")
+	assert.Equal(t, int64(2), stepCount, "should have 2 completed steps")
+
+	// Check status
+	status, ok := summary["status"].(string)
+	require.True(t, ok, "status should be a string")
+	assert.Equal(t, "completed", status)
+
+	// Check start_time (RFC3339 format)
+	startTimeStr, ok := summary["start_time"].(string)
+	require.True(t, ok, "start_time should be a string")
+	assert.NotEmpty(t, startTimeStr)
+	// Verify it's valid RFC3339 format
+	parsedTime, err := time.Parse(time.RFC3339, startTimeStr)
+	require.NoError(t, err, "start_time should be valid RFC3339 format")
+	assert.WithinDuration(t, startTime, parsedTime, 5*time.Second, "start_time should be close to actual start")
+}
+
+func TestWorkflowEngine_WorkflowMetadataAvailableInTemplates(t *testing.T) {
+	t.Parallel()
+
+	te := newTestEngine(t)
+
+	// Workflow that uses workflow metadata in step arguments
+	// Note: workflow.id and workflow.start_time are available, but workflow.step_count and
+	// workflow.duration_ms are only updated before output construction, not during step execution.
+	workflow := &WorkflowDefinition{
+		Name: "metadata_in_args",
+		Steps: []WorkflowStep{
+			toolStep("first", "tool.first", nil),
+			toolStepWithDeps("second", "tool.second", map[string]any{
+				"workflow_id": "{{.workflow.id}}",
+				"status":      "{{.workflow.status}}",
+			}, []string{"first"}),
+		},
+	}
+
+	// Setup expectations
+	te.expectToolCall("tool.first", nil, map[string]any{"ok": true})
+
+	// For the second tool, verify it receives basic workflow metadata
+	target := &vmcp.BackendTarget{
+		WorkloadID:   "test-backend",
+		WorkloadName: "test",
+		BaseURL:      "http://test:8080",
+	}
+	te.Router.EXPECT().RouteTool(gomock.Any(), "tool.second").Return(target, nil)
+	te.Backend.EXPECT().CallTool(gomock.Any(), target, "tool.second", gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, _ *vmcp.BackendTarget, _ string, args map[string]any, _ map[string]any) (*vmcp.ToolCallResult, error) {
+			// Verify workflow metadata was expanded in arguments
+			workflowID, ok := args["workflow_id"].(string)
+			assert.True(t, ok, "workflow_id should be a string")
+			assert.NotEmpty(t, workflowID, "workflow_id should not be empty")
+
+			// Status should be available (though not yet "completed" since workflow is still running)
+			status, ok := args["status"].(string)
+			assert.True(t, ok, "status should be a string")
+			assert.Contains(t, []string{"pending", "running"}, status, "status should be pending or running during execution")
+
+			return &vmcp.ToolCallResult{
+				StructuredContent: map[string]any{"done": true},
+				Content:           []vmcp.Content{},
+			}, nil
+		})
+
+	// Execute workflow
+	result, err := execute(t, te.Engine, workflow, nil)
+
+	// Verify
+	require.NoError(t, err)
+	assert.Equal(t, WorkflowStatusCompleted, result.Status)
+	assert.Len(t, result.Steps, 2)
+}
+
+func TestWorkflowEngine_SessionEngine_CoercesTemplateStringToTypedArg(t *testing.T) {
+	t.Parallel()
+
+	// Template expansion always produces strings. When the engine is created
+	// with a bound tool list, getToolInputSchema resolves the target tool's InputSchema
+	// and the schema coercion layer converts "42" → 42 before calling the backend.
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	mockRouter := routermocks.NewMockRouter(ctrl)
+	mockRouter.EXPECT().ResolveToolName(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, name string) string { return name }).
+		AnyTimes()
+	mockBackend := mocks.NewMockBackendClient(ctrl)
+
+	tools := []vmcp.Tool{
+		{
+			Name: "count_items",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"limit": map[string]any{"type": "integer"},
+				},
+			},
+		},
+	}
+
+	engine := NewWorkflowEngine(mockRouter, mockBackend, nil, nil, nil, tools)
+
+	target := &vmcp.BackendTarget{WorkloadID: "backend1", BaseURL: "http://backend1:8080"}
+	mockRouter.EXPECT().RouteTool(gomock.Any(), "count_items").Return(target, nil)
+
+	// Expect the backend to receive the coerced integer, not the string "42".
+	coercedArgs := map[string]any{"limit": int64(42)}
+	mockBackend.EXPECT().
+		CallTool(gomock.Any(), target, "count_items", coercedArgs, gomock.Any()).
+		Return(&vmcp.ToolCallResult{StructuredContent: map[string]any{"items": []any{}}, Content: []vmcp.Content{}}, nil)
+
+	workflow := &WorkflowDefinition{
+		Name: "coerce_test",
+		Parameters: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"n": map[string]any{"type": "string"},
+			},
+		},
+		Steps: []WorkflowStep{
+			{
+				ID:   "step1",
+				Type: StepTypeTool,
+				Tool: "count_items",
+				// Template expansion produces a string; coercion must convert it to int.
+				Arguments: map[string]any{"limit": "{{.params.n}}"},
+			},
+		},
+	}
+
+	result, err := engine.ExecuteWorkflow(context.Background(), workflow, map[string]any{"n": "42"})
+	require.NoError(t, err)
+	assert.Equal(t, WorkflowStatusCompleted, result.Status)
+}
+
+func TestWorkflowEngine_SessionEngine_ToolNotInList_ReturnsNilSchema(t *testing.T) {
+	t.Parallel()
+
+	// When a bound tool list is provided but the requested tool is not in it,
+	// getToolInputSchema returns nil and coercion is a no-op.
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	mockRouter := routermocks.NewMockRouter(ctrl)
+	mockRouter.EXPECT().ResolveToolName(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, name string) string { return name }).
+		AnyTimes()
+	mockBackend := mocks.NewMockBackendClient(ctrl)
+
+	// Tools list does not include "other_tool".
+	tools := []vmcp.Tool{{Name: "known_tool", InputSchema: map[string]any{"type": "object"}}}
+	engine := NewWorkflowEngine(mockRouter, mockBackend, nil, nil, nil, tools)
+
+	target := &vmcp.BackendTarget{WorkloadID: "backend1", BaseURL: "http://backend1:8080"}
+	mockRouter.EXPECT().RouteTool(gomock.Any(), "other_tool").Return(target, nil)
+
+	// Args pass through unmodified (string stays a string).
+	rawArgs := map[string]any{"value": "hello"}
+	mockBackend.EXPECT().
+		CallTool(gomock.Any(), target, "other_tool", rawArgs, gomock.Any()).
+		Return(&vmcp.ToolCallResult{StructuredContent: map[string]any{"ok": true}, Content: []vmcp.Content{}}, nil)
+
+	workflow := &WorkflowDefinition{
+		Name: "no_schema_test",
+		Steps: []WorkflowStep{
+			{ID: "s1", Type: StepTypeTool, Tool: "other_tool", Arguments: rawArgs},
+		},
+	}
+
+	result, err := engine.ExecuteWorkflow(context.Background(), workflow, nil)
+	require.NoError(t, err)
+	assert.Equal(t, WorkflowStatusCompleted, result.Status)
+}
+
+func TestWorkflowEngine_EmbeddedResourceAccessibleFromTemplate(t *testing.T) {
+	t.Parallel()
+	te := newTestEngine(t)
+
+	// Step 1: tool returns structuredContent (schema-conformant) + embedded resource in Content array.
+	// Step 2: accesses structuredContent via .output and content array via .content.
+	// This keeps structuredContent clean for outputSchema validation while making
+	// content array data (text, resources) accessible through a separate namespace.
+	def := simpleWorkflow("resource-chain",
+		toolStep("fetch", "registry.get_referrer_content", map[string]any{
+			"image": "ghcr.io/org/repo:latest",
+		}),
+		toolStepWithDeps("analyze", "sbom.analyze", map[string]any{
+			"sbom_data": "{{.steps.fetch.content.resource}}",
+			"format":    "{{.steps.fetch.output.format}}",
+		}, []string{"fetch"}),
+	)
+
+	target := &vmcp.BackendTarget{
+		WorkloadID:   "test-backend",
+		WorkloadName: "test",
+		BaseURL:      "http://test:8080",
+	}
+	te.Router.EXPECT().RouteTool(gomock.Any(), "registry.get_referrer_content").Return(target, nil)
+	te.Backend.EXPECT().CallTool(gomock.Any(), target, "registry.get_referrer_content",
+		map[string]any{"image": "ghcr.io/org/repo:latest"}, gomock.Any()).
+		Return(&vmcp.ToolCallResult{
+			StructuredContent: map[string]any{
+				"contentType": "sbom",
+				"format":      "spdx",
+				"size":        float64(5347),
+			},
+			Content: []vmcp.Content{
+				{Type: vmcp.ContentTypeText, Text: "summary of SBOM"},
+				{Type: vmcp.ContentTypeResource, Text: `{"spdxVersion":"SPDX-2.3","name":"mypackage"}`, URI: "file://sbom.json"},
+			},
+		}, nil)
+
+	// Step 2: verify the template-expanded args pull from the right namespaces.
+	te.Router.EXPECT().RouteTool(gomock.Any(), "sbom.analyze").Return(target, nil)
+	te.Backend.EXPECT().CallTool(gomock.Any(), target, "sbom.analyze", gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, _ *vmcp.BackendTarget, _ string, args map[string]any, _ map[string]any) (*vmcp.ToolCallResult, error) {
+			// .content.resource comes from the Content array's embedded resource
+			assert.Equal(t, `{"spdxVersion":"SPDX-2.3","name":"mypackage"}`, args["sbom_data"])
+			// .output.format comes from structuredContent
+			assert.Equal(t, "spdx", args["format"])
+			return &vmcp.ToolCallResult{
+				StructuredContent: map[string]any{"result": "analyzed"},
+				Content:           []vmcp.Content{},
+			}, nil
+		})
+
+	result, err := execute(t, te.Engine, def, nil)
+
+	require.NoError(t, err)
+	assert.Equal(t, WorkflowStatusCompleted, result.Status)
+	assert.Len(t, result.Steps, 2)
+	assert.Equal(t, StepStatusCompleted, result.Steps["fetch"].Status)
+	assert.Equal(t, StepStatusCompleted, result.Steps["analyze"].Status)
+}

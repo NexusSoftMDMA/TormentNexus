@@ -1,0 +1,45 @@
+{
+  "name": "@fox-in-the-box/electron",
+  "productName": "fox-in-the-box",
+  "version": "0.7.58",
+  "description": "Fox in the box desktop app",
+  "author": "Vulpy, Inc.",
+  "main": "src/main.js",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder --publish never",
+    "build:publish": "electron-builder",
+    "build:win": "electron-builder --win --publish never",
+    "build:mac": "electron-builder --mac",
+    "test": "jest --testPathPatterns=tests/electron"
+  },
+  "dependencies": {
+    "docker-modem": "^5.0.7",
+    "dockerode": "^5.0.0",
+    "electron-log": "^5.4.4",
+    "electron-updater": "^6.8.9"
+  },
+  "devDependencies": {
+    "electron": "^42.0.0",
+    "electron-builder": "^26.0.0",
+    "jest": "^30.0.0",
+    "rcedit": "^5.0.0"
+  },
+  "overrides": {
+    "js-yaml": "^4.1.0"
+  },
+  "build": {
+    "extends": "./electron-builder.yml"
+  },
+  "jest": {
+    "rootDir": "../..",
+    "testMatch": ["**/tests/electron/**/*.test.js"],
+    "moduleDirectories": [
+      "<rootDir>/packages/electron/node_modules",
+      "node_modules"
+    ]
+  }
+}

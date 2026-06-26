@@ -1,0 +1,330 @@
+import Foundation
+import os
+import ScarfCore
+
+/// Writes a Scarf-managed marker block into `<project>/AGENTS.md` so
+/// that Hermes — which auto-reads `AGENTS.md` from the session's cwd
+/// at startup — has consistent project identity and metadata in every
+/// project-scoped chat.
+///
+/// **Why this exists.** Hermes has no native "project" concept and ACP
+/// passes only `(cwd, mcpServers)` at session create — extra params
+/// are silently dropped on Hermes's side. The documented hook for
+/// giving the agent context when cwd is set programmatically is the
+/// auto-load of `AGENTS.md` (or `.hermes.md` / `CLAUDE.md` /
+/// `.cursorrules`, in that priority) from the cwd. Scarf owns a
+/// managed region of the project's AGENTS.md; template-author content
+/// lives outside that region and is preserved.
+///
+/// **Marker contract.** The region sits between:
+///
+/// ```
+/// <!-- scarf-project:begin -->
+/// …Scarf-managed content…
+/// <!-- scarf-project:end -->
+/// ```
+///
+/// Same pattern as the v2.2 memory-block appendix — bounded, self-
+/// declaring, safe to re-generate. Everything outside the markers is
+/// left byte-identical across refreshes.
+///
+/// **Secret-safe.** The block surfaces field NAMES from `config.json`
+/// (via the cached manifest's schema) but never VALUES. A rendered
+/// block contains no secrets even for a project whose config.json
+/// has Keychain-ref URIs.
+///
+/// **Refresh timing.** `ChatViewModel.startACPSession(resume:projectPath:)`
+/// calls `refresh(for:)` immediately before Hermes opens the session.
+/// Hermes reads AGENTS.md during session boot, so the marker block
+/// must have landed on disk first. Non-blocking on failure — a
+/// failed refresh logs and the chat proceeds without the block.
+struct ProjectAgentContextService: Sendable {
+    private nonisolated static let logger = Logger(subsystem: "com.scarf", category: "ProjectAgentContextService")
+
+    /// Marker strings. Delegated to ScarfCore's `ProjectContextBlock`
+    /// in M9 #4.2 so both Mac and ScarfGo use identical markers.
+    nonisolated static let beginMarker = ProjectContextBlock.beginMarker
+    nonisolated static let endMarker = ProjectContextBlock.endMarker
+
+    let context: ServerContext
+
+    nonisolated init(context: ServerContext = .local) {
+        self.context = context
+    }
+
+    // MARK: - Public
+
+    /// Refresh (or create) the Scarf-managed block in the project's
+    /// AGENTS.md. Reads current project state — template manifest,
+    /// config schema, registered cron jobs — and produces a block
+    /// reflecting today's truth. Idempotent: two consecutive calls
+    /// with no intervening state change produce byte-identical
+    /// output.
+    nonisolated func refresh(for project: ProjectEntry) throws {
+        let block = renderBlock(for: project)
+        let path = agentsMdPath(for: project)
+        let transport = context.makeTransport()
+
+        // Ensure the project directory exists — this service is the
+        // first thing that touches the project dir when the user
+        // scaffolds a bare project via `+` + starts a chat. Normally
+        // the dir exists (registered project = dir exists); belt-
+        // and-suspenders for edge cases.
+        if !transport.fileExists(project.path) {
+            try transport.createDirectory(project.path)
+        }
+
+        if !transport.fileExists(path) {
+            // Fresh AGENTS.md with just our block + a trailing
+            // newline so editors render it cleanly.
+            let data = (block + "\n").data(using: .utf8) ?? Data()
+            try transport.writeFile(path, data: data)
+            Self.logger.info("created AGENTS.md with Scarf block for \(project.name, privacy: .public)")
+            return
+        }
+
+        // Read existing, splice in the new block.
+        let existingData = try transport.readFile(path)
+        let existing = String(data: existingData, encoding: .utf8) ?? ""
+        let rewritten = Self.applyBlock(block: block, to: existing)
+        guard let outData = rewritten.data(using: .utf8) else {
+            throw ProjectAgentContextError.encodingFailed
+        }
+        // Skip the write when nothing changed — avoids unnecessary
+        // file-watcher churn. Matches what disk snapshot shows.
+        guard outData != existingData else { return }
+        try transport.writeFile(path, data: outData)
+        Self.logger.info("refreshed Scarf block in AGENTS.md for \(project.name, privacy: .public)")
+    }
+
+    // MARK: - Marker splice (testable in isolation)
+
+    /// Core text transform: given an existing file and a freshly-
+    /// rendered block, return the file with the block spliced in.
+    ///
+    /// Three cases handled:
+    /// 1. Existing file has both markers → replace the inclusive
+    ///    region, preserve everything outside untouched.
+    /// 2. Existing file has no markers → prepend the block followed
+    ///    by a two-newline separator so it reads as its own section.
+    /// 3. Existing file has a begin marker but no end → we DON'T try
+    ///    to be clever; treat as "no markers present" and prepend.
+    ///    User intervention or a later refresh can restore shape.
+    ///    The stray begin-marker is left in the file; we don't
+    ///    truncate to EOF (as the memory-block installer does)
+    ///    because an orphaned begin on this file is more likely
+    ///    hand-typed than a corrupt Scarf write.
+    /// Kept as a thin forwarder so pre-existing callers + tests keep
+    /// working. The logic lives in ScarfCore now (M9 #4.2).
+    nonisolated static func applyBlock(block: String, to existing: String) -> String {
+        ProjectContextBlock.applyBlock(block, to: existing)
+    }
+
+    // MARK: - Block rendering
+
+    /// Build the Markdown block for a given project. Pure function of
+    /// project state — exposed for tests that want to assert on
+    /// rendered content without touching disk.
+    nonisolated func renderBlock(for project: ProjectEntry) -> String {
+        let templateInfo = readTemplateInfo(for: project)
+        let configFieldsLine = renderConfigFieldsLine(for: project)
+        let cronLines = renderCronLines(for: project, templateId: templateInfo?.id)
+        let slashCommandNames = readSlashCommandNames(for: project)
+        let kanbanTenant = readKanbanTenant(for: project)
+        let lockFilePresent = context.makeTransport().fileExists(
+            project.path + "/.scarf/template.lock.json"
+        )
+
+        var lines: [String] = []
+        lines.append(Self.beginMarker)
+        lines.append("## Scarf project context")
+        lines.append("")
+        lines.append("_Auto-generated by Scarf — do not edit between the begin/end markers._")
+        lines.append("")
+        lines.append("You are operating inside a Scarf project named **\"\(project.name)\"**. Scarf is a macOS GUI for Hermes; the user is working with this project through it. This chat session's working directory is the project's directory — path-relative tool calls resolve inside the project.")
+        lines.append("")
+        lines.append("- **Project directory:** `\(project.path)`")
+        lines.append("- **Dashboard:** `\(project.path)/.scarf/dashboard.json`")
+
+        if let tpl = templateInfo {
+            lines.append("- **Template:** `\(tpl.id)` v\(tpl.version)")
+        }
+        lines.append("- **Configuration fields:** \(configFieldsLine)")
+
+        if cronLines.isEmpty {
+            lines.append("- **Registered cron jobs:** (none attributed to this project)")
+        } else {
+            lines.append("- **Registered cron jobs:**")
+            for line in cronLines {
+                lines.append("  - \(line)")
+            }
+        }
+
+        if !slashCommandNames.isEmpty {
+            let formatted = slashCommandNames.sorted().map { "`/\($0)`" }.joined(separator: ", ")
+            lines.append("- **Project slash commands:** \(formatted). The user invokes these via the chat slash menu; you'll see the expanded prompt as a normal user message preceded by `<!-- scarf-slash:<name> -->`.")
+        }
+
+        if let tenant = kanbanTenant, !tenant.isEmpty {
+            lines.append("- **Kanban tenant:** `\(tenant)` — when creating Hermes Kanban tasks for this project, always pass `--tenant \(tenant)` to `hermes kanban create` so the tasks land on this project's board instead of the global \"Untagged\" pile.")
+        }
+
+        if lockFilePresent {
+            lines.append("- **Uninstall manifest:** `\(project.path)/.scarf/template.lock.json` (tracks files written by template install)")
+        }
+
+        // P4 of the projects-feature fix: surface Scarf's actual
+        // feature vocabulary so the agent knows what's available
+        // beyond a bare Hermes session. Without this, agents would
+        // routinely propose plain-Hermes solutions (e.g. "I'll write
+        // a shell script to render this") when the user has a
+        // dashboard widget that does the job in one line of JSON.
+        // The section is static — doesn't depend on the project's
+        // state, just on Scarf being the host — so it stays
+        // byte-identical across refreshes (the idempotency test in
+        // `ProjectAgentContextServiceTests.refreshIsFullyIdempotent`
+        // covers it).
+        lines.append("")
+        lines.append("### Scarf platform reference")
+        lines.append("")
+        lines.append("Some affordances available here that you wouldn't have in a bare Hermes session:")
+        lines.append("")
+        lines.append("- **Dashboard widgets.** `<project>/.scarf/dashboard.json` renders into Scarf's Projects tab via a typed widget vocabulary (`text`, `markdown`, `file_glob`, `command_output`, `sqlite_query`, `recent_messages`, `kanban_summary`, `chart`, etc.). The full schema lives in `~/.hermes/skills/scarf-template-author/SKILL.md` § Widget Catalog. The viewer auto-refreshes on file-watcher and SQLite mtime ticks — no manual reload needed.")
+        lines.append("- **Project slash commands.** Author a `<project>/.scarf/slash-commands/<name>.md` file with frontmatter (`{name, description, hint?}`) and a prompt body; Scarf surfaces `/<name>` in this chat's slash menu and expands the prompt before forwarding to you, wrapped in `<!-- scarf-slash:<name> -->` so you can tell expansion apart from a literal user message.")
+        lines.append("- **Kanban board.** Hermes Kanban tasks created from this chat should pass `--tenant <kanban tenant>` (above) so they land on this project's per-project board, not the global \"Untagged\" pile. Tasks are also auto-stamped with the ACP `session_id` of this chat, so the project's Kanban tab can scope to \"tasks from THIS chat\" with a single toggle.")
+        lines.append("- **Per-project model preset.** The user may have bound a `(model, provider)` preset to this project — `session/set_model` already applied it at session boot. Mention the active model only when relevant; the user picks presets via Scarf's right-click → \"Set Model…\".")
+        lines.append("- **Typed configuration schema.** `<project>/.scarf/manifest.json` may declare `config.schema` with typed fields. Secret-typed values live in the macOS Keychain and are referenced from `config.json` via opaque URI handles, not stored inline. NEVER write a secret value to disk yourself — route Keychain reads through `ProjectConfigService.resolveSecret(_:for:)`.")
+        lines.append("- **Cron jobs.** Schedule recurring work with `hermes cron create --workdir \(project.path) …` so the job inherits this project's AGENTS.md context and resolves relative paths inside the project.")
+        lines.append("- **Skills.** Hermes loads SKILL.md files from `~/.hermes/skills/`. Scarf bundles `scarf-template-author` (v1.1+) for project authoring; users can install more via `hermes skills install <https-url>` or by dropping a directory under `~/.hermes/skills/`.")
+        lines.append("- **Export to template.** When the dashboard, optional schema, and AGENTS.md are stable, the user can right-click the project in Scarf → \"Export as Template…\" to produce a shareable `.scarftemplate` bundle. Authoring guidance: `~/.hermes/skills/scarf-template-author/SKILL.md`.")
+        lines.append("")
+        lines.append("When the user asks to scaffold, extend, or restructure this project, invoke the `scarf-template-author` skill — it documents the full widget catalog, the config-schema field types, and the export contract.")
+
+        lines.append("")
+        lines.append("Any content below this block is template- or user-authored; preserve and defer to it for project-specific behavior. Do NOT modify content inside these markers — Scarf rewrites this block on every project-scoped chat start.")
+        lines.append(Self.endMarker)
+
+        return lines.joined(separator: "\n")
+    }
+
+    /// Read the names of every project-scoped slash command at
+    /// `<project>/.scarf/slash-commands/`. Empty array when the dir
+    /// is absent or no `.md` files parse cleanly. Used by `renderBlock`
+    /// to surface the available commands to the agent so it knows what
+    /// `<!-- scarf-slash:<name> -->` markers to expect on user prompts.
+    nonisolated private func readSlashCommandNames(for project: ProjectEntry) -> [String] {
+        ProjectSlashCommandService(context: context)
+            .loadCommands(at: project.path)
+            .map(\.name)
+    }
+
+    // MARK: - Helpers
+
+    nonisolated private func agentsMdPath(for project: ProjectEntry) -> String {
+        project.path + "/AGENTS.md"
+    }
+
+    /// Read `<project>/.scarf/manifest.json` for template id + version.
+    /// Nil when not present (bare project) or when the file is
+    /// unparseable — the block still renders cleanly without the
+    /// template line.
+    nonisolated private func readTemplateInfo(for project: ProjectEntry) -> (id: String, version: String)? {
+        let manifestPath = project.path + "/.scarf/manifest.json"
+        let transport = context.makeTransport()
+        guard transport.fileExists(manifestPath) else { return nil }
+        guard let data = try? transport.readFile(manifestPath) else { return nil }
+        guard let manifest = try? JSONDecoder().decode(ProjectTemplateManifest.self, from: data) else { return nil }
+        // Bare-project manifests minted by KanbanTenantResolver carry
+        // a sentinel id of "scarf/<project-id>" and version "0.0.0".
+        // Don't surface those as a template — the template line is
+        // for actual installed templates only.
+        if manifest.id.hasPrefix("scarf/") && manifest.version == "0.0.0" {
+            return nil
+        }
+        return (id: manifest.id, version: manifest.version)
+    }
+
+    /// Read `<project>/.scarf/manifest.json` for the Scarf-minted Kanban
+    /// tenant. Nil when no tenant has been minted yet (no kanban
+    /// interaction has happened for this project).
+    nonisolated private func readKanbanTenant(for project: ProjectEntry) -> String? {
+        let manifestPath = project.path + "/.scarf/manifest.json"
+        let transport = context.makeTransport()
+        guard transport.fileExists(manifestPath),
+              let data = try? transport.readFile(manifestPath),
+              let manifest = try? JSONDecoder().decode(ProjectTemplateManifest.self, from: data)
+        else {
+            return nil
+        }
+        return manifest.kanbanTenant
+    }
+
+    /// Build the "Configuration fields" bullet's tail. Returns a
+    /// comma-joined list of backticked field names with inline type
+    /// hints (`(secret)`), or the literal string "(none)" when the
+    /// project has no config schema. **Never** includes values.
+    nonisolated private func renderConfigFieldsLine(for project: ProjectEntry) -> String {
+        let manifestPath = project.path + "/.scarf/manifest.json"
+        let transport = context.makeTransport()
+        guard transport.fileExists(manifestPath),
+              let data = try? transport.readFile(manifestPath),
+              let manifest = try? JSONDecoder().decode(ProjectTemplateManifest.self, from: data),
+              let schema = manifest.config,
+              !schema.fields.isEmpty
+        else {
+            return "(none)"
+        }
+        let fieldList = schema.fields.map { field -> String in
+            let secretTag = field.type == .secret ? " (secret — name only, value stored in Keychain)" : ""
+            return "`\(field.key)`\(secretTag)"
+        }
+        return fieldList.joined(separator: ", ")
+    }
+
+    /// Return a list of human-readable cron-job descriptions for jobs
+    /// attributed to this project via the `[tmpl:<id>] …` name prefix.
+    /// Empty array when no jobs match (either the project has no
+    /// template or no jobs carry the tag).
+    nonisolated private func renderCronLines(for project: ProjectEntry, templateId: String?) -> [String] {
+        guard let templateId else { return [] }
+        let prefix = "[tmpl:\(templateId)]"
+        let jobs = HermesFileService(context: context).loadCronJobs()
+        return jobs
+            .filter { $0.name.hasPrefix(prefix) }
+            .map { job in
+                let scheduleDesc = job.schedule.display
+                    ?? job.schedule.expression
+                    ?? job.schedule.kind
+                let pausedDesc = job.enabled ? "enabled" : "paused"
+                return "`\(job.name)` — schedule `\(scheduleDesc)`, currently \(pausedDesc)"
+            }
+    }
+}
+
+enum ProjectAgentContextError: Error {
+    case encodingFailed
+}
+
+// MARK: - String helpers (file-scoped)
+
+private extension String {
+    /// Drop trailing newlines + CRs but preserve other trailing
+    /// whitespace (tabs, non-breaking spaces) that might be
+    /// meaningful in some edge case.
+    func trimmingRightNewlines() -> String {
+        var result = self
+        while let last = result.last, last.isNewline {
+            result.removeLast()
+        }
+        return result
+    }
+
+    /// Symmetric counterpart: strip leading newlines / CRs.
+    func trimmingLeftNewlines() -> String {
+        var result = self
+        while let first = result.first, first.isNewline {
+            result.removeFirst()
+        }
+        return result
+    }
+}

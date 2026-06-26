@@ -1,0 +1,55 @@
+// SPDX-FileCopyrightText: Copyright 2025 Stacklok, Inc.
+// SPDX-License-Identifier: Apache-2.0
+
+package v1
+
+import (
+	"encoding/json"
+	"net/http"
+
+	"github.com/go-chi/chi/v5"
+
+	"github.com/stacklok/toolhive/pkg/client"
+)
+
+// DiscoveryRoutes defines the routes for the client discovery API.
+type DiscoveryRoutes struct{}
+
+// DiscoveryRouter creates a new router for the client discovery API.
+func DiscoveryRouter() http.Handler {
+	routes := DiscoveryRoutes{}
+
+	r := chi.NewRouter()
+	r.Get("/clients", routes.discoverClients)
+	return r
+}
+
+// discoverClients
+//
+//	@Summary		List all clients status
+//	@Description	List all clients compatible with ToolHive and their status.
+//	@Description	Each object includes supports_skills when ToolHive can install skills for that client.
+//	@Tags			discovery
+//	@Produce		json
+//	@Success		200	{object}	clientStatusResponse
+//	@Router			/api/v1beta/discovery/clients [get]
+func (*DiscoveryRoutes) discoverClients(w http.ResponseWriter, r *http.Request) {
+	clients, err := client.GetClientStatus(r.Context())
+	if err != nil {
+		// TODO: Error should be JSON marshaled
+		http.Error(w, "Failed to get client status", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	err = json.NewEncoder(w).Encode(clientStatusResponse{Clients: clients})
+	if err != nil {
+		http.Error(w, "Failed to encode client status", http.StatusInternalServerError)
+		return
+	}
+}
+
+// clientStatusResponse represents the response for the client discovery
+type clientStatusResponse struct {
+	Clients []client.ClientAppStatus `json:"clients"`
+}

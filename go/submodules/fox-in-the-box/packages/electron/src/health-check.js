@@ -1,0 +1,133 @@
+'use strict';
+
+const http = require('http');
+const log  = require('electron-log');
+const { HEALTH_URL } = require('./app-urls');
+const INTERVAL_MS   = 1000;
+const REQUEST_TIMEOUT_MS = 1500;
+const HEALTH_TIMEOUT_MS = 120_000;
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// Match the in-container probe (forks/hermes-webui/bootstrap.py:wait_for_health):
+// healthy = HTTP 200 AND body contains `"status": "ok"`. Status alone is too loose
+// — anything on :8787 returning 200 with a different shape would falsely satisfy
+// the gate. Cap the captured body so a misbehaving endpoint can't pin memory.
+const HEALTHY_MARKER = '"status": "ok"';
+const MAX_BODY_BYTES = 4096;
+
+function requestHealth(url, timeoutMs) {
+  return new Promise((resolve) => {
+    const req = http.get(url, (res) => {
+      const statusCode = res.statusCode;
+      if (statusCode !== 200) {
+        res.resume();
+        resolve({ ok: false, statusCode, error: null });
+        return;
+      }
+      let body = '';
+      let truncated = false;
+      res.setEncoding('utf8');
+      res.on('data', (chunk) => {
+        if (truncated) return;
+        if (body.length + chunk.length > MAX_BODY_BYTES) {
+          body += chunk.slice(0, MAX_BODY_BYTES - body.length);
+          truncated = true;
+          res.resume(); // discard remainder without buffering
+          return;
+        }
+        body += chunk;
+      });
+      res.on('end', () => {
+        const ok = body.includes(HEALTHY_MARKER);
+        resolve({
+          ok,
+          statusCode,
+          error: ok ? null : `body missing ${HEALTHY_MARKER}`,
+        });
+      });
+      res.on('error', (err) => {
+        resolve({ ok: false, statusCode, error: err.message });
+      });
+    });
+
+    req.on('error', (err) => {
+      resolve({ ok: false, statusCode: null, error: err.message });
+    });
+
+    req.setTimeout(timeoutMs, () => {
+      req.destroy(new Error(`health request timed out after ${timeoutMs}ms`));
+    });
+  });
+}
+
+/**
+ * Poll /health until HTTP 200 is received or max attempts are exhausted.
+ * @returns {Promise<void>}  Resolves when healthy, rejects on timeout.
+ */
+async function waitUntilHealthy({
+  healthUrl = HEALTH_URL,
+  timeoutMs = HEALTH_TIMEOUT_MS,
+  intervalMs = INTERVAL_MS,
+  requestTimeoutMs = REQUEST_TIMEOUT_MS,
+  showProgress = null,
+  failFastCheck = null,
+} = {}) {
+  const startedAt = Date.now();
+  let attempts = 0;
+  let lastStatus = null;
+  let lastError = null;
+
+  while ((Date.now() - startedAt) < timeoutMs) {
+    attempts += 1;
+    const elapsedMs = Date.now() - startedAt;
+    if (showProgress) showProgress(`Waiting for app to start… ${Math.round(elapsedMs / 1000)}s`);
+    log.info(`Health check attempt ${attempts} (${Math.round(elapsedMs / 1000)}s elapsed)`);
+
+    if (typeof failFastCheck === 'function') {
+      const failFastError = await failFastCheck({ attempts, elapsedMs, lastStatus, lastError });
+      if (failFastError) {
+        if (failFastError instanceof Error) throw failFastError;
+        const err = new Error(failFastError.message || 'Startup aborted by proactive health checks');
+        if (failFastError.code) err.code = failFastError.code;
+        if (failFastError.meta) err.meta = failFastError.meta;
+        throw err;
+      }
+    }
+
+    const result = await requestHealth(healthUrl, requestTimeoutMs);
+    if (result.ok) {
+      log.info('Container healthy');
+      return;
+    }
+
+    lastStatus = result.statusCode;
+    lastError = result.error;
+    if (lastStatus) {
+      log.debug(`Health check not ready (status ${lastStatus})`);
+    } else if (lastError) {
+      log.debug('Health check error (expected during startup):', lastError);
+    }
+    const elapsedAfterFail = Date.now() - startedAt;
+    if (elapsedAfterFail >= timeoutMs) break;
+    // Poll faster while the stack is still coming up; back off to intervalMs after ~30s.
+    const fastCap = 30_000;
+    const baseWait =
+      elapsedAfterFail < fastCap ? Math.min(400, intervalMs) : intervalMs;
+    const remaining = timeoutMs - elapsedAfterFail;
+    await sleep(Math.min(baseWait, Math.max(0, remaining)));
+  }
+
+  const err = new Error(
+    `Container did not become healthy after ${Math.round(timeoutMs / 1000)}s` +
+    (lastStatus ? ` (last status: ${lastStatus})` : '') +
+    (lastError ? ` (last error: ${lastError})` : '')
+  );
+  err.code = 'HEALTH_TIMEOUT';
+  err.meta = { attempts, timeoutMs, lastStatus, lastError };
+  throw err;
+}
+
+module.exports = { waitUntilHealthy };

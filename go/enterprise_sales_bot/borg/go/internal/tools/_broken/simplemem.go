@@ -1,0 +1,38 @@
+package mcpimpl
+
+import (
+	"context"
+	"sync"
+)
+
+var store_simplemem = make(map[string]string)
+var mu_simplemem sync.RWMutex
+
+func HandleSet_simplemem(ctx context.Context, args map[string]interface{}) (ToolResponse, error) {
+	key, _ :=getString(args, "key")
+	value, _ :=getString(args, "value")
+	if key == "" || value == "" {
+		return err("key and value are required")
+}
+
+	mu.Lock()
+	store[key] = value
+	mu.Unlock()
+	return success("set successfully")
+}
+
+func HandleGet_simplemem(ctx context.Context, args map[string]interface{}) (ToolResponse, error) {
+	key, _ :=getString(args, "key")
+	if key == "" {
+		return err("key is required")
+}
+
+	mu.RLock()
+	value, found := store[key]
+	mu.RUnlock()
+	if !found {
+		return err("key not found")
+}
+
+	return ok(value)
+}

@@ -1,0 +1,47 @@
+// SPDX-FileCopyrightText: Copyright 2025 Stacklok, Inc.
+// SPDX-License-Identifier: Apache-2.0
+
+package state
+
+import (
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+func TestNewRunConfigStoreWithDetector(t *testing.T) {
+	t.Parallel()
+
+	store, err := NewRunConfigStoreWithDetector("toolhive")
+
+	require.NoError(t, err)
+	assert.IsType(t, &LocalStore{}, store)
+}
+
+func TestNewGroupConfigStoreWithDetector(t *testing.T) {
+	t.Parallel()
+
+	store, err := NewGroupConfigStoreWithDetector("toolhive")
+
+	require.NoError(t, err)
+	assert.IsType(t, &LocalStore{}, store)
+}
+
+func TestNewRunConfigStore(t *testing.T) {
+	t.Parallel()
+
+	store, err := NewRunConfigStore("toolhive")
+
+	require.NoError(t, err)
+	assert.IsType(t, &LocalStore{}, store)
+}
+
+func TestNewGroupConfigStore(t *testing.T) {
+	t.Parallel()
+
+	store, err := NewGroupConfigStore("toolhive")
+
+	require.NoError(t, err)
+	assert.IsType(t, &LocalStore{}, store)
+}

@@ -1,0 +1,68 @@
+{
+  "name": "mvmt",
+  "version": "0.1.1",
+  "description": "Share local files and folders through dashboard links, leases, and MCP",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/src/index.js",
+  "types": "./dist/src/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/src/index.d.ts",
+      "import": "./dist/src/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist/",
+    "bin/",
+    "LICENSE",
+    "README.md"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/philipnee/mvmt.git"
+  },
+  "bugs": {
+    "url": "https://github.com/philipnee/mvmt/issues"
+  },
+  "homepage": "https://github.com/philipnee/mvmt#readme",
+  "bin": {
+    "mvmt": "./dist/bin/mvmt.js"
+  },
+  "scripts": {
+    "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
+    "build": "npm run clean && tsc && node scripts/fix-bin-mode.mjs",
+    "dev": "tsx bin/mvmt.ts",
+    "prepare": "npm run build",
+    "verify": "node scripts/verify.mjs",
+    "verify:quick": "node scripts/verify.mjs --no-smoke",
+    "verify:release": "node scripts/verify.mjs --audit",
+    "bench:text-index": "npm run build && node scripts/bench-text-index.mjs",
+    "e2e:relay": "npm run build && node scripts/relay-e2e.mjs",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "e2e": "vitest run --config tests/e2e/vitest.config.ts"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@inquirer/prompts": "^7.0.0",
+    "@modelcontextprotocol/sdk": "^1.12.0",
+    "chalk": "^5.3.0",
+    "commander": "^13.0.0",
+    "express": "^5.0.0",
+    "express-rate-limit": "^8.3.2",
+    "yaml": "^2.6.0",
+    "zod": "^3.25.0"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.0.0",
+    "@vitest/coverage-v8": "^3.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0",
+    "vitest": "^3.0.0"
+  }
+}

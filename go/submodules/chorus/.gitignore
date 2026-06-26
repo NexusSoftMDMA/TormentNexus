@@ -1,0 +1,49 @@
+node_modules/
+.next/
+.vercel
+dist/
+*.log
+
+.env
+.env.*
+!.env.example
+.env.local
+.env*.local
+
+# Local Chorus data (per-user, never committed). Schema covers all
+# WAL-mode SQLite sidecars + every per-host residue file the daemon
+# writes — auth tokens, install IDs, pidfiles, log dirs.
+.chorus/
+chorus.db
+chorus.db-journal
+chorus.db-wal
+chorus.db-shm
+install-id
+daemon.pid
+web.pid
+auth-token
+no-telemetry
+
+# Build artifacts
+*.tsbuildinfo
+next-env.d.ts
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+
+# pnpm
+.pnpm-store/
+.claude/
+chorus-*.tgz
+
+# Local demo recording route — lives at /demo/[scenario] only on the
+# maintainer's box for asset capture (recording rig sits in
+# /home/ubuntu/dev/chorus-demo/). The DemoDataSource hook in
+# live-run-real stays in the public tree so anyone cloning can drop in
+# their own scenarios without touching production code.
+src/app/demo/

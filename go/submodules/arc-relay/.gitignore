@@ -1,0 +1,48 @@
+# Binaries (root only, not cmd/ directories)
+/arc-relay
+/arc-sync
+/mcp-wrangler   # legacy binary name (pre-1.0)
+/mcp-sync       # legacy binary name (pre-1.0)
+!/cmd/arc-relay/
+
+# Database
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment / local config
+.env
+.env.*
+config.toml
+.mcp.json
+
+# Secrets & credentials
+*.pem
+*.key
+*.p12
+*.pfx
+/credentials.*
+/secrets.*
+
+# Go
+/vendor/
+
+# Build artifacts
+/dist/
+*.exe
+# Cross-compiled binaries (e.g. arc-sync-darwin-arm64)
+/arc-sync-*
+/arc-relay-*
+# Local agent / tooling scratch
+.claude/

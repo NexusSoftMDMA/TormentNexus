@@ -1,0 +1,416 @@
+name: Build
+
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm exec vp lint
+
+      - name: Check
+        run: pnpm exec vp check
+
+      - name: Build frontend
+        run: pnpm exec vp build
+
+      - name: Run unit tests
+        run: pnpm exec vp test
+
+      - name: Upload frontend build
+        uses: actions/upload-artifact@v7
+        with:
+          name: frontend-build
+          path: |
+            dist
+            dist-electron
+          retention-days: 1
+
+  create-release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: preflight
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 || \
+            gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --generate-notes
+
+  build-linux:
+    needs: [preflight, create-release]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Cache node_modules
+        id: cache-nm
+        uses: actions/cache@v5
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-nm-${{ hashFiles('pnpm-lock.yaml') }}
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Cache Electron binaries
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cache/electron
+            ~/.cache/electron-builder
+          key: electron-cache-${{ runner.os }}-x64-${{ hashFiles('package.json') }}
+
+      - name: Restore frontend build
+        uses: actions/download-artifact@v8
+        with:
+          name: frontend-build
+
+      - name: Package Linux artifacts
+        run: pnpm exec electron-builder --linux deb AppImage --publish never
+
+      - name: Upload Linux artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: linux-release
+          path: |
+            release/*.deb
+            release/*.AppImage
+          retention-days: 30
+
+      - name: Attach Linux artifacts to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            release/*.deb
+            release/*.AppImage
+
+  build-mac:
+    needs: preflight
+    strategy:
+      matrix:
+        arch: [x64, arm64]
+      fail-fast: false
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Cache node_modules
+        id: cache-nm
+        uses: actions/cache@v5
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-${{ matrix.arch }}-nm-${{ hashFiles('pnpm-lock.yaml') }}
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Cache Electron binaries
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cache/electron
+            ~/.cache/electron-builder
+          key: electron-cache-${{ runner.os }}-${{ matrix.arch }}-${{ hashFiles('package.json') }}
+
+      - name: Restore frontend build
+        uses: actions/download-artifact@v8
+        with:
+          name: frontend-build
+
+      - name: Package mac ${{ matrix.arch }}
+        run: pnpm exec electron-builder --mac dmg zip --${{ matrix.arch }} --publish never
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+
+      - name: Normalize update manifest filename
+        run: |
+          if ls release/latest-mac-*.yml >/dev/null 2>&1; then
+            cp release/latest-mac-*.yml release/latest-mac.yml
+          fi
+          ls -la release/latest-mac*.yml
+
+      - name: Upload mac ${{ matrix.arch }} artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: mac-release-${{ matrix.arch }}
+          path: release/*
+          retention-days: 30
+
+  build-windows:
+    needs: [preflight, create-release]
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Cache Electron binaries
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cache/electron
+            ~/.cache/electron-builder
+          key: electron-cache-${{ runner.os }}-x64-${{ hashFiles('package.json') }}
+
+      - name: Restore frontend build
+        uses: actions/download-artifact@v8
+        with:
+          name: frontend-build
+
+      - name: Package .exe (NSIS)
+        run: pnpm exec electron-builder --win nsis --publish never
+
+      - name: Verify Windows updater metadata
+        shell: pwsh
+        run: |
+          $latest = "release/latest.yml"
+          if (!(Test-Path $latest)) {
+            throw "Missing $latest"
+          }
+
+          $content = Get-Content $latest -Raw
+          $paths = @()
+          foreach ($line in ($content -split "`n")) {
+            if ($line -match '^\s*-?\s*url:\s*(.+)$') {
+              $paths += $Matches[1].Trim().Trim('"').Trim("'")
+            }
+            if ($line -match '^path:\s*(.+)$') {
+              $paths += $Matches[1].Trim().Trim('"').Trim("'")
+            }
+          }
+
+          if ($paths.Count -eq 0) {
+            throw "No updater asset paths found in $latest"
+          }
+
+          foreach ($asset in ($paths | Select-Object -Unique)) {
+            $assetPath = Join-Path "release" $asset
+            if (!(Test-Path $assetPath)) {
+              throw "Windows updater metadata references missing asset: $asset"
+            }
+          }
+
+      - name: Upload Windows updater artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: windows-nsis
+          path: |
+            release/*.exe
+            release/*.blockmap
+            release/latest.yml
+          retention-days: 30
+
+      - name: Attach Windows artifacts to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            release/*.exe
+            release/*.blockmap
+            release/latest.yml
+
+  build-android:
+    needs: [preflight, create-release]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Restore frontend build
+        uses: actions/download-artifact@v8
+        with:
+          name: frontend-build
+
+      - name: Sync Capacitor Android
+        run: pnpm exec cap sync android
+
+      - name: Build release APK
+        run: cd android && ./gradlew assembleRelease
+
+      - name: Rename release APK
+        run: |
+          mkdir -p release-android
+          cp android/app/build/outputs/apk/release/*.apk "release-android/OpenGUI-${GITHUB_REF_NAME}-android-release.apk"
+
+      - name: Upload Android APK artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: opengui-android-release-apk
+          path: release-android/*.apk
+          retention-days: 30
+
+      - name: Attach Android APK to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release-android/*.apk
+
+  publish-docker:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: preflight
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/akemmanuel/opengui
+          tags: |
+            type=ref,event=tag
+            type=semver,pattern={{version}}
+            type=raw,value=latest
+          labels: |
+            org.opencontainers.image.title=OpenGUI
+            org.opencontainers.image.description=OpenGUI web command center for coding agents
+            org.opencontainers.image.source=https://github.com/akemmanuel/OpenGUI
+            org.opencontainers.image.url=https://github.com/akemmanuel/OpenGUI
+            org.opencontainers.image.licenses=MIT
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  publish-mac:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [build-mac, create-release]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install script dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Download mac x64 artifacts
+        uses: actions/download-artifact@v8
+        with:
+          name: mac-release-x64
+          path: artifacts/mac-release
+
+      - name: Download mac arm64 artifacts
+        uses: actions/download-artifact@v8
+        with:
+          name: mac-release-arm64
+          path: artifacts/mac-release-arm64
+
+      - name: List downloaded artifacts
+        run: |
+          echo "=== mac-release ==="
+          ls -la artifacts/mac-release/ 2>/dev/null || echo "(empty)"
+          echo "=== mac-release-arm64 ==="
+          ls -la artifacts/mac-release-arm64/ 2>/dev/null || echo "(empty)"
+
+      - name: Merge mac update manifests
+        run: |
+          node scripts/merge-latest-mac.mjs \
+            --x64-dir artifacts/mac-release \
+            --arm64-dir artifacts/mac-release-arm64 \
+            --out-dir artifacts/mac-release
+
+      - name: Attach mac artifacts to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            artifacts/mac-release/*.dmg
+            artifacts/mac-release/*.zip
+            artifacts/mac-release/*.blockmap
+            artifacts/mac-release-arm64/*.dmg
+            artifacts/mac-release-arm64/*.zip
+            artifacts/mac-release-arm64/*.blockmap
+            artifacts/mac-release/latest-mac.yml

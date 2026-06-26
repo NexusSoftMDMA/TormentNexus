@@ -1,0 +1,46 @@
+id: code-review
+name: Code Review
+description: Single-phase review template. Claude Opus 4.7 produces; Codex (gpt-5.5) and Gemini 3.1 Pro Preview review independently. Both reviewers must agree.
+author: chorus
+agreementThreshold: 0.66
+onThresholdMet: ask
+maxRounds: 3
+yoloDefault: false
+# Single-phase doer + 2 reviewers. Cockpit-side floor for cost preview.
+estimatedBaselineTokens: 700
+
+# Ship phase: when chat is created with `repoPath`, after reviewers agree
+# chorus branches off main, commits the doer's diff, pushes, and opens a PR
+# via `gh pr create`. No auto-merge — human clicks Merge in GitHub.
+# Skip behavior: when chat has no repoPath, ship is auto-skipped and chat
+# ends `approved`.
+ship:
+  enabled: true
+  branchPattern: "chorus/{chatId}"
+  titleTemplate: "chorus: code-review via #{chatId}"
+
+phases:
+  - id: review
+    kind: review
+    title: Code Review
+    description: Claude Opus 4.7 produces the implementation; Codex (gpt-5.5) and Gemini 3.1 Pro Preview critique it independently. Quorum is 2 of 2.
+    doer:
+      lineage: anthropic
+      models:
+        - claude-opus-4-7
+    reviewer:
+      require: 2
+      crossLineage: true
+      candidates:
+        - lineage: openai
+          models:
+            - gpt-5.5
+        - lineage: google
+          models:
+            - gemini-3.1-pro-preview
+    inputs:
+      include: []
+      exclude: []
+    iterate:
+      maxRounds: 2
+      onDisagreement: continue

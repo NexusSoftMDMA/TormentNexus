@@ -1,0 +1,80 @@
+project_name: arc-relay
+
+builds:
+  # Server builds (CGO required for SQLite)
+  - id: server-linux-amd64
+    main: ./cmd/arc-relay
+    binary: arc-relay
+    env:
+      - CGO_ENABLED=1
+      - CC=gcc
+    goos:
+      - linux
+    goarch:
+      - amd64
+    ldflags:
+      - -s -w
+
+  - id: server-linux-arm64
+    main: ./cmd/arc-relay
+    binary: arc-relay
+    env:
+      - CGO_ENABLED=1
+      - CC=aarch64-linux-gnu-gcc
+    goos:
+      - linux
+    goarch:
+      - arm64
+    ldflags:
+      - -s -w
+
+  # CLI builds (pure Go, no CGO)
+  - id: cli
+    main: ./cmd/arc-sync
+    binary: arc-sync
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w -X main.version={{ .Version }}
+
+archives:
+  # Server archives (tar.gz)
+  - id: server
+    builds:
+      - server-linux-amd64
+      - server-linux-arm64
+    format: tar.gz
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+
+  # CLI archives (bare binaries - matches what install script expects)
+  - id: cli
+    builds:
+      - cli
+    format: binary
+    name_template: "arc-sync-{{ .Os }}-{{ .Arch }}"
+
+checksum:
+  name_template: checksums.txt
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^ci:"
+      - "Co-Authored-By"
+
+release:
+  github:
+    owner: comma-compliance
+    name: arc-relay
+  draft: false
+  prerelease: auto

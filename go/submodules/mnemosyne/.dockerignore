@@ -1,0 +1,14 @@
+.git
+.gitignore
+__pycache__
+*.pyc
+.planning
+.venv
+venv
+tests
+scripts
+docs
+tools
+assets
+*.md
+!.dockerignore

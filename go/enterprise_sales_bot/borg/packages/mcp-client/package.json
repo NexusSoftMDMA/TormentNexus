@@ -1,0 +1,16 @@
+{
+  "name": "@tormentnexus/mcp-client",
+  "version": "1.0.0-alpha.160",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.27.1"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.3"
+  }
+}

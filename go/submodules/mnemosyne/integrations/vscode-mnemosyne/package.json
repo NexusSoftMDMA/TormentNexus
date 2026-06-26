@@ -1,0 +1,104 @@
+{
+  "name": "mnemosyne-browser",
+  "displayName": "Mnemosyne Memory Browser",
+  "description": "Browse, search, and manage Mnemosyne memory directly in VS Code. See what your AI agent remembers.",
+  "version": "0.1.0",
+  "publisher": "AxDSan",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/AxDSan/mnemosyne"
+  },
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "keywords": [
+    "memory",
+    "ai",
+    "agent",
+    "mnemosyne",
+    "mcp"
+  ],
+  "activationEvents": [
+    "onView:mnemosyneMemories"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "mnemosyne-sidebar",
+          "title": "Mnemosyne",
+          "icon": "assets/memory.svg"
+        }
+      ]
+    },
+    "views": {
+      "mnemosyne-sidebar": [
+        {
+          "type": "webview",
+          "id": "mnemosyneMemories",
+          "name": "Memories"
+        },
+        {
+          "type": "webview",
+          "id": "mnemosyneStats",
+          "name": "Stats"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "mnemosyne.refresh",
+        "title": "Refresh Memories"
+      },
+      {
+        "command": "mnemosyne.search",
+        "title": "Search Memories"
+      },
+      {
+        "command": "mnemosyne.remember",
+        "title": "Store a Memory"
+      },
+      {
+        "command": "mnemosyne.openMcpConfig",
+        "title": "Open Mnemosyne MCP Config"
+      }
+    ],
+    "configuration": {
+      "title": "Mnemosyne",
+      "properties": {
+        "mnemosyne.dbPath": {
+          "type": "string",
+          "default": "~/.hermes/mnemosyne/data/default.db",
+          "description": "Path to the Mnemosyne SQLite database"
+        },
+        "mnemosyne.mcpCommand": {
+          "type": "string",
+          "default": "mnemosyne mcp",
+          "description": "Command to start the Mnemosyne MCP server"
+        },
+        "mnemosyne.autoRefresh": {
+          "type": "boolean",
+          "default": true,
+          "description": "Auto-refresh memories on file save"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "lint": "eslint src --ext ts"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.85.0",
+    "@types/node": "^20.0.0",
+    "typescript": "^5.3.0",
+    "eslint": "^8.50.0"
+  }
+}

@@ -1,0 +1,84 @@
+# Session-logger artifact (not part of the project)
+LAST_SESSION.md
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual environments
+venv/
+ENV/
+env/
+.venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# MyPy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Storage (don't commit test indexes)
+.code-index/
+.ab_bench_idx/
+
+# Claude Code local settings (may contain credentials from allowed commands)
+.claude/
+
+# Local working notes (may contain sensitive info)
+prompt.md
+todo.md
+
+CLAUDE.md
+.vbw-planning
+
+.vbw-planning/
+.mcpregistry_github_token
+.mcpregistry_registry_token
+.hypothesis/
+
+# Server-side infrastructure (deployed separately)
+index.php
+
+# Git worktrees (isolated feature workspaces)
+.worktrees/
+.claudeignore
+
+# Local docs notes
+docs/
+
+# macOS
+.DS_Store
+**/.DS_Store

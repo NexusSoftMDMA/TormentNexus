@@ -1,0 +1,392 @@
+// SPDX-FileCopyrightText: Copyright 2025 Stacklok, Inc.
+// SPDX-License-Identifier: Apache-2.0
+
+package docker
+
+import (
+	"context"
+	"fmt"
+	"log/slog"
+	"os"
+	"strconv"
+	"strings"
+
+	"github.com/moby/moby/api/types/container"
+	"github.com/moby/moby/api/types/network"
+
+	"github.com/stacklok/toolhive-core/permissions"
+	"github.com/stacklok/toolhive/pkg/container/runtime"
+	lb "github.com/stacklok/toolhive/pkg/labels"
+)
+
+const defaultSquidImage = "ghcr.io/stacklok/toolhive/egress-proxy:latest"
+
+// dockerGateway* are Docker-specific addresses that resolve to the host network
+// interface from inside a container. They are blocked by default to prevent
+// containers from reaching host services unintentionally.
+const (
+	dockerGatewayHostname        = "host.docker.internal"
+	dockerAltGatewayHostname     = "gateway.docker.internal"
+	dockerDefaultBridgeGatewayIP = "172.17.0.1"
+)
+
+type proxyDirection int
+
+const (
+	proxyIngress proxyDirection = iota
+	proxyEgress
+)
+
+// createIngressSquidContainer creates an instance of the squid proxy for ingress traffic.
+func createIngressSquidContainer(
+	ctx context.Context,
+	c *Client,
+	containerName string,
+	squidContainerName string,
+	attachStdio bool,
+	upstreamPort int,
+	squidPort int,
+	exposedPorts map[string]struct{},
+	endpointsConfig map[string]*network.EndpointSettings,
+	portBindings map[string][]runtime.PortBinding,
+	networkPermissions *permissions.NetworkPermissions,
+) (string, error) {
+	squidConfPath, err := createTempIngressSquidConf(containerName, upstreamPort, squidPort, networkPermissions)
+	if err != nil {
+		return "", fmt.Errorf("failed to create temporary squid.conf: %w", err)
+	}
+
+	return createSquidContainer(
+		ctx,
+		c,
+		squidContainerName,
+		attachStdio,
+		exposedPorts,
+		endpointsConfig,
+		portBindings,
+		squidConfPath,
+	)
+}
+
+// createEgressSquidContainer creates an instance of the squid proxy for egress traffic.
+func createEgressSquidContainer(
+	ctx context.Context,
+	c *Client,
+	containerName string,
+	squidContainerName string,
+	attachStdio bool,
+	exposedPorts map[string]struct{},
+	endpointsConfig map[string]*network.EndpointSettings,
+	perm *permissions.NetworkPermissions,
+	allowDockerGateway bool,
+	gatewayIP string,
+) (string, error) {
+	squidConfPath, err := createTempEgressSquidConf(perm, containerName, allowDockerGateway, gatewayIP)
+	if err != nil {
+		return "", fmt.Errorf("failed to create temporary squid.conf: %w", err)
+	}
+
+	return createSquidContainer(
+		ctx,
+		c,
+		squidContainerName,
+		attachStdio,
+		exposedPorts,
+		endpointsConfig,
+		nil,
+		squidConfPath,
+	)
+}
+
+// createSquidContainer contains the shared logic for creating a squid container.
+func createSquidContainer(
+	ctx context.Context,
+	c *Client, // TODO: refactor the methods we need from docker.Client into a lower level interface.
+	squidContainerName string,
+	attachStdio bool,
+	exposedPorts map[string]struct{},
+	endpointsConfig map[string]*network.EndpointSettings,
+	portBindings map[string][]runtime.PortBinding, // used for ingress only
+	squidConfPath string,
+) (string, error) {
+
+	//nolint:gosec // G706: squid container name and image from config
+	slog.Debug("setting up squid container", "name", squidContainerName, "image", getSquidImage())
+	squidLabels := map[string]string{}
+	lb.AddStandardLabels(squidLabels, squidContainerName, squidContainerName, "stdio", 80)
+	squidLabels[ToolhiveAuxiliaryWorkloadLabel] = LabelValueTrue
+
+	// pull the squid image if it is not already pulled
+	squidImage := getSquidImage()
+	// TODO: Move these down into an image operations layer.
+	err := c.imageManager.PullImage(ctx, squidImage)
+	if err != nil {
+		// Check if the squid image exists locally before failing
+		_, inspectErr := c.imageManager.ImageExists(ctx, squidImage)
+		if inspectErr == nil {
+			//nolint:gosec // G706: squid image name from config
+			slog.Debug("squid image exists locally, continuing despite pull failure", "image", squidImage)
+		} else {
+			return "", fmt.Errorf("failed to pull squid image: %w", err)
+		}
+	}
+
+	// Create container options
+	config := &container.Config{
+		Image:        getSquidImage(),
+		Cmd:          nil,
+		Env:          nil,
+		Labels:       squidLabels,
+		AttachStdin:  attachStdio,
+		AttachStdout: attachStdio,
+		AttachStderr: attachStdio,
+		OpenStdin:    attachStdio,
+		Tty:          false,
+	}
+
+	mounts := []runtime.Mount{}
+	mounts = append(mounts, runtime.Mount{
+		Source:   squidConfPath,
+		Target:   "/etc/squid/squid.conf",
+		ReadOnly: true,
+	})
+
+	// Create squid host configuration
+	squidHostConfig := &container.HostConfig{
+		Mounts:      convertMounts(mounts),
+		NetworkMode: container.NetworkMode("bridge"),
+		CapAdd:      []string{"CAP_SETUID", "CAP_SETGID"},
+		CapDrop:     nil,
+		SecurityOpt: []string{"label:disable"},
+		RestartPolicy: container.RestartPolicy{
+			Name: "unless-stopped",
+		},
+	}
+
+	// Setup port bindings
+	if portBindings != nil {
+		if err := setupPortBindings(squidHostConfig, portBindings); err != nil {
+			return "", NewContainerError(err, "", err.Error())
+		}
+	}
+
+	// Setup port bindings
+	if err := setupExposedPorts(config, exposedPorts); err != nil {
+		return "", NewContainerError(err, "", err.Error())
+	}
+
+	// Create squid container itself
+	squidContainerId, err := c.createContainer(ctx, squidContainerName, config, squidHostConfig, endpointsConfig)
+	if err != nil {
+		return "", fmt.Errorf("failed to create egress container: %w", err)
+	}
+
+	return squidContainerId, nil
+}
+
+// writeDockerGatewayDenyRules emits Squid ACL definitions and http_access deny
+// rules that block the Docker gateway addresses. These rules MUST be written
+// before any http_access allow rules: Squid evaluates access control in
+// first-match-wins order, so a deny placed after an allow is never reached.
+//
+// gatewayIP is the bridge network gateway IP resolved at runtime via
+// getDockerBridgeGatewayIP. It differs across platforms: 172.17.0.1 on Linux,
+// 192.168.65.1 on Docker Desktop for macOS, and varies on Colima/Rancher Desktop.
+// dockerGatewayHostname and dockerAltGatewayHostname cover hostname-based access;
+// the dst rule covers direct-IP access that bypasses DNS.
+// Note: gateway.docker.internal is Docker Desktop (macOS) specific; blocking it
+// on Linux is harmless since the name does not resolve there.
+func writeDockerGatewayDenyRules(sb *strings.Builder, gatewayIP string) {
+	sb.WriteString(
+		"# Block Docker gateway addresses — opt in with --allow-docker-gateway\n" +
+			"acl docker_gateway_hosts dstdomain " +
+			dockerGatewayHostname + " " + dockerAltGatewayHostname + "\n" +
+			"acl docker_gateway_ip dst " + gatewayIP + "\n" +
+			"http_access deny docker_gateway_hosts\n" +
+			"http_access deny docker_gateway_ip\n\n",
+	)
+}
+
+func createTempEgressSquidConf(
+	networkPermissions *permissions.NetworkPermissions,
+	serverHostname string,
+	allowDockerGateway bool,
+	gatewayIP string,
+) (string, error) {
+	var sb strings.Builder
+
+	writeCommonConfig(&sb, serverHostname, proxyEgress)
+
+	// Always block Docker gateway addresses unless the caller explicitly opts
+	// in via --allow-docker-gateway. MUST precede any http_access allow —
+	// Squid is first-match-wins.
+	if !allowDockerGateway {
+		writeDockerGatewayDenyRules(&sb, gatewayIP)
+	}
+
+	if networkPermissions == nil || (networkPermissions.Outbound != nil && networkPermissions.Outbound.InsecureAllowAll) {
+		sb.WriteString("# Allow all traffic\nhttp_access allow all\n")
+	} else {
+		writeOutboundACLs(&sb, networkPermissions.Outbound)
+		writeHttpAccessRules(&sb, networkPermissions.Outbound)
+	}
+
+	sb.WriteString("http_access deny all\n")
+
+	tmpFile, err := os.CreateTemp("", "squid-*.conf")
+	if err != nil {
+		return "", err
+	}
+	defer func() {
+		if err := tmpFile.Close(); err != nil {
+			// Non-fatal: temp file cleanup failure
+			slog.Warn("failed to close temp file", "error", err)
+		}
+	}()
+
+	if _, err := tmpFile.WriteString(sb.String()); err != nil {
+		return "", fmt.Errorf("failed to write to temporary file: %w", err)
+	}
+
+	// Set file permissions to be readable by all users (including squid user in container)
+	if err := tmpFile.Chmod(0644); err != nil {
+		return "", fmt.Errorf("failed to set file permissions: %w", err)
+	}
+
+	return tmpFile.Name(), nil
+}
+
+func writeCommonConfig(sb *strings.Builder, hostnameBase string, direction proxyDirection) {
+	var serverHostname string
+
+	if direction == proxyEgress {
+		serverHostname = hostnameBase + "-egress"
+		sb.WriteString("http_port 3128\n")
+	} else {
+		serverHostname = hostnameBase + "-ingress"
+	}
+
+	sb.WriteString(
+		"visible_hostname " + serverHostname + "\n" +
+			"access_log stdio:/dev/stdout squid\n" +
+			"pid_filename none\n" +
+			"# Avoid allocation errors caused by max_filedescriptors inference\n" +
+			"max_filedescriptors 1024\n" +
+			"# Disable memory and disk caching\n" +
+			"cache deny all\n" +
+			"cache_mem 0 MB\n" +
+			"maximum_object_size 0 KB\n" +
+			"maximum_object_size_in_memory 0 KB\n" +
+			"# Don't use cache directories\n" +
+			"cache_store_log none\n\n")
+}
+
+func writeOutboundACLs(sb *strings.Builder, outbound *permissions.OutboundNetworkPermissions) {
+	if len(outbound.AllowPort) > 0 {
+		sb.WriteString("# Define allowed ports\nacl allowed_ports port")
+		for _, port := range outbound.AllowPort {
+			sb.WriteString(" " + strconv.Itoa(port))
+		}
+		sb.WriteString("\n")
+	}
+
+	if len(outbound.AllowHost) > 0 {
+		sb.WriteString("# Define allowed destinations\nacl allowed_dsts dstdomain")
+		for _, host := range outbound.AllowHost {
+			sb.WriteString(" " + host)
+		}
+		sb.WriteString("\n")
+	}
+}
+
+func writeHttpAccessRules(sb *strings.Builder, outbound *permissions.OutboundNetworkPermissions) {
+	var conditions []string
+	if len(outbound.AllowPort) > 0 {
+		conditions = append(conditions, "allowed_ports")
+	}
+	if len(outbound.AllowHost) > 0 {
+		conditions = append(conditions, "allowed_dsts")
+	}
+	if len(conditions) > 0 {
+		sb.WriteString("\n# Define http_access rules\n")
+		sb.WriteString("http_access allow " + strings.Join(conditions, " ") + "\n")
+	}
+}
+
+func getSquidImage() string {
+	if egressImage := os.Getenv("TOOLHIVE_EGRESS_IMAGE"); egressImage != "" {
+		return egressImage
+	}
+	return defaultSquidImage
+}
+
+func createTempIngressSquidConf(
+	serverHostname string,
+	upstreamPort int,
+	squidPort int,
+	networkPermissions *permissions.NetworkPermissions,
+) (string, error) {
+	var sb strings.Builder
+
+	writeCommonConfig(&sb, serverHostname, proxyIngress)
+
+	writeIngressProxyConfig(&sb, serverHostname, upstreamPort, squidPort, networkPermissions)
+	sb.WriteString("http_access deny all\n")
+
+	tmpFile, err := os.CreateTemp("", "squid-*.conf")
+	if err != nil {
+		return "", err
+	}
+	defer func() {
+		if err := tmpFile.Close(); err != nil {
+			// Non-fatal: temp file cleanup failure
+			slog.Warn("failed to close temp file", "error", err)
+		}
+	}()
+
+	if _, err := tmpFile.WriteString(sb.String()); err != nil {
+		return "", fmt.Errorf("failed to write to temporary file: %w", err)
+	}
+
+	// Set file permissions to be readable by all users (including squid user in container)
+	if err := tmpFile.Chmod(0644); err != nil {
+		return "", fmt.Errorf("failed to set file permissions: %w", err)
+	}
+
+	return tmpFile.Name(), nil
+}
+
+func writeIngressProxyConfig(
+	sb *strings.Builder,
+	serverHostname string,
+	upstreamPort int,
+	squidPort int,
+	networkPermissions *permissions.NetworkPermissions,
+) {
+	portNum := strconv.Itoa(upstreamPort)
+	squidPortNum := strconv.Itoa(squidPort)
+	sb.WriteString(
+		"\n# Reverse proxy setup for port " + portNum + "\n" +
+			"http_port 0.0.0.0:" + squidPortNum + " accel defaultsite=" + serverHostname + "\n" +
+			"cache_peer " + serverHostname + " parent " + portNum + " 0 no-query originserver name=origin_" +
+			portNum + " connect-timeout=5 connect-fail-limit=5\n")
+
+	// Check if inbound network permissions are configured
+	if networkPermissions != nil && networkPermissions.Inbound != nil && len(networkPermissions.Inbound.AllowHost) > 0 {
+		// Use only the configured allowed hosts
+		sb.WriteString("acl allowed_hosts dstdomain")
+		for _, host := range networkPermissions.Inbound.AllowHost {
+			sb.WriteString(" " + host)
+		}
+		sb.WriteString("\n")
+		sb.WriteString("http_access allow allowed_hosts\n")
+	} else {
+		// Default: Allow container hostname, localhost, and 127.0.0.1
+		sb.WriteString("acl site_" + portNum + " dstdomain " + serverHostname + "\n" +
+			"acl local_dst dst 127.0.0.1\n" +
+			"acl local_domain dstdomain localhost\n" +
+			"http_access allow site_" + portNum + "\n" +
+			"http_access allow local_dst\n" +
+			"http_access allow local_domain\n")
+	}
+}

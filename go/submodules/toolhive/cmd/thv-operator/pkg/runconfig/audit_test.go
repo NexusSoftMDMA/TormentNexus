@@ -1,0 +1,73 @@
+// SPDX-FileCopyrightText: Copyright 2025 Stacklok, Inc.
+// SPDX-License-Identifier: Apache-2.0
+
+// Package runconfig provides functions to build RunConfigBuilder options for audit configuration.
+// Given the size of this file, it's probably better suited to merge with another. This can be
+// done when the runconfig has been fully moved into this package.
+package runconfig
+
+import (
+	"context"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	mcpv1beta1 "github.com/stacklok/toolhive/cmd/thv-operator/api/v1beta1"
+	"github.com/stacklok/toolhive/cmd/thv-operator/api/v1beta1/v1beta1test"
+	"github.com/stacklok/toolhive/pkg/runner"
+)
+
+// TestAddAuditConfigOptions tests the addition of audit configuration options to the RunConfigBuilder
+func TestAddAuditConfigOptions(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name      string
+		mcpServer *mcpv1beta1.MCPServer
+		expected  func(t *testing.T, config *runner.RunConfig)
+	}{
+		{
+			name: "with empty audit configuration",
+			mcpServer: &mcpv1beta1.MCPServer{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "empty-audit-server",
+					Namespace: "test-ns",
+				},
+			},
+			//nolint:thelper // We want to see the error at the specific line
+			expected: func(t *testing.T, config *runner.RunConfig) {
+				assert.Nil(t, config.AuditConfig)
+			},
+		},
+		{
+			name: "with disabled audit configuration",
+			mcpServer: v1beta1test.NewMCPServer("audit-server", "test-ns",
+				v1beta1test.WithAudit(&mcpv1beta1.AuditConfig{Enabled: true}),
+			),
+			//nolint:thelper // We want to see the error at the specific line
+			expected: func(t *testing.T, config *runner.RunConfig) {
+				assert.Equal(t, "audit-server", config.Name)
+
+				// Verify telemetry config is set
+				assert.NotNil(t, config.AuditConfig)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			options := []runner.RunConfigBuilderOption{
+				runner.WithName(tt.mcpServer.Name),
+				runner.WithImage(tt.mcpServer.Spec.Image),
+			}
+			AddAuditConfigOptions(&options, tt.mcpServer.Spec.Audit)
+
+			rc, err := runner.NewOperatorRunConfigBuilder(context.Background(), nil, nil, nil, options...)
+			assert.NoError(t, err)
+
+			tt.expected(t, rc)
+		})
+	}
+}

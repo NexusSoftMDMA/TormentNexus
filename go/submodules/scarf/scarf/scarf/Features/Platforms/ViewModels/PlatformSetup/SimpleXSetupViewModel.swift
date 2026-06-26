@@ -1,0 +1,68 @@
+import Foundation
+import ScarfCore
+
+/// SimpleX Chat setup (Hermes v0.14, 22nd platform; v0.17 added group +
+/// auto-accept controls). SimpleX has no user identifiers or central servers —
+/// the agent connects to a local `simplex-chat` daemon over WebSocket. All
+/// config is environment variables (`SIMPLEX_*` / `HERMES_SIMPLEX_*`) in
+/// `~/.hermes/.env`.
+@Observable
+@MainActor
+final class SimpleXSetupViewModel {
+    let context: ServerContext
+    init(context: ServerContext = .local) { self.context = context }
+
+    // Required
+    var wsURL: String = ""
+    // Access
+    var allowedUsers: String = ""
+    var allowAllUsers: Bool = false
+    var groupAllowed: String = ""
+    var autoAccept: Bool = true
+    // Optional
+    var homeChannel: String = ""
+    var homeChannelName: String = ""
+    var textBatchDelay: String = "0.8"
+
+    var message: String?
+
+    func load() {
+        let env = HermesEnvService(context: context).load()
+        wsURL = env["SIMPLEX_WS_URL"] ?? ""
+        allowedUsers = env["SIMPLEX_ALLOWED_USERS"] ?? ""
+        allowAllUsers = PlatformSetupHelpers.parseEnvBool(env["SIMPLEX_ALLOW_ALL_USERS"])
+        // "*" in the allowlist is the equivalent of allow-all — normalize so the
+        // checkbox reflects either form (mirrors the WhatsApp web-bridge form).
+        if allowedUsers == "*" {
+            allowAllUsers = true
+            allowedUsers = ""
+        }
+        groupAllowed = env["SIMPLEX_GROUP_ALLOWED"] ?? ""
+        // SIMPLEX_AUTO_ACCEPT defaults to true when the key is absent.
+        autoAccept = env["SIMPLEX_AUTO_ACCEPT"].map { PlatformSetupHelpers.parseEnvBool($0) } ?? true
+        homeChannel = env["SIMPLEX_HOME_CHANNEL"] ?? ""
+        homeChannelName = env["SIMPLEX_HOME_CHANNEL_NAME"] ?? ""
+        textBatchDelay = env["HERMES_SIMPLEX_TEXT_BATCH_DELAY"] ?? "0.8"
+    }
+
+    func save() {
+        let envPairs: [String: String] = [
+            "SIMPLEX_WS_URL": wsURL,
+            "SIMPLEX_ALLOWED_USERS": allowAllUsers ? "*" : allowedUsers,
+            "SIMPLEX_ALLOW_ALL_USERS": allowAllUsers ? "true" : "",
+            "SIMPLEX_GROUP_ALLOWED": groupAllowed,
+            "SIMPLEX_AUTO_ACCEPT": PlatformSetupHelpers.envBool(autoAccept),
+            "SIMPLEX_HOME_CHANNEL": homeChannel,
+            "SIMPLEX_HOME_CHANNEL_NAME": homeChannelName,
+            "HERMES_SIMPLEX_TEXT_BATCH_DELAY": textBatchDelay
+        ]
+        message = PlatformSetupHelpers.saveForm(context: context, envPairs: envPairs, configKV: [:])
+        clearMessageAfterDelay()
+    }
+
+    private func clearMessageAfterDelay() {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in
+            self?.message = nil
+        }
+    }
+}

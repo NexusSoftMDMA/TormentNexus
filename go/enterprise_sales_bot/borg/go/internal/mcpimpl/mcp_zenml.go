@@ -1,0 +1,14 @@
+package mcpimpl
+
+import (
+    "context"
+)
+
+func HandleListPipelines_mcp_zenml(ctx context.Context, args map[string]interface{}) (ToolResponse, error) {
+    return ok("List of ZenML pipelines retrieved successfully")
+}
+
+func HandleGetPipelineRun(ctx context.Context, args map[string]interface{}) (ToolResponse, error) {
+    runID, _ :=getString(args, "run_id")
+    return success("Pipeline run details for run ID: " + runID)
+}

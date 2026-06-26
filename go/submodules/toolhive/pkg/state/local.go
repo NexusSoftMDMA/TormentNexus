@@ -1,0 +1,184 @@
+// SPDX-FileCopyrightText: Copyright 2025 Stacklok, Inc.
+// SPDX-License-Identifier: Apache-2.0
+
+package state
+
+import (
+	"context"
+	"fmt"
+	"io"
+	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
+
+	"github.com/adrg/xdg"
+
+	"github.com/stacklok/toolhive-core/httperr"
+)
+
+const (
+	// DefaultAppName is the default application name used for XDG paths
+	DefaultAppName = "toolhive"
+
+	// FileExtension is the file extension for stored configurations
+	FileExtension = ".json"
+)
+
+// LocalStore implements the Store interface using the local filesystem
+// following the XDG Base Directory Specification
+type LocalStore struct {
+	// basePath is the base directory path for storing configurations
+	basePath string
+}
+
+// NewLocalStore creates a new LocalStore with the given application name and store type
+// If appName is empty, DefaultAppName will be used
+func NewLocalStore(appName string, storeName string) (*LocalStore, error) {
+	if appName == "" {
+		appName = DefaultAppName
+	}
+
+	// Create the base directory path following XDG spec
+	basePath := filepath.Join(xdg.StateHome, appName, storeName)
+
+	// Ensure the directory exists
+	if err := os.MkdirAll(basePath, 0750); err != nil {
+		return nil, fmt.Errorf("failed to create state directory: %w", err)
+	}
+
+	return &LocalStore{
+		basePath: basePath,
+	}, nil
+}
+
+// getFilePath returns the full file path for a configuration, validating that
+// the resolved path stays within the store's base directory.
+func (s *LocalStore) getFilePath(name string) (string, error) {
+	if !strings.HasSuffix(name, FileExtension) {
+		name = name + FileExtension
+	}
+	filePath := filepath.Join(s.basePath, name)
+	// filepath.Join calls filepath.Clean, which resolves ".." components.
+	// Verify the result is still within basePath to prevent path traversal.
+	if !strings.HasPrefix(filePath, s.basePath+string(filepath.Separator)) {
+		return "", fmt.Errorf("path traversal detected: name escapes state directory")
+	}
+	return filePath, nil
+}
+
+// GetReader returns a reader for the state data
+func (s *LocalStore) GetReader(_ context.Context, name string) (io.ReadCloser, error) {
+	filePath, err := s.getFilePath(name)
+	if err != nil {
+		return nil, err
+	}
+	// #nosec G304 - path traversal is prevented by the containment check in getFilePath
+	file, err := os.Open(filePath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, httperr.WithCode(fmt.Errorf("state '%s' not found", name), http.StatusNotFound)
+		}
+		return nil, fmt.Errorf("failed to open state file: %w", err)
+	}
+
+	return file, nil
+}
+
+// GetWriter returns a writer for the state data
+func (s *LocalStore) GetWriter(_ context.Context, name string) (io.WriteCloser, error) {
+	filePath, err := s.getFilePath(name)
+	if err != nil {
+		return nil, err
+	}
+	// #nosec G304 - path traversal is prevented by the containment check in getFilePath
+	file, err := os.OpenFile(filePath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create file: %w", err)
+	}
+
+	return file, nil
+}
+
+// CreateExclusive creates a new state entry exclusively, failing if it already exists.
+// This provides atomic check-and-create semantics using O_EXCL to prevent race conditions.
+func (s *LocalStore) CreateExclusive(_ context.Context, name string) (io.WriteCloser, error) {
+	filePath, err := s.getFilePath(name)
+	if err != nil {
+		return nil, err
+	}
+	// O_EXCL with O_CREATE provides atomic check-and-create behavior.
+	// #nosec G304 - path traversal is prevented by the containment check in getFilePath
+	file, err := os.OpenFile(filePath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
+	if err != nil {
+		if os.IsExist(err) {
+			return nil, httperr.WithCode(
+				fmt.Errorf("state '%s' already exists", name),
+				http.StatusConflict,
+			)
+		}
+		return nil, fmt.Errorf("failed to create file: %w", err)
+	}
+
+	return file, nil
+}
+
+// Delete removes the data for the given name
+func (s *LocalStore) Delete(_ context.Context, name string) error {
+	filePath, err := s.getFilePath(name)
+	if err != nil {
+		return err
+	}
+	if err := os.Remove(filePath); err != nil {
+		if os.IsNotExist(err) {
+			return fmt.Errorf("state '%s' not found", name)
+		}
+		return fmt.Errorf("failed to delete state file: %w", err)
+	}
+	return nil
+}
+
+// List returns all available state names
+func (s *LocalStore) List(_ context.Context) ([]string, error) {
+	// Read the directory
+	entries, err := os.ReadDir(s.basePath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return []string{}, nil
+		}
+		return nil, fmt.Errorf("failed to read state directory: %w", err)
+	}
+
+	// Filter and process the file names
+	var names []string
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+
+		name := entry.Name()
+		if strings.HasSuffix(name, FileExtension) {
+			// Remove the file extension
+			name = strings.TrimSuffix(name, FileExtension)
+			names = append(names, name)
+		}
+	}
+
+	return names, nil
+}
+
+// Exists checks if data exists for the given name
+func (s *LocalStore) Exists(_ context.Context, name string) (bool, error) {
+	filePath, err := s.getFilePath(name)
+	if err != nil {
+		return false, err
+	}
+	_, err = os.Stat(filePath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return false, nil
+		}
+		return false, fmt.Errorf("failed to check if state exists: %w", err)
+	}
+	return true, nil
+}

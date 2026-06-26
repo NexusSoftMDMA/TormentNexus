@@ -1,0 +1,86 @@
+// SPDX-FileCopyrightText: Copyright 2025 Stacklok, Inc.
+// SPDX-License-Identifier: Apache-2.0
+
+// Package errors provides HTTP error handling utilities for the API.
+package errors
+
+import (
+	"fmt"
+	"log/slog"
+	"net/http"
+
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
+
+	"github.com/stacklok/toolhive-core/httperr"
+	sentrypkg "github.com/stacklok/toolhive/pkg/sentry"
+)
+
+// HandlerWithError is an HTTP handler that can return an error.
+// This signature allows handlers to return errors instead of manually
+// writing error responses, enabling centralized error handling.
+type HandlerWithError func(http.ResponseWriter, *http.Request) error
+
+// ErrorHandler wraps a HandlerWithError and converts returned errors
+// into appropriate HTTP responses.
+//
+// The decorator:
+//   - Returns early if no error is returned (handler already wrote response)
+//   - Extracts HTTP status code from the error using errors.Code()
+//   - For 5xx errors: logs full error details, returns generic message to client
+//   - For 4xx errors: returns error message to client
+//
+// Usage:
+//
+//	r.Get("/{name}", apierrors.ErrorHandler(routes.getWorkload))
+func ErrorHandler(fn HandlerWithError) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		err := fn(w, r)
+		if err == nil {
+			// No error returned, handler already wrote the response
+			return
+		}
+
+		// Extract HTTP status code from the error
+		code := httperr.Code(err)
+
+		// For 5xx errors, log the full error and report it to Sentry/OTel.
+		// 500 Internal Server Error may wrap internal details (DB drivers,
+		// container runtimes, connection strings) so we return only the
+		// generic status text. 502/503/504 represent upstream failures the
+		// caller can act on — their messages are safe to return verbatim.
+		if code >= http.StatusInternalServerError {
+			slog.Error("internal server error", "error", err)
+			span := trace.SpanFromContext(r.Context())
+			// Use a generic message on the span to avoid sending potentially
+			// sensitive error chains (e.g. from database drivers or container
+			// runtimes that may include connection strings) to external backends.
+			span.RecordError(fmt.Errorf("internal server error"))
+			span.SetStatus(codes.Error, "internal server error")
+			// Sentry span processor only creates transactions; call CaptureException
+			// explicitly so 5xx errors also appear as Issues in the Sentry Issues tab.
+			sentrypkg.CaptureException(r, err)
+
+			if isUpstreamStatus(code) {
+				http.Error(w, err.Error(), code)
+				return
+			}
+			http.Error(w, http.StatusText(code), code)
+			return
+		}
+
+		// For 4xx errors, return the error message to the client
+		http.Error(w, err.Error(), code)
+	}
+}
+
+// isUpstreamStatus reports whether code represents an upstream/gateway
+// failure whose error message can safely be returned to the client.
+func isUpstreamStatus(code int) bool {
+	switch code {
+	case http.StatusBadGateway, http.StatusServiceUnavailable, http.StatusGatewayTimeout:
+		return true
+	default:
+		return false
+	}
+}

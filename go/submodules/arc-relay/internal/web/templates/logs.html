@@ -1,0 +1,99 @@
+{{define "title"}}Logs{{end}}
+{{define "content"}}
+<div class="page-header">
+  <h2>Request Logs</h2>
+</div>
+
+<div class="card">
+  <div style="margin-bottom:1rem">
+    <form method="GET" action="/logs" style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap">
+      <select name="server" style="padding:0.35rem 0.6rem;border:1px solid var(--border);border-radius:6px;font-size:0.85rem">
+        <option value="">All Servers</option>
+        {{range .Servers}}
+        <option value="{{.ID}}" {{if eq .ID $.ServerFilter}}selected{{end}}>{{.DisplayName}}</option>
+        {{end}}
+      </select>
+      <select name="user" style="padding:0.35rem 0.6rem;border:1px solid var(--border);border-radius:6px;font-size:0.85rem">
+        <option value="">All Users</option>
+        {{range .LogUsers}}
+        <option value="{{.ID}}" {{if eq .ID $.UserFilter}}selected{{end}}>{{.Username}}</option>
+        {{end}}
+      </select>
+      <select name="status" style="padding:0.35rem 0.6rem;border:1px solid var(--border);border-radius:6px;font-size:0.85rem">
+        <option value="">All Statuses</option>
+        <option value="success" {{if eq $.StatusFilter "success"}}selected{{end}}>success</option>
+        <option value="error" {{if eq $.StatusFilter "error"}}selected{{end}}>error</option>
+        <option value="denied" {{if eq $.StatusFilter "denied"}}selected{{end}}>denied</option>
+        <option value="blocked" {{if eq $.StatusFilter "blocked"}}selected{{end}}>blocked</option>
+      </select>
+      <button type="submit" class="btn btn-outline btn-sm">Filter</button>
+      {{if or $.ServerFilter $.UserFilter $.StatusFilter}}
+      <a href="/logs" class="btn btn-sm" style="font-size:0.8rem;color:var(--text-muted);text-decoration:none">Clear</a>
+      {{end}}
+    </form>
+  </div>
+
+  {{if .Logs}}
+  <div style="margin-bottom:0.75rem;font-size:0.85rem;color:var(--text-muted)">
+    Showing {{len .Logs}} of {{.Total}} entries (page {{.Page}} of {{.TotalPages}})
+  </div>
+  <div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>Timestamp</th>
+        <th>User</th>
+        <th>Server</th>
+        <th>Method</th>
+        <th>Endpoint</th>
+        <th>Duration</th>
+        <th>Status</th>
+        <th>Error</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .Logs}}
+      <tr>
+        <td style="white-space:nowrap;font-size:0.85rem">{{.Timestamp.Format "2006-01-02 15:04:05"}}</td>
+        <td>{{if .Username}}{{.Username}}{{else}}-{{end}}</td>
+        <td>{{if .ServerName}}{{.ServerName}}{{else}}-{{end}}</td>
+        <td><code>{{.Method}}</code></td>
+        <td>{{if .EndpointName}}<code>{{.EndpointName}}</code>{{else}}-{{end}}</td>
+        <td>{{.DurationMs}} ms</td>
+        <td><span class="badge badge-{{.Status}}">{{.Status}}</span></td>
+        <td style="font-size:0.85rem;color:var(--danger)">{{if .ErrorMsg}}{{.ErrorMsg}}{{end}}</td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+  </div>
+
+  {{if gt .TotalPages 1}}
+  <div style="margin-top:1rem;display:flex;gap:0.4rem;align-items:center;justify-content:center;flex-wrap:wrap">
+    {{if gt .Page 1}}
+    <a href="/logs?page={{subtract .Page 1}}{{if $.ServerFilter}}&server={{$.ServerFilter}}{{end}}{{if $.UserFilter}}&user={{$.UserFilter}}{{end}}{{if $.StatusFilter}}&status={{$.StatusFilter}}{{end}}" class="btn btn-outline btn-sm">Prev</a>
+    {{end}}
+
+    {{range pages .Page .TotalPages}}
+    {{if eq . $.Page}}
+    <span class="btn btn-sm btn-primary" style="pointer-events:none">{{.}}</span>
+    {{else if eq . -1}}
+    <span style="color:var(--text-muted);padding:0 0.25rem">...</span>
+    {{else}}
+    <a href="/logs?page={{.}}{{if $.ServerFilter}}&server={{$.ServerFilter}}{{end}}{{if $.UserFilter}}&user={{$.UserFilter}}{{end}}{{if $.StatusFilter}}&status={{$.StatusFilter}}{{end}}" class="btn btn-outline btn-sm">{{.}}</a>
+    {{end}}
+    {{end}}
+
+    {{if lt .Page .TotalPages}}
+    <a href="/logs?page={{add .Page 1}}{{if $.ServerFilter}}&server={{$.ServerFilter}}{{end}}{{if $.UserFilter}}&user={{$.UserFilter}}{{end}}{{if $.StatusFilter}}&status={{$.StatusFilter}}{{end}}" class="btn btn-outline btn-sm">Next</a>
+    {{end}}
+  </div>
+  {{end}}
+
+  {{else}}
+  <div class="empty-state">
+    <p>No request logs{{if or $.ServerFilter $.UserFilter $.StatusFilter}} matching these filters{{end}}. Logs will appear here as MCP requests are proxied.</p>
+  </div>
+  {{end}}
+</div>
+{{end}}

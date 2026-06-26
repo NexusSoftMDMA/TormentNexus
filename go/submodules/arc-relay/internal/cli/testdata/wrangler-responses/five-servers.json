@@ -1,0 +1,7 @@
+[
+  {"id": "1", "name": "sentry", "display_name": "Sentry MCP", "server_type": "http", "status": "running"},
+  {"id": "2", "name": "pfsense", "display_name": "pfSense", "server_type": "http", "status": "running"},
+  {"id": "3", "name": "home-assistant", "display_name": "Home Assistant", "server_type": "http", "status": "running"},
+  {"id": "4", "name": "shortcut", "display_name": "Shortcut", "server_type": "http", "status": "running"},
+  {"id": "5", "name": "legacy-api", "display_name": "Legacy API", "server_type": "http", "status": "stopped"}
+]

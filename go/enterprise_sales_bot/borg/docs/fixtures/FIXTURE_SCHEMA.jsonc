@@ -1,0 +1,308 @@
+// FIXTURE_SCHEMA.jsonc
+// Purpose: JSON Schemas for validating golden tool response fixtures
+// Used by CI to ensure fixture compliance with documented contracts
+
+{
+  "title": "Built-In Tool Response Fixtures",
+  "description": "Schemas for golden tool response fixtures across competitor platforms",
+  "schemaVersion": "1.0",
+
+  "definitions": {
+    // ===== COMMON RESPONSE PATTERNS =====
+
+    "baseToolResponse": {
+      "type": "object",
+      "required": ["success", "toolUseId"],
+      "properties": {
+        "success": { "type": "boolean" },
+        "toolUseId": { "type": "string", "pattern": "^[a-z0-9_-]+_[0-9]+$" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      }
+    },
+
+    "shellExecutionResponse": {
+      "allOf": [
+        { "$ref": "#/definitions/baseToolResponse" },
+        {
+          "type": "object",
+          "required": ["exitCode", "stdout", "stderr"],
+          "properties": {
+            "exitCode": { "type": "integer", "minimum": 0, "maximum": 255 },
+            "stdout": { "type": "string" },
+            "stderr": { "type": "string" },
+            "duration_ms": { "type": "integer", "minimum": 0 }
+          }
+        }
+      ]
+    },
+
+    "fileOperationResponse": {
+      "allOf": [
+        { "$ref": "#/definitions/baseToolResponse" },
+        {
+          "type": "object",
+          "required": ["path"],
+          "properties": {
+            "path": { "type": "string" },
+            "lengthBytes": { "type": "integer", "minimum": 0 }
+          }
+        }
+      ]
+    },
+
+    "hookDecisionResponse": {
+      "type": "object",
+      "required": ["permissionDecision", "permissionDecisionReason"],
+      "properties": {
+        "permissionDecision": { "enum": ["allow", "deny", "ask"] },
+        "permissionDecisionReason": { "type": "string" },
+        "modifiedArgs": {
+          "type": ["object", "null"],
+          "description": "Hook can modify tool arguments before execution"
+        },
+        "additionalContext": { "type": "string" }
+      }
+    },
+
+    "approvalFlowResponse": {
+      "type": "object",
+      "required": ["permissionDecision", "approvalOptions"],
+      "properties": {
+        "permissionDecision": { "enum": ["allow", "ask", "deny"] },
+        "approvalPrompt": { "type": "string" },
+        "approvalOptions": {
+          "type": "array",
+          "items": { "type": "string" },
+          "minItems": 1
+        },
+        "timeout_ms": { "type": "integer", "minimum": 1000 },
+        "requiresUserInteraction": { "type": "boolean" }
+      }
+    },
+
+    // ===== PLATFORM-SPECIFIC SCHEMAS =====
+
+    "copilotBashResponse": {
+      "description": "GitHub Copilot CLI bash execution response",
+      "$ref": "#/definitions/shellExecutionResponse"
+    },
+
+    "copilotEditResponse": {
+      "allOf": [
+        { "$ref": "#/definitions/fileOperationResponse" },
+        {
+          "type": "object",
+          "properties": {
+            "error": {
+              "type": "string",
+              "enum": ["conflict", "not-found", "permission-denied"]
+            },
+            "errorMessage": { "type": "string" },
+            "conflictStrategy": { "enum": ["detect", "force-overwrite", "merge"] }
+          }
+        }
+      ]
+    },
+
+    "copilotPreToolUseHook": {
+      "description": "Copilot CLI preToolUse hook decision",
+      "$ref": "#/definitions/hookDecisionResponse"
+    },
+
+    "codexSandboxResponse": {
+      "type": "object",
+      "required": ["success", "currentMode"],
+      "properties": {
+        "success": { "type": "boolean" },
+        "previousMode": {
+          "enum": ["read-only", "workspace-write", "danger-full-access"]
+        },
+        "currentMode": {
+          "enum": ["read-only", "workspace-write", "danger-full-access"]
+        },
+        "effect": { "type": "string" },
+        "affectedTools": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "timestamp": { "type": "string", "format": "date-time" }
+      }
+    },
+
+    "codexApprovalResponse": {
+      "description": "Codex CLI approval decision for high-risk operations",
+      "$ref": "#/definitions/approvalFlowResponse"
+    },
+
+    "claudeCodePreToolUseHook": {
+      "description": "Claude Code PreToolUse hook response",
+      "$ref": "#/definitions/hookDecisionResponse"
+    },
+
+    "claudeCodePermissionEvaluation": {
+      "type": "object",
+      "required": ["decision", "matchedRule", "precedenceApplied"],
+      "properties": {
+        "decision": { "enum": ["allow", "deny", "ask"] },
+        "matchedRule": { "type": "string" },
+        "precedenceApplied": {
+          "type": "string",
+          "enum": ["deny > ask > allow"],
+          "description": "Permission rule precedence order"
+        },
+        "prompt": { "type": "string" },
+        "allowedByDefault": { "type": "boolean" }
+      }
+    },
+
+    "cursorHookEventResponse": {
+      "type": "object",
+      "required": ["permissionDecision"],
+      "properties": {
+        "permissionDecision": { "enum": ["allow", "deny", "ask"] },
+        "permissionDecisionReason": { "type": "string" },
+        "toolExecution": { "enum": ["allowed", "blocked", "awaiting-approval"] },
+        "auditLog": {
+          "type": "object",
+          "properties": {
+            "timestamp": { "type": "string", "format": "date-time" },
+            "userId": { "type": "string" },
+            "decision": { "enum": ["allow", "deny"] }
+          }
+        }
+      }
+    },
+
+    "geminiSlashCommandResponse": {
+      "type": "object",
+      "required": ["commandType", "command", "response"],
+      "properties": {
+        "commandType": { "enum": ["slash-command"] },
+        "command": { "type": "string", "pattern": "^/[a-z-]+$" },
+        "response": {
+          "type": "object",
+          "description": "Command-specific response (varies by command)"
+        }
+      }
+    },
+
+    "geminiBashConfirmation": {
+      "type": "object",
+      "required": ["confirmationRequired"],
+      "properties": {
+        "confirmationRequired": { "type": "boolean" },
+        "confirmationPrompt": { "type": "string" },
+        "safetyLevel": { "enum": ["low", "medium", "high"] },
+        "confirmationCode": { "type": "string" }
+      }
+    },
+
+    "kiroHookEventResponse": {
+      "type": "object",
+      "required": ["decision", "reason", "timestamp"],
+      "properties": {
+        "decision": { "enum": ["allow", "deny", "ask"] },
+        "reason": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "executionAllowed": { "type": "boolean" }
+      }
+    },
+
+    "kiroMCPServerResponse": {
+      "type": "object",
+      "required": ["success", "server", "method"],
+      "properties": {
+        "success": { "type": "boolean" },
+        "server": { "type": "string" },
+        "method": { "type": "string" },
+        "result": {
+          "type": ["object", "array", "null"],
+          "description": "Result shape depends on method"
+        },
+        "httpStatusCode": { "type": "integer" },
+        "executionTime_ms": { "type": "integer", "minimum": 0 }
+      }
+    }
+  },
+
+  // ===== FIXTURE VALIDATION RULES =====
+
+  "fixtures": {
+    "copilot-cli": {
+      "bash-success": { "$ref": "#/definitions/copilotBashResponse" },
+      "bash-error": { "$ref": "#/definitions/copilotBashResponse" },
+      "edit-conflict": { "$ref": "#/definitions/copilotEditResponse" },
+      "preToolUse-hook": { "$ref": "#/definitions/copilotPreToolUseHook" }
+    },
+
+    "codex-cli": {
+      "sandbox-transition": { "$ref": "#/definitions/codexSandboxResponse" },
+      "approval-decision": { "$ref": "#/definitions/codexApprovalResponse" },
+      "permissions-interactive": { "$ref": "#/definitions/approvalFlowResponse" }
+    },
+
+    "claude-code": {
+      "preToolUse-hook": { "$ref": "#/definitions/claudeCodePreToolUseHook" },
+      "permission-evaluation": { "$ref": "#/definitions/claudeCodePermissionEvaluation" },
+      "bash-execution": { "$ref": "#/definitions/shellExecutionResponse" }
+    },
+
+    "cursor": {
+      "hook-shell": { "$ref": "#/definitions/cursorHookEventResponse" },
+      "hook-read": { "$ref": "#/definitions/cursorHookEventResponse" },
+      "hook-write": { "$ref": "#/definitions/cursorHookEventResponse" }
+    },
+
+    "gemini-cli": {
+      "slash-command-response": { "$ref": "#/definitions/geminiSlashCommandResponse" },
+      "tool-mutation-confirmation": { "$ref": "#/definitions/geminiBashConfirmation" }
+    },
+
+    "kiro": {
+      "hook-event": { "$ref": "#/definitions/kiroHookEventResponse" },
+      "mcp-server-response": { "$ref": "#/definitions/kiroMCPServerResponse" }
+    }
+  },
+
+  // ===== ERROR RESPONSE SCHEMAS =====
+
+  "errorResponses": {
+    "shellErrorBase": {
+      "type": "object",
+      "required": ["success", "exitCode", "error"],
+      "properties": {
+        "success": { "const": false },
+        "exitCode": { "type": "integer", "minimum": 1, "maximum": 255 },
+        "error": {
+          "enum": ["command-not-found", "timeout", "permission-denied", "generic"]
+        },
+        "errorMessage": { "type": "string" }
+      }
+    },
+
+    "fileErrorBase": {
+      "type": "object",
+      "required": ["success", "error"],
+      "properties": {
+        "success": { "const": false },
+        "error": {
+          "enum": ["not-found", "permission-denied", "conflict", "encoding-error"]
+        },
+        "errorMessage": { "type": "string" },
+        "path": { "type": "string" }
+      }
+    },
+
+    "hookErrorBase": {
+      "type": "object",
+      "required": ["permissionDecision"],
+      "properties": {
+        "permissionDecision": { "const": "deny" },
+        "permissionDecisionReason": {
+          "type": "string",
+          "description": "Explain why tool was denied"
+        }
+      }
+    }
+  }
+}

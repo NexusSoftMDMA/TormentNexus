@@ -1,0 +1,230 @@
+import type { ComponentType } from "react";
+
+export interface AppManifest {
+  id: string;
+  name: string;
+  icon: string;
+  category: "platform" | "os" | "streaming" | "game" | "studio" | "userspace";
+  component: () => Promise<{ default: ComponentType<{ windowId: string }> }>;
+  defaultSize: { w: number; h: number };
+  minSize: { w: number; h: number };
+  singleton: boolean;
+  pinned: boolean;
+  launchpadOrder: number;
+  /**
+   * Optional apps ship in the build but are NOT installed by default. The
+   * desktop launcher (launchpad, search, mobile home) hides them until the
+   * user installs them from the Store's "taOS Apps" section. Install state is
+   * persisted server-side (installed_apps, kind=frontend-app).
+   */
+  optional?: boolean;
+  /**
+   * Opt-in flag: only pwa:true apps are installable as standalone PWAs and
+   * get the title-bar Install button plus a dynamic manifest served by the
+   * backend. A fuller DRY source (shared with the backend) is a follow-up.
+   */
+  pwa?: boolean;
+}
+
+const apps: AppManifest[] = [
+  // Platform apps
+  { id: "messages", name: "Messages", icon: "message-circle", category: "platform", component: () => import("@/apps/MessagesApp").then((m) => ({ default: m.MessagesApp })), defaultSize: { w: 900, h: 600 }, minSize: { w: 400, h: 300 }, singleton: true, pinned: true, launchpadOrder: 1, pwa: true },
+  { id: "mail", name: "Mail", icon: "mail", category: "platform", component: () => import("@/apps/MailApp").then((m) => ({ default: m.MailApp })), defaultSize: { w: 1200, h: 800 }, minSize: { w: 720, h: 480 }, singleton: true, pinned: true, launchpadOrder: 1.25 },
+  { id: "projects", name: "Projects", icon: "folder-kanban", category: "platform", component: () => import("@/apps/ProjectsApp").then((m) => ({ default: m.ProjectsApp })), defaultSize: { w: 1100, h: 720 }, minSize: { w: 700, h: 500 }, singleton: false, pinned: true, launchpadOrder: 1.5 },
+  { id: "agents", name: "Agents", icon: "bot", category: "platform", component: () => import("@/apps/AgentsApp").then((m) => ({ default: m.AgentsApp })), defaultSize: { w: 1000, h: 650 }, minSize: { w: 500, h: 400 }, singleton: true, pinned: true, launchpadOrder: 2 },
+  { id: "files", name: "Files", icon: "folder", category: "platform", component: () => import("@/apps/FilesApp").then((m) => ({ default: m.FilesApp })), defaultSize: { w: 900, h: 550 }, minSize: { w: 400, h: 300 }, singleton: true, pinned: true, launchpadOrder: 3 },
+  { id: "store", name: "Store", icon: "shopping-bag", category: "platform", component: () => import("@/apps/StoreApp").then((m) => ({ default: m.StoreApp })), defaultSize: { w: 1000, h: 700 }, minSize: { w: 600, h: 400 }, singleton: true, pinned: true, launchpadOrder: 4 },
+  { id: "guides", name: "Guides", icon: "book-open", category: "platform", component: () => import("@/apps/GuidesApp").then((m) => ({ default: m.GuidesApp })), defaultSize: { w: 900, h: 650 }, minSize: { w: 500, h: 400 }, singleton: true, pinned: false, launchpadOrder: 4.25 },
+  { id: "settings", name: "Settings", icon: "settings", category: "platform", component: () => import("@/apps/SettingsApp").then((m) => ({ default: m.SettingsApp })), defaultSize: { w: 800, h: 550 }, minSize: { w: 500, h: 400 }, singleton: true, pinned: true, launchpadOrder: 5 },
+  { id: "models", name: "Models", icon: "brain", category: "platform", component: () => import("@/apps/ModelsApp").then((m) => ({ default: m.ModelsApp })), defaultSize: { w: 900, h: 600 }, minSize: { w: 500, h: 400 }, singleton: true, pinned: false, launchpadOrder: 6 },
+  { id: "providers", name: "Providers", icon: "cloud", category: "platform", component: () => import("@/apps/ProvidersApp").then((m) => ({ default: m.ProvidersApp })), defaultSize: { w: 950, h: 640 }, minSize: { w: 600, h: 400 }, singleton: true, pinned: false, launchpadOrder: 6.5 },
+  { id: "dashboard", name: "Activity", icon: "activity", category: "platform", component: () => import("@/apps/ActivityApp").then((m) => ({ default: m.ActivityApp })), defaultSize: { w: 1100, h: 720 }, minSize: { w: 600, h: 400 }, singleton: true, pinned: false, launchpadOrder: 7 },
+  { id: "cluster", name: "Cluster", icon: "network", category: "platform", component: () => import("@/apps/ClusterApp").then((m) => ({ default: m.ClusterApp })), defaultSize: { w: 1000, h: 680 }, minSize: { w: 600, h: 400 }, singleton: true, pinned: false, launchpadOrder: 7.5 },
+  { id: "memory", name: "Memory", icon: "database", category: "platform", component: () => import("@/apps/MemoryApp").then((m) => ({ default: m.MemoryApp })), defaultSize: { w: 850, h: 550 }, minSize: { w: 450, h: 350 }, singleton: true, pinned: false, launchpadOrder: 8 },
+  { id: "mcp", name: "MCP", icon: "plug", category: "platform", component: () => import("@/apps/MCPApp").then((m) => ({ default: m.MCPApp })), defaultSize: { w: 1000, h: 680 }, minSize: { w: 600, h: 400 }, singleton: true, pinned: false, launchpadOrder: 9.5 },
+  { id: "taos-agent", name: "taOS Agent", icon: "bot", category: "platform", component: () => import("@/apps/TaosAssistantWindow").then((m) => ({ default: m.TaosAssistantWindow })), defaultSize: { w: 420, h: 640 }, minSize: { w: 320, h: 420 }, singleton: false, pinned: false, launchpadOrder: 8.5 },
+  { id: "channels", name: "Channels", icon: "radio", category: "platform", component: () => import("@/apps/ChannelsApp").then((m) => ({ default: m.ChannelsApp })), defaultSize: { w: 800, h: 500 }, minSize: { w: 450, h: 350 }, singleton: true, pinned: false, launchpadOrder: 9 },
+  { id: "secrets", name: "Secrets", icon: "key-round", category: "platform", component: () => import("@/apps/SecretsApp").then((m) => ({ default: m.SecretsApp })), defaultSize: { w: 750, h: 500 }, minSize: { w: 400, h: 300 }, singleton: true, pinned: false, launchpadOrder: 10 },
+  { id: "tasks", name: "Tasks", icon: "calendar-clock", category: "platform", component: () => import("@/apps/TasksApp").then((m) => ({ default: m.TasksApp })), defaultSize: { w: 800, h: 500 }, minSize: { w: 450, h: 350 }, singleton: true, pinned: false, launchpadOrder: 11 },
+  { id: "import", name: "Import", icon: "upload", category: "platform", component: () => import("@/apps/ImportApp").then((m) => ({ default: m.ImportApp })), defaultSize: { w: 700, h: 450 }, minSize: { w: 400, h: 300 }, singleton: true, pinned: false, launchpadOrder: 12 },
+  { id: "images", name: "Images", icon: "image", category: "platform", component: () => import("@/apps/ImagesApp").then((m) => ({ default: m.ImagesApp })), defaultSize: { w: 900, h: 600 }, minSize: { w: 500, h: 400 }, singleton: true, pinned: false, launchpadOrder: 13 },
+  { id: "coding-studio", name: "Coding Studio", icon: "code-2", category: "studio", component: () => import("@/apps/CodingStudioApp").then((m) => ({ default: m.CodingStudioApp })), defaultSize: { w: 1080, h: 760 }, minSize: { w: 680, h: 540 }, singleton: true, pinned: false, launchpadOrder: 13.25, optional: true },
+  { id: "design-studio", name: "Design Studio", icon: "palette", category: "studio", component: () => import("@/apps/DesignStudioApp").then((m) => ({ default: m.DesignStudioApp })), defaultSize: { w: 1080, h: 720 }, minSize: { w: 680, h: 520 }, singleton: true, pinned: false, launchpadOrder: 13.26, optional: true },
+  { id: "music-studio", name: "Music Studio", icon: "music", category: "studio", component: () => import("@/apps/MusicStudioApp").then((m) => ({ default: m.MusicStudioApp })), defaultSize: { w: 1080, h: 720 }, minSize: { w: 700, h: 540 }, singleton: true, pinned: false, launchpadOrder: 13.27, optional: true },
+  { id: "app-studio", name: "App Studio", icon: "blocks", category: "studio", component: () => import("@/apps/AppStudioApp").then((m) => ({ default: m.AppStudioApp })), defaultSize: { w: 1080, h: 720 }, minSize: { w: 680, h: 520 }, singleton: true, pinned: false, launchpadOrder: 13.28, optional: true },
+  { id: "office-suite", name: "Office Suite", icon: "file-text", category: "studio", component: () => import("@/apps/OfficeSuiteApp").then((m) => ({ default: m.OfficeSuiteApp })), defaultSize: { w: 1080, h: 720 }, minSize: { w: 680, h: 520 }, singleton: true, pinned: false, launchpadOrder: 13.29, optional: true },
+  { id: "library", name: "Library", icon: "book-open", category: "platform", component: () => import("@/apps/LibraryApp").then((m) => ({ default: m.LibraryApp })), defaultSize: { w: 1000, h: 650 }, minSize: { w: 550, h: 400 }, singleton: true, pinned: true, launchpadOrder: 13.5 },
+  { id: "reddit", name: "Reddit", icon: "scroll-text", category: "platform", component: () => import("@/apps/RedditApp").then((m) => ({ default: m.RedditApp })), defaultSize: { w: 1000, h: 650 }, minSize: { w: 550, h: 400 }, singleton: true, pinned: false, launchpadOrder: 14, optional: true },
+  { id: "youtube-library", name: "YouTube", icon: "play-circle", category: "platform", component: () => import("@/apps/YouTubeApp").then((m) => ({ default: m.YouTubeApp })), defaultSize: { w: 1050, h: 700 }, minSize: { w: 600, h: 450 }, singleton: true, pinned: false, launchpadOrder: 14.5, optional: true },
+  { id: "github-browser", name: "GitHub", icon: "github", category: "platform", component: () => import("@/apps/GitHubApp").then((m) => ({ default: m.GitHubApp })), defaultSize: { w: 1000, h: 650 }, minSize: { w: 550, h: 400 }, singleton: true, pinned: false, launchpadOrder: 15, optional: true },
+  { id: "x-monitor", name: "X", icon: "at-sign", category: "platform", component: () => import("@/apps/XApp").then((m) => ({ default: m.XApp })), defaultSize: { w: 1000, h: 650 }, minSize: { w: 550, h: 400 }, singleton: true, pinned: false, launchpadOrder: 15.5, optional: true },
+  { id: "agent-browsers", name: "Browsers", icon: "globe", category: "platform", component: () => import("@/apps/AgentBrowsersApp").then((m) => ({ default: m.AgentBrowsersApp })), defaultSize: { w: 1000, h: 650 }, minSize: { w: 550, h: 400 }, singleton: true, pinned: false, launchpadOrder: 16 },
+  { id: "feedback", name: "Feedback", icon: "flag", category: "platform", component: () => import("@/apps/FeedbackApp").then((m) => ({ default: m.FeedbackApp })), defaultSize: { w: 700, h: 560 }, minSize: { w: 420, h: 400 }, singleton: true, pinned: false, launchpadOrder: 16.5 },
+
+  // OS apps
+  { id: "weather", name: "Weather", icon: "cloud", category: "os", component: () => import("@/apps/WeatherApp").then((m) => ({ default: m.WeatherApp })), defaultSize: { w: 800, h: 600 }, minSize: { w: 400, h: 400 }, singleton: true, pinned: false, launchpadOrder: 19 },
+  { id: "calculator", name: "Calculator", icon: "calculator", category: "os", component: () => import("@/apps/CalculatorApp").then((m) => ({ default: m.CalculatorApp })), defaultSize: { w: 320, h: 480 }, minSize: { w: 280, h: 400 }, singleton: true, pinned: false, launchpadOrder: 20 },
+  { id: "calendar", name: "Calendar", icon: "calendar", category: "os", component: () => import("@/apps/CalendarApp").then((m) => ({ default: m.CalendarApp })), defaultSize: { w: 900, h: 600 }, minSize: { w: 600, h: 400 }, singleton: true, pinned: false, launchpadOrder: 21 },
+  { id: "contacts", name: "Contacts", icon: "contact", category: "os", component: () => import("@/apps/ContactsApp").then((m) => ({ default: m.ContactsApp })), defaultSize: { w: 700, h: 500 }, minSize: { w: 400, h: 300 }, singleton: true, pinned: false, launchpadOrder: 22 },
+  // Single Browser app. The proxy vs real-Neko-streamed engine is a per-tab
+  // toggle inside it (BrowserModeToggle / LiveBrowserView), not a separate app.
+  { id: "browser", name: "Browser", icon: "globe", category: "os", component: () => import("@/apps/BrowserApp").then((m) => ({ default: m.BrowserApp })), defaultSize: { w: 1024, h: 700 }, minSize: { w: 600, h: 400 }, singleton: false, pinned: false, launchpadOrder: 23 },
+  { id: "media-player", name: "Media Player", icon: "play-circle", category: "os", component: () => import("@/apps/MediaPlayerApp").then((m) => ({ default: m.MediaPlayerApp })), defaultSize: { w: 800, h: 500 }, minSize: { w: 400, h: 300 }, singleton: false, pinned: false, launchpadOrder: 24 },
+  { id: "text-editor", name: "Text Editor", icon: "file-text", category: "os", component: () => import("@/apps/TextEditorApp").then((m) => ({ default: m.TextEditorApp })), defaultSize: { w: 800, h: 550 }, minSize: { w: 400, h: 300 }, singleton: false, pinned: false, launchpadOrder: 25 },
+  { id: "image-viewer", name: "Image Viewer", icon: "eye", category: "os", component: () => import("@/apps/ImageViewerApp").then((m) => ({ default: m.ImageViewerApp })), defaultSize: { w: 800, h: 600 }, minSize: { w: 400, h: 300 }, singleton: false, pinned: false, launchpadOrder: 26 },
+  { id: "terminal", name: "Terminal", icon: "terminal", category: "os", component: () => import("@/apps/TerminalApp").then((m) => ({ default: m.TerminalApp })), defaultSize: { w: 800, h: 500 }, minSize: { w: 400, h: 250 }, singleton: false, pinned: false, launchpadOrder: 27 },
+
+  // Games
+  { id: "chess", name: "Chess", icon: "crown", category: "game", component: () => import("@/apps/ChessApp").then((m) => ({ default: m.ChessApp })), defaultSize: { w: 700, h: 700 }, minSize: { w: 500, h: 500 }, singleton: true, pinned: false, launchpadOrder: 40 },
+  { id: "wordle", name: "Wordle", icon: "spell-check", category: "game", component: () => import("@/apps/WordleApp").then((m) => ({ default: m.WordleApp })), defaultSize: { w: 500, h: 650 }, minSize: { w: 400, h: 550 }, singleton: true, pinned: false, launchpadOrder: 41 },
+  { id: "crosswords", name: "Crosswords", icon: "grid-3x3", category: "game", component: () => import("@/apps/CrosswordsApp").then((m) => ({ default: m.CrosswordsApp })), defaultSize: { w: 700, h: 600 }, minSize: { w: 500, h: 450 }, singleton: true, pinned: false, launchpadOrder: 42 },
+  { id: "game-studio", name: "Game Studio", icon: "gamepad-2", category: "studio", component: () => import("@/apps/GameStudioApp").then((m) => ({ default: m.GameStudioApp })), defaultSize: { w: 1080, h: 760 }, minSize: { w: 640, h: 520 }, singleton: true, pinned: false, launchpadOrder: 42.5 },
+];
+
+export function getApp(id: string): AppManifest | undefined {
+  return apps.find((a) => a.id === id);
+}
+
+/** Friendly synonyms → canonical app id, for tokens that are neither an id
+ *  nor an exact app name. Lets deep links and the agent say "monitor" or
+ *  "chat" instead of "dashboard" / "messages". */
+const APP_ALIASES: Record<string, string> = {
+  activity: "dashboard",
+  "activity-monitor": "dashboard",
+  monitor: "dashboard",
+  chat: "messages",
+  assistant: "taos-agent",
+  agent: "taos-agent",
+};
+
+/**
+ * Resolve a user- or agent-supplied app token to a registered manifest.
+ * Matches in order: exact id, alias, then case-insensitive name. Powers the
+ * deep-navigation API (`?app=` and the `taos:open-app` event) so callers can
+ * use friendly names ("activity", "Activity", "monitor") instead of ids.
+ */
+export function resolveApp(token: string): AppManifest | undefined {
+  const key = token.trim().toLowerCase();
+  if (!key) return undefined;
+  const byId = apps.find((a) => a.id.toLowerCase() === key);
+  if (byId) return byId;
+  const aliasId = APP_ALIASES[key];
+  if (aliasId) {
+    const byAlias = apps.find((a) => a.id === aliasId);
+    if (byAlias) return byAlias;
+  }
+  return apps.find((a) => a.name.toLowerCase() === key);
+}
+
+export function getAppsByCategory(category: AppManifest["category"]): AppManifest[] {
+  return apps.filter((a) => a.category === category);
+}
+
+export function getAllApps(): AppManifest[] {
+  return [...apps].sort((a, b) => a.launchpadOrder - b.launchpadOrder);
+}
+
+/** The optional (Store-installable) apps, in launchpad order. */
+export function getOptionalApps(): AppManifest[] {
+  return getAllApps().filter((a) => a.optional);
+}
+
+/**
+ * Apps the desktop launcher should surface: every always-on app plus the
+ * optional apps the user has installed. `installedOptional` is the set of
+ * installed optional app ids (from /api/apps/optional/installed).
+ */
+export function getLaunchableApps(installedOptional: Set<string>): AppManifest[] {
+  return getAllApps().filter((a) => !a.optional || installedOptional.has(a.id));
+}
+
+const prefetched = new Set<string>();
+// Tracks apps that failed prefetch; not retried to avoid repeated errors on every hover.
+const prefetchFailed = new Set<string>();
+
+/**
+ * Warm the dynamic-import chunk for an app so a later cold-open feels instant.
+ *
+ * Best-effort and memoized: each app is only prefetched once per session and
+ * errors are swallowed (a failed prefetch must never affect the UI). Works for
+ * any registered manifest, including service/userspace apps (`service:*`).
+ */
+export function prefetchApp(appId: string): void {
+  if (prefetched.has(appId) || prefetchFailed.has(appId)) return;
+  const app = getApp(appId);
+  if (!app) return;
+  prefetched.add(appId);
+  try {
+    void Promise.resolve(app.component()).catch((err) => {
+      console.warn("Failed to prefetch app:", appId, err);
+      prefetched.delete(appId);
+      prefetchFailed.add(appId);
+    });
+  } catch (err) {
+    console.warn("Failed to prefetch app:", appId, err);
+    prefetched.delete(appId);
+    prefetchFailed.add(appId);
+  }
+}
+
+/**
+ * Register or return a dynamic app manifest for an installed service.
+ *
+ * Each installed service gets its own appId of the form `service:{app_id}`
+ * so that multiple services can be open simultaneously as independent windows.
+ * The manifest is registered lazily on first call and persists for the session.
+ */
+export function getOrRegisterServiceApp(
+  appId: string,
+  displayName: string,
+): AppManifest {
+  const dynId = `service:${appId}`;
+  const existing = apps.find((a) => a.id === dynId);
+  if (existing) return existing;
+
+  const manifest: AppManifest = {
+    id: dynId,
+    name: displayName,
+    icon: "layout-grid",
+    category: "platform",
+    component: () =>
+      import("@/apps/ServiceAppWindow").then((m) => ({ default: m.ServiceAppWindow })),
+    defaultSize: { w: 1100, h: 750 },
+    minSize: { w: 600, h: 400 },
+    singleton: true,
+    pinned: false,
+    launchpadOrder: 999,
+  };
+  apps.push(manifest);
+  return manifest;
+}
+
+/**
+ * Reconcile the registered userspace app manifests against a fresh list.
+ *
+ * Preserves the object identity of already-registered manifests so that open
+ * userspace windows are not remounted on every sync. Only removes entries no
+ * longer present in the incoming list and only appends genuinely new ids.
+ * When an id is removed its prefetch-cache entries are also cleared so a
+ * reinstall triggers a fresh prefetch.
+ */
+export function syncUserspaceApps(manifests: AppManifest[]): void {
+  const incoming = new Map(manifests.map((m) => [m.id, m]));
+  // Drop userspace entries no longer present, and clear their prefetch state
+  for (let i = apps.length - 1; i >= 0; i--) {
+    const id = apps[i]?.id;
+    if (id?.startsWith("userspace:") && !incoming.has(id)) {
+      apps.splice(i, 1);
+      prefetched.delete(id);
+      prefetchFailed.delete(id);
+    }
+  }
+  // Add only new ids, preserving the identity of already-registered manifests
+  // so open userspace windows are not remounted on every sync.
+  const present = new Set(
+    apps.filter((a) => a.id.startsWith("userspace:")).map((a) => a.id),
+  );
+  for (const m of manifests) {
+    if (!present.has(m.id)) apps.push(m);
+  }
+}

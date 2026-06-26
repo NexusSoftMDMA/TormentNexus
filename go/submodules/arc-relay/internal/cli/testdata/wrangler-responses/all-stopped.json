@@ -1,0 +1,4 @@
+[
+  {"id": "1", "name": "broken-a", "display_name": "Broken A", "server_type": "http", "status": "stopped"},
+  {"id": "2", "name": "broken-b", "display_name": "Broken B", "server_type": "http", "status": "error"}
+]

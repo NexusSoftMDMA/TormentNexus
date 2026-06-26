@@ -1,0 +1,171 @@
+{{define "title"}}Profile: {{.Profile.Name}}{{end}}
+{{define "content"}}
+<div class="page-header">
+  <h2>Profile: {{.Profile.Name}}</h2>
+  <div class="actions">
+    <a href="/profiles" class="btn btn-outline btn-sm">&larr; All Profiles</a>
+    {{if .Sections}}
+    <button class="btn btn-sm btn-outline" onclick="toggleAllSections(true)">Expand All</button>
+    <button class="btn btn-sm btn-outline" onclick="toggleAllSections(false)">Collapse All</button>
+    {{end}}
+  </div>
+</div>
+
+<div class="card">
+  <h2>Profile Settings</h2>
+  <form method="POST" action="/profiles/{{.Profile.ID}}/update">
+    <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+    <div class="form-row">
+      <div class="form-group">
+        <label for="name">Name</label>
+        <input type="text" id="name" name="name" value="{{.Profile.Name}}" required>
+      </div>
+      <div class="form-group">
+        <label for="description">Description</label>
+        <input type="text" id="description" name="description" value="{{.Profile.Description}}">
+      </div>
+    </div>
+    <button type="submit" class="btn btn-primary btn-sm">Save</button>
+  </form>
+</div>
+
+{{if not .Sections}}
+<div class="card">
+  <div class="empty-state">
+    <p>No servers with enumerated endpoints. Start a server and run "Enumerate" first.</p>
+  </div>
+</div>
+{{end}}
+
+{{range .Sections}}
+<div class="card">
+  <div class="section-header" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.5rem;">
+    <h2 style="margin-bottom:0; cursor:pointer; user-select:none;" onclick="toggleSection('{{.ID}}')">
+      <span class="collapse-icon" id="icon-{{.ID}}">&#9660;</span>
+      {{.Name}}
+      <span style="font-size:0.8rem; font-weight:normal; color:var(--text-muted);">({{len .Endpoints}})</span>
+    </h2>
+    <div class="actions">
+      <button type="button" class="btn btn-sm" style="background:#d1e7dd;color:var(--success);border-color:#badbcc"
+        onclick="seedPermissions('{{$.Profile.ID}}', '{{.ID}}', 'read', this)">Grant Read</button>
+      <button type="button" class="btn btn-sm" style="background:#cfe2ff;color:#084298;border-color:#b6d4fe"
+        onclick="seedPermissions('{{$.Profile.ID}}', '{{.ID}}', 'write', this)">Grant Read+Write</button>
+      <button type="button" class="btn btn-sm" style="background:#f8d7da;color:var(--danger);border-color:#f5c2c7"
+        onclick="seedPermissions('{{$.Profile.ID}}', '{{.ID}}', 'admin', this)">Grant All</button>
+    </div>
+  </div>
+  <div class="section-body" id="body-{{.ID}}">
+    <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th style="width:2.5rem"></th><th>Endpoint</th><th>Tier</th></tr>
+      </thead>
+      <tbody>
+        {{$serverID := .ID}}
+        {{range .Endpoints}}
+        <tr>
+          <td>
+            <input type="checkbox" {{if .Allowed}}checked{{end}}
+              data-profile="{{$.Profile.ID}}" data-server="{{$serverID}}"
+              data-type="{{.Type}}" data-name="{{.Name}}" data-tier="{{.Tier}}"
+              onchange="togglePerm(this)">
+          </td>
+          <td><code>{{.Name}}</code></td>
+          <td><span class="tier-select tier-{{.Tier}}">{{.Tier}}</span></td>
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+    </div>
+  </div>
+</div>
+{{end}}
+
+<script>
+function getCSRF() {
+  var el = document.querySelector('meta[name="csrf-token"]');
+  return el ? el.content : '';
+}
+
+function togglePerm(el) {
+  var action = el.checked ? 'grant' : 'revoke';
+  var csrf = getCSRF();
+  var body = new URLSearchParams({
+    server_id: el.dataset.server,
+    endpoint_type: el.dataset.type,
+    endpoint_name: el.dataset.name,
+    action: action,
+    csrf_token: csrf
+  });
+  fetch('/profiles/' + el.dataset.profile + '/permission', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRF-Token': csrf},
+    body: body
+  }).then(function(r) {
+    if (!r.ok) return r.text().then(function(t) { throw new Error(t || ('HTTP ' + r.status)); });
+  }).catch(function(e) {
+    el.checked = !el.checked;
+    alert('Permission update failed: ' + e.message);
+  });
+}
+
+function seedPermissions(profileID, serverID, tier, btn) {
+  var csrf = getCSRF();
+  var body = new URLSearchParams({server_id: serverID, tier: tier, csrf_token: csrf});
+  btn.disabled = true;
+  var orig = btn.textContent;
+  btn.textContent = 'Saving...';
+  fetch('/profiles/' + profileID + '/seed', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      'X-CSRF-Token': csrf,
+      'Accept': 'application/json'
+    },
+    body: body
+  }).then(function(r) {
+    if (!r.ok) return r.text().then(function(t) { throw new Error(t || ('HTTP ' + r.status)); });
+    // Check matching tier checkboxes (seed only adds, never removes)
+    var tiers = tier === 'admin' ? null : tier === 'write' ? ['read','write'] : ['read'];
+    document.querySelectorAll('input[data-server="' + serverID + '"]').forEach(function(cb) {
+      if (tiers === null || tiers.indexOf(cb.dataset.tier) !== -1) {
+        cb.checked = true;
+      }
+    });
+  }).catch(function(e) {
+    alert('Seed failed: ' + e.message);
+  }).finally(function() {
+    btn.disabled = false;
+    btn.textContent = orig;
+  });
+}
+
+function toggleSection(serverID) {
+  var body = document.getElementById('body-' + serverID);
+  var icon = document.getElementById('icon-' + serverID);
+  if (body.style.display === 'none') {
+    body.style.display = '';
+    icon.innerHTML = '\u25BC'; // down triangle
+  } else {
+    body.style.display = 'none';
+    icon.innerHTML = '\u25B6'; // right triangle
+  }
+}
+
+function toggleAllSections(expand) {
+  document.querySelectorAll('.section-body').forEach(function(el) {
+    el.style.display = expand ? '' : 'none';
+  });
+  document.querySelectorAll('.collapse-icon').forEach(function(el) {
+    el.innerHTML = expand ? '\u25BC' : '\u25B6';
+  });
+}
+</script>
+
+<style>
+  .section-header h2 .collapse-icon {
+    display: inline-block; width: 1em; font-size: 0.8em; color: var(--text-muted);
+  }
+  .section-body { margin-top: 1rem; }
+</style>
+{{end}}

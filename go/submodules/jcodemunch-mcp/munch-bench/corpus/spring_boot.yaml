@@ -1,0 +1,81 @@
+repo: spring-projects/spring-boot
+questions:
+  - id: spring-001
+    question: "How does Spring Boot auto-configuration work?"
+    ground_truth_answer: "Spring Boot scans META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports for configuration classes. Each class is conditionally loaded via @ConditionalOnClass, @ConditionalOnProperty, etc. AutoConfigurationImportSelector filters candidates based on conditions and ordering."
+    ground_truth_symbols: ["AutoConfigurationImportSelector", "AutoConfiguration"]
+    difficulty: hard
+    category: architecture
+    tags: [auto-config, conditional]
+
+  - id: spring-002
+    question: "How does Spring Boot implement externalized configuration and property binding?"
+    ground_truth_answer: "Spring Boot loads properties from application.yml/properties, env vars, command line args, and other sources in a defined order. @ConfigurationProperties binds prefixed properties to POJOs via Binder. The Binder handles type conversion, nested objects, and validation."
+    ground_truth_symbols: ["ConfigurationProperties", "Binder"]
+    difficulty: medium
+    category: architecture
+    tags: [config, binding]
+
+  - id: spring-003
+    question: "How does Spring Boot implement the actuator health endpoint?"
+    ground_truth_answer: "HealthEndpoint aggregates HealthIndicator beans. Each indicator returns a Health status (UP, DOWN, etc.) with details. The CompositeHealthContributor groups indicators hierarchically. HealthEndpointWebExtension controls detail exposure based on show-details config."
+    ground_truth_symbols: ["HealthEndpoint", "HealthIndicator", "CompositeHealthContributor"]
+    difficulty: medium
+    category: api
+    tags: [actuator, health]
+
+  - id: spring-004
+    question: "How does Spring Boot implement embedded server startup?"
+    ground_truth_answer: "SpringApplication.run() creates the ApplicationContext, which triggers ServletWebServerApplicationContext. It creates a WebServer via WebServerFactory (Tomcat/Jetty/Undertow). The server is started after the context refreshes and all beans are initialized."
+    ground_truth_symbols: ["SpringApplication", "run", "WebServerFactory"]
+    difficulty: medium
+    category: architecture
+    tags: [embedded-server, startup]
+
+  - id: spring-005
+    question: "How does Spring Boot DevTools implement live reload?"
+    ground_truth_answer: "DevTools uses a file watcher (ClassPathFileSystemWatcher) that monitors classpath directories. On change, it triggers a restart by creating a new ApplicationContext with a fresh RestartClassLoader. The base classloader is reused for unchanged JARs. LiveReload server notifies browsers."
+    ground_truth_symbols: ["ClassPathFileSystemWatcher", "Restarter", "RestartClassLoader"]
+    difficulty: hard
+    category: architecture
+    tags: [devtools, reload]
+
+  - id: spring-006
+    question: "How does @SpringBootTest set up the test application context?"
+    ground_truth_answer: "SpringBootTestContextBootstrapper finds the @SpringBootConfiguration class (usually the main class), creates a SpringApplication, and runs it with the test environment. WebEnvironment enum controls whether a real server, mock servlet, or no web environment is created."
+    ground_truth_symbols: ["SpringBootTest", "SpringBootTestContextBootstrapper"]
+    difficulty: medium
+    category: api
+    tags: [testing, context]
+
+  - id: spring-007
+    question: "How does Spring Boot implement error handling for web applications?"
+    ground_truth_answer: "BasicErrorController handles /error requests. It uses ErrorAttributes to extract exception details. For HTML requests, it renders an error view (via ErrorViewResolver). For JSON requests, it returns a structured error response. @ControllerAdvice and @ExceptionHandler provide custom handling."
+    ground_truth_symbols: ["BasicErrorController", "ErrorAttributes", "ErrorViewResolver"]
+    difficulty: medium
+    category: debugging
+    tags: [errors, web]
+
+  - id: spring-008
+    question: "How does Spring Boot implement logging auto-configuration?"
+    ground_truth_answer: "LoggingApplicationListener initializes the logging system early in startup. It detects the logging framework (Logback/Log4j2/JUL) via classpath. LoggingSystem.get() resolves the implementation. Configuration file (logback-spring.xml) is loaded, and Spring-specific extensions (springProfile, springProperty) are processed."
+    ground_truth_symbols: ["LoggingApplicationListener", "LoggingSystem"]
+    difficulty: medium
+    category: architecture
+    tags: [logging, configuration]
+
+  - id: spring-009
+    question: "How does Spring Boot implement graceful shutdown?"
+    ground_truth_answer: "When server.shutdown=graceful is set, the WebServer wraps its handler with GracefulShutdown. On SIGTERM, it stops accepting new requests, waits for in-flight requests up to the timeout-per-shutdown-phase, then closes the context. SmartLifecycle beans are stopped in phase order."
+    ground_truth_symbols: ["GracefulShutdown", "SmartLifecycle"]
+    difficulty: medium
+    category: api
+    tags: [shutdown, lifecycle]
+
+  - id: spring-010
+    question: "How does Spring Boot implement the Fat JAR packaging?"
+    ground_truth_answer: "The spring-boot-maven-plugin repackages the JAR with a special layout. JarLauncher is the main class; it creates a LaunchedURLClassLoader that loads nested JARs from BOOT-INF/lib/. Application classes go in BOOT-INF/classes/. The launcher bootstraps the real main class."
+    ground_truth_symbols: ["JarLauncher", "LaunchedURLClassLoader"]
+    difficulty: hard
+    category: architecture
+    tags: [packaging, classloader]

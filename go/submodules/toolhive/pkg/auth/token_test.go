@@ -1,0 +1,2853 @@
+// SPDX-FileCopyrightText: Copyright 2025 Stacklok, Inc.
+// SPDX-License-Identifier: Apache-2.0
+
+package auth
+
+import (
+	"context"
+	"crypto/rand"
+	"crypto/rsa"
+	"encoding/json"
+	"encoding/pem"
+	"errors"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/golang-jwt/jwt/v5"
+	"github.com/lestrrat-go/jwx/v3/jwk"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+
+	envmocks "github.com/stacklok/toolhive-core/env/mocks"
+	"github.com/stacklok/toolhive/pkg/auth/upstreamtoken"
+	upstreamtokenmocks "github.com/stacklok/toolhive/pkg/auth/upstreamtoken/mocks"
+	"github.com/stacklok/toolhive/pkg/authserver/server/keys"
+	keysmocks "github.com/stacklok/toolhive/pkg/authserver/server/keys/mocks"
+	"github.com/stacklok/toolhive/pkg/networking"
+	"github.com/stacklok/toolhive/pkg/oauthproto"
+)
+
+const (
+	testKeyID   = "test-key-1"
+	expClaim    = "exp"
+	issuer      = "https://issuer.example.com"
+	schemeHTTPS = "https"
+)
+
+//nolint:gocyclo // This test function is complex but manageable
+func TestTokenValidator(t *testing.T) {
+	t.Parallel()
+	// Generate a new RSA key pair for signing tokens
+	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("Failed to generate RSA key pair: %v", err)
+	}
+	publicKey := &privateKey.PublicKey
+
+	// Create a key set with the public key
+	key, err := jwk.Import(publicKey)
+	if err != nil {
+		t.Fatalf("Failed to create JWK from public key: %v", err)
+	}
+
+	// Set key ID and other properties
+	if err := key.Set(jwk.KeyIDKey, testKeyID); err != nil {
+		t.Fatalf("Failed to set key ID: %v", err)
+	}
+	if err := key.Set(jwk.AlgorithmKey, "RS256"); err != nil {
+		t.Fatalf("Failed to set algorithm: %v", err)
+	}
+	if err := key.Set(jwk.KeyUsageKey, "sig"); err != nil {
+		t.Fatalf("Failed to set key usage: %v", err)
+	}
+
+	// Create a key set
+	keySet := jwk.NewSet()
+	if err := keySet.AddKey(key); err != nil {
+		t.Fatalf("Failed to add key to set: %v", err)
+	}
+
+	// Create a test JWKS server with TLS
+	jwksServer, caCertPath := createTestJWKSServer(t, keySet)
+	t.Cleanup(func() {
+		jwksServer.Close()
+	})
+
+	// Create a context for the test
+	ctx := context.Background()
+
+	// Create a JWT validator
+	validator, err := NewTokenValidator(ctx, TokenValidatorConfig{
+		Issuer:         "test-issuer",
+		Audience:       "test-audience",
+		JWKSURL:        jwksServer.URL,
+		ClientID:       "test-client",
+		CACertPath:     caCertPath,
+		AllowPrivateIP: true,
+	})
+	if err != nil {
+		t.Fatalf("Failed to create token validator: %v", err)
+	}
+
+	// Ensure JWKS is registered before lookup
+	err = validator.ensureJWKSRegistered(ctx)
+	if err != nil {
+		t.Fatalf("Failed to register JWKS: %v", err)
+	}
+
+	// Force a refresh of the JWKS cache
+	_, err = validator.jwksClient.Lookup(ctx, jwksServer.URL)
+	if err != nil {
+		t.Fatalf("Failed to refresh JWKS cache: %v", err)
+	}
+
+	// Test cases
+	testCases := []struct {
+		name      string
+		claims    jwt.MapClaims
+		expectErr bool
+		errType   error
+	}{
+		{
+			name: "Valid token",
+			claims: jwt.MapClaims{
+				"iss": "test-issuer",
+				"aud": "test-audience",
+				"exp": time.Now().Add(time.Hour).Unix(),
+			},
+			expectErr: false,
+		},
+		{
+			name: "Invalid issuer",
+			claims: jwt.MapClaims{
+				"iss": "wrong-issuer",
+				"aud": "test-audience",
+				"exp": time.Now().Add(time.Hour).Unix(),
+			},
+			expectErr: true,
+			errType:   ErrInvalidIssuer,
+		},
+		{
+			name: "Invalid audience",
+			claims: jwt.MapClaims{
+				"iss": "test-issuer",
+				"aud": "wrong-audience",
+				"exp": time.Now().Add(time.Hour).Unix(),
+			},
+			expectErr: true,
+			errType:   ErrInvalidAudience,
+		},
+		{
+			name: "Expired token",
+			claims: jwt.MapClaims{
+				"iss": "test-issuer",
+				"aud": "test-audience",
+				"exp": time.Now().Add(-time.Hour).Unix(),
+			},
+			expectErr: true,
+			// The JWT library returns its own error for expired tokens
+			errType: nil,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			// Create a token with the test claims
+			token := jwt.NewWithClaims(jwt.SigningMethodRS256, tc.claims)
+			token.Header["kid"] = testKeyID
+
+			// Sign the token
+			tokenString, err := token.SignedString(privateKey)
+			if err != nil {
+				t.Fatalf("Failed to sign token: %v", err)
+			}
+
+			// Validate the token
+			_, err = validator.ValidateToken(context.Background(), tokenString)
+
+			// Check the result
+			if tc.expectErr {
+				if err == nil {
+					t.Errorf("Expected error but got nil")
+				} else if tc.errType != nil && !errors.Is(err, tc.errType) {
+					t.Errorf("Expected error %v but got %v", tc.errType, err)
+				}
+			} else {
+				if err != nil {
+					t.Errorf("Expected no error but got %v", err)
+				}
+			}
+		})
+	}
+}
+
+//nolint:gocyclo // This test function is complex but manageable
+func TestTokenValidatorMiddleware(t *testing.T) {
+	t.Parallel()
+	// Generate a new RSA key pair for signing tokens
+	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("Failed to generate RSA key pair: %v", err)
+	}
+	publicKey := &privateKey.PublicKey
+
+	// Create a key set with the public key
+	key, err := jwk.Import(publicKey)
+	if err != nil {
+		t.Fatalf("Failed to create JWK from public key: %v", err)
+	}
+
+	// Set key ID and other properties
+	if err := key.Set(jwk.KeyIDKey, testKeyID); err != nil {
+		t.Fatalf("Failed to set key ID: %v", err)
+	}
+	if err := key.Set(jwk.AlgorithmKey, "RS256"); err != nil {
+		t.Fatalf("Failed to set algorithm: %v", err)
+	}
+	if err := key.Set(jwk.KeyUsageKey, "sig"); err != nil {
+		t.Fatalf("Failed to set key usage: %v", err)
+	}
+
+	// Create a key set
+	keySet := jwk.NewSet()
+	if err := keySet.AddKey(key); err != nil {
+		t.Fatalf("Failed to add key to set: %v", err)
+	}
+
+	// Create a test JWKS server with TLS
+	jwksServer, caCertPath := createTestJWKSServer(t, keySet)
+	t.Cleanup(func() {
+		jwksServer.Close()
+	})
+
+	// Create a context for the test
+	ctx := context.Background()
+
+	// Create a JWT validator
+	validator, err := NewTokenValidator(ctx, TokenValidatorConfig{
+		Issuer:         "test-issuer",
+		Audience:       "test-audience",
+		JWKSURL:        jwksServer.URL,
+		ClientID:       "test-client",
+		CACertPath:     caCertPath,
+		AllowPrivateIP: true,
+	})
+	if err != nil {
+		t.Fatalf("Failed to create token validator: %v", err)
+	}
+
+	// Ensure JWKS is registered before lookup
+	err = validator.ensureJWKSRegistered(ctx)
+	if err != nil {
+		t.Fatalf("Failed to register JWKS: %v", err)
+	}
+
+	// Force a refresh of the JWKS cache
+	_, err = validator.jwksClient.Lookup(ctx, jwksServer.URL)
+	if err != nil {
+		t.Fatalf("Failed to refresh JWKS cache: %v", err)
+	}
+
+	// Create a test handler
+	testHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Get the identity from the context
+		identity, ok := IdentityFromContext(r.Context())
+		if !ok || identity == nil {
+			t.Errorf("Failed to get identity from context")
+			http.Error(w, "Failed to get identity from context", http.StatusInternalServerError)
+			return
+		}
+
+		// Write the claims as the response
+		w.Header().Set("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode(identity.Claims); err != nil {
+			t.Errorf("Failed to encode claims: %v", err)
+			http.Error(w, fmt.Sprintf("Failed to encode claims: %v", err), http.StatusInternalServerError)
+			return
+		}
+	})
+
+	// Create a middleware handler
+	handler := validator.Middleware(testHandler)
+
+	// Test cases
+	testCases := []struct {
+		name           string
+		claims         jwt.MapClaims
+		expectStatus   int
+		expectResponse bool
+	}{
+		{
+			name: "Valid token",
+			claims: jwt.MapClaims{
+				"iss": "test-issuer",
+				"aud": "test-audience",
+				"exp": time.Now().Add(time.Hour).Unix(),
+				"sub": "test-user",
+			},
+			expectStatus:   http.StatusOK,
+			expectResponse: true,
+		},
+		{
+			name: "Invalid issuer",
+			claims: jwt.MapClaims{
+				"iss": "wrong-issuer",
+				"aud": "test-audience",
+				"exp": time.Now().Add(time.Hour).Unix(),
+			},
+			expectStatus:   http.StatusUnauthorized,
+			expectResponse: false,
+		},
+		{
+			name: "Invalid audience",
+			claims: jwt.MapClaims{
+				"iss": "test-issuer",
+				"aud": "wrong-audience",
+				"exp": time.Now().Add(time.Hour).Unix(),
+			},
+			expectStatus:   http.StatusUnauthorized,
+			expectResponse: false,
+		},
+		{
+			name: "Expired token",
+			claims: jwt.MapClaims{
+				"iss": "test-issuer",
+				"aud": "test-audience",
+				"exp": time.Now().Add(-time.Hour).Unix(),
+			},
+			expectStatus:   http.StatusUnauthorized,
+			expectResponse: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			// Create a token with the test claims
+			token := jwt.NewWithClaims(jwt.SigningMethodRS256, tc.claims)
+			token.Header["kid"] = testKeyID
+
+			// Sign the token
+			tokenString, err := token.SignedString(privateKey)
+			if err != nil {
+				t.Fatalf("Failed to sign token: %v", err)
+			}
+
+			// Create a test request
+			req := httptest.NewRequest("GET", "/", nil)
+			req.Header.Set("Authorization", "Bearer "+tokenString)
+
+			// Create a test response recorder
+			rec := httptest.NewRecorder()
+
+			// Serve the request
+			handler.ServeHTTP(rec, req)
+
+			// Check the response
+			if rec.Code != tc.expectStatus {
+				t.Errorf("Expected status %d but got %d", tc.expectStatus, rec.Code)
+			}
+
+			if tc.expectResponse {
+				// Parse the response
+				var respClaims jwt.MapClaims
+				if err := json.NewDecoder(rec.Body).Decode(&respClaims); err != nil {
+					t.Errorf("Failed to decode response: %v", err)
+				}
+
+				// Check the claims (except exp which might be formatted differently)
+				for k, v := range tc.claims {
+					if k == expClaim {
+						// Skip exact comparison for exp claim
+						continue
+					}
+					if respClaims[k] != v {
+						t.Errorf("Expected claim %s to be %v but got %v", k, v, respClaims[k])
+					}
+				}
+			}
+		})
+	}
+}
+
+// createTestOIDCServer creates a test OIDC discovery server that returns the given JWKS URL
+func createTestOIDCServer(_ *testing.T, jwksURL string) *httptest.Server {
+	return httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/.well-known/openid-configuration" {
+			http.NotFound(w, r)
+			return
+		}
+
+		// Use the request's host to construct the issuer URL
+		scheme := "http"
+		if r.TLS != nil {
+			scheme = schemeHTTPS
+		}
+		issuerURL := fmt.Sprintf("%s://%s", scheme, r.Host)
+
+		doc := oauthproto.OIDCDiscoveryDocument{
+			AuthorizationServerMetadata: oauthproto.AuthorizationServerMetadata{
+				Issuer:                issuerURL,
+				AuthorizationEndpoint: issuerURL + "/auth",
+				TokenEndpoint:         issuerURL + "/token",
+				UserinfoEndpoint:      issuerURL + "/userinfo",
+				JWKSURI:               jwksURL,
+			},
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(doc)
+	}))
+}
+
+// writeTestServerCert extracts the TLS certificate from a test server and writes it to a temp file
+func writeTestServerCert(t *testing.T, server *httptest.Server) string {
+	t.Helper()
+
+	cert := server.Certificate()
+	if cert == nil {
+		t.Fatal("Test server has no certificate")
+		return ""
+	}
+
+	// Create temp file
+	tmpFile, err := os.CreateTemp("", "test-ca-*.crt")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	t.Cleanup(func() {
+		os.Remove(tmpFile.Name())
+	})
+
+	// Write PEM encoded certificate
+	if err := pem.Encode(tmpFile, &pem.Block{
+		Type:  "CERTIFICATE",
+		Bytes: cert.Raw,
+	}); err != nil {
+		t.Fatalf("Failed to write certificate: %v", err)
+	}
+
+	if err := tmpFile.Close(); err != nil {
+		t.Fatalf("Failed to close temp file: %v", err)
+	}
+
+	return tmpFile.Name()
+}
+
+// createTestJWKSServer creates a test JWKS server with TLS and returns the server and CA cert path
+func createTestJWKSServer(t *testing.T, keySet jwk.Set) (*httptest.Server, string) {
+	t.Helper()
+
+	// Create a test JWKS server
+	jwksServer := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		// Marshal the key set to JSON
+		buf, err := json.Marshal(keySet)
+		if err != nil {
+			t.Fatalf("Failed to marshal key set: %v", err)
+		}
+
+		// Set the content type
+		w.Header().Set("Content-Type", "application/json")
+
+		// Write the response
+		if _, err := w.Write(buf); err != nil {
+			t.Fatalf("Failed to write response: %v", err)
+		}
+	}))
+
+	// Extract the test server's certificate
+	caCertPath := writeTestServerCert(t, jwksServer)
+
+	return jwksServer, caCertPath
+}
+
+func TestDiscoverOIDCConfiguration(t *testing.T) {
+	t.Parallel()
+
+	// Create a test OIDC discovery server
+	oidcServer := createTestOIDCServer(t, "https://example.com/jwks")
+	t.Cleanup(func() {
+		oidcServer.Close()
+	})
+
+	// Extract the test server's certificate to a temp CA bundle file
+	caCertPath := writeTestServerCert(t, oidcServer)
+
+	// Build an HTTP client with the test server's CA cert for use in discovery calls
+	buildTestClient := func(t *testing.T, caPath string, allowPrivateIP bool) *http.Client {
+		t.Helper()
+		client, err := networking.NewHttpClientBuilder().
+			WithCABundle(caPath).
+			WithPrivateIPs(allowPrivateIP).
+			Build()
+		if err != nil {
+			t.Fatalf("Failed to build HTTP client: %v", err)
+		}
+		return client
+	}
+
+	ctx := context.Background()
+
+	t.Run("successful discovery", func(t *testing.T) {
+		t.Parallel()
+		client := buildTestClient(t, caCertPath, true)
+		doc, err := discoverOIDCConfiguration(ctx, oidcServer.URL, client, false)
+		if err != nil {
+			t.Fatalf("Expected no error but got %v", err)
+		}
+
+		if doc.Issuer != oidcServer.URL {
+			t.Errorf("Expected issuer %s but got %s", oidcServer.URL, doc.Issuer)
+		}
+
+		expectedJWKSURI := "https://example.com/jwks"
+		if doc.JWKSURI != expectedJWKSURI {
+			t.Errorf("Expected JWKS URI %s but got %s", expectedJWKSURI, doc.JWKSURI)
+		}
+	})
+
+	t.Run("issuer with trailing slash", func(t *testing.T) {
+		t.Parallel()
+		client := buildTestClient(t, caCertPath, true)
+		doc, err := discoverOIDCConfiguration(ctx, oidcServer.URL+"/", client, false)
+		if err != nil {
+			t.Fatalf("Expected no error but got %v", err)
+		}
+
+		if doc.Issuer != oidcServer.URL {
+			t.Errorf("Expected issuer %s but got %s", oidcServer.URL, doc.Issuer)
+		}
+	})
+
+	t.Run("invalid issuer URL", func(t *testing.T) {
+		t.Parallel()
+		_, err := discoverOIDCConfiguration(ctx, "invalid-url", http.DefaultClient, false)
+		if err == nil {
+			t.Error("Expected error but got nil")
+		}
+	})
+
+	t.Run("non-existent endpoint", func(t *testing.T) {
+		t.Parallel()
+		_, err := discoverOIDCConfiguration(ctx, "https://non-existent-domain.example", http.DefaultClient, false)
+		if err == nil {
+			t.Error("Expected error but got nil")
+		}
+	})
+}
+
+func TestNewTokenValidatorWithOIDCDiscovery(t *testing.T) {
+	t.Parallel()
+
+	// Mock env reader that returns "" for TOOLHIVE_SKIP_OIDC_DISCOVERY (discovery not skipped)
+	ctrl := gomock.NewController(t)
+	mockEnv := envmocks.NewMockReader(ctrl)
+	mockEnv.EXPECT().Getenv(gomock.Any()).Return("").AnyTimes()
+	envOpt := WithEnvReader(mockEnv)
+
+	// Generate a new RSA key pair for signing tokens
+	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("Failed to generate RSA key pair: %v", err)
+	}
+	publicKey := &privateKey.PublicKey
+
+	// Create a key set with the public key
+	key, err := jwk.Import(publicKey)
+	if err != nil {
+		t.Fatalf("Failed to create JWK from public key: %v", err)
+	}
+
+	// Set key ID and other properties
+	if err := key.Set(jwk.KeyIDKey, testKeyID); err != nil {
+		t.Fatalf("Failed to set key ID: %v", err)
+	}
+	if err := key.Set(jwk.AlgorithmKey, "RS256"); err != nil {
+		t.Fatalf("Failed to set algorithm: %v", err)
+	}
+	if err := key.Set(jwk.KeyUsageKey, "sig"); err != nil {
+		t.Fatalf("Failed to set key usage: %v", err)
+	}
+
+	// Create a key set
+	keySet := jwk.NewSet()
+	if err := keySet.AddKey(key); err != nil {
+		t.Fatalf("Failed to add key to set: %v", err)
+	}
+
+	// Create a test JWKS server
+	jwksServer := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/jwks" {
+			http.NotFound(w, r)
+			return
+		}
+
+		// Marshal the key set to JSON
+		buf, err := json.Marshal(keySet)
+		if err != nil {
+			t.Fatalf("Failed to marshal key set: %v", err)
+		}
+
+		// Set the content type
+		w.Header().Set("Content-Type", "application/json")
+
+		// Write the response
+		if _, err := w.Write(buf); err != nil {
+			t.Fatalf("Failed to write response: %v", err)
+		}
+	}))
+	t.Cleanup(func() {
+		jwksServer.Close()
+	})
+
+	// Extract certificates from both servers
+	jwksCertPath := writeTestServerCert(t, jwksServer)
+
+	// Create a test OIDC discovery server
+	oidcServer := createTestOIDCServer(t, jwksServer.URL+"/jwks")
+	t.Cleanup(func() {
+		oidcServer.Close()
+	})
+
+	// Extract OIDC server certificate
+	oidcCertPath := writeTestServerCert(t, oidcServer)
+
+	ctx := context.Background()
+
+	t.Run("successful OIDC discovery", func(t *testing.T) {
+		t.Parallel()
+		config := TokenValidatorConfig{
+			Issuer:   oidcServer.URL,
+			Audience: "test-audience",
+			// JWKSURL is intentionally omitted to test discovery
+			ClientID:       "test-client",
+			CACertPath:     oidcCertPath,
+			AllowPrivateIP: true,
+		}
+
+		validator, err := NewTokenValidator(ctx, config, envOpt)
+		if err != nil {
+			t.Fatalf("Failed to create token validator: %v", err)
+		}
+
+		if validator.issuer != oidcServer.URL {
+			t.Errorf("Expected issuer %s but got %s", oidcServer.URL, validator.issuer)
+		}
+
+		// With lazy discovery, the JWKS URL is initially empty.
+		// Discovery happens on first validation or when ensureOIDCDiscovered is called.
+		if validator.jwksURL != "" {
+			t.Errorf("Expected empty JWKS URL before discovery but got %s", validator.jwksURL)
+		}
+
+		// Lazy discovery should be pending: issuer is set but jwksURL is empty
+		if validator.issuer == "" {
+			t.Error("Expected issuer to be set for lazy discovery")
+		}
+
+		// Trigger lazy OIDC discovery
+		err = validator.ensureOIDCDiscovered(ctx)
+		if err != nil {
+			t.Fatalf("Failed to perform OIDC discovery: %v", err)
+		}
+
+		// After discovery, the JWKS URL should be updated
+		expectedJWKSURL := jwksServer.URL + "/jwks"
+		if validator.jwksURL != expectedJWKSURL {
+			t.Errorf("Expected JWKS URL %s after discovery but got %s", expectedJWKSURL, validator.jwksURL)
+		}
+
+		// Test that the validator can actually validate tokens
+		claims := jwt.MapClaims{
+			"iss": oidcServer.URL,
+			"aud": "test-audience",
+			"exp": time.Now().Add(time.Hour).Unix(),
+			"sub": "test-user",
+		}
+
+		token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
+		token.Header["kid"] = testKeyID
+
+		tokenString, err := token.SignedString(privateKey)
+		if err != nil {
+			t.Fatalf("Failed to sign token: %v", err)
+		}
+
+		// Ensure JWKS is registered before lookup
+		err = validator.ensureJWKSRegistered(ctx)
+		if err != nil {
+			t.Fatalf("Failed to register JWKS: %v", err)
+		}
+
+		// Force a refresh of the JWKS cache
+		_, err = validator.jwksClient.Lookup(ctx, validator.jwksURL)
+		if err != nil {
+			t.Fatalf("Failed to refresh JWKS cache: %v", err)
+		}
+
+		validatedClaims, err := validator.ValidateToken(ctx, tokenString)
+		if err != nil {
+			t.Fatalf("Failed to validate token: %v", err)
+		}
+
+		if validatedClaims["sub"] != "test-user" {
+			t.Errorf("Expected sub claim to be 'test-user' but got %v", validatedClaims["sub"])
+		}
+	})
+
+	t.Run("explicit JWKS URL takes precedence", func(t *testing.T) {
+		t.Parallel()
+		explicitJWKSURL := jwksServer.URL + "/jwks"
+		config := TokenValidatorConfig{
+			Issuer:         oidcServer.URL,
+			Audience:       "test-audience",
+			JWKSURL:        explicitJWKSURL, // Explicitly provided
+			ClientID:       "test-client",
+			CACertPath:     jwksCertPath,
+			AllowPrivateIP: true,
+		}
+
+		validator, err := NewTokenValidator(ctx, config, envOpt)
+		if err != nil {
+			t.Fatalf("Failed to create token validator: %v", err)
+		}
+
+		// Should use the explicit JWKS URL, not discover it
+		if validator.jwksURL != explicitJWKSURL {
+			t.Errorf("Expected JWKS URL %s but got %s", explicitJWKSURL, validator.jwksURL)
+		}
+	})
+
+	t.Run("missing issuer and JWKS URL", func(t *testing.T) {
+		t.Parallel()
+		config := TokenValidatorConfig{
+			Audience: "test-audience",
+			// Both Issuer and JWKSURL are missing
+			ClientID:       "test-client",
+			CACertPath:     oidcCertPath,
+			AllowPrivateIP: true,
+		}
+
+		validator, err := NewTokenValidator(ctx, config, envOpt)
+		if !errors.Is(err, ErrMissingIssuerAndJWKSURL) {
+			t.Errorf("Expected error %v but got %v", ErrMissingIssuerAndJWKSURL, err)
+		}
+		if validator != nil {
+			t.Error("Expected validator to be nil")
+		}
+	})
+
+	t.Run("failed OIDC discovery", func(t *testing.T) {
+		t.Parallel()
+		// Use a .com domain that doesn't exist (not RFC-reserved like .example)
+		// so that OIDC discovery will actually be attempted and fail
+		config := TokenValidatorConfig{
+			Issuer:   "https://non-existent-domain-toolhive-test-12345.com",
+			Audience: "test-audience",
+			ClientID: "test-client",
+			// No CA cert or AllowPrivateIP for this test - discovery should fail
+		}
+
+		// With lazy discovery, NewTokenValidator succeeds even if OIDC endpoint is unreachable
+		validator, err := NewTokenValidator(ctx, config, envOpt)
+		if err != nil {
+			t.Fatalf("Expected no error from NewTokenValidator (lazy discovery), but got: %v", err)
+		}
+		if validator == nil {
+			t.Fatal("Expected validator to be non-nil")
+		}
+
+		// Discovery failure should occur when we try to validate a token
+		// or explicitly call ensureOIDCDiscovered
+		err = validator.ensureOIDCDiscovered(ctx)
+		if err == nil {
+			t.Error("Expected error from ensureOIDCDiscovered but got nil")
+		}
+
+		// Check that the error is related to OIDC discovery
+		if !errors.Is(err, ErrFailedToDiscoverOIDC) {
+			t.Errorf("Expected error to wrap %v but got %v", ErrFailedToDiscoverOIDC, err)
+		}
+
+		// Also verify that ValidateToken returns the discovery error
+		_, tokenErr := validator.ValidateToken(ctx, "dummy-token")
+		if tokenErr == nil {
+			t.Error("Expected error from ValidateToken but got nil")
+		}
+		if !errors.Is(tokenErr, ErrFailedToDiscoverOIDC) {
+			t.Errorf("Expected ValidateToken error to wrap %v but got %v", ErrFailedToDiscoverOIDC, tokenErr)
+		}
+	})
+}
+
+func TestTokenValidator_SkipOIDCDiscovery_RequiresExplicitJWKSURL(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	mockEnv := envmocks.NewMockReader(ctrl)
+	mockEnv.EXPECT().Getenv("TOOLHIVE_SKIP_OIDC_DISCOVERY").Return("true").AnyTimes()
+	mockEnv.EXPECT().Getenv(gomock.Any()).Return("").AnyTimes()
+
+	ctx := context.Background()
+
+	// When TOOLHIVE_SKIP_OIDC_DISCOVERY=true without explicit JWKSURL, should fail
+	config := TokenValidatorConfig{
+		Issuer:   "https://issuer.example.com",
+		Audience: "test-audience",
+		ClientID: "test-client",
+		// JWKSURL intentionally omitted
+	}
+
+	_, err := NewTokenValidator(ctx, config, WithEnvReader(mockEnv))
+	if err == nil {
+		t.Fatal("Expected error when TOOLHIVE_SKIP_OIDC_DISCOVERY=true without JWKSURL")
+	}
+	if !strings.Contains(err.Error(), "requires explicit JWKSURL") {
+		t.Errorf("Expected error about requiring explicit JWKSURL, got: %v", err)
+	}
+}
+
+func TestTokenValidator_SkipOIDCDiscovery_WorksWithExplicitJWKSURL(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	mockEnv := envmocks.NewMockReader(ctrl)
+	mockEnv.EXPECT().Getenv("TOOLHIVE_SKIP_OIDC_DISCOVERY").Return("true").AnyTimes()
+	mockEnv.EXPECT().Getenv(gomock.Any()).Return("").AnyTimes()
+
+	ctx := context.Background()
+
+	// When TOOLHIVE_SKIP_OIDC_DISCOVERY=true with explicit JWKSURL, should succeed
+	explicitJWKSURL := "https://issuer.example.com/jwks"
+	config := TokenValidatorConfig{
+		Issuer:   "https://issuer.example.com",
+		Audience: "test-audience",
+		ClientID: "test-client",
+		JWKSURL:  explicitJWKSURL,
+	}
+
+	validator, err := NewTokenValidator(ctx, config, WithEnvReader(mockEnv))
+	if err != nil {
+		t.Fatalf("Failed to create token validator: %v", err)
+	}
+
+	// Verify that the explicit JWKS URL was used
+	if validator.jwksURL != explicitJWKSURL {
+		t.Errorf("Expected JWKS URL %s but got %s", explicitJWKSURL, validator.jwksURL)
+	}
+}
+
+// TestEnsureOIDCDiscovered_RetryAfterFailure verifies that a failed discovery
+// is retried on the next call (not permanently latched).
+func TestEnsureOIDCDiscovered_RetryAfterFailure(t *testing.T) {
+	t.Parallel()
+
+	callCount := 0
+	oidcServer := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/.well-known/openid-configuration" {
+			http.NotFound(w, r)
+			return
+		}
+
+		callCount++
+		if callCount <= 3 {
+			// First 3 calls fail (all retries within one ensureOIDCDiscovered call)
+			w.WriteHeader(http.StatusServiceUnavailable)
+			return
+		}
+
+		scheme := "http"
+		if r.TLS != nil {
+			scheme = schemeHTTPS
+		}
+		issuerURL := fmt.Sprintf("%s://%s", scheme, r.Host)
+		doc := oauthproto.OIDCDiscoveryDocument{
+			AuthorizationServerMetadata: oauthproto.AuthorizationServerMetadata{
+				Issuer:  issuerURL,
+				JWKSURI: "https://example.com/jwks",
+			},
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(doc)
+	}))
+	t.Cleanup(oidcServer.Close)
+
+	caCertPath := writeTestServerCert(t, oidcServer)
+	ctx := context.Background()
+
+	validator, err := NewTokenValidator(ctx, TokenValidatorConfig{
+		Issuer:         oidcServer.URL,
+		Audience:       "test-audience",
+		ClientID:       "test-client",
+		CACertPath:     caCertPath,
+		AllowPrivateIP: true,
+	})
+	if err != nil {
+		t.Fatalf("Failed to create token validator: %v", err)
+	}
+
+	// First call should fail (all 3 retry attempts get 503)
+	err = validator.ensureOIDCDiscovered(ctx)
+	if !errors.Is(err, ErrFailedToDiscoverOIDC) {
+		t.Fatalf("Expected ErrFailedToDiscoverOIDC, got: %v", err)
+	}
+	if validator.oidcDiscovered {
+		t.Error("Expected oidcDiscovered to be false after failure")
+	}
+
+	// Second call should succeed (server now returns 200)
+	err = validator.ensureOIDCDiscovered(ctx)
+	if err != nil {
+		t.Fatalf("Expected retry to succeed, got: %v", err)
+	}
+	if !validator.oidcDiscovered {
+		t.Error("Expected oidcDiscovered to be true after retry")
+	}
+	if validator.jwksURL != "https://example.com/jwks" {
+		t.Errorf("Expected JWKS URL https://example.com/jwks, got: %s", validator.jwksURL)
+	}
+
+	// Subsequent calls are a no-op
+	err = validator.ensureOIDCDiscovered(ctx)
+	if err != nil {
+		t.Fatalf("Expected no-op call to succeed, got: %v", err)
+	}
+}
+
+func TestValidateToken_TriggersLazyDiscovery(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	mockEnv := envmocks.NewMockReader(ctrl)
+	mockEnv.EXPECT().Getenv(gomock.Any()).Return("").AnyTimes()
+
+	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("Failed to generate RSA key pair: %v", err)
+	}
+
+	key, err := jwk.Import(&privateKey.PublicKey)
+	if err != nil {
+		t.Fatalf("Failed to create JWK: %v", err)
+	}
+	for _, kv := range []struct {
+		k string
+		v interface{}
+	}{
+		{jwk.KeyIDKey, testKeyID},
+		{jwk.AlgorithmKey, "RS256"},
+		{jwk.KeyUsageKey, "sig"},
+	} {
+		if err := key.Set(kv.k, kv.v); err != nil {
+			t.Fatalf("Failed to set %s: %v", kv.k, err)
+		}
+	}
+	keySet := jwk.NewSet()
+	if err := keySet.AddKey(key); err != nil {
+		t.Fatalf("Failed to add key: %v", err)
+	}
+
+	// JWKS server
+	jwksServer := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		buf, _ := json.Marshal(keySet)
+		w.Header().Set("Content-Type", "application/json")
+		w.Write(buf)
+	}))
+	t.Cleanup(jwksServer.Close)
+
+	// OIDC discovery server
+	oidcServer := createTestOIDCServer(t, jwksServer.URL)
+	t.Cleanup(oidcServer.Close)
+
+	// Combined CA cert for both servers
+	tmpFile, err := os.CreateTemp("", "test-combined-ca-*.crt")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	t.Cleanup(func() { os.Remove(tmpFile.Name()) })
+	for _, cert := range [][]byte{oidcServer.Certificate().Raw, jwksServer.Certificate().Raw} {
+		if err := pem.Encode(tmpFile, &pem.Block{Type: "CERTIFICATE", Bytes: cert}); err != nil {
+			t.Fatalf("Failed to write certificate: %v", err)
+		}
+	}
+	tmpFile.Close()
+
+	ctx := context.Background()
+	validator, err := NewTokenValidator(ctx, TokenValidatorConfig{
+		Issuer:         oidcServer.URL,
+		Audience:       "test-audience",
+		ClientID:       "test-client",
+		CACertPath:     tmpFile.Name(),
+		AllowPrivateIP: true,
+	}, WithEnvReader(mockEnv))
+	if err != nil {
+		t.Fatalf("Failed to create token validator: %v", err)
+	}
+
+	// Verify lazy discovery is pending
+	if validator.oidcDiscovered || validator.jwksURL != "" {
+		t.Fatal("Expected lazy discovery to be pending")
+	}
+
+	// Create and sign a valid token
+	token := jwt.NewWithClaims(jwt.SigningMethodRS256, jwt.MapClaims{
+		"iss": oidcServer.URL,
+		"aud": "test-audience",
+		"exp": time.Now().Add(time.Hour).Unix(),
+		"sub": "test-user",
+	})
+	token.Header["kid"] = testKeyID
+	tokenString, err := token.SignedString(privateKey)
+	if err != nil {
+		t.Fatalf("Failed to sign token: %v", err)
+	}
+
+	// ValidateToken should trigger discovery + JWKS registration + validation
+	validatedClaims, err := validator.ValidateToken(ctx, tokenString)
+	if err != nil {
+		t.Fatalf("ValidateToken should trigger lazy discovery and succeed, got: %v", err)
+	}
+	if validatedClaims["sub"] != "test-user" {
+		t.Errorf("Expected sub=test-user, got: %v", validatedClaims["sub"])
+	}
+	if !validator.oidcDiscovered {
+		t.Error("Expected oidcDiscovered to be true after ValidateToken")
+	}
+}
+
+func TestTokenValidator_OpaqueToken(t *testing.T) {
+	t.Parallel()
+
+	// Create a fake introspection server
+	introspectionServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Simulate introspection response for opaque tokens
+		if err := r.ParseForm(); err != nil {
+			t.Fatalf("Failed to parse form: %v", err)
+		}
+		token := r.FormValue("token")
+		if token == "valid-opaque-token" {
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"active": true,
+				"sub":    "opaque-user",
+				"iss":    "opaque-issuer",
+				"aud":    "opaque-audience",
+				"scope":  "read:stuff",
+				"exp":    time.Now().Add(1 * time.Hour).Unix(),
+			})
+		} else {
+			w.WriteHeader(http.StatusOK)
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"active": false,
+			})
+		}
+	}))
+	t.Cleanup(func() {
+		introspectionServer.Close()
+	})
+
+	ctx := context.Background()
+	// Create a token validator that only uses introspection (no JWKS URL)
+	registry := NewRegistry()
+	registry.AddProvider(NewGoogleProvider(GoogleTokeninfoURL))
+	// Use the basic RFC7662 provider for tests (no custom networking restrictions)
+	rfc7662Provider := NewRFC7662Provider(introspectionServer.URL)
+	registry.AddProvider(rfc7662Provider)
+
+	validator := &TokenValidator{
+		introspectURL: introspectionServer.URL,
+		clientID:      "test-client-id",
+		clientSecret:  "test-client-secret",
+		client:        http.DefaultClient,
+		issuer:        "opaque-issuer",
+		audience:      "opaque-audience",
+		jwksURL:       "https://placeholder/jwks", // Set to prevent lazy OIDC discovery
+		registry:      registry,
+	}
+
+	t.Run("valid opaque token", func(t *testing.T) {
+		t.Parallel()
+		claims, err := validator.ValidateToken(ctx, "valid-opaque-token")
+		if err != nil {
+			t.Fatalf("Expected no error, got %v", err)
+		}
+
+		if claims["sub"] != "opaque-user" {
+			t.Errorf("Expected sub=opaque-user, got %v", claims["sub"])
+		}
+		if claims["iss"] != "opaque-issuer" {
+			t.Errorf("Expected iss=opaque-issuer, got %v", claims["iss"])
+		}
+		if claims["aud"] != "opaque-audience" {
+			t.Errorf("Expected aud=opaque-audience, got %v", claims["aud"])
+		}
+	})
+
+	t.Run("inactive opaque token", func(t *testing.T) {
+		t.Parallel()
+		_, err := validator.ValidateToken(ctx, "invalid-opaque-token")
+		if err == nil {
+			t.Fatal("Expected error for inactive token, got nil")
+		}
+		if !errors.Is(err, ErrInvalidToken) {
+			t.Errorf("Expected ErrInvalidToken, got %v", err)
+		}
+	})
+}
+
+func TestNewAuthInfoHandler(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name         string
+		issuer       string
+		resourceURL  string
+		scopes       []string
+		method       string
+		origin       string
+		expectStatus int
+		expectBody   bool
+		expectCORS   bool
+	}{
+		{
+			name:         "successful GET request with all parameters",
+			issuer:       "https://auth.example.com",
+			resourceURL:  "https://api.example.com",
+			scopes:       []string{"read", "write"},
+			method:       "GET",
+			origin:       "https://client.example.com",
+			expectStatus: http.StatusOK,
+			expectBody:   true,
+			expectCORS:   true,
+		},
+		{
+			name:         "successful GET request without origin",
+			issuer:       "https://auth.example.com",
+			resourceURL:  "https://api.example.com",
+			scopes:       nil, // Test default scopes (should default to ["openid"])
+			method:       "GET",
+			origin:       "",
+			expectStatus: http.StatusOK,
+			expectBody:   true,
+			expectCORS:   true,
+		},
+		{
+			name:         "OPTIONS preflight request",
+			issuer:       "https://auth.example.com",
+			resourceURL:  "https://api.example.com",
+			scopes:       []string{"openid", "profile"},
+			method:       "OPTIONS",
+			origin:       "https://client.example.com",
+			expectStatus: http.StatusNoContent,
+			expectBody:   false,
+			expectCORS:   true,
+		},
+		{
+			name:         "missing resource URL returns 404",
+			issuer:       "https://auth.example.com",
+			resourceURL:  "",
+			scopes:       []string{"openid"},
+			method:       "GET",
+			origin:       "https://client.example.com",
+			expectStatus: http.StatusNotFound,
+			expectBody:   false,
+			expectCORS:   true,
+		},
+		{
+			name:         "empty issuer with resource URL",
+			issuer:       "",
+			resourceURL:  "https://api.example.com",
+			scopes:       []string{}, // Test empty scopes (should default to ["openid"])
+			method:       "GET",
+			origin:       "https://client.example.com",
+			expectStatus: http.StatusOK,
+			expectBody:   true,
+			expectCORS:   true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Create the handler
+			handler := NewAuthInfoHandler(tc.issuer, tc.resourceURL, tc.scopes)
+
+			// Create test request
+			req := httptest.NewRequest(tc.method, "/", nil)
+			if tc.origin != "" {
+				req.Header.Set("Origin", tc.origin)
+			}
+
+			// Create response recorder
+			rec := httptest.NewRecorder()
+
+			// Serve the request
+			handler.ServeHTTP(rec, req)
+
+			// Check status code
+			if rec.Code != tc.expectStatus {
+				t.Errorf("Expected status %d but got %d", tc.expectStatus, rec.Code)
+			}
+
+			// Check CORS headers if expected
+			if tc.expectCORS {
+				expectedOrigin := tc.origin
+				if expectedOrigin == "" {
+					expectedOrigin = "*"
+				}
+				if actualOrigin := rec.Header().Get("Access-Control-Allow-Origin"); actualOrigin != expectedOrigin {
+					t.Errorf("Expected Access-Control-Allow-Origin %s but got %s", expectedOrigin, actualOrigin)
+				}
+
+				if allowMethods := rec.Header().Get("Access-Control-Allow-Methods"); allowMethods != "GET, OPTIONS" {
+					t.Errorf("Expected Access-Control-Allow-Methods 'GET, OPTIONS' but got %s", allowMethods)
+				}
+
+				expectedHeaders := "mcp-protocol-version, Content-Type, Authorization"
+				if allowHeaders := rec.Header().Get("Access-Control-Allow-Headers"); allowHeaders != expectedHeaders {
+					t.Errorf("Expected Access-Control-Allow-Headers '%s' but got %s", expectedHeaders, allowHeaders)
+				}
+
+				if maxAge := rec.Header().Get("Access-Control-Max-Age"); maxAge != "86400" {
+					t.Errorf("Expected Access-Control-Max-Age '86400' but got %s", maxAge)
+				}
+			}
+
+			// Check response body if expected
+			if tc.expectBody {
+				// Regression test: verify jwks_uri is absent from the JSON response.
+				// See https://github.com/stacklok/toolhive/issues/3852
+				bodyBytes := rec.Body.Bytes()
+				var rawMap map[string]any
+				if err := json.Unmarshal(bodyBytes, &rawMap); err != nil {
+					t.Fatalf("Failed to decode raw response body: %v", err)
+				}
+				if _, exists := rawMap["jwks_uri"]; exists {
+					t.Errorf("jwks_uri must not appear in the PRM response (RFC 9728 §3.2)")
+				}
+
+				var authInfo RFC9728AuthInfo
+				if err := json.Unmarshal(bodyBytes, &authInfo); err != nil {
+					t.Fatalf("Failed to decode response body: %v", err)
+				}
+
+				// Verify the response content
+				if authInfo.Resource != tc.resourceURL {
+					t.Errorf("Expected resource %s but got %s", tc.resourceURL, authInfo.Resource)
+				}
+
+				if tc.issuer != "" {
+					if len(authInfo.AuthorizationServers) != 1 || authInfo.AuthorizationServers[0] != tc.issuer {
+						t.Errorf("Expected authorization servers [%s] but got %v", tc.issuer, authInfo.AuthorizationServers)
+					}
+				} else {
+					if len(authInfo.AuthorizationServers) != 1 || authInfo.AuthorizationServers[0] != "" {
+						t.Errorf("Expected authorization servers [''] but got %v", authInfo.AuthorizationServers)
+					}
+				}
+
+				expectedMethods := []string{"header"}
+				if len(authInfo.BearerMethodsSupported) != len(expectedMethods) {
+					t.Errorf("Expected bearer methods %v but got %v", expectedMethods, authInfo.BearerMethodsSupported)
+				} else {
+					for i, method := range expectedMethods {
+						if authInfo.BearerMethodsSupported[i] != method {
+							t.Errorf("Expected bearer method %s but got %s", method, authInfo.BearerMethodsSupported[i])
+						}
+					}
+				}
+
+				// Determine expected scopes
+				expectedScopes := tc.scopes
+				if len(expectedScopes) == 0 {
+					expectedScopes = []string{"openid"}
+				}
+				if len(authInfo.ScopesSupported) != len(expectedScopes) {
+					t.Errorf("Expected scopes %v but got %v", expectedScopes, authInfo.ScopesSupported)
+				} else {
+					for i, scope := range expectedScopes {
+						if authInfo.ScopesSupported[i] != scope {
+							t.Errorf("Expected scope %s but got %s", scope, authInfo.ScopesSupported[i])
+						}
+					}
+				}
+
+				// Check content type
+				if contentType := rec.Header().Get("Content-Type"); contentType != "application/json" {
+					t.Errorf("Expected Content-Type 'application/json' but got %s", contentType)
+				}
+			}
+		})
+	}
+}
+
+func parseAuthParams(ch string) map[string]string {
+	out := map[string]string{}
+	ch = strings.TrimSpace(ch)
+	if i := strings.IndexByte(ch, ' '); i >= 0 {
+		ch = strings.TrimSpace(ch[i+1:])
+	}
+	var parts []string
+	var b strings.Builder
+	inQ := false
+	for i := 0; i < len(ch); i++ {
+		c := ch[i]
+		switch c {
+		case '"':
+			inQ = !inQ
+			b.WriteByte(c)
+		case ',':
+			if inQ {
+				b.WriteByte(c)
+			} else {
+				parts = append(parts, strings.TrimSpace(b.String()))
+				b.Reset()
+			}
+		default:
+			b.WriteByte(c)
+		}
+	}
+	if b.Len() > 0 {
+		parts = append(parts, strings.TrimSpace(b.String()))
+	}
+	for _, p := range parts {
+		if p == "" {
+			continue
+		}
+		kv := strings.SplitN(p, "=", 2)
+		if len(kv) != 2 {
+			continue
+		}
+		k := strings.ToLower(strings.TrimSpace(kv[0]))
+		v := strings.TrimSpace(kv[1])
+		if len(v) >= 2 && v[0] == '"' && v[len(v)-1] == '"' {
+			v = strings.ReplaceAll(v[1:len(v)-1], `\"`, `"`)
+			v = strings.ReplaceAll(v, `\\`, `\`)
+		}
+		out[k] = v
+	}
+	return out
+}
+func TestMiddleware_WWWAuthenticate_NoHeader_And_WrongScheme(t *testing.T) {
+	t.Parallel()
+
+	resourceMeta := "https://resource.example.com/.well-known/oauth-protected-resource"
+
+	tests := []struct {
+		name      string
+		setHeader func(req *http.Request)
+	}{
+		{
+			name:      "missing Authorization",
+			setHeader: func(_ *http.Request) {},
+		},
+		{
+			name: "wrong scheme Basic",
+			setHeader: func(r *http.Request) {
+				r.Header.Set("Authorization", "Basic Zm9vOmJhcg==")
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			tv := &TokenValidator{
+				issuer:      issuer,
+				resourceURL: resourceMeta,
+				registry:    NewRegistry(),
+			}
+
+			hitDownstream := false
+			next := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				hitDownstream = true
+				w.WriteHeader(http.StatusOK)
+			})
+
+			// Create a NEW server per subtest (so no cross-parallel sharing)
+			srv := httptest.NewServer(tv.Middleware(next))
+			t.Cleanup(srv.Close)
+
+			req, _ := http.NewRequest("GET", srv.URL+"/", nil)
+			tt.setHeader(req)
+
+			res, err := http.DefaultClient.Do(req)
+			if err != nil {
+				t.Fatalf("request failed: %v", err)
+			}
+			defer res.Body.Close()
+
+			if res.StatusCode != http.StatusUnauthorized {
+				t.Fatalf("expected 401, got %d", res.StatusCode)
+			}
+			if hitDownstream {
+				t.Fatalf("downstream should not have been reached on 401")
+			}
+
+			h := res.Header.Get("WWW-Authenticate")
+			if h == "" {
+				t.Fatalf("WWW-Authenticate header missing")
+			}
+
+			params := parseAuthParams(h)
+			if got := params["realm"]; got != issuer {
+				t.Fatalf("realm mismatch: want %q, got %q", issuer, got)
+			}
+			if v, ok := params["resource_metadata"]; ok && v == "" {
+				t.Fatalf("resource_metadata present but empty")
+			}
+			// RFC 6750: invalid_request when auth header is missing or wrong scheme
+			if got := params["error"]; got != OAuthErrInvalidRequest {
+				t.Fatalf("expected error=invalid_request for %s, got %q", tt.name, got)
+			}
+			if params["error_description"] == "" {
+				t.Fatalf("expected non-empty error_description for %s", tt.name)
+			}
+		})
+	}
+}
+
+func TestParseGoogleTokeninfoClaims(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name           string
+		responseBody   string
+		expectError    bool
+		expectActive   bool
+		expectedClaims map[string]interface{}
+	}{
+		{
+			name: "valid Google tokeninfo response",
+			responseBody: `{
+				"azp": "32553540559.apps.googleusercontent.com",
+				"aud": "32553540559.apps.googleusercontent.com",
+				"sub": "111260650121245072906",
+				"scope": "openid https://www.googleapis.com/auth/userinfo.email",
+				"exp": "` + fmt.Sprintf("%d", time.Now().Add(time.Hour).Unix()) + `",
+				"expires_in": "3488",
+				"email": "user@example.com",
+				"email_verified": "true"
+			}`,
+			expectError:  false,
+			expectActive: true,
+			expectedClaims: map[string]interface{}{
+				"sub":            "111260650121245072906",
+				"aud":            "32553540559.apps.googleusercontent.com",
+				"scope":          "openid https://www.googleapis.com/auth/userinfo.email",
+				"iss":            "https://accounts.google.com",
+				"email":          "user@example.com",
+				"email_verified": "true",
+				"azp":            "32553540559.apps.googleusercontent.com",
+				"expires_in":     "3488",
+				"active":         true,
+			},
+		},
+		{
+			name: "expired Google token",
+			responseBody: `{
+				"azp": "32553540559.apps.googleusercontent.com",
+				"aud": "32553540559.apps.googleusercontent.com",
+				"sub": "111260650121245072906",
+				"scope": "openid",
+				"exp": "` + fmt.Sprintf("%d", time.Now().Add(-time.Hour).Unix()) + `",
+				"email": "user@example.com"
+			}`,
+			expectError:  true,
+			expectActive: false,
+		},
+		{
+			name: "missing exp field",
+			responseBody: `{
+				"azp": "32553540559.apps.googleusercontent.com",
+				"aud": "32553540559.apps.googleusercontent.com",
+				"sub": "111260650121245072906"
+			}`,
+			expectError:  true,
+			expectActive: false,
+		},
+		{
+			name: "invalid exp format",
+			responseBody: `{
+				"azp": "32553540559.apps.googleusercontent.com",
+				"aud": "32553540559.apps.googleusercontent.com",
+				"sub": "111260650121245072906",
+				"exp": "invalid-timestamp"
+			}`,
+			expectError:  true,
+			expectActive: false,
+		},
+		{
+			name:         "invalid JSON",
+			responseBody: `{invalid json`,
+			expectError:  true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Test the provider's parsing by creating a mock server
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusOK)
+				fmt.Fprint(w, tc.responseBody)
+			}))
+			defer server.Close()
+
+			provider := NewGoogleProvider(server.URL)
+			claims, err := provider.IntrospectToken(context.Background(), "dummy-token")
+
+			if tc.expectError {
+				if err == nil {
+					t.Error("Expected error but got nil")
+				}
+				return
+			}
+
+			if err != nil {
+				t.Errorf("Expected no error but got: %v", err)
+				return
+			}
+
+			// Verify expected claims
+			for key, expectedValue := range tc.expectedClaims {
+				if key == expClaim {
+					// Check that exp is set as float64
+					if _, ok := claims["exp"].(float64); !ok {
+						t.Errorf("Expected exp to be float64, got %T", claims["exp"])
+					}
+					continue
+				}
+
+				if claims[key] != expectedValue {
+					t.Errorf("Expected claim %s to be %v, got %v", key, expectedValue, claims[key])
+				}
+			}
+		})
+	}
+}
+
+func TestMiddleware_WWWAuthenticate_InvalidOpaqueToken_NoIntrospectionConfigured(t *testing.T) {
+	t.Parallel()
+
+	tv := &TokenValidator{
+		issuer:   issuer,
+		jwksURL:  "https://placeholder/jwks", // Set to prevent lazy OIDC discovery
+		registry: NewRegistry(),
+		// introspectURL intentionally empty to force the error path
+	}
+
+	next := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	srv := httptest.NewServer(tv.Middleware(next))
+	t.Cleanup(srv.Close)
+
+	req, _ := http.NewRequest("GET", srv.URL+"/", nil)
+	req.Header.Set("Authorization", "Bearer not-a-jwt") // triggers opaque → introspection path
+
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("expected 401, got %d", res.StatusCode)
+	}
+	h := res.Header.Get("WWW-Authenticate")
+	if h == "" {
+		t.Fatalf("WWW-Authenticate header missing")
+	}
+	p := parseAuthParams(h)
+	if p["realm"] != issuer {
+		t.Fatalf("realm mismatch: want %q got %q", issuer, p["realm"])
+	}
+	if p["error"] != "invalid_token" {
+		t.Fatalf("expected error=invalid_token, got %q", p["error"])
+	}
+	if p["error_description"] == "" {
+		t.Fatalf("expected non-empty error_description")
+	}
+}
+
+func TestMiddleware_WWWAuthenticate_WithMockIntrospection(t *testing.T) {
+	t.Parallel()
+
+	// Introspection mock that varies by token value
+	mux := http.NewServeMux()
+	mux.HandleFunc("/introspect", func(w http.ResponseWriter, r *http.Request) {
+		_ = r.ParseForm()
+		switch r.Form.Get("token") {
+		case "good":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"active": true,
+				"sub":    "test-user",
+				"exp":    float64(time.Now().Add(60 * time.Second).Unix()),
+				"iss":    issuer,
+			})
+		case "inactive":
+			_ = json.NewEncoder(w).Encode(map[string]any{"active": false})
+		case "unauth":
+			w.WriteHeader(http.StatusUnauthorized)
+			_, _ = w.Write([]byte(`{"error":"nope"}`))
+		default:
+			_ = json.NewEncoder(w).Encode(map[string]any{"active": false})
+		}
+	})
+	introspectTS := httptest.NewServer(mux)
+	t.Cleanup(introspectTS.Close)
+
+	type tc struct {
+		name       string
+		auth       string
+		wantStatus int
+		wantError  bool
+		errSubstr  string
+		hitNext    bool
+	}
+	cases := []tc{
+		{
+			name:       "inactive => 401",
+			auth:       "Bearer inactive",
+			wantStatus: http.StatusUnauthorized,
+			wantError:  true,
+			hitNext:    false,
+		},
+		{
+			name:       "unauth introspection => 401",
+			auth:       "Bearer unauth",
+			wantStatus: http.StatusUnauthorized,
+			wantError:  true,
+			errSubstr:  "introspection unauthorized",
+			hitNext:    false,
+		},
+		{
+			name:       "good => passes",
+			auth:       "Bearer good",
+			wantStatus: http.StatusOK,
+			wantError:  false,
+			hitNext:    true,
+		},
+	}
+
+	for _, c := range cases {
+		c := c
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+
+			tv := &TokenValidator{
+				issuer:        issuer,
+				jwksURL:       "https://placeholder/jwks", // Set to prevent lazy OIDC discovery
+				introspectURL: introspectTS.URL + "/introspect",
+				clientID:      "cid",
+				clientSecret:  "csecret",
+				client:        http.DefaultClient,
+				registry:      NewRegistry(),
+			}
+
+			hit := false
+			next := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				hit = true
+				w.WriteHeader(http.StatusOK)
+			})
+
+			// NEW: server per subtest
+			srv := httptest.NewServer(tv.Middleware(next))
+			t.Cleanup(srv.Close)
+
+			req, _ := http.NewRequest("GET", srv.URL+"/", nil)
+			req.Header.Set("Authorization", c.auth)
+			res, err := http.DefaultClient.Do(req)
+			if err != nil {
+				t.Fatalf("request failed: %v", err)
+			}
+			defer res.Body.Close()
+
+			if res.StatusCode != c.wantStatus {
+				t.Fatalf("status mismatch: want %d got %d", c.wantStatus, res.StatusCode)
+			}
+			if hit != c.hitNext {
+				t.Fatalf("downstream hit mismatch: want %v got %v", c.hitNext, hit)
+			}
+
+			h := res.Header.Get("WWW-Authenticate")
+			if c.wantStatus == http.StatusUnauthorized {
+				if h == "" {
+					t.Fatalf("missing WWW-Authenticate header")
+				}
+				p := parseAuthParams(h)
+				if p["realm"] != issuer {
+					t.Fatalf("realm mismatch: %q", p["realm"])
+				}
+				if c.wantError && p["error"] != "invalid_token" {
+					t.Fatalf("expected error=invalid_token, got %q", p["error"])
+				}
+				if c.errSubstr != "" && !strings.Contains(p["error_description"], c.errSubstr) {
+					t.Fatalf("error_description %q missing %q", p["error_description"], c.errSubstr)
+				}
+			} else if h != "" {
+				t.Fatalf("did not expect WWW-Authenticate header on success")
+			}
+		})
+	}
+}
+
+func TestBuildWWWAuthenticate_Format(t *testing.T) {
+	t.Parallel()
+	tv := &TokenValidator{
+		issuer:      "https://issuer.example.com",
+		resourceURL: "https://resource.example.com",
+	}
+	got := tv.buildWWWAuthenticate(OAuthErrInvalidToken, `failed to parse "token", reason`)
+	want := `Bearer realm="https://issuer.example.com", resource_metadata="https://resource.example.com/.well-known/oauth-protected-resource", error="invalid_token", error_description="failed to parse \"token\", reason"`
+	if got != want {
+		t.Fatalf("format mismatch:\nwant: %s\n got: %s", want, got)
+	}
+	gotInvalidRequest := tv.buildWWWAuthenticate(OAuthErrInvalidRequest, "authorization header required")
+	require.Contains(t, gotInvalidRequest, fmt.Sprintf(`error="%s"`, OAuthErrInvalidRequest), "invalid_request should appear in header")
+	require.Contains(t, gotInvalidRequest, `error_description="authorization header required"`, "error_description should appear")
+}
+
+func TestBuildWWWAuthenticate_Scope(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		scopes      []string
+		expectScope bool
+		expectValue string
+	}{
+		{
+			name:        "scopes set",
+			scopes:      []string{"openid", "profile", "email"},
+			expectScope: true,
+			expectValue: `scope="openid profile email"`,
+		},
+		{
+			name:        "single scope",
+			scopes:      []string{"openid"},
+			expectScope: true,
+			expectValue: `scope="openid"`,
+		},
+		{
+			name:        "nil scopes omits parameter",
+			scopes:      nil,
+			expectScope: false,
+		},
+		{
+			name:        "empty scopes omits parameter",
+			scopes:      []string{},
+			expectScope: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			tv := &TokenValidator{
+				issuer: issuer,
+				scopes: tt.scopes,
+			}
+
+			got := tv.buildWWWAuthenticate("", "")
+
+			if tt.expectScope {
+				if !strings.Contains(got, tt.expectValue) {
+					t.Errorf("Expected %s in: %s", tt.expectValue, got)
+				}
+			} else {
+				if strings.Contains(got, "scope=") {
+					t.Errorf("Expected no scope parameter in: %s", got)
+				}
+			}
+		})
+	}
+}
+
+func TestBuildWWWAuthenticate_ScopeOrdering(t *testing.T) {
+	t.Parallel()
+
+	tv := &TokenValidator{
+		issuer:      issuer,
+		resourceURL: "https://resource.example.com",
+		scopes:      []string{"openid", "offline_access"},
+	}
+
+	got := tv.buildWWWAuthenticate(OAuthErrInvalidToken, "token expired")
+
+	// Verify the order: realm, resource_metadata, scope, error, error_description
+	realmIdx := strings.Index(got, "realm=")
+	resourceIdx := strings.Index(got, "resource_metadata=")
+	scopeIdx := strings.Index(got, "scope=")
+	errorIdx := strings.Index(got, "error=")
+
+	if realmIdx < 0 || resourceIdx < 0 || scopeIdx < 0 || errorIdx < 0 {
+		t.Fatalf("Expected all parameters present in: %s", got)
+	}
+	if realmIdx >= resourceIdx || resourceIdx >= scopeIdx || scopeIdx >= errorIdx {
+		t.Errorf("Parameters not in expected order (realm, resource_metadata, scope, error) in: %s", got)
+	}
+}
+
+func TestBuildWWWAuthenticate_ResourceMetadata(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name                     string
+		issuer                   string
+		resourceURL              string
+		errorCode                string
+		errDescription           string
+		expectedResourceMetadata string
+	}{
+		{
+			name:                     "resource URL without path",
+			issuer:                   "https://issuer.example.com",
+			resourceURL:              "http://localhost:8080",
+			errorCode:                "",
+			expectedResourceMetadata: `resource_metadata="http://localhost:8080/.well-known/oauth-protected-resource"`,
+		},
+		{
+			name:                     "resource URL with trailing slash",
+			issuer:                   "https://issuer.example.com",
+			resourceURL:              "http://localhost:8080/",
+			errorCode:                "",
+			expectedResourceMetadata: `resource_metadata="http://localhost:8080/.well-known/oauth-protected-resource"`,
+		},
+		{
+			name:                     "resource URL with path",
+			issuer:                   "https://issuer.example.com",
+			resourceURL:              "http://localhost:9090/mcp",
+			errorCode:                "",
+			expectedResourceMetadata: `resource_metadata="http://localhost:9090/.well-known/oauth-protected-resource/mcp"`,
+		},
+		{
+			name:                     "resource URL with path and trailing slash",
+			issuer:                   "https://issuer.example.com",
+			resourceURL:              "http://localhost:9090/mcp/",
+			errorCode:                "",
+			expectedResourceMetadata: `resource_metadata="http://localhost:9090/.well-known/oauth-protected-resource/mcp/"`,
+		},
+		{
+			name:                     "resource URL with nested path",
+			issuer:                   "https://issuer.example.com",
+			resourceURL:              "https://api.example.com/v1/mcp",
+			errorCode:                "",
+			expectedResourceMetadata: `resource_metadata="https://api.example.com/.well-known/oauth-protected-resource/v1/mcp"`,
+		},
+		{
+			name:                     "resource URL with HTTPS",
+			issuer:                   "https://issuer.example.com",
+			resourceURL:              "https://resource.example.com",
+			errorCode:                "",
+			expectedResourceMetadata: `resource_metadata="https://resource.example.com/.well-known/oauth-protected-resource"`,
+		},
+		{
+			name:                     "empty resource URL",
+			issuer:                   "https://issuer.example.com",
+			resourceURL:              "",
+			errorCode:                "",
+			expectedResourceMetadata: "",
+		},
+		{
+			name:                     "with invalid_token and description",
+			issuer:                   "https://issuer.example.com",
+			resourceURL:              "http://localhost:8080",
+			errorCode:                OAuthErrInvalidToken,
+			errDescription:           "token expired",
+			expectedResourceMetadata: `resource_metadata="http://localhost:8080/.well-known/oauth-protected-resource"`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			tv := &TokenValidator{
+				issuer:      tt.issuer,
+				resourceURL: tt.resourceURL,
+			}
+
+			got := tv.buildWWWAuthenticate(tt.errorCode, tt.errDescription)
+
+			// Check that it starts with "Bearer "
+			if !strings.HasPrefix(got, "Bearer ") {
+				t.Errorf("Expected header to start with 'Bearer ', got: %s", got)
+			}
+
+			// Check realm is present
+			if tt.issuer != "" && !strings.Contains(got, fmt.Sprintf(`realm="%s"`, tt.issuer)) {
+				t.Errorf("Expected realm to be present in: %s", got)
+			}
+
+			// Check resource_metadata
+			if tt.expectedResourceMetadata != "" {
+				if !strings.Contains(got, tt.expectedResourceMetadata) {
+					t.Errorf("Expected resource_metadata:\n  %s\nto be in:\n  %s", tt.expectedResourceMetadata, got)
+				}
+			} else if tt.resourceURL == "" {
+				// If resource URL is empty, resource_metadata should not be present
+				if strings.Contains(got, "resource_metadata") {
+					t.Errorf("Expected no resource_metadata in: %s", got)
+				}
+			}
+
+			// Check error fields
+			if tt.errorCode != "" {
+				if !strings.Contains(got, fmt.Sprintf(`error="%s"`, tt.errorCode)) {
+					t.Errorf("Expected error=%q in: %s", tt.errorCode, got)
+				}
+				if tt.errDescription != "" && !strings.Contains(got, fmt.Sprintf(`error_description="%s"`, tt.errDescription)) {
+					t.Errorf("Expected error_description in: %s", got)
+				}
+			} else {
+				if strings.Contains(got, "error=") {
+					t.Errorf("Expected no error field in: %s", got)
+				}
+			}
+		})
+	}
+}
+
+func TestIntrospectGoogleToken(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name           string
+		token          string
+		serverResponse func(w http.ResponseWriter, r *http.Request)
+		expectError    bool
+		expectedClaims map[string]interface{}
+	}{
+		{
+			name:  "valid Google token",
+			token: "valid-google-token",
+			serverResponse: func(w http.ResponseWriter, r *http.Request) {
+				// Verify it's a GET request with correct query parameter
+				if r.Method != "GET" {
+					t.Errorf("Expected GET request, got %s", r.Method)
+				}
+				if token := r.URL.Query().Get("access_token"); token != "valid-google-token" {
+					t.Errorf("Expected access_token=valid-google-token, got %s", token)
+				}
+
+				w.Header().Set("Content-Type", "application/json")
+				json.NewEncoder(w).Encode(map[string]interface{}{
+					"azp":            "test-client.apps.googleusercontent.com",
+					"aud":            "test-client.apps.googleusercontent.com",
+					"sub":            "123456789",
+					"scope":          "openid email",
+					"exp":            fmt.Sprintf("%d", time.Now().Add(time.Hour).Unix()),
+					"email":          "test@example.com",
+					"email_verified": "true",
+				})
+			},
+			expectError: false,
+			expectedClaims: map[string]interface{}{
+				"sub":            "123456789",
+				"aud":            "test-client.apps.googleusercontent.com",
+				"scope":          "openid email",
+				"iss":            "https://accounts.google.com",
+				"email":          "test@example.com",
+				"email_verified": "true",
+				"azp":            "test-client.apps.googleusercontent.com",
+				"active":         true,
+			},
+		},
+		{
+			name:  "Google returns 400 for invalid token",
+			token: "invalid-token",
+			serverResponse: func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(http.StatusBadRequest)
+				json.NewEncoder(w).Encode(map[string]interface{}{
+					"error":             "invalid_token",
+					"error_description": "Invalid token",
+				})
+			},
+			expectError: true,
+		},
+		{
+			name:  "Google returns expired token",
+			token: "expired-token",
+			serverResponse: func(w http.ResponseWriter, _ *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				json.NewEncoder(w).Encode(map[string]interface{}{
+					"azp":   "test-client.apps.googleusercontent.com",
+					"aud":   "test-client.apps.googleusercontent.com",
+					"sub":   "123456789",
+					"scope": "openid email",
+					"exp":   fmt.Sprintf("%d", time.Now().Add(-time.Hour).Unix()), // Expired
+					"email": "test@example.com",
+				})
+			},
+			expectError: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Create a test server that mimics Google's tokeninfo endpoint
+			server := httptest.NewServer(http.HandlerFunc(tc.serverResponse))
+			defer server.Close()
+
+			// Use the Google provider directly for testing
+			provider := NewGoogleProvider(server.URL)
+
+			ctx := context.Background()
+			claims, err := provider.IntrospectToken(ctx, tc.token)
+
+			if tc.expectError {
+				if err == nil {
+					t.Error("Expected error but got nil")
+				}
+				return
+			}
+
+			if err != nil {
+				t.Errorf("Expected no error but got: %v", err)
+				return
+			}
+
+			// Verify expected claims
+			for key, expectedValue := range tc.expectedClaims {
+				if key == expClaim {
+					// Check that exp is set as float64
+					if _, ok := claims["exp"].(float64); !ok {
+						t.Errorf("Expected exp to be float64, got %T", claims["exp"])
+					}
+					continue
+				}
+
+				if claims[key] != expectedValue {
+					t.Errorf("Expected claim %s to be %v, got %v", key, expectedValue, claims[key])
+				}
+			}
+		})
+	}
+}
+
+func TestTokenValidator_GoogleTokeninfoIntegration(t *testing.T) {
+	t.Parallel()
+
+	// Create a mock Google tokeninfo server
+	googleServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		token := r.URL.Query().Get("access_token")
+
+		if token == "valid-google-token" {
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"azp":            "test-client.apps.googleusercontent.com",
+				"aud":            "test-client.apps.googleusercontent.com",
+				"sub":            "google-user-123",
+				"scope":          "openid https://www.googleapis.com/auth/userinfo.email",
+				"exp":            fmt.Sprintf("%d", time.Now().Add(time.Hour).Unix()),
+				"expires_in":     "3600",
+				"email":          "user@example.com",
+				"email_verified": "true",
+			})
+		} else {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"error":             "invalid_token",
+				"error_description": "Invalid token",
+			})
+		}
+	}))
+	t.Cleanup(func() {
+		googleServer.Close()
+	})
+
+	t.Run("Google tokeninfo direct call", func(t *testing.T) { //nolint:paralleltest // Server lifecycle requires sequential execution
+		// Note: Not using t.Parallel() here because we need the googleServer to stay alive
+
+		// Use Google provider to test Google-specific functionality
+		provider := NewGoogleProvider(googleServer.URL)
+		ctx := context.Background()
+		claims, err := provider.IntrospectToken(ctx, "valid-google-token")
+		if err != nil {
+			t.Fatalf("Expected no error but got: %v", err)
+		}
+
+		// Verify Google-specific claims are properly handled
+		if claims["sub"] != "google-user-123" {
+			t.Errorf("Expected sub=google-user-123, got %v", claims["sub"])
+		}
+		if claims["iss"] != "https://accounts.google.com" {
+			t.Errorf("Expected iss=https://accounts.google.com, got %v", claims["iss"])
+		}
+		if claims["email"] != "user@example.com" {
+			t.Errorf("Expected email=user@example.com, got %v", claims["email"])
+		}
+		if claims["active"] != true {
+			t.Errorf("Expected active=true, got %v", claims["active"])
+		}
+	})
+
+	t.Run("routing logic test", func(t *testing.T) {
+		t.Parallel()
+
+		// Test that the routing logic correctly detects Google's endpoint
+		// and routes to the Google-specific handler vs standard RFC 7662
+
+		ctx := context.Background()
+
+		// Test 1: Google URL should route to Google handler (we can't easily test the full flow
+		// without mocking, but we can test that it attempts to use the Google method)
+		googleValidator := &TokenValidator{
+			introspectURL: GoogleTokeninfoURL,
+			client:        http.DefaultClient,
+			issuer:        "https://accounts.google.com",
+			audience:      "test-client.apps.googleusercontent.com",
+			registry:      NewRegistry(),
+		}
+
+		// This will fail because we can't reach the real Google endpoint,
+		// but it should fail in the HTTP request, not in the routing logic
+		_, err := googleValidator.introspectOpaqueToken(ctx, "test-token")
+		if err == nil {
+			t.Error("Expected error trying to reach real Google endpoint")
+		}
+		// The error should be about HTTP connection, not about routing
+		if !strings.Contains(err.Error(), "google tokeninfo") {
+			t.Logf("Got expected error attempting to use Google tokeninfo: %v", err)
+		}
+
+		// Test 2: Non-Google URL should use standard RFC 7662 flow
+		standardValidator := &TokenValidator{
+			introspectURL: googleServer.URL, // Our test server
+			client:        http.DefaultClient,
+			issuer:        "https://accounts.google.com",
+			audience:      "test-client.apps.googleusercontent.com",
+			registry:      NewRegistry(),
+		}
+
+		// This should use the standard RFC 7662 POST method, which our test server doesn't handle
+		// So it should fail, but in a different way than the Google method
+		_, err = standardValidator.introspectOpaqueToken(ctx, "valid-google-token")
+		if err == nil {
+			t.Error("Expected error with non-Google introspection endpoint")
+		}
+		// Should fail because our test server expects GET but standard introspection uses POST
+		if strings.Contains(err.Error(), "google tokeninfo") {
+			t.Errorf("Should not use Google tokeninfo method for non-Google URL, got error: %v", err)
+		}
+	})
+}
+
+func TestMiddleware_RFC6750JSONErrorResponse(t *testing.T) {
+	t.Parallel()
+
+	tv := &TokenValidator{
+		issuer:   issuer,
+		jwksURL:  "https://placeholder/jwks", // prevents lazy OIDC discovery with nil HTTP client
+		registry: NewRegistry(),
+	}
+
+	next := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+	handler := tv.Middleware(next)
+
+	tests := []struct {
+		name              string
+		setupRequest      func(r *http.Request)
+		wantStatus        int
+		wantErrorCode     string
+		wantDescSubstring string
+	}{
+		{
+			name:              "missing Authorization header returns invalid_request",
+			setupRequest:      func(_ *http.Request) {},
+			wantStatus:        http.StatusUnauthorized,
+			wantErrorCode:     OAuthErrInvalidRequest,
+			wantDescSubstring: "authorization header",
+		},
+		{
+			name: "wrong scheme returns invalid_request",
+			setupRequest: func(r *http.Request) {
+				r.Header.Set("Authorization", "Basic dXNlcjpwYXNz")
+			},
+			wantStatus:        http.StatusUnauthorized,
+			wantErrorCode:     OAuthErrInvalidRequest,
+			wantDescSubstring: "authorization header",
+		},
+		{
+			name: "malformed bearer token returns invalid_token",
+			setupRequest: func(r *http.Request) {
+				r.Header.Set("Authorization", "Bearer not.a.valid.jwt")
+			},
+			wantStatus:        http.StatusUnauthorized,
+			wantErrorCode:     OAuthErrInvalidToken,
+			wantDescSubstring: "Invalid token",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			req := httptest.NewRequest(http.MethodGet, "/", nil)
+			tt.setupRequest(req)
+			rr := httptest.NewRecorder()
+
+			handler.ServeHTTP(rr, req)
+
+			res := rr.Result()
+			defer res.Body.Close()
+
+			require.Equal(t, tt.wantStatus, res.StatusCode)
+			require.True(t, strings.HasPrefix(res.Header.Get("Content-Type"), "application/json"),
+				"expected Content-Type application/json")
+
+			wwwAuth := res.Header.Get("WWW-Authenticate")
+			require.NotEmpty(t, wwwAuth, "WWW-Authenticate header must be set")
+			require.Contains(t, wwwAuth, fmt.Sprintf(`error="%s"`, tt.wantErrorCode),
+				"WWW-Authenticate header must include matching error code")
+
+			var body RFC6750Error
+			require.NoError(t, json.NewDecoder(res.Body).Decode(&body), "response body must be valid JSON")
+			require.Equal(t, tt.wantErrorCode, body.Error)
+			require.Contains(t, body.ErrorDescription, tt.wantDescSubstring)
+		})
+	}
+}
+
+func TestLoadUpstreamTokens(t *testing.T) {
+	t.Parallel()
+
+	t.Run("loads tokens when tsid present", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		reader := upstreamtokenmocks.NewMockTokenReader(ctrl)
+		reader.EXPECT().GetAllValidTokens(gomock.Any(), "session-abc").
+			Return(map[string]string{"github": "gh-token", "atlassian": "atl-token"}, nil)
+
+		v := &TokenValidator{upstreamTokenReader: reader}
+		result, err := v.loadUpstreamTokens(context.Background(), jwt.MapClaims{
+			"sub":                                "user123",
+			upstreamtoken.TokenSessionIDClaimKey: "session-abc",
+		})
+		require.NoError(t, err)
+		require.Equal(t, map[string]string{"github": "gh-token", "atlassian": "atl-token"}, result)
+	})
+
+	t.Run("returns nil when no tsid claim", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		reader := upstreamtokenmocks.NewMockTokenReader(ctrl)
+		// No EXPECT — reader should not be called
+
+		v := &TokenValidator{upstreamTokenReader: reader}
+		result, err := v.loadUpstreamTokens(context.Background(), jwt.MapClaims{"sub": "user123"})
+		require.NoError(t, err)
+		require.Nil(t, result)
+	})
+
+	t.Run("returns nil when tsid is empty string", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		reader := upstreamtokenmocks.NewMockTokenReader(ctrl)
+
+		v := &TokenValidator{upstreamTokenReader: reader}
+		result, err := v.loadUpstreamTokens(context.Background(), jwt.MapClaims{
+			"sub":                                "user123",
+			upstreamtoken.TokenSessionIDClaimKey: "",
+		})
+		require.NoError(t, err)
+		require.Nil(t, result)
+	})
+
+	t.Run("returns nil when tsid is non-string type", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		reader := upstreamtokenmocks.NewMockTokenReader(ctrl)
+
+		v := &TokenValidator{upstreamTokenReader: reader}
+		result, err := v.loadUpstreamTokens(context.Background(), jwt.MapClaims{
+			"sub":                                "user123",
+			upstreamtoken.TokenSessionIDClaimKey: 12345,
+		})
+		require.NoError(t, err)
+		require.Nil(t, result)
+	})
+
+	t.Run("returns error when reader fails", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		reader := upstreamtokenmocks.NewMockTokenReader(ctrl)
+		reader.EXPECT().GetAllValidTokens(gomock.Any(), "session-abc").
+			Return(nil, errors.New("storage unavailable"))
+
+		v := &TokenValidator{upstreamTokenReader: reader}
+		result, err := v.loadUpstreamTokens(context.Background(), jwt.MapClaims{
+			"sub":                                "user123",
+			upstreamtoken.TokenSessionIDClaimKey: "session-abc",
+		})
+		require.Error(t, err)
+		require.Nil(t, result)
+	})
+
+	t.Run("returns empty map from reader", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		reader := upstreamtokenmocks.NewMockTokenReader(ctrl)
+		reader.EXPECT().GetAllValidTokens(gomock.Any(), "session-abc").
+			Return(map[string]string{}, nil)
+
+		v := &TokenValidator{upstreamTokenReader: reader}
+		result, err := v.loadUpstreamTokens(context.Background(), jwt.MapClaims{
+			"sub":                                "user123",
+			upstreamtoken.TokenSessionIDClaimKey: "session-abc",
+		})
+		require.NoError(t, err)
+		require.Equal(t, map[string]string{}, result)
+	})
+}
+
+func TestWithUpstreamTokenReader(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	reader := upstreamtokenmocks.NewMockTokenReader(ctrl)
+	opt := WithUpstreamTokenReader(reader)
+
+	o := &tokenValidatorOptions{}
+	opt(o)
+
+	require.Equal(t, reader, o.upstreamTokenReader)
+}
+
+// TestMiddleware_UpstreamTokenEnrichment verifies the full middleware pipeline:
+// JWT validation → tsid extraction → token loading → Identity.UpstreamTokens.
+func TestMiddleware_UpstreamTokenEnrichment(t *testing.T) {
+	t.Parallel()
+
+	// Shared JWKS infrastructure
+	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+
+	key, err := jwk.Import(&privateKey.PublicKey)
+	require.NoError(t, err)
+	require.NoError(t, key.Set(jwk.KeyIDKey, testKeyID))
+	require.NoError(t, key.Set(jwk.AlgorithmKey, "RS256"))
+	require.NoError(t, key.Set(jwk.KeyUsageKey, "sig"))
+
+	keySet := jwk.NewSet()
+	require.NoError(t, keySet.AddKey(key))
+	jwksServer, caCertPath := createTestJWKSServer(t, keySet)
+	t.Cleanup(jwksServer.Close)
+
+	makeValidator := func(t *testing.T, opts ...TokenValidatorOption) *TokenValidator {
+		t.Helper()
+		v, vErr := NewTokenValidator(context.Background(), TokenValidatorConfig{
+			Issuer: "test-issuer", Audience: "test-audience",
+			JWKSURL: jwksServer.URL, ClientID: "test-client",
+			CACertPath: caCertPath, AllowPrivateIP: true,
+		}, opts...)
+		require.NoError(t, vErr)
+		require.NoError(t, v.ensureJWKSRegistered(context.Background()))
+		_, lErr := v.jwksClient.Lookup(context.Background(), jwksServer.URL)
+		require.NoError(t, lErr)
+		return v
+	}
+
+	signToken := func(claims jwt.MapClaims) string {
+		tok := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
+		tok.Header["kid"] = testKeyID
+		s, sErr := tok.SignedString(privateKey)
+		require.NoError(t, sErr)
+		return s
+	}
+
+	claimsWithTsid := jwt.MapClaims{
+		"iss": "test-issuer", "aud": "test-audience", "sub": "test-user",
+		"exp":                                time.Now().Add(time.Hour).Unix(),
+		upstreamtoken.TokenSessionIDClaimKey: "session-xyz",
+	}
+
+	t.Run("enriches identity with upstream tokens", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		reader := upstreamtokenmocks.NewMockTokenReader(ctrl)
+		reader.EXPECT().GetAllValidTokens(gomock.Any(), "session-xyz").
+			Return(map[string]string{"github": "gh-tok"}, nil)
+		v := makeValidator(t, WithUpstreamTokenReader(reader))
+
+		var captured *Identity
+		handler := v.Middleware(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+			captured, _ = IdentityFromContext(r.Context())
+		}))
+
+		req := httptest.NewRequest("GET", "/", nil)
+		req.Header.Set("Authorization", "Bearer "+signToken(claimsWithTsid))
+		rr := httptest.NewRecorder()
+		handler.ServeHTTP(rr, req)
+
+		require.Equal(t, http.StatusOK, rr.Code)
+		require.Equal(t, map[string]string{"github": "gh-tok"}, captured.UpstreamTokens)
+	})
+
+	t.Run("places identity in context before loading upstream tokens", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		reader := upstreamtokenmocks.NewMockTokenReader(ctrl)
+
+		// loadUpstreamTokens forwards its context straight to the reader, so the
+		// context the reader receives IS the one loadUpstreamTokens ran with.
+		// Capture it to assert the middleware enriched the context with the identity
+		// BEFORE performing the load.
+		var loadCtxIdentity *Identity
+		var loadCtxHadIdentity bool
+		var loadCtxCanonicalUser string
+		var loadCtxHadCanonicalUser bool
+		reader.EXPECT().GetAllValidTokens(gomock.Any(), "session-xyz").
+			DoAndReturn(func(ctx context.Context, _ string) (map[string]string, error) {
+				loadCtxIdentity, loadCtxHadIdentity = IdentityFromContext(ctx)
+				loadCtxCanonicalUser, loadCtxHadCanonicalUser = CanonicalUserFromContext(ctx)
+				return map[string]string{"github": "gh-tok"}, nil
+			})
+		v := makeValidator(t, WithUpstreamTokenReader(reader))
+		handler := v.Middleware(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {}))
+
+		req := httptest.NewRequest("GET", "/", nil)
+		req.Header.Set("Authorization", "Bearer "+signToken(claimsWithTsid))
+		rr := httptest.NewRecorder()
+		handler.ServeHTTP(rr, req)
+
+		require.Equal(t, http.StatusOK, rr.Code)
+		require.True(t, loadCtxHadIdentity,
+			"middleware must place the identity into the context before loading upstream tokens")
+		require.Equal(t, "test-user", loadCtxIdentity.PlatformUserID)
+		// Storage resolves the canonical user via CanonicalUserFromContext. On this
+		// request-serving path no dedicated platform-user key is set, so it must fall
+		// back to the Identity's PlatformUserID — verify that fallback resolves.
+		require.True(t, loadCtxHadCanonicalUser,
+			"CanonicalUserFromContext must resolve the user during the upstream-token load")
+		require.Equal(t, "test-user", loadCtxCanonicalUser)
+	})
+
+	t.Run("returns 503 when storage fails", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		reader := upstreamtokenmocks.NewMockTokenReader(ctrl)
+		reader.EXPECT().GetAllValidTokens(gomock.Any(), "session-xyz").
+			Return(nil, errors.New("redis down"))
+		v := makeValidator(t, WithUpstreamTokenReader(reader))
+
+		nextCalled := false
+		handler := v.Middleware(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
+			nextCalled = true
+		}))
+
+		req := httptest.NewRequest("GET", "/", nil)
+		req.Header.Set("Authorization", "Bearer "+signToken(claimsWithTsid))
+		rr := httptest.NewRecorder()
+		handler.ServeHTTP(rr, req)
+
+		require.Equal(t, http.StatusServiceUnavailable, rr.Code)
+		require.False(t, nextCalled)
+	})
+
+	t.Run("no enrichment without tsid", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		reader := upstreamtokenmocks.NewMockTokenReader(ctrl)
+		// No EXPECT — reader should not be called when tsid is absent
+		v := makeValidator(t, WithUpstreamTokenReader(reader))
+
+		var captured *Identity
+		handler := v.Middleware(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+			captured, _ = IdentityFromContext(r.Context())
+		}))
+
+		noTsid := jwt.MapClaims{
+			"iss": "test-issuer", "aud": "test-audience", "sub": "test-user",
+			"exp": time.Now().Add(time.Hour).Unix(),
+		}
+		req := httptest.NewRequest("GET", "/", nil)
+		req.Header.Set("Authorization", "Bearer "+signToken(noTsid))
+		rr := httptest.NewRecorder()
+		handler.ServeHTTP(rr, req)
+
+		require.Equal(t, http.StatusOK, rr.Code)
+		require.Nil(t, captured.UpstreamTokens)
+	})
+
+	t.Run("no enrichment when reader is nil", func(t *testing.T) {
+		t.Parallel()
+		v := makeValidator(t) // no WithUpstreamTokenReader
+
+		var captured *Identity
+		handler := v.Middleware(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+			captured, _ = IdentityFromContext(r.Context())
+		}))
+
+		req := httptest.NewRequest("GET", "/", nil)
+		req.Header.Set("Authorization", "Bearer "+signToken(claimsWithTsid))
+		rr := httptest.NewRecorder()
+		handler.ServeHTTP(rr, req)
+
+		require.Equal(t, http.StatusOK, rr.Code)
+		require.Nil(t, captured.UpstreamTokens)
+	})
+}
+
+func TestWithKeyProvider(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	provider := keysmocks.NewMockPublicKeyProvider(ctrl)
+	opt := WithKeyProvider(provider)
+
+	o := &tokenValidatorOptions{}
+	opt(o)
+
+	require.Equal(t, provider, o.keyProvider)
+}
+
+func TestGetKeyFromLocalProvider(t *testing.T) {
+	t.Parallel()
+
+	// Generate a test RSA key pair for verification
+	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+
+	t.Run("returns nil when no provider configured", func(t *testing.T) {
+		t.Parallel()
+
+		v := &TokenValidator{} // no keyProvider
+		token := &jwt.Token{
+			Method: jwt.SigningMethodRS256,
+			Header: map[string]interface{}{"kid": "test-kid"},
+		}
+
+		key, err := v.getKeyFromLocalProvider(context.Background(), token)
+		require.NoError(t, err)
+		require.Nil(t, key)
+	})
+
+	t.Run("returns key when kid matches", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		provider := keysmocks.NewMockPublicKeyProvider(ctrl)
+		provider.EXPECT().PublicKeys(gomock.Any()).Return([]*keys.PublicKeyData{
+			{KeyID: "other-kid", PublicKey: &privateKey.PublicKey},
+			{KeyID: "target-kid", PublicKey: &privateKey.PublicKey},
+		}, nil)
+
+		v := &TokenValidator{keyProvider: provider}
+		token := &jwt.Token{
+			Method: jwt.SigningMethodRS256,
+			Header: map[string]interface{}{"kid": "target-kid"},
+		}
+
+		key, err := v.getKeyFromLocalProvider(context.Background(), token)
+		require.NoError(t, err)
+		require.NotNil(t, key)
+		require.Equal(t, &privateKey.PublicKey, key)
+	})
+
+	t.Run("falls back when kid not found", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		provider := keysmocks.NewMockPublicKeyProvider(ctrl)
+		provider.EXPECT().PublicKeys(gomock.Any()).Return([]*keys.PublicKeyData{
+			{KeyID: "other-kid", PublicKey: &privateKey.PublicKey},
+		}, nil)
+
+		v := &TokenValidator{keyProvider: provider}
+		token := &jwt.Token{
+			Method: jwt.SigningMethodRS256,
+			Header: map[string]interface{}{"kid": "missing-kid"},
+		}
+
+		key, err := v.getKeyFromLocalProvider(context.Background(), token)
+		require.NoError(t, err)
+		require.Nil(t, key, "should return nil to signal HTTP fallback")
+	})
+
+	t.Run("falls back when provider returns error", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		provider := keysmocks.NewMockPublicKeyProvider(ctrl)
+		provider.EXPECT().PublicKeys(gomock.Any()).Return(nil, errors.New("key unavailable"))
+
+		v := &TokenValidator{keyProvider: provider}
+		token := &jwt.Token{
+			Method: jwt.SigningMethodRS256,
+			Header: map[string]interface{}{"kid": "test-kid"},
+		}
+
+		key, err := v.getKeyFromLocalProvider(context.Background(), token)
+		require.NoError(t, err, "provider errors should trigger fallback, not hard failure")
+		require.Nil(t, key)
+	})
+
+	t.Run("rejects unsupported signing method", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		provider := keysmocks.NewMockPublicKeyProvider(ctrl)
+
+		v := &TokenValidator{keyProvider: provider}
+		token := &jwt.Token{
+			Method: jwt.SigningMethodHS256,
+			Header: map[string]interface{}{"alg": "HS256", "kid": "test-kid"},
+		}
+
+		key, err := v.getKeyFromLocalProvider(context.Background(), token)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "unexpected signing method")
+		require.Nil(t, key)
+	})
+
+	t.Run("rejects missing kid", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		provider := keysmocks.NewMockPublicKeyProvider(ctrl)
+
+		v := &TokenValidator{keyProvider: provider}
+		token := &jwt.Token{
+			Method: jwt.SigningMethodRS256,
+			Header: map[string]interface{}{},
+		}
+
+		key, err := v.getKeyFromLocalProvider(context.Background(), token)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "token header missing kid")
+		require.Nil(t, key)
+	})
+}
+
+func TestValidateToken_DiscoveryFailsWithKeyProvider(t *testing.T) {
+	t.Parallel()
+
+	// closedTLSServer returns a closed TLS server URL and its CA cert path.
+	// Connection refused is instant because DNS resolves but the socket is closed.
+	closedTLSServer := func(t *testing.T) (string, string) {
+		t.Helper()
+		server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusOK)
+		}))
+		certPath := writeTestServerCert(t, server)
+		server.Close()
+		return server.URL, certPath
+	}
+
+	// setupClosedServerTest generates an RSA key pair, creates a validator pointed
+	// at a closed TLS server, and returns a signed JWT for that issuer. The
+	// keyProviderKID controls whether a mock key provider is configured:
+	//   - non-empty: configures a mock returning a key with that kid
+	//   - empty: no key provider is attached
+	type closedServerFixture struct {
+		validator   *TokenValidator
+		tokenString string
+	}
+	setupClosedServerTest := func(t *testing.T, keyProviderKID string) closedServerFixture {
+		t.Helper()
+
+		ctrl := gomock.NewController(t)
+		mockEnv := envmocks.NewMockReader(ctrl)
+		mockEnv.EXPECT().Getenv(gomock.Any()).Return("").AnyTimes()
+
+		privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+		require.NoError(t, err)
+
+		opts := []TokenValidatorOption{WithEnvReader(mockEnv)}
+		if keyProviderKID != "" {
+			mockProvider := keysmocks.NewMockPublicKeyProvider(ctrl)
+			mockProvider.EXPECT().PublicKeys(gomock.Any()).Return([]*keys.PublicKeyData{
+				{KeyID: keyProviderKID, Algorithm: "RS256", PublicKey: &privateKey.PublicKey},
+			}, nil).AnyTimes()
+			opts = append(opts, WithKeyProvider(mockProvider))
+		}
+
+		closedURL, certPath := closedTLSServer(t)
+
+		ctx := context.Background()
+		validator, err := NewTokenValidator(ctx, TokenValidatorConfig{
+			Issuer:         closedURL,
+			Audience:       "test-audience",
+			ClientID:       "test-client",
+			CACertPath:     certPath,
+			AllowPrivateIP: true,
+		}, opts...)
+		require.NoError(t, err)
+
+		token := jwt.NewWithClaims(jwt.SigningMethodRS256, jwt.MapClaims{
+			"iss": closedURL,
+			"aud": "test-audience",
+			"exp": time.Now().Add(time.Hour).Unix(),
+			"sub": "test-user",
+		})
+		token.Header["kid"] = testKeyID
+		tokenString, err := token.SignedString(privateKey)
+		require.NoError(t, err)
+
+		return closedServerFixture{validator: validator, tokenString: tokenString}
+	}
+
+	tests := []struct {
+		name            string
+		keyProviderKID  string // empty means no key provider
+		wantErr         error  // nil means success
+		wantSub         string // checked only when wantErr is nil
+		checkDiscovered bool   // whether to assert oidcDiscovered state after tolerated failure
+	}{
+		{
+			name:            "discovery fails but keyProvider resolves key",
+			keyProviderKID:  testKeyID,
+			wantErr:         nil,
+			wantSub:         "test-user",
+			checkDiscovered: true,
+		},
+		{
+			name:           "discovery fails and keyProvider kid miss returns error",
+			keyProviderKID: "other-kid",
+			wantErr:        ErrMissingJWKSURL,
+		},
+		{
+			name:    "discovery fails without keyProvider returns discovery error",
+			wantErr: ErrFailedToDiscoverOIDC,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			fix := setupClosedServerTest(t, tt.keyProviderKID)
+			ctx := context.Background()
+
+			claims, err := fix.validator.ValidateToken(ctx, fix.tokenString)
+			if tt.wantErr != nil {
+				require.Error(t, err)
+				require.ErrorIs(t, err, tt.wantErr)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, tt.wantSub, claims["sub"])
+			}
+			if tt.checkDiscovered {
+				// Discovery was attempted, failed, and tolerated — marked as done
+				// to avoid per-request retry penalty.
+				require.True(t, fix.validator.oidcDiscovered)
+			}
+		})
+	}
+
+	t.Run("keyProvider miss falls through to explicit JWKS URL", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		mockEnv := envmocks.NewMockReader(ctrl)
+		mockEnv.EXPECT().Getenv(gomock.Any()).Return("").AnyTimes()
+
+		privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+		require.NoError(t, err)
+
+		// Mock key provider returns a key with a DIFFERENT kid than the token,
+		// so getKeyFromLocalProvider returns (nil, nil) on kid mismatch.
+		mockProvider := keysmocks.NewMockPublicKeyProvider(ctrl)
+		mockProvider.EXPECT().PublicKeys(gomock.Any()).Return([]*keys.PublicKeyData{
+			{KeyID: "other-kid", Algorithm: "RS256", PublicKey: &privateKey.PublicKey},
+		}, nil).AnyTimes()
+
+		// Build JWK key set for the JWKS server with the CORRECT kid
+		jwkKey, err := jwk.Import(&privateKey.PublicKey)
+		require.NoError(t, err)
+		require.NoError(t, jwkKey.Set(jwk.KeyIDKey, testKeyID))
+		require.NoError(t, jwkKey.Set(jwk.AlgorithmKey, "RS256"))
+		require.NoError(t, jwkKey.Set(jwk.KeyUsageKey, "sig"))
+		keySet := jwk.NewSet()
+		require.NoError(t, keySet.AddKey(jwkKey))
+
+		jwksServer, certPath := createTestJWKSServer(t, keySet)
+		t.Cleanup(jwksServer.Close)
+
+		ctx := context.Background()
+		validator, err := NewTokenValidator(ctx, TokenValidatorConfig{
+			JWKSURL:        jwksServer.URL,
+			Audience:       "test-audience",
+			ClientID:       "test-client",
+			CACertPath:     certPath,
+			AllowPrivateIP: true,
+		}, WithEnvReader(mockEnv), WithKeyProvider(mockProvider))
+		require.NoError(t, err)
+
+		token := jwt.NewWithClaims(jwt.SigningMethodRS256, jwt.MapClaims{
+			"aud": "test-audience",
+			"exp": time.Now().Add(time.Hour).Unix(),
+			"sub": "test-user",
+		})
+		token.Header["kid"] = testKeyID
+		tokenString, err := token.SignedString(privateKey)
+		require.NoError(t, err)
+
+		claims, err := validator.ValidateToken(ctx, tokenString)
+		require.NoError(t, err)
+		require.Equal(t, "test-user", claims["sub"])
+	})
+
+	t.Run("keyProvider PublicKeys error falls through to JWKS miss", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		mockEnv := envmocks.NewMockReader(ctrl)
+		mockEnv.EXPECT().Getenv(gomock.Any()).Return("").AnyTimes()
+
+		privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+		require.NoError(t, err)
+
+		mockProvider := keysmocks.NewMockPublicKeyProvider(ctrl)
+		mockProvider.EXPECT().PublicKeys(gomock.Any()).Return(nil, errors.New("key store unavailable")).AnyTimes()
+
+		closedURL, certPath := closedTLSServer(t)
+
+		ctx := context.Background()
+		validator, err := NewTokenValidator(ctx, TokenValidatorConfig{
+			Issuer:         closedURL,
+			Audience:       "test-audience",
+			ClientID:       "test-client",
+			CACertPath:     certPath,
+			AllowPrivateIP: true,
+		}, WithEnvReader(mockEnv), WithKeyProvider(mockProvider))
+		require.NoError(t, err)
+
+		token := jwt.NewWithClaims(jwt.SigningMethodRS256, jwt.MapClaims{
+			"iss": closedURL,
+			"aud": "test-audience",
+			"exp": time.Now().Add(time.Hour).Unix(),
+			"sub": "test-user",
+		})
+		token.Header["kid"] = testKeyID
+		tokenString, err := token.SignedString(privateKey)
+		require.NoError(t, err)
+
+		// Provider error is swallowed (falls back to HTTP JWKS), but
+		// discovery was also skipped so no JWKS URL is available.
+		_, err = validator.ValidateToken(ctx, tokenString)
+		require.Error(t, err)
+		require.ErrorIs(t, err, ErrMissingJWKSURL)
+		require.Contains(t, err.Error(), "local key provider could not resolve key")
+	})
+}

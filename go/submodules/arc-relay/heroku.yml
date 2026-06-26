@@ -1,0 +1,15 @@
+# Heroku container build manifest.
+# https://devcenter.heroku.com/articles/build-docker-images-heroku-yml
+#
+# Used with the "Deploy to Heroku" button together with app.json. The Dockerfile
+# needs CGO for SQLite, so this builds from the repo's top-level Dockerfile
+# instead of using Heroku buildpacks.
+#
+# Heroku dynos have an ephemeral filesystem, so SQLite state under /tmp is lost
+# on every restart. For a durable deploy, use Render or Railway, or attach
+# external storage (e.g. a Heroku Postgres add-on + a DB backend port).
+build:
+  docker:
+    web: Dockerfile
+run:
+  web: arc-relay

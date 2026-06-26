@@ -1,0 +1,30 @@
+node_modules/
+dist/
+coverage/
+.DS_Store
+*.log
+*.tsbuildinfo
+.env
+.env.*
+!.env.example
+
+# Local machine and editor state
+.claude/
+.cursor/
+.vscode/
+*.swp
+*.swo
+
+# Local mvmt runtime/config copies, if someone creates them in the repo
+.mvmt/
+.mvmt-bench/
+config.local.yaml
+audit.log
+
+# Internal agent/project notes
+rules.md
+docs/build-*.md
+docs/build-**.md
+docs/**/build-*.md
+build-**.md
+build-*.md

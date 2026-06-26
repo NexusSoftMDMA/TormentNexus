@@ -1,0 +1,30 @@
+#!/bin/bash
+# run-with-env.sh — source /data/config/hermes.env, then exec the wrapped command.
+#
+# Why: supervisord freezes its environment at startup, so `supervisorctl restart`
+# alone cannot pick up keys the user adds via the onboarding wizard. Wrapping the
+# program command lets each restart re-read the latest hermes.env on disk, so the
+# wizard's restart path takes effect in seconds without a container restart.
+#
+# Source is best-effort: a malformed hermes.env must not block the wrapped
+# process from starting — a missing key surfaces downstream as the existing
+# "No LLM provider configured" error, not as a supervisord crash loop.
+_env_path="${HERMES_ENV_PATH:-/data/config/hermes.env}"
+if [ -f "$_env_path" ]; then
+  set -a
+  # shellcheck disable=SC1091
+  source "$_env_path" || true
+  set +a
+fi
+
+# Also pick up keys saved post-onboarding via the WebUI's Settings → Providers
+# panel, which writes to the active hermes home (~/.hermes/.env). The two
+# files are sourced in order so Settings entries override onboarding ones,
+# matching the in-app expectation that the most recent Settings save wins.
+if [ -n "${HOME:-}" ] && [ -f "$HOME/.hermes/.env" ]; then
+  set -a
+  # shellcheck disable=SC1091
+  source "$HOME/.hermes/.env" || true
+  set +a
+fi
+exec "$@"

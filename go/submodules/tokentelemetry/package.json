@@ -1,0 +1,35 @@
+{
+  "name": "tokentelemetry",
+  "version": "1.0.0",
+  "description": "Local token + cost monitoring dashboard for Claude, Codex, Gemini, and other coding agents.",
+  "main": "index.js",
+  "bin": {
+    "tokentelemetry": "./bin/cli.js"
+  },
+  "scripts": {
+    "start": "node bin/cli.js"
+  },
+  "keywords": [
+    "observability",
+    "ai",
+    "agents",
+    "claude",
+    "codex",
+    "gemini",
+    "monitoring"
+  ],
+  "author": "Hemanth Vasi <hemanth.vasi1716@gmail.com>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/VasiHemanth/tokentelemetry.git"
+  },
+  "homepage": "https://tokentelemetry.com",
+  "bugs": {
+    "url": "https://github.com/VasiHemanth/tokentelemetry/issues"
+  },
+  "dependencies": {},
+  "engines": {
+    "node": ">=18"
+  }
+}

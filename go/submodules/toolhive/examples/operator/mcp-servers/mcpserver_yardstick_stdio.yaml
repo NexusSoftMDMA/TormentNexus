@@ -1,0 +1,16 @@
+apiVersion: toolhive.stacklok.dev/v1beta1
+kind: MCPServer
+metadata:
+  name: yardstick
+  namespace: toolhive-system
+spec:
+  image: ghcr.io/stackloklabs/yardstick/yardstick-server:1.1.1
+  transport: stdio
+  proxyPort: 8080
+  resources:
+    limits:
+      cpu: "100m"
+      memory: "128Mi"
+    requests:
+      cpu: "50m"
+      memory: "64Mi"

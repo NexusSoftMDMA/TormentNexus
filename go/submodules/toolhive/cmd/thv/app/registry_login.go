@@ -1,0 +1,85 @@
+// SPDX-FileCopyrightText: Copyright 2026 Stacklok, Inc.
+// SPDX-License-Identifier: Apache-2.0
+
+package app
+
+import (
+	"fmt"
+
+	"github.com/spf13/cobra"
+
+	"github.com/stacklok/toolhive/pkg/config"
+	"github.com/stacklok/toolhive/pkg/registry/auth"
+	"github.com/stacklok/toolhive/pkg/secrets"
+)
+
+var (
+	loginRegistry       string
+	loginIssuer         string
+	loginClientID       string
+	loginAudience       string
+	loginScopes         []string
+	loginAllowPrivateIP bool
+)
+
+var registryLoginCmd = &cobra.Command{
+	Use:   "login",
+	Short: "Authenticate with the configured registry",
+	Long: `Perform an interactive OAuth login against the configured registry.
+
+If the registry URL or OAuth configuration (issuer, client-id) are not yet
+saved in config, you can supply them as flags and they will be persisted
+before the login flow begins.
+
+Examples:
+  thv registry login
+  thv registry login --registry https://registry.example.com/api --issuer https://auth.example.com --client-id my-app`,
+	RunE: registryLoginCmdFunc,
+}
+
+func init() {
+	registryCmd.AddCommand(registryLoginCmd)
+
+	registryLoginCmd.Flags().StringVar(&loginRegistry, "registry", "", "Registry URL")
+	registryLoginCmd.Flags().StringVar(&loginIssuer, "issuer", "", "OIDC issuer URL for registry authentication")
+	registryLoginCmd.Flags().StringVar(&loginClientID, "client-id", "", "OAuth client ID for registry authentication")
+	registryLoginCmd.Flags().StringVar(&loginAudience, "audience", "",
+		"OAuth audience parameter for registry authentication (optional)")
+	registryLoginCmd.Flags().StringSliceVar(&loginScopes, "scopes", nil,
+		"OAuth scopes for registry authentication (defaults to openid,offline_access)")
+	registryLoginCmd.Flags().BoolVarP(&loginAllowPrivateIP, "allow-private-ip", "p", false,
+		"Allow --registry to reference a private IP address (default false). "+
+			"Mirrors the flag on 'thv config set-registry'.")
+}
+
+func registryLoginCmdFunc(cmd *cobra.Command, _ []string) error {
+	configProvider := config.NewDefaultProvider()
+	secretsProvider, err := newSecretsProvider(configProvider)
+	if err != nil {
+		return err
+	}
+
+	opts := auth.LoginOptions{
+		RegistryURL:    loginRegistry,
+		Issuer:         loginIssuer,
+		ClientID:       loginClientID,
+		Audience:       loginAudience,
+		Scopes:         loginScopes,
+		AllowPrivateIP: loginAllowPrivateIP,
+	}
+
+	return auth.Login(cmd.Context(), configProvider, secretsProvider, opts)
+}
+
+// newSecretsProvider creates a secrets provider from the given config provider.
+func newSecretsProvider(configProvider config.Provider) (secrets.Provider, error) {
+	cfg, err := configProvider.LoadOrCreateConfig()
+	if err != nil {
+		return nil, fmt.Errorf("loading config: %w", err)
+	}
+	providerType, err := cfg.Secrets.GetProviderType()
+	if err != nil {
+		return nil, fmt.Errorf("getting secrets provider type: %w", err)
+	}
+	return secrets.CreateProvider(providerType, secrets.WithScope(secrets.ScopeRegistry))
+}

@@ -1,0 +1,251 @@
+// SPDX-FileCopyrightText: Copyright 2025 Stacklok, Inc.
+// SPDX-License-Identifier: Apache-2.0
+
+package app
+
+import (
+	"context"
+	"crypto/rand"
+	"encoding/hex"
+	"fmt"
+	"log/slog"
+	"net/http"
+	"os/signal"
+	"strconv"
+	"syscall"
+	"time"
+
+	"github.com/spf13/cobra"
+
+	"github.com/stacklok/toolhive-core/permissions"
+	"github.com/stacklok/toolhive/cmd/thv/app/inspector"
+	"github.com/stacklok/toolhive/pkg/container"
+	"github.com/stacklok/toolhive/pkg/container/images"
+	"github.com/stacklok/toolhive/pkg/container/runtime"
+	"github.com/stacklok/toolhive/pkg/labels"
+	"github.com/stacklok/toolhive/pkg/transport/types"
+	"github.com/stacklok/toolhive/pkg/workloads"
+)
+
+const sseSuffix = "sse"
+
+var (
+	inspectorUIPort       int
+	inspectorMCPProxyPort int
+)
+
+func inspectorCommand() *cobra.Command {
+	inspectorCommand := &cobra.Command{
+		Use:   "inspector [workload-name]",
+		Short: "Launches the MCP Inspector UI and connects it to the specified MCP server",
+		Long:  `Launches the MCP Inspector UI and connects it to the specified MCP server`,
+		Args:  cobra.ExactArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
+			return inspectorCmdFunc(cmd, args)
+		},
+	}
+
+	inspectorCommand.Flags().IntVarP(&inspectorUIPort, "ui-port", "u", 6274, "Port to run the MCP Inspector UI on")
+	inspectorCommand.Flags().IntVarP(&inspectorMCPProxyPort, "mcp-proxy-port", "p", 6277, "Port to run the MCP Proxy on")
+
+	return inspectorCommand
+}
+
+func buildInspectorContainerOptions(uiPortStr string, mcpPortStr string) *runtime.DeployWorkloadOptions {
+	return &runtime.DeployWorkloadOptions{
+		ExposedPorts: map[string]struct{}{
+			uiPortStr + "/tcp":  {},
+			mcpPortStr + "/tcp": {},
+		},
+		PortBindings: map[string][]runtime.PortBinding{
+			uiPortStr + "/tcp": {
+				{HostIP: "127.0.0.1", HostPort: uiPortStr},
+			},
+			mcpPortStr + "/tcp": {
+				{HostIP: "127.0.0.1", HostPort: mcpPortStr},
+			},
+		},
+		AttachStdio: false,
+	}
+}
+
+func waitForInspectorReady(ctx context.Context, port int, statusChan chan bool) {
+	go func() {
+		url := fmt.Sprintf("http://localhost:%d", port)
+		for {
+			resp, err := http.Get(url) //nolint:gosec
+			if err == nil && resp.StatusCode == 200 {
+				_ = resp.Body.Close()
+				statusChan <- true
+				return
+			}
+			if resp != nil {
+				_ = resp.Body.Close()
+			}
+			select {
+			case <-ctx.Done():
+				return
+			default:
+				slog.Info("waiting for MCP Inspector to be ready")
+				time.Sleep(3 * time.Second)
+			}
+		}
+	}()
+}
+
+func inspectorCmdFunc(cmd *cobra.Command, args []string) error {
+	ctx, stopSignal := signal.NotifyContext(cmd.Context(), syscall.SIGINT, syscall.SIGTERM)
+	defer stopSignal()
+
+	// Get server name from args
+	if len(args) == 0 || args[0] == "" {
+		return fmt.Errorf("server name is required as an argument")
+	}
+
+	serverName := args[0]
+
+	// Generate authentication token
+	tokenBytes := make([]byte, 32)
+	_, err := rand.Read(tokenBytes)
+	if err != nil {
+		return fmt.Errorf("failed to generate auth token: %w", err)
+	}
+	authToken := hex.EncodeToString(tokenBytes)
+
+	// find the port of the server if it is running / exists
+	serverPort, proxyMode, err := getServerPortAndProxyMode(ctx, serverName)
+	if err != nil {
+		return fmt.Errorf("failed to find server: %w", err)
+	}
+
+	imageManager := images.NewImageManager(ctx)
+	err = imageManager.PullImage(ctx, inspector.Image)
+	if err != nil {
+		return fmt.Errorf("failed to pull inspector image: %w", err)
+	}
+	processedImage := inspector.Image
+
+	// Setup workload options with the required port configuration
+	uiPortStr := strconv.Itoa(inspectorUIPort)
+	mcpPortStr := strconv.Itoa(inspectorMCPProxyPort)
+
+	options := buildInspectorContainerOptions(uiPortStr, mcpPortStr)
+
+	// Create workload runtime
+	rt, err := container.NewFactory().Create(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to create workload runtime: %w", err)
+	}
+
+	labelsMap := map[string]string{}
+	labels.AddStandardLabels(labelsMap, "inspector", "inspector", string(types.TransportTypeInspector), inspectorUIPort)
+	labelsMap[labels.LabelAuxiliary] = labels.LabelToolHiveValue
+	_, err = rt.DeployWorkload(
+		ctx,
+		processedImage,
+		"inspector",
+		[]string{}, // No custom command needed
+		map[string]string{
+			"MCP_PROXY_AUTH_TOKEN": authToken,
+			"HOST":                 "0.0.0.0",
+		},
+		labelsMap,              // Add toolhive label
+		&permissions.Profile{}, // Empty profile as we don't need special permissions
+		string(types.TransportTypeInspector),
+		options,
+		false, // Do not isolate network
+	)
+	if err != nil {
+		// Clean up any partially created container if deployment was interrupted
+		if cleanupErr := cleanupInspectorContainer(context.Background(), "inspector"); cleanupErr != nil {
+			slog.Debug(fmt.Sprintf("Failed to cleanup inspector container after deployment error: %v", cleanupErr))
+		}
+		return fmt.Errorf("failed to create inspector workload: %w", err)
+	}
+
+	// Monitor inspector readiness by checking HTTP response
+	statusChan := make(chan bool, 1)
+	waitForInspectorReady(ctx, inspectorUIPort, statusChan)
+
+	// Wait for workload to be running or context to be cancelled
+	select {
+	case <-statusChan:
+		slog.Info(fmt.Sprintf("Connected to MCP server: %s", serverName))
+
+		inspectorURL := buildInspectorURL(inspectorUIPort, proxyMode, serverPort, authToken)
+		slog.Info(fmt.Sprintf("Inspector UI is now available at %s", inspectorURL))
+
+		return nil
+	case <-ctx.Done():
+		slog.Info("context cancelled during inspector startup, cleaning up")
+		if cleanupErr := cleanupInspectorContainer(context.Background(), "inspector"); cleanupErr != nil {
+			slog.Warn(fmt.Sprintf("Failed to cleanup inspector container: %v", cleanupErr))
+		}
+		return fmt.Errorf("context cancelled while waiting for workload to start")
+	}
+}
+
+func getServerPortAndProxyMode(ctx context.Context, serverName string) (int, types.ProxyMode, error) {
+	manager, err := workloads.NewManager(ctx)
+	if err != nil {
+		return 0, types.ProxyModeStreamableHTTP, fmt.Errorf("failed to create status manager: %w", err)
+	}
+
+	workloadList, err := manager.ListWorkloads(ctx, true)
+	if err != nil {
+		return 0, types.ProxyModeStreamableHTTP, fmt.Errorf("failed to list workloads: %w", err)
+	}
+
+	for _, c := range workloadList {
+		if c.Name == serverName {
+			port := c.Port
+			if port <= 0 {
+				return 0, types.ProxyModeStreamableHTTP, fmt.Errorf("server %s does not have a valid port", serverName)
+			}
+
+			// Use ProxyMode which reflects how the proxy exposes the server.
+			return port, types.ProxyMode(c.ProxyMode), nil
+		}
+	}
+
+	return 0, types.ProxyModeStreamableHTTP, fmt.Errorf("server with name %s not found", serverName)
+}
+
+func cleanupInspectorContainer(ctx context.Context, name string) error {
+	rt, err := container.NewFactory().Create(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to create runtime for cleanup: %w", err)
+	}
+
+	manager, err := workloads.NewManagerFromRuntime(rt)
+	if err != nil {
+		return fmt.Errorf("failed to create workload manager for cleanup: %w", err)
+	}
+
+	cleanupCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	complete, err := manager.DeleteWorkloads(cleanupCtx, []string{name})
+	if err != nil {
+		return fmt.Errorf("failed to cleanup inspector container: %w", err)
+	}
+
+	if complete != nil {
+		if err := complete(); err != nil {
+			return fmt.Errorf("cleanup completion error: %w", err)
+		}
+	}
+
+	return nil
+}
+
+// buildInspectorURL constructs the URL for the MCP Inspector UI, encoding the
+// transport mode, server address, and authentication token as query parameters.
+func buildInspectorURL(uiPort int, proxyMode types.ProxyMode, serverPort int, authToken string) string {
+	suffix := "mcp"
+	if proxyMode == types.ProxyModeSSE {
+		suffix = sseSuffix
+	}
+	return fmt.Sprintf(
+		"http://localhost:%d?transport=%s&serverUrl=http://host.docker.internal:%d/%s&MCP_PROXY_AUTH_TOKEN=%s",
+		uiPort, proxyMode, serverPort, suffix, authToken)
+}

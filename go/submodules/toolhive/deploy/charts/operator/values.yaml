@@ -1,0 +1,246 @@
+# -- Override the name of the chart
+nameOverride: ""
+# -- Provide a fully-qualified name override for resources
+fullnameOverride: "toolhive-operator"
+
+# -- All values for the operator deployment and associated resources
+operator:
+  features:
+    # -- Enable experimental features
+    experimental: false
+    # -- Enable the StorageVersionMigrator controller, which auto-cleans
+    # status.storedVersions on opted-in toolhive.stacklok.dev CRDs so a
+    # future release can drop deprecated versions (e.g. v1alpha1) without
+    # orphaning etcd objects in the cluster. Sets
+    # TOOLHIVE_ENABLE_STORAGE_VERSION_MIGRATOR in the operator deployment.
+    storageVersionMigrator: false
+  # -- Number of replicas for the operator deployment
+  replicaCount: 1
+
+  # -- List of image pull secrets to use
+  imagePullSecrets: []
+
+  # -- List of image pull secrets that the operator applies as defaults to every
+  # workload it spawns (proxy runners, vMCP servers, registry API, etc.).
+  # Per-CR `imagePullSecrets` take precedence on name collisions; chart-level
+  # entries are appended additively. The operator parses these once at startup
+  # from the TOOLHIVE_DEFAULT_IMAGE_PULL_SECRETS environment variable. The
+  # Secrets must exist in the namespace where each workload is created.
+  #
+  # Each entry may be either a plain string (the Secret name) or an object
+  # with a `name` field, e.g.:
+  #   defaultImagePullSecrets:
+  #     - regcred
+  #     - name: otherscred
+  # The two shapes are equivalent; the object form matches `operator.imagePullSecrets`
+  # above for convenience.
+  defaultImagePullSecrets: []
+
+  # -- Default Redis/Valkey address used by the operator when a workload CR has
+  # no sessionStorage configured. The operator injects this as
+  # TOOLHIVE_DEFAULT_REDIS_ADDR on pods it creates. When empty, no global Redis
+  # default is active. Override per-CR with spec.sessionStorage.
+  #
+  # global.redis.host (from a parent umbrella chart) is used as fallback when
+  # addr is empty here. Both express the same addr concept; addr takes precedence.
+  #
+  # For the password, reference a pre-existing Kubernetes Secret:
+  #   defaultRedis:
+  #     addr: "myredis.svc:6379"
+  #     existingSecret: "redis-credentials"
+  #     existingSecretKey: "password"
+  defaultRedis:
+    # -- addr is the Redis/Valkey address (host:port).
+    addr: ""
+    # -- existingSecret is the name of a Secret containing the Redis password.
+    existingSecret: ""
+    # -- existingSecretKey is the key within existingSecret that holds the password.
+    # Empty means use global.redis.existingSecretKey or fall back to "redis-password".
+    existingSecretKey: ""
+
+  # -- Container image for the operator
+  image: ghcr.io/stacklok/toolhive/operator:v0.31.0
+  # -- Image pull policy for the operator container
+  imagePullPolicy: IfNotPresent
+
+  # -- Image to use for Toolhive runners
+  toolhiveRunnerImage: ghcr.io/stacklok/toolhive/proxyrunner:v0.31.0
+
+  # -- Image to use for Virtual MCP Server (vMCP) deployments
+  vmcpImage: ghcr.io/stacklok/toolhive/vmcp:v0.31.0
+
+  # -- Host for the proxy deployed by the operator
+  proxyHost: 0.0.0.0
+
+  # -- Environment variables to set in the operator container. Supported
+  # toolhive-specific variables include:
+  # - TOOLHIVE_SKIP_UPDATE_CHECK: set to "true" to disable the operator's
+  #   periodic update check against the ToolHive update API. Also disables
+  #   the usage-metrics collection that is gated on the same check.
+  env: []
+
+  # -- List of ports to expose from the operator container
+  ports:
+  - containerPort: 8080
+    name: metrics
+    protocol: TCP
+  - containerPort: 8081
+    name: health
+    protocol: TCP
+
+  # -- Annotations to add to the operator pod
+  podAnnotations: {}
+  # -- Labels to add to the operator pod
+  podLabels: {}
+
+  # -- Pod security context settings
+  podSecurityContext:
+    runAsNonRoot: true
+
+  # -- Container security context settings for the operator
+  containerSecurityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    runAsNonRoot: true
+    runAsUser: 1000
+    capabilities:
+      drop:
+      - ALL
+    seccompProfile:
+      type: RuntimeDefault
+
+  # -- Liveness probe configuration for the operator
+  livenessProbe:
+    httpGet:
+      path: /healthz
+      port: health
+    initialDelaySeconds: 15
+    periodSeconds: 20
+  # -- Readiness probe configuration for the operator
+  readinessProbe:
+    httpGet:
+      path: /readyz
+      port: health
+    initialDelaySeconds: 5
+    periodSeconds: 10
+
+  # -- Configuration for horizontal pod autoscaling
+  autoscaling:
+    # -- Enable autoscaling for the operator
+    enabled: false
+    # -- Minimum number of replicas
+    minReplicas: 1
+    # -- Maximum number of replicas
+    maxReplicas: 100
+    # -- Target CPU utilization percentage for autoscaling
+    targetCPUUtilizationPercentage: 80
+    # -- Target memory utilization percentage for autoscaling (uncomment to enable)
+    # targetMemoryUtilizationPercentage: 80
+
+  # -- Resource requests and limits for the operator container
+  resources:
+    limits:
+      cpu: 500m
+      memory: 128Mi
+    requests:
+      cpu: 10m
+      memory: 64Mi
+
+  # -- Go memory limits and garbage collection percentage for the operator container
+  gc:
+    # -- Go memory limits for the operator container
+    gomemlimit: 110MiB
+    # -- Go garbage collection percentage for the operator container
+    gogc: 75  # 75% heap growth before GC (as Go default)
+
+  # -- RBAC configuration for the operator
+  rbac:
+    # -- Scope of the RBAC configuration.
+    # - cluster: The operator will have cluster-wide permissions via ClusterRole and ClusterRoleBinding.
+    # - namespace: The operator will have permissions to manage resources in the namespaces specified in `allowedNamespaces`.
+    #   The operator will have a ClusterRole and RoleBinding for each namespace in `allowedNamespaces`.
+    scope: cluster
+    # -- List of namespaces that the operator is allowed to have permissions to manage.
+    # Only used if scope is set to "namespace".
+    allowedNamespaces: []
+
+  # -- Service account configuration for the operator
+  serviceAccount:
+    # -- Specifies whether a service account should be created
+    create: true
+    # -- Automatically mount a ServiceAccount's API credentials
+    automountServiceAccountToken: true
+    # -- Annotations to add to the service account
+    annotations: {}
+    # -- Labels to add to the service account
+    labels: {}
+    # -- The name of the service account to use. If not set and create is true, a name is generated.
+    name: "toolhive-operator"
+
+  # -- Leader election role configuration
+  leaderElectionRole:
+    # -- Name of the role for leader election
+    name: toolhive-operator-leader-election-role
+    binding:
+      # -- Name of the role binding for leader election
+      name: toolhive-operator-leader-election-rolebinding
+    # -- Rules for the leader election role
+    rules:
+    - apiGroups:
+      - ""
+      resources:
+      - configmaps
+      verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
+    - apiGroups:
+      - coordination.k8s.io
+      resources:
+      - leases
+      verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
+    - apiGroups:
+      - events.k8s.io
+      resources:
+      - events
+      verbs:
+      - create
+      - patch
+
+  # -- Additional volumes to mount on the operator pod
+  volumes: []
+  # - name: foo
+  #   secret:
+  #     secretName: mysecret
+  #     optional: false
+
+  # -- Additional volume mounts on the operator container
+  volumeMounts: []
+  # - name: foo
+  #   mountPath: "/etc/foo"
+  #   readOnly: true
+
+  # -- Node selector for the operator pod
+  nodeSelector: {}
+
+  # -- Tolerations for the operator pod
+  tolerations: []
+
+  # -- Affinity settings for the operator pod
+  affinity: {}
+
+# -- All values for the registry API deployment and associated resources
+registryAPI:
+  # -- Container image for the registry API
+  image: "ghcr.io/stacklok/thv-registry-api:v1.3.0"

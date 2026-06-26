@@ -1,0 +1,54 @@
+name: Codegen
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  verify-code-generation:
+    name: Verify Code Generation
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6
+        id: setup-go
+        with:
+          go-version: 'stable'
+          cache: true  # Cache go modules
+      # Cache Go tools (mockgen)
+      - name: Cache Go tools
+        id: cache-go-tools
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        with:
+          path: ~/go/bin
+          key: ${{ runner.os }}-go-codegen-tools-${{ steps.setup-go.outputs.go-version }}-${{ hashFiles('go.mod') }}-mockgen
+          restore-keys: |
+            ${{ runner.os }}-go-codegen-tools-${{ steps.setup-go.outputs.go-version }}-
+
+      - name: Install Task
+        uses: arduino/setup-task@v2
+        with:
+          version: 3.44.1
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      # Only install mockgen if not cached
+      - name: Install mockgen (if not cached)
+        if: steps.cache-go-tools.outputs.cache-hit != 'true'
+        run: task mock-install
+
+      - name: Generate code files
+        run: task gen
+      - name: Check for changes
+        run: |
+          if ! git diff --exit-code; then
+            echo "❌ Generated code files are not up to date!"
+            echo "Please run 'task gen' and commit the changes."
+            echo "Files changed:"
+            git diff --name-only
+            exit 1
+          else
+            echo "✅ Generated code files are up to date!"
+          fi

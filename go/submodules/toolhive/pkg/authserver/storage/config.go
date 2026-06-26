@@ -1,0 +1,139 @@
+// SPDX-FileCopyrightText: Copyright 2025 Stacklok, Inc.
+// SPDX-License-Identifier: Apache-2.0
+
+package storage
+
+import "time"
+
+// Type defines the type of storage backend.
+type Type string
+
+const (
+	// TypeMemory uses in-memory storage (default).
+	TypeMemory Type = "memory"
+
+	// TypeRedis uses Redis-backed storage for distributed deployments.
+	TypeRedis Type = "redis"
+
+	// AuthTypeACLUser is the Redis ACL user authentication type.
+	// This is currently the only supported auth type for Redis storage.
+	AuthTypeACLUser = "aclUser"
+
+	// DefaultCleanupInterval is how often the background cleanup runs.
+	DefaultCleanupInterval = 5 * time.Minute
+
+	// DefaultAccessTokenTTL is the default TTL for access tokens when not extractable from session.
+	DefaultAccessTokenTTL = 1 * time.Hour
+
+	// DefaultRefreshTokenTTL is the default TTL for refresh tokens when not extractable from session.
+	DefaultRefreshTokenTTL = 30 * 24 * time.Hour // 30 days
+
+	// DefaultAuthCodeTTL is the default TTL for authorization codes (RFC 6749 recommendation).
+	DefaultAuthCodeTTL = 10 * time.Minute
+
+	// DefaultInvalidatedCodeTTL is how long invalidated codes are kept for replay detection.
+	DefaultInvalidatedCodeTTL = 30 * time.Minute
+
+	// DefaultPKCETTL is the default TTL for PKCE requests (same as auth codes).
+	DefaultPKCETTL = 10 * time.Minute
+
+	// DefaultPublicClientTTL is the TTL for dynamically registered public clients.
+	// This prevents unbounded growth from DCR. Confidential clients don't expire.
+	DefaultPublicClientTTL = 30 * 24 * time.Hour // 30 days
+)
+
+// Config configures the storage backend.
+type Config struct {
+	// Type specifies the storage backend type. Defaults to memory.
+	Type Type
+}
+
+// DefaultConfig returns sensible defaults.
+func DefaultConfig() *Config {
+	return &Config{
+		Type: TypeMemory,
+	}
+}
+
+// RunConfig is the serializable storage configuration for RunConfig.
+// This is used when the config needs to be passed across process boundaries
+// (e.g., in Kubernetes operator).
+type RunConfig struct {
+	// Type specifies the storage backend type. Defaults to "memory".
+	Type string `json:"type,omitempty" yaml:"type,omitempty"`
+
+	// RedisConfig is the Redis-specific configuration when Type is "redis".
+	RedisConfig *RedisRunConfig `json:"redis_config,omitempty" yaml:"redis_config,omitempty"`
+}
+
+// RedisRunConfig is the serializable Redis configuration for RunConfig.
+// Exactly one of Addr (standalone/cluster) or SentinelConfig must be set.
+// Set ClusterMode to true when Addr points to a Redis Cluster discovery endpoint.
+type RedisRunConfig struct {
+	// Addr is the Redis server address (host:port). Required for standalone and cluster modes.
+	// Mutually exclusive with SentinelConfig.
+	Addr string `json:"addr,omitempty" yaml:"addr,omitempty"`
+
+	// ClusterMode enables the Redis Cluster protocol. Requires Addr to be set.
+	ClusterMode bool `json:"cluster_mode,omitempty" yaml:"cluster_mode,omitempty"`
+
+	// SentinelConfig contains Sentinel-specific configuration.
+	// Mutually exclusive with Addr.
+	SentinelConfig *SentinelRunConfig `json:"sentinel_config,omitempty" yaml:"sentinel_config,omitempty"`
+
+	// AuthType must be "aclUser" - only ACL user authentication is supported.
+	AuthType string `json:"auth_type" yaml:"auth_type"`
+
+	// ACLUserConfig contains ACL user authentication configuration.
+	ACLUserConfig *ACLUserRunConfig `json:"acl_user_config,omitempty" yaml:"acl_user_config,omitempty"`
+
+	// KeyPrefix for multi-tenancy, typically "thv:auth:{ns}:{name}:".
+	KeyPrefix string `json:"key_prefix" yaml:"key_prefix"`
+
+	// DialTimeout is the timeout for establishing connections (e.g., "5s").
+	DialTimeout string `json:"dial_timeout,omitempty" yaml:"dial_timeout,omitempty"`
+
+	// ReadTimeout is the timeout for read operations (e.g., "3s").
+	ReadTimeout string `json:"read_timeout,omitempty" yaml:"read_timeout,omitempty"`
+
+	// WriteTimeout is the timeout for write operations (e.g., "3s").
+	WriteTimeout string `json:"write_timeout,omitempty" yaml:"write_timeout,omitempty"`
+
+	// TLS configures TLS for Redis/Valkey master or cluster node connections.
+	TLS *RedisTLSRunConfig `json:"tls,omitempty" yaml:"tls,omitempty"`
+
+	// SentinelTLS configures TLS for Sentinel connections. Only applies when SentinelConfig is set.
+	SentinelTLS *RedisTLSRunConfig `json:"sentinel_tls,omitempty" yaml:"sentinel_tls,omitempty"`
+}
+
+// SentinelRunConfig contains Redis Sentinel configuration.
+type SentinelRunConfig struct {
+	// MasterName is the name of the Redis Sentinel master.
+	MasterName string `json:"master_name" yaml:"master_name"`
+
+	// SentinelAddrs is the list of Sentinel addresses (host:port).
+	SentinelAddrs []string `json:"sentinel_addrs" yaml:"sentinel_addrs"`
+
+	// DB is the Redis database number (default: 0).
+	DB int `json:"db,omitempty" yaml:"db,omitempty"`
+}
+
+// RedisTLSRunConfig holds TLS configuration for Redis connections.
+// Presence of this struct enables TLS for the connection type.
+type RedisTLSRunConfig struct {
+	// InsecureSkipVerify skips certificate verification.
+	InsecureSkipVerify bool `json:"insecure_skip_verify,omitempty" yaml:"insecure_skip_verify,omitempty"`
+
+	// CACertFile is the path to a PEM-encoded CA certificate file.
+	CACertFile string `json:"ca_cert_file,omitempty" yaml:"ca_cert_file,omitempty"`
+}
+
+// ACLUserRunConfig contains Redis ACL user authentication configuration.
+// Credentials are read from environment variables for security.
+type ACLUserRunConfig struct {
+	// UsernameEnvVar is the environment variable containing the Redis username.
+	UsernameEnvVar string `json:"username_env_var" yaml:"username_env_var"`
+
+	// PasswordEnvVar is the environment variable containing the Redis password.
+	PasswordEnvVar string `json:"password_env_var" yaml:"password_env_var"`
+}

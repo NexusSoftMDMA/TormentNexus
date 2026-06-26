@@ -1,0 +1,1364 @@
+// SPDX-FileCopyrightText: Copyright 2025 Stacklok, Inc.
+// SPDX-License-Identifier: Apache-2.0
+
+package oauth
+
+import (
+	"context"
+	"crypto/sha256"
+	"encoding/base64"
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
+	"os"
+	"sync/atomic"
+	"testing"
+	"time"
+
+	"github.com/golang-jwt/jwt/v5"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"golang.org/x/oauth2"
+)
+
+func TestMain(m *testing.M) {
+	// Run tests
+	code := m.Run()
+
+	// Exit with the test result code
+	os.Exit(code)
+}
+
+func TestNewFlow(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name        string
+		config      *Config
+		expectError bool
+		errorMsg    string
+	}{
+		{
+			name:        "nil config",
+			config:      nil,
+			expectError: true,
+			errorMsg:    "OAuth config cannot be nil",
+		},
+		{
+			name: "missing client ID",
+			config: &Config{
+				AuthURL:  "https://example.com/auth",
+				TokenURL: "https://example.com/token",
+			},
+			expectError: true,
+			errorMsg:    "client ID is required",
+		},
+		{
+			name: "missing auth URL",
+			config: &Config{
+				ClientID: "test-client",
+				TokenURL: "https://example.com/token",
+			},
+			expectError: true,
+			errorMsg:    "authorization URL is required",
+		},
+		{
+			name: "missing token URL",
+			config: &Config{
+				ClientID: "test-client",
+				AuthURL:  "https://example.com/auth",
+			},
+			expectError: true,
+			errorMsg:    "token URL is required",
+		},
+		{
+			name: "valid config without PKCE",
+			config: &Config{
+				ClientID: "test-client",
+				AuthURL:  "https://example.com/auth",
+				TokenURL: "https://example.com/token",
+				Scopes:   []string{"openid", "profile"},
+			},
+			expectError: false,
+		},
+		{
+			name: "valid config with PKCE",
+			config: &Config{
+				ClientID: "test-client",
+				AuthURL:  "https://example.com/auth",
+				TokenURL: "https://example.com/token",
+				Scopes:   []string{"openid", "profile"},
+				UsePKCE:  true,
+			},
+			expectError: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			flow, err := NewFlow(tt.config)
+
+			if tt.expectError {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.errorMsg)
+				assert.Nil(t, flow)
+				return
+			}
+
+			require.NoError(t, err)
+			require.NotNil(t, flow)
+
+			// Verify PKCE parameters are generated when enabled
+			if tt.config.UsePKCE {
+				assert.NotEmpty(t, flow.codeVerifier, "code verifier should be generated")
+				assert.NotEmpty(t, flow.codeChallenge, "code challenge should be generated")
+
+				// Verify code verifier is valid base64
+				decoded, err := base64.RawURLEncoding.DecodeString(flow.codeVerifier)
+				require.NoError(t, err, "code verifier should be valid base64")
+				assert.Len(t, decoded, 32, "code verifier should be 32 bytes when decoded")
+
+				// Verify code challenge is valid base64
+				_, err = base64.RawURLEncoding.DecodeString(flow.codeChallenge)
+				assert.NoError(t, err, "code challenge should be valid base64")
+			}
+
+			// Verify state parameter is generated and valid
+			assert.NotEmpty(t, flow.state, "state parameter should be generated")
+			decoded, err := base64.RawURLEncoding.DecodeString(flow.state)
+			require.NoError(t, err, "state parameter should be valid base64")
+			assert.Len(t, decoded, 16, "state should be 16 bytes when decoded")
+
+			// Verify port is assigned
+			assert.Greater(t, flow.port, 0, "port should be assigned")
+
+			// Verify OAuth2 config is properly set
+			assert.Equal(t, tt.config.ClientID, flow.oauth2Config.ClientID)
+			assert.Equal(t, tt.config.ClientSecret, flow.oauth2Config.ClientSecret)
+			assert.Equal(t, tt.config.Scopes, flow.oauth2Config.Scopes)
+		})
+	}
+}
+
+func TestGeneratePKCEParams(t *testing.T) {
+	t.Parallel()
+	flow := &Flow{}
+
+	flow.generatePKCEParams()
+
+	// Verify code verifier is generated and valid
+	assert.NotEmpty(t, flow.codeVerifier)
+	// Note: oauth2.GenerateVerifier() returns a 43-character string (not necessarily 32 bytes when decoded)
+	// RFC 7636: code_verifier must be 43-128 characters
+	assert.GreaterOrEqual(t, len(flow.codeVerifier), 43, "code verifier should be at least 43 characters")
+	assert.LessOrEqual(t, len(flow.codeVerifier), 128, "code verifier should be at most 128 characters")
+
+	// Verify code challenge is generated and valid
+	assert.NotEmpty(t, flow.codeChallenge)
+	_, err := base64.RawURLEncoding.DecodeString(flow.codeChallenge)
+	require.NoError(t, err, "code challenge should be valid base64")
+
+	// Verify code challenge is correctly computed (S256 method)
+	hash := sha256.Sum256([]byte(flow.codeVerifier))
+	expectedChallenge := base64.RawURLEncoding.EncodeToString(hash[:])
+	assert.Equal(t, expectedChallenge, flow.codeChallenge, "code challenge should be S256 hash of verifier")
+
+	// Test that multiple calls generate different values (security requirement)
+	originalVerifier := flow.codeVerifier
+	originalChallenge := flow.codeChallenge
+
+	flow.generatePKCEParams()
+
+	assert.NotEqual(t, originalVerifier, flow.codeVerifier, "code verifier should be different on each call")
+	assert.NotEqual(t, originalChallenge, flow.codeChallenge, "code challenge should be different on each call")
+}
+
+func TestGenerateState(t *testing.T) {
+	t.Parallel()
+	flow := &Flow{}
+
+	err := flow.generateState()
+	require.NoError(t, err)
+
+	// Verify state is generated and valid
+	assert.NotEmpty(t, flow.state)
+	decoded, err := base64.RawURLEncoding.DecodeString(flow.state)
+	require.NoError(t, err, "state should be valid base64")
+	assert.Len(t, decoded, 16, "state should be 16 bytes when decoded")
+
+	// Test that multiple calls generate different values (security requirement)
+	originalState := flow.state
+
+	err = flow.generateState()
+	require.NoError(t, err)
+
+	assert.NotEqual(t, originalState, flow.state, "state should be different on each call")
+}
+
+func TestBuildAuthURL(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name     string
+		config   *Config
+		usePKCE  bool
+		validate func(t *testing.T, authURL string, flow *Flow)
+	}{
+		{
+			name: "basic auth URL without PKCE",
+			config: &Config{
+				ClientID: "test-client",
+				AuthURL:  "https://example.com/auth",
+				TokenURL: "https://example.com/token",
+				Scopes:   []string{"openid", "profile"},
+			},
+			usePKCE: false,
+			validate: func(t *testing.T, authURL string, flow *Flow) {
+				t.Helper()
+				parsedURL, err := url.Parse(authURL)
+				require.NoError(t, err)
+
+				assert.Equal(t, "https", parsedURL.Scheme)
+				assert.Equal(t, "example.com", parsedURL.Host)
+				assert.Equal(t, "/auth", parsedURL.Path)
+
+				query := parsedURL.Query()
+				assert.Equal(t, "test-client", query.Get("client_id"))
+				assert.Equal(t, "code", query.Get("response_type"))
+				assert.Equal(t, flow.state, query.Get("state"))
+				assert.Contains(t, query.Get("scope"), "openid")
+				assert.Contains(t, query.Get("scope"), "profile")
+
+				// Should not have PKCE parameters
+				assert.Empty(t, query.Get("code_challenge"))
+				assert.Empty(t, query.Get("code_challenge_method"))
+			},
+		},
+		{
+			name: "auth URL with PKCE",
+			config: &Config{
+				ClientID: "test-client",
+				AuthURL:  "https://example.com/auth",
+				TokenURL: "https://example.com/token",
+				Scopes:   []string{"openid", "profile"},
+				UsePKCE:  true,
+			},
+			usePKCE: true,
+			validate: func(t *testing.T, authURL string, flow *Flow) {
+				t.Helper()
+				parsedURL, err := url.Parse(authURL)
+				require.NoError(t, err)
+
+				query := parsedURL.Query()
+				assert.Equal(t, flow.codeChallenge, query.Get("code_challenge"))
+				assert.Equal(t, "S256", query.Get("code_challenge_method"))
+			},
+		},
+		{
+			name: "auth URL with custom scope parameter name",
+			config: &Config{
+				ClientID:       "test-client",
+				AuthURL:        "https://example.com/auth",
+				TokenURL:       "https://example.com/token",
+				Scopes:         []string{"search:read", "chat:write"},
+				ScopeParamName: "user_scope",
+			},
+			validate: func(t *testing.T, authURL string, _ *Flow) {
+				t.Helper()
+				parsedURL, err := url.Parse(authURL)
+				require.NoError(t, err)
+
+				query := parsedURL.Query()
+				// Standard "scope" parameter should be absent, not empty
+				_, hasScope := query["scope"]
+				assert.False(t, hasScope, "scope parameter should be absent, not empty")
+				// Scopes should appear under the custom parameter name
+				assert.Contains(t, query.Get("user_scope"), "search:read")
+				assert.Contains(t, query.Get("user_scope"), "chat:write")
+			},
+		},
+		{
+			name: "auth URL with scope param name but no scopes",
+			config: &Config{
+				ClientID:       "test-client",
+				AuthURL:        "https://example.com/auth",
+				TokenURL:       "https://example.com/token",
+				Scopes:         []string{},
+				ScopeParamName: "user_scope",
+			},
+			validate: func(t *testing.T, authURL string, _ *Flow) {
+				t.Helper()
+				parsedURL, err := url.Parse(authURL)
+				require.NoError(t, err)
+
+				query := parsedURL.Query()
+				// Neither scope nor user_scope should be present
+				assert.Empty(t, query.Get("scope"))
+				assert.Empty(t, query.Get("user_scope"))
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			flow, err := NewFlow(tt.config)
+			require.NoError(t, err)
+
+			authURL := flow.buildAuthURL()
+			assert.NotEmpty(t, authURL)
+
+			tt.validate(t, authURL, flow)
+		})
+	}
+}
+
+func TestHandleCallback_SecurityValidation(t *testing.T) {
+	t.Parallel()
+	config := &Config{
+		ClientID: "test-client",
+		AuthURL:  "https://example.com/auth",
+		TokenURL: "https://example.com/token",
+		UsePKCE:  true,
+	}
+
+	flow, err := NewFlow(config)
+	require.NoError(t, err)
+
+	tokenChan := make(chan *oauth2.Token, 1)
+	errorChan := make(chan error, 1)
+
+	handler := flow.handleCallback(tokenChan, errorChan)
+
+	tests := []struct {
+		name           string
+		queryParams    map[string]string
+		expectError    bool
+		expectedErrMsg string
+	}{
+		{
+			name: "OAuth error response",
+			queryParams: map[string]string{
+				"error":             "access_denied",
+				"error_description": "User denied access",
+			},
+			expectError:    true,
+			expectedErrMsg: "OAuth error: access_denied - User denied access",
+		},
+		{
+			name: "invalid state parameter",
+			queryParams: map[string]string{
+				"state": "invalid-state",
+				"code":  "test-code",
+			},
+			expectError:    true,
+			expectedErrMsg: "invalid state parameter",
+		},
+		{
+			name: "missing authorization code",
+			queryParams: map[string]string{
+				"state": flow.state,
+			},
+			expectError:    true,
+			expectedErrMsg: "missing authorization code",
+		},
+		{
+			name: "empty authorization code",
+			queryParams: map[string]string{
+				"state": flow.state,
+				"code":  "",
+			},
+			expectError:    true,
+			expectedErrMsg: "missing authorization code",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			// Build query string
+			values := url.Values{}
+			for k, v := range tt.queryParams {
+				values.Set(k, v)
+			}
+
+			req := httptest.NewRequest("GET", "/callback?"+values.Encode(), nil)
+			w := httptest.NewRecorder()
+
+			handler.ServeHTTP(w, req)
+
+			if tt.expectError {
+				select {
+				case err := <-errorChan:
+					assert.Contains(t, err.Error(), tt.expectedErrMsg)
+				case <-time.After(100 * time.Millisecond):
+					t.Error("expected error but none received")
+				}
+			}
+		})
+	}
+}
+
+func TestSecurityHeaders(t *testing.T) {
+	t.Parallel()
+	flow := &Flow{}
+	w := httptest.NewRecorder()
+
+	flow.setSecurityHeaders(w)
+
+	headers := w.Header()
+
+	// Test all security headers are set
+	assert.Equal(t, "text/html; charset=utf-8", headers.Get("Content-Type"))
+	assert.Equal(t, "nosniff", headers.Get("X-Content-Type-Options"))
+	assert.Equal(t, "DENY", headers.Get("X-Frame-Options"))
+	assert.Equal(t, "1; mode=block", headers.Get("X-XSS-Protection"))
+	assert.Equal(t, "strict-origin-when-cross-origin", headers.Get("Referrer-Policy"))
+
+	csp := headers.Get("Content-Security-Policy")
+	assert.Contains(t, csp, "default-src 'self'")
+	assert.Contains(t, csp, "script-src 'none'")
+	assert.Contains(t, csp, "object-src 'none'")
+}
+
+func TestHandleRoot_SecurityValidation(t *testing.T) {
+	t.Parallel()
+	flow := &Flow{}
+	handler := flow.handleRoot()
+
+	tests := []struct {
+		name           string
+		method         string
+		expectedStatus int
+	}{
+		{
+			name:           "GET request allowed",
+			method:         "GET",
+			expectedStatus: http.StatusOK,
+		},
+		{
+			name:           "POST request blocked",
+			method:         "POST",
+			expectedStatus: http.StatusMethodNotAllowed,
+		},
+		{
+			name:           "PUT request blocked",
+			method:         "PUT",
+			expectedStatus: http.StatusMethodNotAllowed,
+		},
+		{
+			name:           "DELETE request blocked",
+			method:         "DELETE",
+			expectedStatus: http.StatusMethodNotAllowed,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			req := httptest.NewRequest(tt.method, "/", nil)
+			w := httptest.NewRecorder()
+
+			handler.ServeHTTP(w, req)
+
+			assert.Equal(t, tt.expectedStatus, w.Code)
+
+			if tt.expectedStatus == http.StatusOK {
+				// Verify security headers are set
+				assert.Equal(t, "nosniff", w.Header().Get("X-Content-Type-Options"))
+				assert.Equal(t, "DENY", w.Header().Get("X-Frame-Options"))
+
+				// Verify HTML content is safe
+				body := w.Body.String()
+				assert.Contains(t, body, "ToolHive OAuth Authentication")
+				assert.NotContains(t, body, "<script>") // No inline scripts
+			}
+		})
+	}
+}
+
+func TestWriteErrorPage_XSSPrevention(t *testing.T) {
+	t.Parallel()
+	flow := &Flow{}
+	w := httptest.NewRecorder()
+
+	// Test with potentially malicious error message
+	maliciousError := fmt.Errorf("<script>alert('xss')</script>")
+
+	flow.writeErrorPage(w, maliciousError)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+
+	// Verify security headers
+	assert.Equal(t, "nosniff", w.Header().Get("X-Content-Type-Options"))
+	assert.Equal(t, "DENY", w.Header().Get("X-Frame-Options"))
+
+	body := w.Body.String()
+
+	// Verify XSS is prevented - script tags should be escaped
+	assert.NotContains(t, body, "<script>alert('xss')</script>")
+	assert.Contains(t, body, "&lt;script&gt;alert(&#39;xss&#39;)&lt;/script&gt;")
+
+	// Verify error page structure
+	assert.Contains(t, body, "Authentication Failed")
+	assert.Contains(t, body, "<!DOCTYPE html>")
+}
+
+func TestProcessToken(t *testing.T) {
+	t.Parallel()
+	// Create a proper flow with config to avoid nil pointer issues
+	config := &Config{
+		ClientID: "test-client",
+		AuthURL:  "https://example.com/auth",
+		TokenURL: "https://example.com/token",
+	}
+
+	flow, err := NewFlow(config)
+	require.NoError(t, err)
+
+	// Test with a valid OAuth2 token
+	token := &oauth2.Token{
+		AccessToken:  "test-access-token",
+		RefreshToken: "test-refresh-token",
+		TokenType:    "Bearer",
+		Expiry:       time.Now().Add(time.Hour),
+	}
+
+	result := flow.processToken(context.Background(), token)
+
+	assert.NotNil(t, result)
+	assert.Equal(t, token.AccessToken, result.AccessToken)
+	assert.Equal(t, token.RefreshToken, result.RefreshToken)
+	assert.Equal(t, token.TokenType, result.TokenType)
+	assert.Equal(t, token.Expiry, result.Expiry)
+}
+
+func TestExtractJWTClaims(t *testing.T) {
+	t.Parallel()
+	flow := &Flow{}
+
+	tests := []struct {
+		name        string
+		token       string
+		expectError bool
+	}{
+		{
+			name:        "invalid JWT",
+			token:       "invalid.jwt.token",
+			expectError: true,
+		},
+		{
+			name:        "empty token",
+			token:       "",
+			expectError: true,
+		},
+		{
+			name:        "non-JWT token (opaque)",
+			token:       "opaque-access-token-12345",
+			expectError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			claims, err := flow.extractJWTClaims(tt.token)
+
+			if tt.expectError {
+				assert.Error(t, err)
+				assert.Nil(t, claims)
+			} else {
+				assert.NoError(t, err)
+				assert.NotNil(t, claims)
+			}
+		})
+	}
+
+	// Test with a valid JWT (unsigned for testing)
+	t.Run("valid JWT", func(t *testing.T) {
+		t.Parallel()
+		// Create a test JWT
+		claims := jwt.MapClaims{
+			"sub":   "1234567890",
+			"name":  "John Doe",
+			"email": "john@example.com",
+			"iat":   time.Now().Unix(),
+		}
+
+		token := jwt.NewWithClaims(jwt.SigningMethodNone, claims)
+		tokenString, err := token.SignedString(jwt.UnsafeAllowNoneSignatureType)
+		require.NoError(t, err)
+
+		extractedClaims, err := flow.extractJWTClaims(tokenString)
+		assert.NoError(t, err)
+		assert.NotNil(t, extractedClaims)
+		assert.Equal(t, "1234567890", extractedClaims["sub"])
+		assert.Equal(t, "John Doe", extractedClaims["name"])
+		assert.Equal(t, "john@example.com", extractedClaims["email"])
+	})
+}
+
+func TestPKCESecurityProperties(t *testing.T) {
+	t.Parallel()
+	// Test that PKCE parameters have sufficient entropy
+	flow := &Flow{}
+
+	// Generate multiple PKCE parameters and ensure they're all different
+	verifiers := make(map[string]bool)
+	challenges := make(map[string]bool)
+
+	for i := 0; i < 100; i++ {
+		flow.generatePKCEParams()
+
+		// Ensure no duplicates (extremely unlikely with proper randomness)
+		assert.False(t, verifiers[flow.codeVerifier], "code verifier should be unique")
+		assert.False(t, challenges[flow.codeChallenge], "code challenge should be unique")
+
+		verifiers[flow.codeVerifier] = true
+		challenges[flow.codeChallenge] = true
+
+		// Verify length requirements (RFC 7636)
+		assert.GreaterOrEqual(t, len(flow.codeVerifier), 43, "code verifier should be at least 43 characters")
+		assert.LessOrEqual(t, len(flow.codeVerifier), 128, "code verifier should be at most 128 characters")
+	}
+}
+
+func TestStateSecurityProperties(t *testing.T) {
+	t.Parallel()
+	// Test that state parameters have sufficient entropy
+	flow := &Flow{}
+
+	// Generate multiple state parameters and ensure they're all different
+	states := make(map[string]bool)
+
+	for i := 0; i < 100; i++ {
+		err := flow.generateState()
+		require.NoError(t, err)
+
+		// Ensure no duplicates (extremely unlikely with proper randomness)
+		assert.False(t, states[flow.state], "state should be unique")
+		states[flow.state] = true
+
+		// Verify state is not empty and has reasonable length
+		assert.NotEmpty(t, flow.state)
+		assert.GreaterOrEqual(t, len(flow.state), 16, "state should have sufficient length")
+	}
+}
+
+func TestStart(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name        string
+		config      *Config
+		expectError bool
+		errorMsg    string
+	}{
+		{
+			name: "successful OAuth flow start",
+			config: &Config{
+				ClientID: "test-client",
+				AuthURL:  "https://example.com/auth",
+				TokenURL: "https://example.com/token",
+				Scopes:   []string{"openid", "profile"},
+			},
+			expectError: false,
+		},
+		{
+			name: "OAuth flow start with PKCE",
+			config: &Config{
+				ClientID: "test-client",
+				AuthURL:  "https://example.com/auth",
+				TokenURL: "https://example.com/token",
+				Scopes:   []string{"openid", "profile"},
+				UsePKCE:  true,
+			},
+			expectError: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			flow, err := NewFlow(tt.config)
+			require.NoError(t, err)
+
+			// Generate the auth URL before starting the flow
+			authURL := flow.buildAuthURL()
+
+			// Verify the auth URL was generated correctly
+			assert.NotEmpty(t, authURL, "auth URL should be generated")
+			assert.Contains(t, authURL, "https://example.com/auth", "auth URL should contain the authorization endpoint")
+			assert.Contains(t, authURL, "client_id=test-client", "auth URL should contain client ID")
+			assert.Contains(t, authURL, "response_type=code", "auth URL should contain response type")
+
+			// Start the OAuth flow in a goroutine since it blocks
+			done := make(chan struct{})
+			var startErr error
+
+			go func() {
+				defer close(done)
+				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				defer cancel()
+				_, startErr = flow.Start(ctx, true)
+			}()
+
+			// Give the server a moment to start
+			time.Sleep(100 * time.Millisecond)
+
+			if tt.expectError {
+				// Cancel the flow and wait for completion
+				select {
+				case <-done:
+					require.Error(t, startErr)
+					assert.Contains(t, startErr.Error(), tt.errorMsg)
+				case <-time.After(1 * time.Second):
+					t.Error("Start() should have returned an error quickly")
+				}
+				return
+			}
+
+			// Simulate user completing OAuth flow by making a callback request
+			callbackURL := fmt.Sprintf("http://localhost:%d/callback?code=test-code&state=%s", flow.port, flow.state)
+
+			// Make the callback request
+			resp, err := http.Get(callbackURL)
+			if err == nil {
+				resp.Body.Close()
+			}
+
+			// Wait for the flow to complete or timeout
+			select {
+			case <-done:
+				// The flow should complete, but we expect an error since we're using a fake token endpoint
+				assert.Error(t, startErr, "should get error from fake token endpoint")
+			case <-time.After(2 * time.Second):
+				t.Error("Start() should have completed within timeout")
+			}
+		})
+	}
+}
+
+func TestWriteSuccessPage(t *testing.T) {
+	t.Parallel()
+	flow := &Flow{}
+	w := httptest.NewRecorder()
+
+	flow.writeSuccessPage(w)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	// Verify security headers
+	assert.Equal(t, "text/html; charset=utf-8", w.Header().Get("Content-Type"))
+	assert.Equal(t, "nosniff", w.Header().Get("X-Content-Type-Options"))
+	assert.Equal(t, "DENY", w.Header().Get("X-Frame-Options"))
+
+	body := w.Body.String()
+
+	// Verify success page structure
+	assert.Contains(t, body, "Authentication Successful")
+	assert.Contains(t, body, "<!DOCTYPE html>")
+	assert.Contains(t, body, "You can now close this window")
+
+	// Verify no sensitive information is exposed
+	assert.NotContains(t, body, "test-access-token")
+	assert.NotContains(t, body, "test-refresh-token")
+
+	// Verify no inline scripts for security
+	assert.NotContains(t, body, "<script>")
+}
+
+func TestHandleCallback_SuccessfulFlow(t *testing.T) {
+	t.Parallel()
+	// Create a mock token server
+	tokenServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "POST", r.Method)
+		assert.Equal(t, "application/x-www-form-urlencoded", r.Header.Get("Content-Type"))
+
+		// Parse form data
+		err := r.ParseForm()
+		require.NoError(t, err)
+
+		assert.Equal(t, "authorization_code", r.Form.Get("grant_type"))
+		assert.Equal(t, "test-code", r.Form.Get("code"))
+
+		// Client ID might be in form data or Authorization header depending on OAuth2 library implementation
+		clientID := r.Form.Get("client_id")
+		if clientID == "" {
+			// Check Authorization header for Basic auth
+			username, _, ok := r.BasicAuth()
+			if ok {
+				clientID = username
+			}
+		}
+		assert.Equal(t, "test-client", clientID, "client_id should be present in form data or Authorization header")
+
+		// Return a valid token response
+		response := map[string]interface{}{
+			"access_token":  "test-access-token",
+			"token_type":    "Bearer",
+			"expires_in":    3600,
+			"refresh_token": "test-refresh-token",
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(response)
+	}))
+	defer tokenServer.Close()
+
+	config := &Config{
+		ClientID:     "test-client",
+		ClientSecret: "test-secret",
+		AuthURL:      "https://example.com/auth",
+		TokenURL:     tokenServer.URL,
+		UsePKCE:      true,
+	}
+
+	flow, err := NewFlow(config)
+	require.NoError(t, err)
+
+	tokenChan := make(chan *oauth2.Token, 1)
+	errorChan := make(chan error, 1)
+
+	handler := flow.handleCallback(tokenChan, errorChan)
+
+	// Build callback URL with valid parameters
+	values := url.Values{}
+	values.Set("code", "test-code")
+	values.Set("state", flow.state)
+
+	req := httptest.NewRequest("GET", "/callback?"+values.Encode(), nil)
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	// Should get a successful response
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	// Should receive a token
+	select {
+	case token := <-tokenChan:
+		assert.NotNil(t, token)
+		assert.Equal(t, "test-access-token", token.AccessToken)
+		assert.Equal(t, "Bearer", token.TokenType)
+		assert.Equal(t, "test-refresh-token", token.RefreshToken)
+	case err := <-errorChan:
+		t.Fatalf("unexpected error: %v", err)
+	case <-time.After(1 * time.Second):
+		t.Fatal("expected token but got timeout")
+	}
+}
+
+func TestProcessToken_WithJWTClaims(t *testing.T) {
+	t.Parallel()
+	config := &Config{
+		ClientID: "test-client",
+		AuthURL:  "https://example.com/auth",
+		TokenURL: "https://example.com/token",
+	}
+
+	flow, err := NewFlow(config)
+	require.NoError(t, err)
+
+	// Create a test JWT token
+	claims := jwt.MapClaims{
+		"sub":   "1234567890",
+		"name":  "John Doe",
+		"email": "john@example.com",
+		"iat":   time.Now().Unix(),
+		"exp":   time.Now().Add(time.Hour).Unix(),
+	}
+
+	jwtToken := jwt.NewWithClaims(jwt.SigningMethodNone, claims)
+	tokenString, err := jwtToken.SignedString(jwt.UnsafeAllowNoneSignatureType)
+	require.NoError(t, err)
+
+	// Test with JWT access token
+	token := &oauth2.Token{
+		AccessToken:  tokenString,
+		RefreshToken: "test-refresh-token",
+		TokenType:    "Bearer",
+		Expiry:       time.Now().Add(time.Hour),
+	}
+
+	result := flow.processToken(context.Background(), token)
+
+	assert.NotNil(t, result)
+	assert.Equal(t, tokenString, result.AccessToken)
+	assert.Equal(t, token.RefreshToken, result.RefreshToken)
+	assert.Equal(t, token.TokenType, result.TokenType)
+	assert.Equal(t, token.Expiry, result.Expiry)
+
+	// Verify JWT claims were extracted (this would be logged in real implementation)
+	extractedClaims, err := flow.extractJWTClaims(tokenString)
+	assert.NoError(t, err)
+	assert.Equal(t, "1234567890", extractedClaims["sub"])
+	assert.Equal(t, "John Doe", extractedClaims["name"])
+	assert.Equal(t, "john@example.com", extractedClaims["email"])
+}
+
+func TestProcessToken_WithOpaqueToken(t *testing.T) {
+	t.Parallel()
+	config := &Config{
+		ClientID: "test-client",
+		AuthURL:  "https://example.com/auth",
+		TokenURL: "https://example.com/token",
+	}
+
+	flow, err := NewFlow(config)
+	require.NoError(t, err)
+
+	// Test with opaque access token
+	token := &oauth2.Token{
+		AccessToken:  "opaque-access-token-12345",
+		RefreshToken: "test-refresh-token",
+		TokenType:    "Bearer",
+		Expiry:       time.Now().Add(time.Hour),
+	}
+
+	result := flow.processToken(context.Background(), token)
+
+	assert.NotNil(t, result)
+	assert.Equal(t, token.AccessToken, result.AccessToken)
+	assert.Equal(t, token.RefreshToken, result.RefreshToken)
+	assert.Equal(t, token.TokenType, result.TokenType)
+	assert.Equal(t, token.Expiry, result.Expiry)
+}
+
+func TestExtractJWTClaims_ErrorCases(t *testing.T) {
+	t.Parallel()
+	flow := &Flow{}
+
+	tests := []struct {
+		name        string
+		token       string
+		expectError bool
+		errorMsg    string
+	}{
+		{
+			name:        "malformed JWT - too few parts",
+			token:       "invalid.jwt",
+			expectError: true,
+			errorMsg:    "token contains an invalid number of segments",
+		},
+		{
+			name:        "malformed JWT - invalid base64",
+			token:       "invalid.base64!.token",
+			expectError: true,
+			errorMsg:    "token is malformed",
+		},
+		{
+			name:        "JWT with invalid JSON claims",
+			token:       "eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.invalid-json.signature",
+			expectError: true,
+			errorMsg:    "token is malformed",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			claims, err := flow.extractJWTClaims(tt.token)
+
+			if tt.expectError {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), tt.errorMsg)
+				assert.Nil(t, claims)
+			} else {
+				assert.NoError(t, err)
+				assert.NotNil(t, claims)
+			}
+		})
+	}
+}
+
+func TestTokenRefreshAfterContextCancellation(t *testing.T) {
+	t.Parallel()
+
+	// Create a mock token server that tracks refresh attempts
+	refreshCalled := false
+	tokenServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		err := r.ParseForm()
+		require.NoError(t, err)
+
+		if r.Form.Get("grant_type") == "refresh_token" {
+			refreshCalled = true
+		}
+
+		response := map[string]interface{}{
+			"access_token":  "new-access-token",
+			"token_type":    "Bearer",
+			"expires_in":    3600,
+			"refresh_token": "new-refresh-token",
+		}
+		w.Header().Set("Content-Type", "application/json")
+		err = json.NewEncoder(w).Encode(response)
+		require.NoError(t, err)
+	}))
+	defer tokenServer.Close()
+
+	config := &Config{
+		ClientID: "test-client",
+		AuthURL:  "https://example.com/auth",
+		TokenURL: tokenServer.URL,
+	}
+
+	flow, err := NewFlow(config)
+	require.NoError(t, err)
+
+	// Create a context that we will cancel (simulating OAuth flow completion)
+	ctx, cancel := context.WithCancel(context.Background())
+
+	// Process token with the cancellable context.
+	// Use an already-expired token to force refresh on next Token() call.
+	token := &oauth2.Token{
+		AccessToken:  "original-access-token",
+		RefreshToken: "test-refresh-token",
+		TokenType:    "Bearer",
+		Expiry:       time.Now().Add(-time.Hour), // Already expired
+	}
+
+	_ = flow.processToken(ctx, token)
+
+	// Cancel the context (simulates OAuth callback server shutdown)
+	cancel()
+
+	// Now attempt to get a token - this should trigger refresh.
+	// Before the fix: fails with "context canceled" because processToken
+	// stored a TokenSource using the now-cancelled ctx.
+	// After the fix: succeeds because processToken uses context.Background().
+	newToken, err := flow.tokenSource.Token()
+
+	require.NoError(t, err, "token refresh should succeed even after context cancellation")
+	assert.True(t, refreshCalled, "refresh endpoint should have been called")
+	assert.Equal(t, "new-access-token", newToken.AccessToken)
+}
+
+func TestProcessToken_ResourceTokenSourceSelection(t *testing.T) {
+	t.Parallel()
+
+	t.Run("uses resourceTokenSource when resource parameter is provided", func(t *testing.T) {
+		t.Parallel()
+
+		// Create a mock token server to test refresh behavior with resource parameter
+		var capturedResourceParam string
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			err := r.ParseForm()
+			require.NoError(t, err)
+			capturedResourceParam = r.Form.Get("resource")
+
+			response := map[string]interface{}{
+				"access_token":  "refreshed-token",
+				"refresh_token": "refreshed-refresh",
+				"token_type":    "Bearer",
+				"expires_in":    3600,
+			}
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(response)
+		}))
+		defer server.Close()
+
+		config := &Config{
+			ClientID: "test-client",
+			AuthURL:  "https://example.com/auth",
+			TokenURL: server.URL,
+			Resource: "https://api.example.com", // Resource parameter provided
+		}
+
+		flow, err := NewFlow(config)
+		require.NoError(t, err)
+
+		// Process token with resource parameter
+		token := &oauth2.Token{
+			AccessToken:  "original-access",
+			RefreshToken: "original-refresh",
+			TokenType:    "Bearer",
+			Expiry:       time.Now().Add(-1 * time.Hour), // Expired to trigger refresh
+		}
+
+		result := flow.processToken(context.Background(), token)
+		require.NotNil(t, result)
+
+		// Verify token source was created
+		require.NotNil(t, flow.tokenSource)
+
+		// Trigger a refresh by calling Token() - the token is expired
+		refreshedToken, err := flow.tokenSource.Token()
+		require.NoError(t, err)
+
+		// Verify the refresh request included the resource parameter
+		assert.Equal(t, "https://api.example.com", capturedResourceParam,
+			"resource parameter should be included in refresh request")
+		assert.Equal(t, "refreshed-token", refreshedToken.AccessToken)
+	})
+
+	t.Run("uses standard token source when resource parameter is empty", func(t *testing.T) {
+		t.Parallel()
+
+		// Create a mock token server - should NOT receive resource parameter
+		var capturedResourceParam string
+		var resourceParamPresent bool
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			err := r.ParseForm()
+			require.NoError(t, err)
+			capturedResourceParam = r.Form.Get("resource")
+			_, resourceParamPresent = r.Form["resource"]
+
+			response := map[string]interface{}{
+				"access_token":  "refreshed-token",
+				"refresh_token": "refreshed-refresh",
+				"token_type":    "Bearer",
+				"expires_in":    3600,
+			}
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(response)
+		}))
+		defer server.Close()
+
+		config := &Config{
+			ClientID: "test-client",
+			AuthURL:  "https://example.com/auth",
+			TokenURL: server.URL,
+			Resource: "", // No resource parameter
+		}
+
+		flow, err := NewFlow(config)
+		require.NoError(t, err)
+
+		// Process token without resource parameter
+		token := &oauth2.Token{
+			AccessToken:  "original-access",
+			RefreshToken: "original-refresh",
+			TokenType:    "Bearer",
+			Expiry:       time.Now().Add(-1 * time.Hour), // Expired to trigger refresh
+		}
+
+		result := flow.processToken(context.Background(), token)
+		require.NotNil(t, result)
+
+		// Verify token source was created
+		require.NotNil(t, flow.tokenSource)
+
+		// Trigger a refresh by calling Token()
+		refreshedToken, err := flow.tokenSource.Token()
+		require.NoError(t, err)
+
+		// Verify the refresh request did NOT include the resource parameter
+		assert.False(t, resourceParamPresent,
+			"resource parameter should not be present when not configured")
+		assert.Equal(t, "", capturedResourceParam)
+		assert.Equal(t, "refreshed-token", refreshedToken.AccessToken)
+	})
+
+	t.Run("wraps token source with ReuseTokenSource in both cases", func(t *testing.T) {
+		t.Parallel()
+
+		testCases := []struct {
+			name     string
+			resource string
+		}{
+			{"with resource parameter", "https://api.example.com"},
+			{"without resource parameter", ""},
+		}
+
+		for _, tc := range testCases {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				callCount := 0
+				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					callCount++
+					response := map[string]interface{}{
+						"access_token":  "token",
+						"refresh_token": "refresh",
+						"token_type":    "Bearer",
+						"expires_in":    3600,
+					}
+					w.Header().Set("Content-Type", "application/json")
+					json.NewEncoder(w).Encode(response)
+				}))
+				defer server.Close()
+
+				config := &Config{
+					ClientID: "test-client",
+					AuthURL:  "https://example.com/auth",
+					TokenURL: server.URL,
+					Resource: tc.resource,
+				}
+
+				flow, err := NewFlow(config)
+				require.NoError(t, err)
+
+				// Process a valid (non-expired) token
+				token := &oauth2.Token{
+					AccessToken:  "valid-token",
+					RefreshToken: "refresh-token",
+					TokenType:    "Bearer",
+					Expiry:       time.Now().Add(1 * time.Hour), // Still valid
+				}
+
+				flow.processToken(context.Background(), token)
+
+				// Call Token() multiple times - should return cached token without refresh
+				for i := 0; i < 3; i++ {
+					gotToken, err := flow.tokenSource.Token()
+					require.NoError(t, err)
+					assert.Equal(t, "valid-token", gotToken.AccessToken)
+				}
+
+				// Verify no refresh calls were made (ReuseTokenSource cached the token)
+				assert.Equal(t, 0, callCount,
+					"ReuseTokenSource should cache valid tokens and not trigger refresh")
+			})
+		}
+	})
+
+	t.Run("TokenSource() returns the created token source", func(t *testing.T) {
+		t.Parallel()
+
+		config := &Config{
+			ClientID: "test-client",
+			AuthURL:  "https://example.com/auth",
+			TokenURL: "https://example.com/token",
+			Resource: "https://api.example.com",
+		}
+
+		flow, err := NewFlow(config)
+		require.NoError(t, err)
+
+		token := &oauth2.Token{
+			AccessToken:  "access-token",
+			RefreshToken: "refresh-token",
+			TokenType:    "Bearer",
+			Expiry:       time.Now().Add(1 * time.Hour),
+		}
+
+		// Process token to initialize token source
+		flow.processToken(context.Background(), token)
+
+		// Verify TokenSource() returns the same instance
+		ts := flow.TokenSource()
+		require.NotNil(t, ts)
+		assert.Same(t, flow.tokenSource, ts,
+			"TokenSource() should return the internal token source")
+
+		// Verify it works
+		gotToken, err := ts.Token()
+		require.NoError(t, err)
+		assert.Equal(t, "access-token", gotToken.AccessToken)
+	})
+}
+
+// TestAuthStyleInParams_StrictPublicClientServer verifies that the OAuth flow
+// uses AuthStyleInParams (sending client_id in the POST body) rather than
+// AuthStyleAutoDetect. This is critical for public PKCE clients because:
+//
+//  1. AutoDetect tries HTTP Basic Auth first (Authorization: Basic base64(client_id:))
+//  2. Strict OAuth 2.1 servers (e.g., Datadog) reject Basic Auth for public clients
+//     registered with token_endpoint_auth_method=none
+//  3. The authorization code is single-use — consumed by the rejected first attempt
+//  4. The retry with client_id in POST body gets "invalid_grant" because the code
+//     was already burned
+func TestAuthStyleInParams_StrictPublicClientServer(t *testing.T) {
+	t.Parallel()
+
+	// Simulate a strict OAuth 2.1 server that rejects Basic Auth for public clients.
+	// This mirrors Datadog's behavior: public clients (token_endpoint_auth_method=none)
+	// MUST send client_id in the POST body, not via Authorization header.
+	var requestCount atomic.Int32
+	tokenServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestCount.Add(1)
+
+		err := r.ParseForm()
+		require.NoError(t, err)
+
+		// Reject requests that use Basic Auth header — strict public client enforcement
+		if _, _, ok := r.BasicAuth(); ok {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusUnauthorized)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error":             "invalid_client",
+				"error_description": "Basic auth not allowed for public clients",
+			})
+			return
+		}
+
+		// Require client_id in POST body (AuthStyleInParams)
+		clientID := r.Form.Get("client_id")
+		if clientID == "" {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error":             "invalid_request",
+				"error_description": "client_id required in request body",
+			})
+			return
+		}
+
+		assert.Equal(t, "test-public-client", clientID)
+		assert.Equal(t, "authorization_code", r.Form.Get("grant_type"))
+		assert.Equal(t, "test-auth-code", r.Form.Get("code"))
+
+		// Verify PKCE verifier is present
+		assert.NotEmpty(t, r.Form.Get("code_verifier"), "PKCE code_verifier should be present")
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"access_token":  "dd-access-token",
+			"token_type":    "Bearer",
+			"expires_in":    3600,
+			"refresh_token": "dd-refresh-token",
+		})
+	}))
+	defer tokenServer.Close()
+
+	config := &Config{
+		ClientID:     "test-public-client",
+		ClientSecret: "", // Public client — no secret
+		AuthURL:      "https://example.com/auth",
+		TokenURL:     tokenServer.URL,
+		UsePKCE:      true,
+	}
+
+	flow, err := NewFlow(config)
+	require.NoError(t, err)
+
+	// Verify the endpoint is configured with AuthStyleInParams
+	assert.Equal(t, oauth2.AuthStyleInParams, flow.oauth2Config.Endpoint.AuthStyle,
+		"Endpoint must use AuthStyleInParams to avoid burning auth codes with Basic Auth probes")
+
+	tokenChan := make(chan *oauth2.Token, 1)
+	errorChan := make(chan error, 1)
+
+	handler := flow.handleCallback(tokenChan, errorChan)
+
+	// Simulate the OAuth callback with a valid auth code
+	values := url.Values{}
+	values.Set("code", "test-auth-code")
+	values.Set("state", flow.state)
+
+	req := httptest.NewRequest("GET", "/callback?"+values.Encode(), nil)
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	// The exchange should succeed on the first attempt
+	select {
+	case token := <-tokenChan:
+		require.NotNil(t, token)
+		assert.Equal(t, "dd-access-token", token.AccessToken)
+		assert.Equal(t, "dd-refresh-token", token.RefreshToken)
+	case err := <-errorChan:
+		t.Fatalf("token exchange failed: %v\n"+
+			"This likely means AuthStyleInParams is not set — the oauth2 library "+
+			"tried Basic Auth first, the strict server rejected it, and the auth "+
+			"code was consumed by the failed attempt", err)
+	case <-time.After(5 * time.Second):
+		t.Fatal("timeout waiting for token exchange")
+	}
+
+	// The server should have received exactly one request (no retry needed)
+	assert.Equal(t, int32(1), requestCount.Load(),
+		"strict server should receive exactly one request when AuthStyleInParams is used; "+
+			"multiple requests indicate AuthStyleAutoDetect is trying Basic Auth first")
+}

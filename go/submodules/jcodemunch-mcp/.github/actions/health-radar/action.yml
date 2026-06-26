@@ -1,0 +1,145 @@
+name: 'jCodeMunch Health Radar'
+description: >-
+  Compute a six-axis code-health radar on the PR branch and the base branch,
+  diff them, and post the result as a sticky PR comment. Suggestion-style;
+  never blocks merges.
+author: 'jgravelle'
+branding:
+  icon: 'activity'
+  color: 'purple'
+
+inputs:
+  python-version:
+    description: 'Python version for the Actions runner.'
+    default: '3.11'
+    required: false
+  jcodemunch-version:
+    description: >-
+      Pin a specific jcodemunch-mcp version (e.g. 1.88.0) or 'latest'.
+    default: 'latest'
+    required: false
+  base-ref:
+    description: >-
+      Git ref to compare against (default: the PR's base branch).
+    default: ''
+    required: false
+  github-token:
+    description: 'Token for posting/editing the PR comment.'
+    default: ${{ github.token }}
+    required: false
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ inputs.python-version }}
+
+    - name: Install jcodemunch-mcp
+      shell: bash
+      run: |
+        if [ "${{ inputs.jcodemunch-version }}" = "latest" ]; then
+          pip install -U jcodemunch-mcp
+        else
+          pip install "jcodemunch-mcp==${{ inputs.jcodemunch-version }}"
+        fi
+        jcodemunch-mcp --version || true
+
+    - name: Resolve base ref
+      id: base
+      shell: bash
+      run: |
+        BASE="${{ inputs.base-ref }}"
+        if [ -z "$BASE" ]; then
+          BASE="${{ github.base_ref }}"
+        fi
+        if [ -z "$BASE" ]; then
+          echo "no base ref available — skipping (this Action is meant for pull_request triggers)"
+          echo "skip=true" >> "$GITHUB_OUTPUT"
+        else
+          echo "base=$BASE" >> "$GITHUB_OUTPUT"
+        fi
+
+    - name: Compute radar on PR branch
+      if: steps.base.outputs.skip != 'true'
+      shell: bash
+      run: |
+        jcodemunch-mcp index .
+        jcodemunch-mcp health . --radar-only > "$RUNNER_TEMP/pr_radar.json"
+        echo "PR radar:"
+        cat "$RUNNER_TEMP/pr_radar.json"
+
+    - name: Compute radar on base branch
+      if: steps.base.outputs.skip != 'true'
+      shell: bash
+      env:
+        BASE: ${{ steps.base.outputs.base }}
+      run: |
+        # Stash uncommitted state isn't needed (clean checkout in CI), but
+        # capture HEAD so we can restore it.
+        ORIG_REF=$(git rev-parse HEAD)
+        echo "$ORIG_REF" > "$RUNNER_TEMP/orig_ref"
+
+        git fetch origin "$BASE" --depth=1 || git fetch origin "$BASE"
+        git checkout "origin/$BASE" --quiet || git checkout "$BASE" --quiet
+
+        # Re-index against the base tree.
+        jcodemunch-mcp index .
+        jcodemunch-mcp health . --radar-only > "$RUNNER_TEMP/base_radar.json"
+        echo "Base radar:"
+        cat "$RUNNER_TEMP/base_radar.json"
+
+        # Restore PR HEAD so any subsequent steps see the PR tree.
+        git checkout "$ORIG_REF" --quiet
+
+    - name: Render comment markdown
+      if: steps.base.outputs.skip != 'true'
+      id: render
+      shell: bash
+      run: |
+        VERSION=$(python -c "from importlib.metadata import version; print(version('jcodemunch-mcp'))" 2>/dev/null || echo "")
+        python "${GITHUB_ACTION_PATH}/render_comment.py" \
+          --baseline "$RUNNER_TEMP/base_radar.json" \
+          --current  "$RUNNER_TEMP/pr_radar.json" \
+          --version  "$VERSION" \
+          > "$RUNNER_TEMP/comment.md"
+        echo "Rendered comment:"
+        cat "$RUNNER_TEMP/comment.md"
+
+    - name: Post or update sticky comment
+      # Fork-sourced pull_request events get a read-only GITHUB_TOKEN,
+      # so the comment POST returns 403 regardless of the workflow's
+      # declared `permissions:` block. For fork PRs we instead upload
+      # the rendered comment as an artifact in the calling workflow and
+      # post it from a workflow_run-triggered companion job (which DOES
+      # run in the base repo's trusted secret context). See
+      # .github/workflows/health-radar-comment.yml.
+      if: >-
+        steps.base.outputs.skip != 'true'
+        && github.event_name == 'pull_request'
+        && github.event.pull_request.head.repo.fork != true
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}
+        PR_NUMBER: ${{ github.event.pull_request.number }}
+        REPO: ${{ github.repository }}
+      run: |
+        # Sticky-comment pattern: find existing comment by HTML marker; PATCH it
+        # if found, otherwise POST a new one. Marker is on the first line of the
+        # rendered body so a simple startswith match is robust.
+        EXISTING=$(gh api "repos/${REPO}/issues/${PR_NUMBER}/comments" --paginate \
+          --jq '.[] | select(.body | startswith("<!-- jcm-health-radar -->")) | .id' \
+          | head -n1)
+
+        if [ -n "$EXISTING" ]; then
+          gh api "repos/${REPO}/issues/comments/${EXISTING}" \
+            --method PATCH \
+            -F "body=@${RUNNER_TEMP}/comment.md"
+          echo "Updated existing health-radar comment ${EXISTING}."
+        else
+          gh api "repos/${REPO}/issues/${PR_NUMBER}/comments" \
+            --method POST \
+            -F "body=@${RUNNER_TEMP}/comment.md"
+          echo "Posted new health-radar comment."
+        fi

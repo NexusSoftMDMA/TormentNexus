@@ -1,0 +1,142 @@
+{{define "title"}}Dashboard{{end}}
+{{define "content"}}
+<div class="page-header">
+  <h2>Dashboard</h2>
+  {{if .IsAdmin}}<a href="/servers/new" class="btn btn-primary">Add Server</a>{{end}}
+</div>
+
+<div class="card">
+  <h2>MCP Servers</h2>
+  {{if .Servers}}
+  <div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Type</th>
+        <th>Status</th>
+        <th>Endpoints</th>
+        {{if $.IsAdmin}}<th>Total Calls</th>{{end}}
+        <th>Proxy URL</th>
+        {{if $.IsAdmin}}<th>Actions</th>{{end}}
+      </tr>
+    </thead>
+    <tbody>
+      {{range .Servers}}
+      <tr>
+        <td><a href="/servers/{{.ID}}">{{.DisplayName}}</a></td>
+        <td><span class="badge badge-{{.ServerType}}">{{.ServerType}}</span></td>
+        <td>
+          <span class="badge badge-{{.Status}}">{{.Status}}</span>
+          {{if eq (printf "%s" .Status) "running"}}<span class="health-dot health-dot-{{.Health}}" title="MCP health: {{.Health}}{{if .HealthError}} - {{.HealthError}}{{end}}"></span>{{end}}
+        </td>
+        <td>{{with index $.EndpointCounts .ID}}{{.}}{{else}}-{{end}}</td>
+        {{if $.IsAdmin}}<td>{{with index $.ServerCallCounts .ID}}{{.}}{{else}}0{{end}}</td>{{end}}
+        <td><code>/mcp/{{.Name}}</code></td>
+        {{if $.IsAdmin}}
+        <td>
+          <div class="actions">
+            {{if eq (printf "%s" .Status) "stopped"}}
+            <form method="POST" action="/servers/{{.ID}}/start" style="display:inline">
+              <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
+              <button type="submit" class="btn btn-success btn-sm">Start</button>
+            </form>
+            {{else if eq (printf "%s" .Status) "running"}}
+            <form method="POST" action="/servers/{{.ID}}/stop" style="display:inline">
+              <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
+              <button type="submit" class="btn btn-outline btn-sm">Stop</button>
+            </form>
+            {{else if eq (printf "%s" .Status) "error"}}
+            <form method="POST" action="/servers/{{.ID}}/start" style="display:inline">
+              <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
+              <button type="submit" class="btn btn-success btn-sm">Restart</button>
+            </form>
+            {{end}}
+            <a href="/servers/{{.ID}}" class="btn btn-outline btn-sm">Details</a>
+          </div>
+        </td>
+        {{end}}
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+  </div>
+  {{else}}
+  <div class="empty-state">
+    {{if .IsAdmin}}
+    <h3>Get Started</h3>
+    <p>No MCP servers configured yet. Here's how to set up Arc Relay:</p>
+    <ol style="text-align:left; max-width:480px; margin:1rem auto;">
+      <li><a href="/servers/new">Add your first MCP server</a> (Docker, HTTP, or remote)</li>
+      <li><a href="/users">Invite team members</a> so they can connect their AI tools</li>
+      <li><a href="/connect/desktop">Connect a client</a> (Claude Desktop, Cursor, VS Code, or Codex CLI)</li>
+    </ol>
+    <a href="/servers/new" class="btn btn-primary">Add Your First Server</a>
+    {{else}}
+    <p>No MCP servers available for your profile.</p>
+    {{end}}
+  </div>
+  {{end}}
+</div>
+
+{{if .Servers}}
+<div class="card" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.75rem;">
+  <div>
+    <strong>Connect your AI tools</strong>
+    <span style="color:var(--text-muted);font-size:0.85rem;"> - Claude Desktop, Cursor, VS Code, Codex CLI, or Claude Code</span>
+  </div>
+  <a href="/connect/desktop" class="btn btn-primary btn-sm">Connect Clients</a>
+</div>
+{{end}}
+
+<div class="card">
+  <h2>Quick Stats</h2>
+  <div class="detail-grid">
+    <dt>Total Servers</dt><dd>{{len .Servers}}</dd>
+    <dt>Running</dt><dd>{{.RunningCount}}</dd>
+    {{if .IsAdmin}}
+    <dt>Users</dt><dd>{{.UserCount}}</dd>
+    {{if .Stats}}
+    <dt>Requests (24h)</dt><dd>{{.Stats.TotalRequests24h}}</dd>
+    <dt>Errors (24h)</dt><dd>{{.Stats.Errors24h}}</dd>
+    <dt>Avg Response</dt><dd>{{.Stats.AvgDurationMs}} ms</dd>
+    {{end}}
+    {{end}}
+  </div>
+</div>
+
+{{if and .IsAdmin .RecentLogs}}
+<div class="card">
+  <h2>Recent Activity</h2>
+  <div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>Time</th>
+        <th>User</th>
+        <th>Server</th>
+        <th>Method</th>
+        <th>Endpoint</th>
+        <th>Duration</th>
+        <th>Status</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .RecentLogs}}
+      <tr>
+        <td style="white-space:nowrap;font-size:0.85rem">{{.Timestamp.Format "15:04:05"}}</td>
+        <td>{{if .Username}}{{.Username}}{{else}}-{{end}}</td>
+        <td>{{if .ServerName}}{{.ServerName}}{{else}}-{{end}}</td>
+        <td><code>{{.Method}}</code></td>
+        <td>{{if .EndpointName}}<code>{{.EndpointName}}</code>{{else}}-{{end}}</td>
+        <td>{{.DurationMs}} ms</td>
+        <td><span class="badge badge-{{.Status}}">{{.Status}}</span></td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+  </div>
+  <div style="margin-top:0.75rem"><a href="/logs" class="btn btn-outline btn-sm">View All Logs</a></div>
+</div>
+{{end}}
+{{end}}

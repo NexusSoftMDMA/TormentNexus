@@ -1,0 +1,13 @@
+--- server.go
++++ server.go
+@@ -610,6 +612,10 @@
+	s.mux.HandleFunc("/api/mcp/registry/snapshot", s.handleMCPRegistrySnapshot)
+
+	// --- MCP Decision System (unified search/call/load) ---
++	s.mux.HandleFunc("/api/mcp/decision/search", s.handleDecisionSearch)
++	s.mux.HandleFunc("/api/mcp/decision/search-and-call", s.handleDecisionSearchAndCall)
++	s.mux.HandleFunc("/api/mcp/decision/load", s.handleDecisionLoad)
++	s.mux.HandleFunc("/api/mcp/decision/call", s.handleDecisionCall)
+
+	// --- Tools & Connectors ---
+	s.mux.HandleFunc("/api/mcp/tools/list", s.handleMCPToolsList)

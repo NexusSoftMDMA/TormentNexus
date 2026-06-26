@@ -1,0 +1,81 @@
+repo: tokio-rs/axum
+questions:
+  - id: axum-001
+    question: "How does Axum implement its handler extraction system?"
+    ground_truth_answer: "Axum uses the FromRequest and FromRequestParts traits to extract typed data from requests. Handler is implemented for functions where all parameters implement these traits. The macro-generated impl calls each extractor in sequence, short-circuiting on error with an IntoResponse rejection."
+    ground_truth_symbols: ["FromRequest", "FromRequestParts", "Handler"]
+    difficulty: hard
+    category: architecture
+    tags: [extractors, type-system]
+
+  - id: axum-002
+    question: "How does Axum's Router implement route matching?"
+    ground_truth_answer: "Router stores routes in a matchit::Router (radix tree). Routes are keyed by path pattern and method. When a request arrives, the router matches the path, then checks the method filter. Router::merge and Router::nest allow composing routers with path prefixes."
+    ground_truth_symbols: ["Router", "route", "merge", "nest"]
+    difficulty: medium
+    category: architecture
+    tags: [routing, composition]
+
+  - id: axum-003
+    question: "How does Axum implement middleware via layers?"
+    ground_truth_answer: "Axum uses Tower's Layer/Service traits. Router.layer() wraps the entire router in a Tower layer. route_layer() applies only to matched routes. middleware::from_fn() creates middleware from async functions. The service stack is built bottom-up at router construction time."
+    ground_truth_symbols: ["layer", "route_layer", "from_fn", "Service"]
+    difficulty: medium
+    category: architecture
+    tags: [middleware, tower]
+
+  - id: axum-004
+    question: "How does Axum's State extractor work?"
+    ground_truth_answer: "State<T> extracts shared application state from requests. The state is stored in request extensions by Router.with_state(). State implements FromRequestParts by cloning the value from extensions. The state type must be Clone + Send + Sync + 'static."
+    ground_truth_symbols: ["State", "with_state", "FromRequestParts"]
+    difficulty: medium
+    category: api
+    tags: [state, extractors]
+
+  - id: axum-005
+    question: "How does Axum handle errors and error responses?"
+    ground_truth_answer: "Extractors return Result<T, Rejection> where Rejection implements IntoResponse. Handlers can return Result<impl IntoResponse, impl IntoResponse>. IntoResponse is implemented for status codes, strings, Json, tuples of (StatusCode, body). The error is converted to an HTTP response automatically."
+    ground_truth_symbols: ["IntoResponse", "Response"]
+    difficulty: medium
+    category: api
+    tags: [errors, responses]
+
+  - id: axum-006
+    question: "How does Axum implement WebSocket support?"
+    ground_truth_answer: "The WebSocketUpgrade extractor checks the upgrade headers and holds the connection state. Calling upgrade.on_upgrade(handler) returns a response that completes the HTTP upgrade. The handler receives a WebSocket with send/recv methods built on tokio-tungstenite."
+    ground_truth_symbols: ["WebSocketUpgrade", "WebSocket", "on_upgrade"]
+    difficulty: medium
+    category: api
+    tags: [websocket, async]
+
+  - id: axum-007
+    question: "How does Axum implement the Json extractor and response?"
+    ground_truth_answer: "Json<T> as an extractor reads the request body, checks Content-Type, and deserializes via serde_json. As a response (IntoResponse), Json<T> serializes with serde_json, sets Content-Type to application/json, and returns 200. Deserialization errors become 422 rejections."
+    ground_truth_symbols: ["Json", "FromRequest", "IntoResponse"]
+    difficulty: easy
+    category: api
+    tags: [json, serde]
+
+  - id: axum-008
+    question: "How does Axum implement path parameter extraction?"
+    ground_truth_answer: "Path<T> extracts URL parameters captured by the router. It implements FromRequestParts by reading matched path parameters from request extensions (set by matchit). T can be a tuple, struct (with Deserialize), or single value. Missing or malformed params return a PathRejection."
+    ground_truth_symbols: ["Path", "PathRejection"]
+    difficulty: easy
+    category: api
+    tags: [path-params, extractors]
+
+  - id: axum-009
+    question: "How does Axum implement the Extension middleware and extractor?"
+    ground_truth_answer: "Extension<T> extracts values from http::Extensions on the request. Values are typically added via Extension layer (tower-http) or by other middleware. It implements FromRequestParts with a simple extensions.get::<T>().cloned(). Missing extensions return ExtensionRejection."
+    ground_truth_symbols: ["Extension", "ExtensionRejection"]
+    difficulty: easy
+    category: api
+    tags: [extensions, middleware]
+
+  - id: axum-010
+    question: "How does Axum handle graceful shutdown?"
+    ground_truth_answer: "axum::serve() returns a Serve future. Calling .with_graceful_shutdown(signal) takes a future that resolves when shutdown is requested. The server stops accepting new connections, waits for in-flight requests to complete, then exits. Typically paired with tokio::signal::ctrl_c()."
+    ground_truth_symbols: ["serve", "with_graceful_shutdown"]
+    difficulty: medium
+    category: api
+    tags: [shutdown, lifecycle]

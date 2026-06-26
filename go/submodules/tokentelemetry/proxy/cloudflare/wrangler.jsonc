@@ -1,0 +1,16 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "tt-telemetry-proxy",
+  "main": "src/index.js",
+  "compatibility_date": "2026-06-01",
+  "observability": { "enabled": true },
+
+  // Workers Analytics Engine sink. No secret/key — the binding is bound to the
+  // account at deploy time. Query the dataset via the SQL API / Grafana.
+  // Free plan: 100k data points/day written + 10k read queries/day; 3-month
+  // retention. Create nothing by hand — the dataset is auto-provisioned on first
+  // deploy.
+  "analytics_engine_datasets": [
+    { "binding": "TELEMETRY", "dataset": "tt_telemetry" }
+  ]
+}

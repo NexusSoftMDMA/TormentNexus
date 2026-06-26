@@ -1,0 +1,147 @@
+name: E2E Tests Lifecycle
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'cmd/vmcp/**'
+      - 'cmd/thv-operator/**'
+      - 'pkg/**'
+      - 'test/e2e/thv-operator/**'
+      - '.github/workflows/test-e2e-lifecycle.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  e2e-test-lifecycle:
+    name: E2E Test Lifecycle
+    runs-on: ubuntu-8cores-32gb
+    timeout-minutes: 30
+    env:
+      YARDSTICK_IMAGE: ghcr.io/stackloklabs/yardstick/yardstick-server:1.1.1
+    defaults:
+      run:
+        shell: bash
+    strategy:
+      fail-fast: false
+      matrix:
+        version: [
+          "kindest/node:v1.33.7",
+          "kindest/node:v1.34.3",
+          "kindest/node:v1.35.1"
+        ]
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+
+    - name: Disable containerd image store
+      # Workaround for https://github.com/kubernetes-sigs/kind/issues/3795
+      # Docker 29+ defaults to containerd image store, which causes
+      # `kind load docker-image` to fail for multi-arch images because
+      # `docker save` preserves the OCI index referencing all platforms
+      # even when only the host platform layers were pulled.
+      # --platform on docker pull is not sufficient; the image store
+      # itself must be switched back to the classic overlay2 driver.
+      run: |
+        sudo mkdir -p /etc/docker
+        echo '{"features":{"containerd-snapshotter": false}}' | sudo tee /etc/docker/daemon.json
+        sudo systemctl restart docker
+
+    - name: Set up Helm
+      uses: azure/setup-helm@dda3372f752e03dde6b3237bc9431cdc2f7a02a2 # v5.0.0
+
+    - name: Setup Ko
+      uses: ko-build/setup-ko@d006021bd0c28d1ce33a07e7943d48b079944c8d # v0.9
+
+    - name: Set up Go
+      uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6
+      with:
+        go-version: 'stable'
+        cache: true
+
+    - name: Install Task
+      uses: arduino/setup-task@v2
+      with:
+        version: 3.44.1
+        repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Create KIND Cluster with port mappings
+      uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # pin@v1.12.0
+      with:
+        cluster_name: toolhive
+        version: v0.31.0 # kind
+        config: test/e2e/thv-operator/kind-config.yaml
+        node_image: ${{ matrix.version }}
+
+    - name: Setup cluster and install CRDs
+      run: |
+        kind get kubeconfig --name toolhive > kconfig.yaml
+        export KUBECONFIG=kconfig.yaml
+        task operator-install-crds
+
+    - name: Build and load test images
+      run: |
+        # Build and load vmcp image
+        echo "Building vmcp image..."
+        VMCP_IMAGE=$(KO_DOCKER_REPO=kind.local ko build --local -B ./cmd/vmcp | tail -n 1)
+        echo "Loading vmcp image ${VMCP_IMAGE} into kind..."
+        kind load docker-image --name toolhive ${VMCP_IMAGE}
+
+        # Save VMCP_IMAGE for later steps
+        echo "VMCP_IMAGE=${VMCP_IMAGE}" >> $GITHUB_ENV
+        echo "Built and loaded vmcp image: ${VMCP_IMAGE}"
+
+        # Pull and load all test server images in parallel to speed up CI
+        echo "Pulling and loading test server images..."
+        docker pull ${{ env.YARDSTICK_IMAGE }} &
+        docker pull ghcr.io/stackloklabs/gofetch/server:1.0.1 &
+        docker pull ghcr.io/stackloklabs/osv-mcp/server:0.0.7 &
+        docker pull python:3.9-slim &
+        docker pull curlimages/curl:8.17.0 &
+        docker pull ghcr.io/huggingface/text-embeddings-inference:cpu-latest &
+        wait
+
+        # Load all images into kind
+        kind load docker-image --name toolhive ${{ env.YARDSTICK_IMAGE }}
+        kind load docker-image --name toolhive ghcr.io/stackloklabs/gofetch/server:1.0.1
+        kind load docker-image --name toolhive ghcr.io/stackloklabs/osv-mcp/server:0.0.7
+        kind load docker-image --name toolhive python:3.9-slim
+        kind load docker-image --name toolhive curlimages/curl:8.17.0
+        kind load docker-image --name toolhive ghcr.io/huggingface/text-embeddings-inference:cpu-latest
+
+    - name: Deploy operator with VMCP_IMAGE
+      run: |
+        export KUBECONFIG=kconfig.yaml
+        echo "Deploying operator with vmcp image: ${{ env.VMCP_IMAGE }}"
+
+        # Build operator and proxyrunner images
+        OPERATOR_IMAGE=$(KO_DOCKER_REPO=kind.local ko build --local -B ./cmd/thv-operator | tail -n 1)
+        TOOLHIVE_IMAGE=$(KO_DOCKER_REPO=kind.local ko build --local -B ./cmd/thv-proxyrunner | tail -n 1)
+
+        # Load operator images into kind
+        kind load docker-image --name toolhive ${OPERATOR_IMAGE}
+        kind load docker-image --name toolhive ${TOOLHIVE_IMAGE}
+
+        # Deploy operator with VMCP_IMAGE environment variable
+        helm upgrade --install toolhive-operator deploy/charts/operator \
+          --set operator.image=${OPERATOR_IMAGE} \
+          --set operator.toolhiveRunnerImage=${TOOLHIVE_IMAGE} \
+          --set operator.vmcpImage=${{ env.VMCP_IMAGE }} \
+          --namespace toolhive-system \
+          --create-namespace \
+          --kubeconfig kconfig.yaml
+
+        # Wait for operator to be ready
+        kubectl rollout status deployment/toolhive-operator -n toolhive-system --timeout=2m --kubeconfig kconfig.yaml
+
+    - name: Run VirtualMCP Lifecycle E2E tests
+      run: |
+        export KUBECONFIG=kconfig.yaml
+        task thv-operator-e2e-test-run
+
+    - name: Cleanup cluster
+      if: always()
+      run: |
+        kind delete cluster --name toolhive

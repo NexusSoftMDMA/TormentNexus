@@ -1,0 +1,89 @@
+repo: pallets/flask
+questions:
+  - id: flask-001
+    question: "How does Flask register a route decorator on an application?"
+    ground_truth_answer: "The @app.route() decorator calls self.add_url_rule() which creates a Rule object and adds it to the URL map. The route() method in Flask/Scaffold stores the endpoint, view function, and URL rule options."
+    ground_truth_symbols: ["route", "add_url_rule", "Flask"]
+    difficulty: easy
+    category: api
+    tags: [routing, decorator]
+
+  - id: flask-002
+    question: "How does Flask handle application context push and pop?"
+    ground_truth_answer: "Flask uses AppContext which pushes to _cv_app (a ContextVar). push() sets the context var token, pop() resets it. The app context tracks the request count via _cv_app and ensures teardown functions run on pop."
+    ground_truth_symbols: ["AppContext", "push", "pop", "_cv_app"]
+    difficulty: medium
+    category: architecture
+    tags: [context, lifecycle]
+
+  - id: flask-003
+    question: "What happens when Flask's error handler cannot find a match for an exception?"
+    ground_truth_answer: "Flask walks the MRO of the exception class, checking each type against registered error handlers. If no handler matches, it re-raises the exception, eventually returning a 500 Internal Server Error via the default handle_exception method."
+    ground_truth_symbols: ["handle_exception", "_find_error_handler", "trap_http_exception"]
+    difficulty: medium
+    category: debugging
+    tags: [errors, exception-handling]
+
+  - id: flask-004
+    question: "How does Flask implement blueprint registration and deferred setup?"
+    ground_truth_answer: "Blueprints collect deferred functions via record(). When register() is called on the app, it creates a BlueprintSetupState and replays all deferred functions. Nested blueprints are registered recursively with name prefixing."
+    ground_truth_symbols: ["Blueprint", "register", "record", "BlueprintSetupState"]
+    difficulty: hard
+    category: architecture
+    tags: [blueprint, modularity]
+
+  - id: flask-005
+    question: "How does Flask's test client work?"
+    ground_truth_answer: "FlaskClient extends Werkzeug's Client class. It overrides open() to push the application context during the request. The session_transaction() context manager allows modifying the session before the request is made."
+    ground_truth_symbols: ["FlaskClient", "open", "session_transaction"]
+    difficulty: medium
+    category: api
+    tags: [testing, client]
+
+  - id: flask-006
+    question: "How does Flask implement configuration loading from different sources?"
+    ground_truth_answer: "Config extends dict. It supports from_envvar() for env-var paths, from_pyfile() for .py/.cfg files (uses exec/toml), from_object() for Python objects, from_file() for JSON/TOML via a loader callable, and from_mapping() for dicts."
+    ground_truth_symbols: ["Config", "from_envvar", "from_pyfile", "from_object", "from_file"]
+    difficulty: easy
+    category: api
+    tags: [config, loading]
+
+  - id: flask-007
+    question: "How does Flask implement the g object?"
+    ground_truth_answer: "g is an instance of _FakeStack/_CVProxy that proxies to a namespace stored on the current app context. It's implemented as app_ctx.g where g is a simple namespace (flask.g -> _cv_app.get().g). It's reset on each request since the app context is pushed fresh."
+    ground_truth_symbols: ["g", "AppContext"]
+    difficulty: medium
+    category: architecture
+    tags: [globals, context]
+
+  - id: flask-008
+    question: "How does the Flask CLI (flask command) discover and load the application?"
+    ground_truth_answer: "The Flask CLI uses click. FlaskGroup.main() looks for the app via --app flag or FLASK_APP env var. It uses prepare_import and find_best_app to locate the app object, supporting both 'module:app' and 'module:create_app()' factory patterns."
+    ground_truth_symbols: ["FlaskGroup", "find_best_app", "prepare_import", "ScriptInfo"]
+    difficulty: hard
+    category: architecture
+    tags: [cli, discovery]
+
+  - id: flask-009
+    question: "How does Flask implement before_request and after_request hooks?"
+    ground_truth_answer: "before_request decorators store callables in before_request_funcs dict keyed by blueprint name (None for app-level). During dispatch, try_trigger_before_request_functions iterates them; if any returns a response, dispatch short-circuits. after_request hooks run in reverse order via process_response."
+    ground_truth_symbols: ["before_request", "after_request", "try_trigger_before_request_functions", "process_response"]
+    difficulty: medium
+    category: api
+    tags: [middleware, hooks]
+
+  - id: flask-010
+    question: "How does Flask's url_for function resolve URLs?"
+    ground_truth_answer: "url_for() gets the current app's URL adapter from the request context. It resolves the endpoint name (handling blueprint prefixing), builds the URL using Werkzeug's MapAdapter.build(), and handles _external, _anchor, _method, and _scheme parameters."
+    ground_truth_symbols: ["url_for"]
+    difficulty: easy
+    category: api
+    tags: [routing, urls]
+
+  - id: flask-011
+    question: "How does Flask handle JSON serialization and the jsonify function?"
+    ground_truth_answer: "Flask uses a custom DefaultJSONProvider that handles datetime, UUID, and dataclass serialization. jsonify() calls dumps on the provider, wraps the result in a Response with application/json content type. The provider is configurable per-app."
+    ground_truth_symbols: ["jsonify", "DefaultJSONProvider", "dumps"]
+    difficulty: easy
+    category: api
+    tags: [json, serialization]

@@ -1,0 +1,30 @@
+name: hermes-mnemosyne
+version: 0.2.0
+description: "Native local memory for Hermes — SQLite with vector search, FTS5 hybrid ranking, episodic consolidation, temporal triples, and bidirectional sync with optional client-side encryption. Zero cloud. Zero latency."
+author: Abdias J
+provides_tools:
+  - mnemosyne_remember
+  - mnemosyne_recall
+  - mnemosyne_stats
+  - mnemosyne_triple_add
+  - mnemosyne_triple_query
+  - mnemosyne_sleep
+  - mnemosyne_scratchpad_write
+  - mnemosyne_scratchpad_read
+  - mnemosyne_scratchpad_clear
+  - mnemosyne_invalidate
+  - mnemosyne_export
+  - mnemosyne_import
+  - mnemosyne_update
+  - mnemosyne_forget
+  - mnemosyne_diagnose
+  - mnemosyne_graph_query
+  - mnemosyne_graph_link
+  - mnemosyne_sync_push
+  - mnemosyne_sync_pull
+  - mnemosyne_sync_status
+provides_hooks:
+  - pre_llm_call
+  - on_session_start
+  - post_tool_call
+dependencies: []

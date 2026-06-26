@@ -1,0 +1,84 @@
+{
+  "schemaVersion": 1,
+  "comment": "Canonical project-dashboard widget vocabulary. Single source of truth for the catalog validator (tools/build-catalog.py) and the agent-authoring skill (templates/awizemann/template-author/staging/skills/scarf-template-author/SKILL.md). The Swift renderer (scarf/scarf/Features/Projects/Views/ProjectsView.swift WidgetView) and the JS renderer (site/widgets.js) are hand-written but MUST stay aligned with the type list here. Adding a new widget type: add it here first, then implement the Swift view + JS renderer, then update the SKILL.md Widget Catalog section. Removing or renaming a type breaks every dashboard.json that uses it — don't.",
+  "widgets": {
+    "stat": {
+      "description": "Single big-number metric with optional icon, subtitle, color, and inline sparkline trend.",
+      "since": "v2.2",
+      "required": ["title"],
+      "optional": ["value", "icon", "color", "subtitle", "sparkline"]
+    },
+    "progress": {
+      "description": "0.0..1.0 horizontal progress bar with optional label.",
+      "since": "v2.2",
+      "required": ["title", "value"],
+      "optional": ["label", "color"]
+    },
+    "text": {
+      "description": "Inline text or markdown block. Use 'markdown_file' if the content lives in an external file.",
+      "since": "v2.2",
+      "required": ["title", "content"],
+      "optional": ["format"]
+    },
+    "table": {
+      "description": "Columns x rows of strings.",
+      "since": "v2.2",
+      "required": ["title", "columns", "rows"],
+      "optional": []
+    },
+    "chart": {
+      "description": "Line / bar / area / pie chart over named series.",
+      "since": "v2.2",
+      "required": ["title", "series"],
+      "optional": ["chartType", "xLabel", "yLabel"]
+    },
+    "list": {
+      "description": "Bulleted list with optional typed status badges per item (success / warning / danger / info / pending / done / neutral; unknown values render as plain text).",
+      "since": "v2.2",
+      "required": ["title", "items"],
+      "optional": []
+    },
+    "webview": {
+      "description": "Embedded URL in an iframe / WKWebView. Including a webview also exposes a Site tab in the project view.",
+      "since": "v2.2",
+      "required": ["title", "url"],
+      "optional": ["height"]
+    },
+    "markdown_file": {
+      "description": "Renders a markdown file from disk, relative to the project root. Refreshes when any file under the project's .scarf/ directory changes.",
+      "since": "v2.7",
+      "required": ["title", "path"],
+      "optional": []
+    },
+    "log_tail": {
+      "description": "Tails the last N lines of a file from disk, monospaced. Useful for surfacing the most recent cron-job output. Strips ANSI color codes.",
+      "since": "v2.7",
+      "required": ["title", "path"],
+      "optional": ["lines"]
+    },
+    "cron_status": {
+      "description": "Last run / next run / current state for one Hermes cron job by id, with a tiny inline log tail.",
+      "since": "v2.7",
+      "required": ["title", "jobId"],
+      "optional": ["lines"]
+    },
+    "image": {
+      "description": "Local image file (path relative to project root) or remote URL.",
+      "since": "v2.7",
+      "required": ["title"],
+      "optional": ["path", "url", "height"]
+    },
+    "status_grid": {
+      "description": "Compact grid of colored cells, one per service / item, with hover labels. Reuses the typed status enum.",
+      "since": "v2.7",
+      "required": ["title", "cells"],
+      "optional": ["columns"]
+    },
+    "kanban_summary": {
+      "description": "Compact mini-list of the top in-progress / blocked / todo Kanban tasks for this project's tenant, plus a glance string footer (\"12 todo · 3 running · 5 blocked\"). Pulls from `hermes kanban list` filtered by the project's `kanbanTenant` from manifest.json. Use `value` to set max_rows (default 3).",
+      "since": "v2.7.5",
+      "required": ["title"],
+      "optional": ["value"]
+    }
+  }
+}

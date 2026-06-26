@@ -1,0 +1,1 @@
+// @tormentnexus/supervisor -- stub\nexport {};
