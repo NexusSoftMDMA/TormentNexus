@@ -25,6 +25,8 @@
     "dist",
     "src/**/*.test.ts",
     "src/**/*.spec.ts",
-    "src/tests/**/*"
+    "src/tests/**/*",
+    "submodules",
+    "../../submodules"
   ]
 }
