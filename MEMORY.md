@@ -134,4 +134,5 @@
 - **WebSocket Broker Mounting**: Instantiating and initializing WebSocket telemetry managers (like calling `server.StartWSBroker()`) during sidecar startup guarantees that real-time event listeners are bound before routes begin serving traffic.
 - **Dynamic Port & Path Resolution**: Centralizing WebSocket URL resolution in shared frontend helper libraries (e.g., `resolveCoreWsUrl`) prevents components like `TrafficInspector` from hardcoding target ports (like `3001`), seamlessly adapting telemetry flows as backend layers shift to Go-native servers on port `4300` at `/api/mcp/traffic/ws`.
 - **PowerShell script Execution**: In PowerShell environments on Windows, scripts must be run as `.\build.bat` rather than `build.bat` to avoid command execution exceptions.
+- **WebSocket Replay Buffer**: Maintaining a slice of recent telemetry JSON payloads inside the global WebSocket broker and replaying it immediately upon a client's connection ensures that dashboard UI feeds populate historical packet captures instantly without requiring new activity trigger loops.
 
