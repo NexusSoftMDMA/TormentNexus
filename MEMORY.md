@@ -127,3 +127,11 @@
 
 ### Code-Gen Swarm Sanitization
 - **English Commentary / Invalid Files**: Occasionally the LLM code-generation swarm outputs files filled with English commentary/discussions instead of valid Go syntax (e.g. `browser_tools_mcp.go`), or files with missing return statements (e.g. `osaurus.go`). Extending the compiler healing loop to scan and remove these files while resetting their database status to `'pending'` ensures code base hygiene.
+
+## Session 2026-06-26 (WebSocket Integration & Client Telemetry Alignment)
+
+### WebSocket Telemetry Heuristics
+- **WebSocket Broker Mounting**: Instantiating and initializing WebSocket telemetry managers (like calling `server.StartWSBroker()`) during sidecar startup guarantees that real-time event listeners are bound before routes begin serving traffic.
+- **Dynamic Port & Path Resolution**: Centralizing WebSocket URL resolution in shared frontend helper libraries (e.g., `resolveCoreWsUrl`) prevents components like `TrafficInspector` from hardcoding target ports (like `3001`), seamlessly adapting telemetry flows as backend layers shift to Go-native servers on port `4300` at `/api/mcp/traffic/ws`.
+- **PowerShell script Execution**: In PowerShell environments on Windows, scripts must be run as `.\build.bat` rather than `build.bat` to avoid command execution exceptions.
+

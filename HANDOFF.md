@@ -1,3 +1,37 @@
+# HANDOFF — Session 2026-06-26 R6 (WebSocket Telemetry, WS Broker Mount, and Client Route Fix - Alpha.178)
+
+## Summary
+
+Successfully mounted the real-time WebSocket telemetry broker during Go sidecar startup, updated `@tormentnexus/ui` to target Go Sidecar port `4300` and path `/api/mcp/traffic/ws` by default, and verified that both the Go sidecar and Next.js frontend compile and run without any errors. All changes are committed and pushed to both remote servers.
+
+### What was done
+
+1. **Go Sidecar WS Broker Initialization**:
+   - Wired `server.StartWSBroker()` into `server.go` initialization. The broker subscribes to the EventBus system events (`tool:call`, `tool:call:response`) and streams translated JSON packets.
+   
+2. **Client-Side WebSocket Telemetry Port Alignment**:
+   - Modified `resolveCoreWsUrl` in [endpoints.ts](file:///c:/Users/hyper/workspace/tormentnexus/packages/ui/src/lib/endpoints.ts) to target port `4300` and path `/api/mcp/traffic/ws` by default instead of port `3001`.
+   - Updated [TrafficInspector.tsx](file:///c:/Users/hyper/workspace/tormentnexus/apps/web/src/components/TrafficInspector.tsx) target url fallback to `undefined` to allow shared client resolution library defaults.
+
+3. **Compilation & Repository Sync**:
+   - Rebuilt the sidecar binary (`tormentnexus.exe`) successfully and launched the daemon on port `4300`.
+   - Verified that the Next.js TypeScript compiler returns zero type or check errors.
+   - Pushed the version commit to `origin` and `origin-backup`.
+
+### Current State
+
+- **Monorepo Version**: `1.0.0-alpha.178`
+- **Go Sidecar Server**: Live on port `4300` with WebSocket telemetry broker active.
+- **Next.js Dev Server**: Running on port `3000`.
+- **TypeScript Codebase**: ✅ Clean compilation.
+
+### Next Agent Instructions
+
+- Run the system and open the dashboard inspector tab under `/dashboard/mcp?tab=inspector` to confirm WebSocket telemetry events log tool calls in real-time.
+- Proceed with Layer 2 router porting to eliminate any remaining `CallTRPCProcedure` bridges.
+
+---
+
 # HANDOFF — Session 2026-06-26 R5 (Event TypeError, TS CLI Rejection Crash & Go Sidecar Build Fixed - Alpha.176)
 
 ## Summary
