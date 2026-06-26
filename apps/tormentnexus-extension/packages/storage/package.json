@@ -1,6 +1,6 @@
 {
   "name": "@extension/storage",
-  "version": "1.0.0-alpha.184",
+  "version": "1.0.0-alpha.185",
   "description": "chrome extension - storage",
   "type": "module",
   "private": true,

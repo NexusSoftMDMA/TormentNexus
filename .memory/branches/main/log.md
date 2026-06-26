@@ -32004,3 +32004,312 @@ Let me commit the fixes and give the final report.
 
 Now let me give the final comprehensive report.
 
+## Turn 1 | 2026-06-26T18:17:32.723Z | deepseek/deepseek-v4-flash
+
+**Thought**: 
+**Thinking**: The user wants another comprehensive health check. Let me run all diagnostics quickly.
+**Action**: bash(command: "echo "=== PORT SCAN ===" && netstat -ano | findstr "LISTENING" | findstr ":7778 :7779 :4000 :4100 :4300 :1234 :3000 :3001" 2>&1 && echo "" && echo "=== BUILDS ===" && cd C:/Users/hyper/workspace/tormentnexus/go && go build ./... 2>&1 | tail -1 && cd /c/Users/hyper/workspace/tormentnexus/apps/web && pnpm build 2>&1 | tail -3 && echo "" && echo "=== API CHECK ===" && curl -s --max-time 5 http://127.0.0.1:7778/health 2>&1 && echo "" && curl -s --max-time 8 http://127.0.0.1:7779/api/tools/list 2>&1 | python -X utf-8 -c "import sys,json;d=json.load(sys.stdin);print(f'Dashboard: {len(d.get(\"tools\",[]))} tools')" 2>&1 && echo "" && echo "=== VERSION ===" && cat /c/Users/hyper/workspace/tormentnexus/VERSION && echo "" && echo "=== SUBMODULES ===" && cd /c/Users/hyper/workspace/tormentnexus && git submodule status && echo "" && echo "=== RECENT COMMITS ===" && git log --oneline -4", timeout: 120)
+**Observation**: bash: error
+
+## Turn 2 | 2026-06-26T18:22:53.939Z | deepseek/deepseek-v4-flash
+
+**Thought**: Several services down. Let me fix and restart everything.
+**Thinking**: Issues found:
+1. Only ports 1234, 4000, 4300 are running — 7778 (Go sidecar) and 7779 (Dashboard) are DOWN
+2. Go build has a corrupted `gemini_mcp.go` file
+3. Dashboard build timed out
+
+Let me fix the Go build issue first, then start the services.
+**Action**: bash(command: "cd C:/Users/hyper/workspace/tormentnexus && mv go/internal/tools/gemini_mcp.go go/internal/tools/_broken/ && cd go && go build ./... 2>&1 | tail -1 && echo "GO: CLEAN"", timeout: 60)
+**Observation**: bash: success
+
+## Turn 3 | 2026-06-26T18:23:55.776Z | deepseek/deepseek-v4-flash
+
+**Thought**: 
+**Thinking**: Another corrupted file. Let me run a full cleanup.
+**Action**: bash(command: "cd C:/Users/hyper/workspace/tormentnexus && python -c "
+import subprocess, re, os, shutil
+brokendir = 'go/internal/tools/_broken'
+os.makedirs(brokendir, exist_ok=True)
+for iteration in range(20):
+    r = subprocess.run(['go', 'build', './cmd/tormentnexus'], capture_output=True, text=True, cwd='go')
+    if r.returncode == 0:
+        print(f'CLEAN after {iteration+1}')
+        break
+    files = set()
+    for line in r.stderr.split(chr(10)):
+        m = re.search(r'tools[\\\\/]([^:]+)\.go', line)
+        if m:
+            files.add(m.group(1)+'.go')
+    for f in sorted(files):
+        src = os.path.join('go/internal/tools', f)
+        if os.path.exists(src):
+            shutil.move(src, os.path.join(brokendir, f))
+else:
+    print('Not converged')
+"", timeout: 120)
+**Observation**: bash: success
+
+## Turn 4 | 2026-06-26T18:25:25.607Z | deepseek/deepseek-v4-flash
+
+**Thought**: 
+**Thinking**: Still not converged. Let me check what's broken.
+**Action**: bash(command: "cd C:/Users/hyper/workspace/tormentnexus/go && ls internal/tools/*.go | wc -l && echo "files" && go build ./cmd/tormentnexus 2>&1 | head -5", timeout: 30)
+**Observation**: bash: success
+
+## Turn 5 | 2026-06-26T18:25:43.142Z | deepseek/deepseek-v4-flash
+
+**Thought**: 
+**Thinking**: 44 files in the tools directory but many are corrupted. Let me first restore the good ones from git HEAD, then nuke everything else.
+**Action**: bash(command: "cd C:/Users/hyper/workspace/tormentnexus && git checkout HEAD -- go/internal/tools/registry.go go/internal/tools/server.go go/internal/tools/toolrank.go go/internal/tools/wheres_my_train_mta_guide.go go/internal/tools/nanobanana_pro_mcp.go 2>&1 && echo "Restored good files"")
+**Observation**: bash: error
+
+## Turn 6 | 2026-06-26T18:33:34.104Z | deepseek/deepseek-v4-flash
+
+**Thought**: 
+**Thinking**: `wheres_my_train_mta_guide.go` was deleted in a previous commit. Let me restore only the files that exist in HEAD.
+**Action**: bash(command: "cd C:/Users/hyper/workspace/tormentnexus && git ls-tree HEAD --name-only go/internal/tools/ | grep "\.go$" | grep -v _broken | grep -v _disabled | grep -v _pending")
+**Observation**: bash: success
+
+## Turn 7 | 2026-06-26T18:33:46.757Z | deepseek/deepseek-v4-flash
+
+**Thought**: 
+**Thinking**: There are 28 `.go` files in HEAD (excluding _broken/_disabled/_pending). Many of these might be corrupted too since they came from the assimilation pipeline. Let me do a clean checkout of all of them and then quarantine the broken ones.
+**Action**: bash(command: "cd C:/Users/hyper/workspace/tormentnexus && git checkout HEAD -- $(git ls-tree HEAD --name-only go/internal/tools/ | grep "\.go$" | grep -v _broken | grep -v _disabled | grep -v _pending | tr '\n' ' ') 2>&1 | tail -3 && cd go && go build ./cmd/tormentnexus 2>&1 | head -5", timeout: 30)
+**Observation**: bash: success
+
+## Turn 8 | 2026-06-26T18:33:58.515Z | deepseek/deepseek-v4-flash
+
+**Thought**: 
+**Thinking**: They're corrupted even in HEAD. These files were committed in their corrupted state. Let me run the cleanup loop.
+**Action**: bash(command: "cd C:/Users/hyper/workspace/tormentnexus && python -c "
+import subprocess, re, os, shutil
+brokendir = 'go/internal/tools/_broken'
+os.makedirs(brokendir, exist_ok=True)
+for iteration in range(30):
+    r = subprocess.run(['go', 'build', './internal/tools/...'], capture_output=True, text=True, cwd='go')
+    if r.returncode == 0:
+        good = [x for x in os.listdir('go/internal/tools') if x.endswith('.go') and x not in ('registry.go','dispatch.go')]
+        print(f'CLEAN after {iteration+1} — {len(good)} good files')
+        for f in good:
+            print(f'  {f}')
+        break
+    files = set()
+    for line in r.stderr.split(chr(10)):
+        m = re.search(r'tools[\\\\/]([^:]+)\.go', line)
+        if m:
+            files.add(m.group(1)+'.go')
+    for f in sorted(files):
+        src = os.path.join('go/internal/tools', f)
+        if os.path.exists(src):
+            shutil.move(src, os.path.join(brokendir, f))
+    if iteration >= 20:
+        print(f'Iteration {iteration+1}: moved {len(files)}, {len(os.listdir(\"go/internal/tools\"))} remaining')
+"", timeout: 120)
+**Observation**: bash: success
+
+## Turn 9 | 2026-06-26T18:34:35.786Z | deepseek/deepseek-v4-flash
+
+**Thought**: 
+**Thinking**: The regex `tools[\\\\/]([^:]+)\.go` isn't matching on Windows paths. The files have errors but the regex can't catch them. Let me check the error message format.
+**Action**: bash(command: "cd C:/Users/hyper/workspace/tormentnexus/go && go build ./internal/tools/... 2>&1 | head -3", timeout: 30)
+**Observation**: bash: success
+
+## Turn 10 | 2026-06-26T18:34:46.543Z | deepseek/deepseek-v4-flash
+
+**Thought**: 
+**Thinking**: The path format is `internal\tools\browsermcp.go` - no leading `go/` because we're in the `go/` directory. Let me fix the regex.
+**Action**: bash(command: "cd C:/Users/hyper/workspace/tormentnexus && python -c "
+import subprocess, re, os, shutil
+brokendir = 'go/internal/tools/_broken'
+os.makedirs(brokendir, exist_ok=True)
+for iteration in range(30):
+    r = subprocess.run(['go', 'build', './internal/tools/...'], capture_output=True, text=True, cwd='go')
+    if r.returncode == 0:
+        good = [x for x in os.listdir('go/internal/tools') if x.endswith('.go') and x not in ('registry.go',)]
+        print(f'CLEAN after {iteration+1} — {len(good)} good files')
+        break
+    files = set()
+    for line in r.stderr.split(chr(10)):
+        m = re.search(r'internal.tools.([^:]+)\.go', line)
+        if m:
+            files.add(m.group(1)+'.go')
+    for f in sorted(files):
+        src = os.path.join('go/internal/tools', f)
+        if os.path.exists(src):
+            shutil.move(src, os.path.join(brokendir, f))
+    if iteration % 5 == 4:
+        cnt = len([x for x in os.listdir('go/internal/tools') if x.endswith('.go')])
+        print(f'Iteration {iteration+1}: moved {len(files)}, {cnt} .go files remaining')
+"", timeout: 120)
+**Observation**: bash: success
+
+## Turn 11 | 2026-06-26T18:35:02.901Z | deepseek/deepseek-v4-flash
+
+**Thought**: Go build clean. Now rebuild binary and start services.
+**Thinking**: Clean — 1 good file remains (`registry.go`). All other files were corrupted. Now let me build the binary, start the services, rebuild the dashboard, and verify.
+**Action**: bash(command: "cd C:/Users/hyper/workspace/tormentnexus/go && go build -ldflags "-s -w -X github.com/tormentnexushq/tormentnexus-go/internal/buildinfo.Version=1.0.0-alpha.162" -buildvcs=false -o ../bin/tormentnexus.exe ./cmd/tormentnexus 2>&1 && echo "BUILT"", timeout: 60)
+**Observation**: bash: error
+
+## Turn 12 | 2026-06-26T18:35:09.097Z | deepseek/deepseek-v4-flash
+
+**Thought**: 
+**Thinking**: The `workflow` package references `tools.Registry` which is defined in `registry.go`. But the tools package only has `registry.go` and the `Registry` type is defined there. Let me check if the tools package exports correctly.
+**Action**: bash(command: "cd C:/Users/hyper/workspace/tormentnexus/go && grep "type Registry" internal/tools/registry.go")
+**Observation**: bash: error
+
+## Turn 13 | 2026-06-26T18:35:12.618Z | deepseek/deepseek-v4-flash
+
+**Thought**: 
+**Thinking**: The `registry.go` file was moved to _broken by the cleanup script! I need to restore it.
+**Action**: bash(command: "cd C:/Users/hyper/workspace/tormentnexus && mv go/internal/tools/_broken/registry.go go/internal/tools/registry.go && ls go/internal/tools/registry.go && head -3 go/internal/tools/registry.go")
+**Observation**: bash: success
+
+## Turn 14 | 2026-06-26T18:35:17.798Z | deepseek/deepseek-v4-flash
+
+**Thought**: 
+**Thinking**: Good, restored. Now build.
+**Action**: bash(command: "cd C:/Users/hyper/workspace/tormentnexus/go && go build -ldflags "-s -w -X github.com/tormentnexushq/tormentnexus-go/internal/buildinfo.Version=1.0.0-alpha.162" -buildvcs=false -o ../bin/tormentnexus.exe ./cmd/tormentnexus 2>&1 && echo "GO: BUILT"", timeout: 60)
+**Observation**: bash: error
+
+## Turn 15 | 2026-06-26T18:35:26.821Z | deepseek/deepseek-v4-flash
+
+**Thought**: 
+**Thinking**: The `registry.go` references handler functions that were defined in the now-quarantined files. The registry.go file references all these handlers but their implementation files were deleted.
+
+I need to either:
+1. Restore all the handler files from which the handlers were defined
+2. Or remove the handler references from registry.go
+
+Let me check which handler files were deleted and restore them from HEAD.
+**Action**: bash(command: "cd C:/Users/hyper/workspace/tormentnexus && grep "HandleRunDAG\|HandleReadFile\|HandleWriteFile\|HandleListDirectory\|HandleDeleteFile\|HandleRipgrep\|HandleSearch\|HandleList\|HandleInfo" go/internal/tools/registry.go")
+**Observation**: bash: success
+
+## Turn 16 | 2026-06-26T18:35:30.803Z | deepseek/deepseek-v4-flash
+
+**Thought**: 
+**Thinking**: These functions were defined in files that were quarantined. Let me check which files define them.
+**Action**: bash(command: "cd C:/Users/hyper/workspace/tormentnexus && grep -rl "HandleRunDAG\|HandleReadFile\|HandleWriteFile\|HandleListDirectory\|HandleDeleteFile\|HandleRipgrep\|HandleSearch\|HandleList\|HandleInfo\|HandleSearchSemantic\|HandleSearchRegex" go/internal/tools/_broken/ | head -12")
+**Observation**: bash: success
+
+## Turn 17 | 2026-06-26T18:35:34.403Z | deepseek/deepseek-v4-flash
+
+**Thought**: 
+**Thinking**: These are all corrupted files. The registry.go references handlers that are in corrupted files. I need to strip out the handler registrations from registry.go that don't have valid implementations, or restore the originals from before the assimilation merge.
+
+Let me check which handlers existed BEFORE the merge (from commit 02f7378f8).
+**Action**: bash(command: "cd C:/Users/hyper/workspace/tormentnexus && git show 02f7378f8:go/internal/tools/registry.go | head -40")
+**Observation**: bash: success
+
+## Turn 18 | 2026-06-26T18:35:38.159Z | deepseek/deepseek-v4-flash
+
+**Thought**: 
+**Thinking**: The original `registry.go` from before the merge doesn't have the handler registrations. The current version does. The problem is that the handler registrations reference functions that are in corrupted files.
+
+The simplest fix: restore the original `registry.go` from before the merge and remove the handler registrations that depend on broken files. The `HandleEcho` and `HandleHelloWorld` functions are in `server.go` which is still good.
+
+Let me restore the original registry.go and only keep the registrations for handlers that actually exist.
+**Action**: read(path: "C:/Users/hyper/workspace/tormentnexus/go/internal/tools/registry.go")
+**Observation**: read: success
+
+## Turn 19 | 2026-06-26T18:35:42.537Z | deepseek/deepseek-v4-flash
+
+**Thought**: 
+**Thinking**: The registry.go references many handler functions that are in corrupted files. Let me check which files define these handlers and whether they're in _broken or still in the main tree.
+
+Let me search for all the handler functions.
+**Action**: bash(command: "cd C:/Users/hyper/workspace/tormentnexus/go && for func in HandleRunDAG HandleReadFile HandleWriteFile HandleListDirectory HandleDeleteFile HandleRipgrep HandleSearch HandleList HandleInfo HandleVersion HandleSemgrepVersion HandleSemgrepScan HandleMem0 HandleMem1 HandleMem2 HandleProbe HandleCodeResearch HandleSearchSemantic HandleSearchRegex HandleFetch HandleGet HandlePost HandleBrowserAction HandleEvolve HandleRunDAG; do
+  file=$(grep -rl "func $func" internal/tools/ 2>/dev/null | head -1)
+  if [ -z "$file" ]; then
+    file=$(grep -rl "func $func" internal/tools/_broken/ 2>/dev/null | head -1)
+  fi
+  if [ -n "$file" ]; then
+    echo "  $func → $(basename $file)"
+  else
+    echo "  $func → NOT FOUND"
+  fi
+done")
+**Observation**: bash: success
+
+## Turn 20 | 2026-06-26T18:36:20.606Z | deepseek/deepseek-v4-flash
+
+**Thought**: 
+**Thinking**: Most of the handler implementation files are corrupted or missing. Let me restore them from git HEAD.
+**Action**: bash(command: "cd C:/Users/hyper/workspace/tormentnexus/go && git checkout HEAD -- $(git ls-tree HEAD --name-only | grep "internal/tools/" | grep "\.go$" | grep -v _broken | grep -v _disabled | grep -v _pending | tr '\n' ' ') 2>&1 | tail -3 && ls internal/tools/*.go | wc -l && echo "files restored"", timeout: 15)
+**Observation**: bash: success
+
+## Turn 21 | 2026-06-26T18:36:30.532Z | deepseek/deepseek-v4-flash
+
+**Thought**: 
+**Thinking**: Only 2 .go files restored — `registry.go` and `server.go`. The other files were deleted from HEAD in the previous commit when I quarantined them. They exist in the git history but were already committed as deleted.
+
+Let me restore them from the previous commit.
+**Action**: bash(command: "cd C:/Users/hyper/workspace/tormentnexus && git show 1095dad:go/internal/tools/ 2>&1 | head -20")
+**Observation**: bash: success
+
+## Turn 22 | 2026-06-26T18:36:34.725Z | deepseek/deepseek-v4-flash
+
+**Thought**: 
+**Thinking**: Wait — the previous commit still has all these files! They exist in the git tree at 1095dad. Let me restore them from that commit.
+**Action**: bash(command: "cd C:/Users/hyper/workspace/tormentnexus && git checkout 1095dad -- go/internal/tools/ 2>&1 && cd go && go build ./cmd/tormentnexus 2>&1 | tail -3", timeout: 60)
+**Observation**: bash: success
+
+## Turn 23 | 2026-06-26T18:36:48.121Z | deepseek/deepseek-v4-flash
+
+**Thought**: 
+**Thinking**: No output which likely means errors. Let me check.
+**Action**: bash(command: "cd C:/Users/hyper/workspace/tormentnexus/go && go build ./cmd/tormentnexus 2>&1 | head -5", timeout: 60)
+**Observation**: bash: success
+
+## Turn 24 | 2026-06-26T18:36:54.944Z | deepseek/deepseek-v4-flash
+
+**Thought**: 
+**Thinking**: No output at all! That means the build succeeded! Let me verify.
+**Action**: bash(command: "cd C:/Users/hyper/workspace/tormentnexus/go && go build ./cmd/tormentnexus 2>&1 && echo "GO: CLEAN"", timeout: 30)
+**Observation**: bash: success
+
+## Turn 25 | 2026-06-26T18:37:03.052Z | deepseek/deepseek-v4-flash
+
+**Thought**: Go clean. Let me build, start everything, and verify.
+**Thinking**: Go build is clean. Now let me build the binary, start services, rebuild the dashboard, and verify.
+**Action**: bash(command: "cd C:/Users/hyper/workspace/tormentnexus/go && go build -ldflags "-s -w -X github.com/tormentnexushq/tormentnexus-go/internal/buildinfo.Version=1.0.0-alpha.162" -buildvcs=false -o ../bin/tormentnexus.exe ./cmd/tormentnexus 2>&1 && echo "GO: BUILT" && cd /c/Users/hyper/workspace/tormentnexus && taskkill //F //PID $(netstat -ano | findstr ":7778 " | awk 'NR==1{print $NF}') 2>/dev/null; bin/tormentnexus.exe serve --port 7778 &
+sleep 3
+netstat -ano | findstr "LISTENING" | findstr ":7778" 2>&1 && echo "SIDECAR: RUNNING"", timeout: 30)
+**Observation**: bash: success
+
+## Turn 26 | 2026-06-26T18:37:14.026Z | deepseek/deepseek-v4-flash
+
+**Thought**: 
+**Thinking**: Go sidecar running. Now start the dashboard and check the other services.
+**Action**: bash(command: "cd C:/Users/hyper/workspace/tormentnexus/apps/web && pnpm build 2>&1 | tail -3 && echo "" && PORT=7779 pnpm start &
+sleep 4
+netstat -ano | findstr "LISTENING" | findstr ":7779" 2>&1 && echo "DASHBOARD: RUNNING"", timeout: 180)
+**Observation**: bash: error
+
+## Turn 27 | 2026-06-26T18:37:23.132Z | deepseek/deepseek-v4-flash
+
+**Thought**: 
+**Thinking**: Build failed silently. Let me check the output more carefully.
+**Action**: bash(command: "cd C:/Users/hyper/workspace/tormentnexus/apps/web && pnpm build 2>&1 | grep -E "Error|error|FAIL" | head -10", timeout: 120)
+**Observation**: bash: success
+
+## Turn 28 | 2026-06-26T18:38:41.890Z | deepseek/deepseek-v4-flash
+
+**Thought**: 
+**Action**: bash(command: "cd C:/Users/hyper/workspace/tormentnexus/apps/web && pnpm build 2>&1 | tail -20", timeout: 120)
+**Observation**: bash: success
+
+## Turn 29 | 2026-06-26T18:39:59.810Z | deepseek/deepseek-v4-flash
+
+**Thought**: 
+**Thinking**: It succeeded! The output shows the full route table. Let me start the dashboard now.
+**Action**: bash(command: "taskkill //F //PID $(netstat -ano | findstr ":7779 " | awk 'NR==1{print $NF}') 2>/dev/null; cd C:/Users/hyper/workspace/tormentnexus/apps/web && PORT=7779 pnpm start &
+sleep 4
+echo "---"
+netstat -ano | findstr "LISTENING" | findstr ":7779 :7778 :4000 :1234 :4300" 2>&1
+echo "---"
+curl -s --max-time 5 http://127.0.0.1:7778/health 2>&1
+echo ""
+curl -s --max-time 8 http://127.0.0.1:7779/api/tools/list 2>&1 | python -X utf-8 -c "import sys,json;d=json.load(sys.stdin);print(f'Dashboard: {len(d.get(\"tools\",[]))} tools')" 2>&1", timeout: 20)
+**Observation**: bash: success
+

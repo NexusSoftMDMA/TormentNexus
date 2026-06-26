@@ -81,7 +81,7 @@ func NewRegistry() *Registry {
 	r.Register("version", HandleVersion)
 	r.Register("semgrep_version", HandleSemgrepVersion)
 	r.Register("semgrep_scan", HandleSemgrepScan)
-	// r.Register("execute_query", HandleExecuteQuery)
+	r.Register("execute_query", HandleExecuteQuery)
 	r.Register("mem0", HandleMem0)
 	r.Register("mem1", HandleMem1)
 	r.Register("mem2", HandleMem2)

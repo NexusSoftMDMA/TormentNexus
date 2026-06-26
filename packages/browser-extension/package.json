@@ -1,6 +1,6 @@
 {
   "name": "@tormentnexus/browser-extension-pkg",
-  "version": "1.0.0-alpha.184",
+  "version": "1.0.0-alpha.185",
   "description": "tormentnexus Browser Extension for Hub Connectivity",
   "scripts": {
     "build": "echo \"stub package\"",
