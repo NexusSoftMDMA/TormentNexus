@@ -18,12 +18,12 @@ var Client = http.DefaultClient
 // HandleSearchRank implements a tool to search for a term and return a mock ranking result.
 // It simulates fetching data from an external source.
 func HandleSearchRank(ctx context.Context, args map[string]interface{}) (ToolResponse, error) {
-	query, _ :=getString(args, "query")
+	query, _ := getString(args, "query")
 	if query == "" {
 		return err("query parameter is required")
-}
+	}
 
-	limit, _ :=getInt(args, "limit")
+	limit, _ := getInt(args, "limit")
 	if limit == 0 {
 		limit = 10
 	}
@@ -40,19 +40,19 @@ func HandleSearchRank(ctx context.Context, args map[string]interface{}) (ToolRes
 	req, reqErr := http.NewRequestWithContext(ctx, "GET", targetURL, nil)
 	if reqErr != nil {
 		return err(fmt.Sprintf("failed to create request: %v", reqErr))
-}
+	}
 
 	resp, fetchErr := Client.Do(req)
 	if fetchErr != nil {
 		return err(fmt.Sprintf("failed to fetch data: %v", fetchErr))
-}
+	}
 
 	defer resp.Body.Close()
 
 	body, readErr := io.ReadAll(resp.Body)
 	if readErr != nil {
 		return err(fmt.Sprintf("failed to read response body: %v", readErr))
-}
+	}
 
 	// Simulate parsing logic
 	result := fmt.Sprintf("Search results for '%s' (limit %d): %s", query, limit, string(body))
@@ -61,7 +61,7 @@ func HandleSearchRank(ctx context.Context, args map[string]interface{}) (ToolRes
 
 // HandleGetStats implements a tool to retrieve mock statistics.
 func HandleGetStats(ctx context.Context, args map[string]interface{}) (ToolResponse, error) {
-	category, _ :=getString(args, "category")
+	category, _ := getString(args, "category")
 	if category == "" {
 		category = "general"
 	}
@@ -77,19 +77,19 @@ func HandleGetStats(ctx context.Context, args map[string]interface{}) (ToolRespo
 	jsonData, marshalErr := json.Marshal(stats)
 	if marshalErr != nil {
 		return err(fmt.Sprintf("failed to marshal stats: %v", marshalErr))
-}
+	}
 
 	return ok(string(jsonData))
 }
 
 // HandleCheckStatus implements a tool to check the status of a specific item.
 func HandleCheckStatus(ctx context.Context, args map[string]interface{}) (ToolResponse, error) {
-	itemID, _ :=getString(args, "id")
+	itemID, _ := getString(args, "id")
 	if itemID == "" {
 		return err("id parameter is required")
-}
+	}
 
-	verbose, _ :=getBool(args, "verbose")
+	verbose, _ := getBool(args, "verbose")
 
 	status := "active"
 	if strings.HasPrefix(itemID, "inactive_") {
@@ -106,7 +106,7 @@ func HandleCheckStatus(ctx context.Context, args map[string]interface{}) (ToolRe
 
 // HandleListItems implements a tool to list items with optional sorting.
 func HandleListItems(ctx context.Context, args map[string]interface{}) (ToolResponse, error) {
-	sortOrder, _ :=getString(args, "sort")
+	sortOrder, _ := getString(args, "sort")
 	if sortOrder == "" {
 		sortOrder = "asc"
 	}

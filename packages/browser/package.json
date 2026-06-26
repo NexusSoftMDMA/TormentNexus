@@ -1,6 +1,6 @@
 {
   "name": "@tormentnexus/browser-legacy",
-  "version": "1.0.0-alpha.161",
+  "version": "1.0.0-alpha.162",
   "scripts": {
     "build": "echo \"stub package\""
   },

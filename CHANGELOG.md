@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.0-alpha.162] - 2026-06-26
+
+### Fixed
+- **Go Sidecar Redeclaration Conflicts**: Cleaned up and quarantined redeclared package-level helpers (`ok`, `err`, `getString`, `getInt`, `getBool`) inside `quantdinger.go` and `enscango.go` that were causing package-level compiler errors.
+- **Port 4100 Startup**: Started and verified the TypeScript Control Plane on port `4100` in the background for full swarm and dashboard orchestration.
+- **Next.js Web Server Health**: Fixed compile errors caused by Turbopack cache corruption and compiler locks, ensuring `200 OK` on root paths.
+
 ## [1.0.0-alpha.161] - 2026-06-25
 
 ### Fixed

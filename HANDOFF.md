@@ -1,3 +1,45 @@
+# HANDOFF — Session 2026-06-26 R2 (Server Error Resolution & TS Control Plane Activation)
+
+## Summary
+
+Successfully resolved the `Internal Server Error` on port 3000, fixed compile-breaking helper redeclaration conflicts in the Go sidecar, started the TypeScript Control Plane on port 4100, and verified the entire TormentNexus service stack is running and healthy under watchdog monitoring. Bumped the version to `1.0.0-alpha.162`.
+
+### What was done
+
+1. **Next.js & Dashboard Parity**:
+   - Cleaned up the Turbopack build cache and resolved staleness issues, ensuring `http://localhost:3000/` successfully redirects (307) and serves the `/dashboard` home view (200 OK).
+   - Validated Next.js dev server status and tested HTTP headers.
+
+2. **Go Sidecar Compilation Fixes**:
+   - Quarantined and deleted `quantdinger.go` and `enscango.go` from `go/internal/tools` which had conflicting package-level helper definitions (`getString`, `ok`, `err`). Reset their statuses to `'pending'` in `data/assimilation_state.db`.
+   - Verified that the Go sidecar compiles 100% cleanly and restarted the daemon (`task-2160`) on port `7778`.
+
+3. **TypeScript Control Plane Activation**:
+   - Launched the TypeScript control plane on port `4100` (`task-2206`).
+   - Verified health response: `http://localhost:4100/health` returns `200 OK` (with `mcpReady: true`).
+
+4. **Watchdog Monitoring**:
+   - Tail-inspected `data/watchdog.log` to verify that all primary stack workers (`ts_control_plane`, `go_sidecar`, `dashboard`, `swarm`, `bobbybookmarks_sync`, `trends_analyzer`, and `freellm_proxy`) are fully online, healthy, and recognized by the daemon.
+
+5. **Version Governance**:
+   - Bumped the version from `1.0.0-alpha.161` to `1.0.0-alpha.162` in the `VERSION` file.
+   - Synchronized all 35 packages across the monorepo workspace.
+
+### Current State
+
+- **Monorepo Version**: `1.0.0-alpha.162`
+- **Go Sidecar Status**: ✅ Clean compilation, running on port `7778` (`task-2160`).
+- **Dashboard Web UI**: ✅ Dev server running on port `3000` (`task-2046`).
+- **TS Control Plane**: ✅ Server running on port `4100` (`task-2206`).
+- **Watchdog Status**: ✅ Active, reporting all workers as `OK`.
+
+### Next Agent Instructions
+
+- Monitor daemon logs (`data/watchdog.log`) to confirm the code generator swarm (`swarm_v7.py`) successfully regenerates the reset tools without repeating helper redeclarations.
+- Run smoke tests or unit tests to verify Go-native endpoints.
+
+---
+
 # HANDOFF — Session 2026-06-26 (Go Parity & Trigger Hardening — Verified)
 
 ## Summary

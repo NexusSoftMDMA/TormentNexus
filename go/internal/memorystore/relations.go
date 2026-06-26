@@ -161,10 +161,10 @@ func (rs *RelationStore) Traverse(ctx context.Context, startID string, maxDepth 
 
 		if current.depth > 0 {
 			results = append(results, TraversalNode{
-				ID:        current.id,
-				Depth:     current.depth,
-				RelType:   current.rel,
-				Weight:    current.weight,
+				ID:      current.id,
+				Depth:   current.depth,
+				RelType: current.rel,
+				Weight:  current.weight,
 			})
 		}
 
