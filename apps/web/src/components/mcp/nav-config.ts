@@ -20,6 +20,8 @@ import {
 	Rocket,
 	Wrench,
 	Download,
+	GitBranch,
+	BookOpen,
 } from "lucide-react";
 
 export interface NavItem {
@@ -123,6 +125,18 @@ export const OPERATIONS_NAV: NavItem[] = [
 		title: "Command Console",
 		href: "/dashboard/command",
 		icon: Terminal,
+		variant: "ghost",
+	},
+	{
+		title: "Git Chronicle",
+		href: "/dashboard/chronicle",
+		icon: GitBranch,
+		variant: "ghost",
+	},
+	{
+		title: "User Manual",
+		href: "/dashboard/manual",
+		icon: BookOpen,
 		variant: "ghost",
 	},
 	{
