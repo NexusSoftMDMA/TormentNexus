@@ -39,6 +39,7 @@ func sharedTRPCClient() *http.Client {
 }
 
 var defaultTRPCBases = []string{
+	"http://127.0.0.1:7787/trpc",
 	"http://127.0.0.1:7779/trpc",
 	"http://127.0.0.1:4000/trpc",
 	"http://127.0.0.1:3847/trpc",

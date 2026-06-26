@@ -58,6 +58,7 @@ import (
 	"github.com/tormentnexushq/tormentnexus-go/internal/repograph"
 	"github.com/tormentnexushq/tormentnexus-go/internal/session"
 	"github.com/tormentnexushq/tormentnexus-go/internal/skillregistry"
+	"github.com/tormentnexushq/tormentnexus-go/internal/gossip"
 	"github.com/tormentnexushq/tormentnexus-go/internal/toolregistry"
 	"github.com/tormentnexushq/tormentnexus-go/internal/workspaces"
 	"github.com/tormentnexushq/tormentnexus-go/internal/systray"
@@ -173,6 +174,9 @@ type Server struct {
 	healerService    *healer.HealerService
 	cacheService     *cache.Cache
 	repoGraph        *repograph.RepoGraphService
+	gossipProtocol   *gossip.Protocol
+	gossipTransport  *HTTPGossipTransport
+	discoveryService *mesh.DiscoveryService
 
 	// Phase 113 — conversational tool injection
 	conversationalPredictor *mcp.ConversationalPredictor
@@ -586,6 +590,37 @@ func New(cfg config.Config, detector controlplane.ToolProvider) *Server {
 	server.memoryArchiver = memorystore.NewMemoryArchiver(cfg.WorkspaceRoot, memoryVS)
 	server.importCache = newImportScanCache()
 
+	// Initialize Gossip and UDP Discovery
+	nodeID := server.mesh.LocalNodeID()
+	discovery := mesh.NewDiscoveryService(nodeID, cfg.Port, []string{"memory-status", "gossip-sync"}, mesh.DefaultDiscoveryConfig())
+	server.discoveryService = discovery
+	if err := discovery.Start(context.Background()); err == nil {
+		transport := NewHTTPGossipTransport(nodeID, discovery)
+		server.gossipTransport = transport
+		adapter := memorystore.NewGossipStoreAdapter(memoryVS)
+		gConfig := gossip.DefaultConfig()
+		gConfig.NodeID = nodeID
+		if proto, errProto := gossip.NewProtocol(gConfig, transport, adapter); errProto == nil {
+			server.gossipProtocol = proto
+			_ = proto.Start(context.Background())
+			fmt.Printf("[Gossip] Started P2P memory sync as node %s\n", nodeID)
+
+			// Start periodic peer registration from discovery
+			go func() {
+				ticker := time.NewTicker(10 * time.Second)
+				for range ticker.C {
+					for _, p := range discovery.Peers() {
+						proto.AddPeer(p.NodeID)
+					}
+				}
+			}()
+		} else {
+			fmt.Printf("[Gossip] Failed to start protocol: %v\n", errProto)
+		}
+	} else {
+		fmt.Printf("[Gossip] Failed to start discovery: %v\n", err)
+	}
+
 	// Initialize Enterprise Security Wrapper (with placeholder provider)
 	server.auditor = enterprise.NewAuditor(cfg.WorkspaceRoot)
 	server.enterpriseWrapper = enterprise.NewEnterpriseWrapper(enterprise.NewSimpleRBACProvider())
@@ -593,6 +628,30 @@ func New(cfg config.Config, detector controlplane.ToolProvider) *Server {
 	server.eventBus.OnGlobal(func(ev eventbus.SystemEvent) {
 		if data, err := json.Marshal(ev); err == nil {
 			GlobalSSEBroker.Broadcast(data)
+		}
+
+		if ev.Type == "memory:created" || ev.Type == "memory:updated" {
+			if server.gossipProtocol != nil {
+				var memID string
+				if m, ok := ev.Payload.(map[string]any); ok {
+					if id, ok := m["id"].(string); ok {
+						memID = id
+					}
+				} else if id, ok := ev.Payload.(string); ok {
+					memID = id
+				}
+				if memID != "" {
+					go func() {
+						ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+						defer cancel()
+						adapter := memorystore.NewGossipStoreAdapter(memoryVS)
+						entries, err := adapter.GetEntries(ctx, []string{memID})
+						if err == nil && len(entries) > 0 {
+							_ = server.gossipProtocol.BroadcastUpdate(ctx, entries)
+						}
+					}()
+				}
+			}
 		}
 	})
 	server.a2aBroker.SetEventBus(&eventBusAdapter{server.eventBus})
@@ -636,6 +695,9 @@ func New(cfg config.Config, detector controlplane.ToolProvider) *Server {
 	server.workflowEngine.Register(workflow.SubmoduleSyncWorkflow(cfg.WorkspaceRoot))
 	server.workflowEngine.Register(workflow.LintAndTestWorkflow(cfg.WorkspaceRoot))
 	server.workflowEngine.Register(workflow.LifecycleWorkflow(cfg.WorkspaceRoot, server.toolsRegistry))
+
+	// Start background prompt evolution loop
+	skillregistry.StartPromptEvolutionLoop(context.Background(), memoryVS.DB(), 12*time.Hour)
 
 	server.StartWSBroker()
 	server.registerRoutes()
@@ -846,6 +908,7 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("/api/memory/spaced-repetition/due", s.handleMemorySpacedRepetitionDue)
 	s.mux.HandleFunc("/api/memory/spaced-repetition/review", s.handleMemorySpacedRepetitionReview)
 	s.mux.HandleFunc("/api/code/exec", s.handleCodeExec)
+	s.mux.HandleFunc("/api/gossip/message", s.handleGossipMessage)
 
 	s.mux.HandleFunc("/api/protocol/tormentnexus", s.handleTormentNexusProtocol)
 

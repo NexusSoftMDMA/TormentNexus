@@ -716,6 +716,24 @@ func (s *Server) mergeAccessoryTools(toolsList []map[string]any) []map[string]an
 				desc = "Analyze tool usage telemetry and propose code repairs"
 			case "run_dag":
 				desc = "Execute a structured DAG task flow"
+			case "memory_scratchpad_get":
+				desc = "Retrieve a value from the core memory scratchpad (e.g. 'persona' or 'human')"
+				properties["key"] = map[string]any{"type": "string", "description": "Key to retrieve"}
+				required = []string{"key"}
+			case "memory_scratchpad_set":
+				desc = "Write/overwrite a value in the core memory scratchpad"
+				properties["key"] = map[string]any{"type": "string", "description": "Key to set"}
+				properties["value"] = map[string]any{"type": "string", "description": "Content/value to write"}
+				required = []string{"key", "value"}
+			case "memory_scratchpad_append":
+				desc = "Append text to an existing core memory scratchpad value"
+				properties["key"] = map[string]any{"type": "string", "description": "Key to append to"}
+				properties["value"] = map[string]any{"type": "string", "description": "Content/text to append"}
+				required = []string{"key", "value"}
+			case "memory_extract_relations":
+				desc = "Extract entities and relationships from a text block and store them in the graph RelationStore"
+				properties["text"] = map[string]any{"type": "string", "description": "Text block to extract relations from"}
+				required = []string{"text"}
 			}
 
 			inputSchema := map[string]any{

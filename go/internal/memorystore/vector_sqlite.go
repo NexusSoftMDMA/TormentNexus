@@ -72,6 +72,11 @@ func NewVectorStore(dbPath string) (*VectorStore, error) {
 		return nil, fmt.Errorf("failed to init spaced repetition schema: %w", err)
 	}
 
+	if err := InitScratchpad(db); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("failed to init scratchpad schema: %w", err)
+	}
+
 	// Backfill existing memories into FTS table if needed
 	_, _ = db.Exec("INSERT INTO l2_vault_fts(id, content) SELECT id, content FROM l2_vault WHERE id NOT IN (SELECT id FROM l2_vault_fts)")
 
@@ -105,6 +110,10 @@ func (s *VectorStore) Close() error {
 		_ = s.coldArchive.Close()
 	}
 	return s.db.Close()
+}
+
+func (s *VectorStore) DB() *sql.DB {
+	return s.db
 }
 
 func (s *VectorStore) Commit(ctx context.Context, entry controlplane.L2VaultRecord) error {

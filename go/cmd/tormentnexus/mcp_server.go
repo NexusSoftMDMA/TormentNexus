@@ -171,6 +171,7 @@ type TextContent struct {
 
 type ToolResult struct {
 	Content []TextContent `json:"content"`
+	IsError bool          `json:"isError,omitempty"`
 }
 
 // ─── MCP Server ───
@@ -195,6 +196,53 @@ func (s *MCPServer) registerTools() {
 
 	// Core tools (always available)
 	s.tools = []ToolDefinition{
+		// ── Letta Core Memory Scratchpad & Cognee Relation Extraction ──
+		{
+			Name:        "memory_scratchpad_get",
+			Description: "Retrieve a value from the core memory scratchpad (e.g. 'persona' or 'human')",
+			InputSchema: InputSchema{
+				Type: "object",
+				Properties: map[string]PropertySchema{
+					"key": {Type: "string", Description: "Key to retrieve"},
+				},
+				Required: []string{"key"},
+			},
+		},
+		{
+			Name:        "memory_scratchpad_set",
+			Description: "Write/overwrite a value in the core memory scratchpad",
+			InputSchema: InputSchema{
+				Type: "object",
+				Properties: map[string]PropertySchema{
+					"key":   {Type: "string", Description: "Key to set"},
+					"value": {Type: "string", Description: "Content/value to write"},
+				},
+				Required: []string{"key", "value"},
+			},
+		},
+		{
+			Name:        "memory_scratchpad_append",
+			Description: "Append text to an existing core memory scratchpad value",
+			InputSchema: InputSchema{
+				Type: "object",
+				Properties: map[string]PropertySchema{
+					"key":   {Type: "string", Description: "Key to append to"},
+					"value": {Type: "string", Description: "Content/text to append"},
+				},
+				Required: []string{"key", "value"},
+			},
+		},
+		{
+			Name:        "memory_extract_relations",
+			Description: "Extract entities and relationships from a text block and store them in the graph RelationStore",
+			InputSchema: InputSchema{
+				Type: "object",
+				Properties: map[string]PropertySchema{
+					"text": {Type: "string", Description: "Text block to extract relations from"},
+				},
+				Required: []string{"text"},
+			},
+		},
 		// ── Process Management ──
 		{
 			Name:        "list_processes",
@@ -574,6 +622,8 @@ func (s *MCPServer) callTool(name string, args map[string]any) ToolResult {
 		}
 		data, _ := json.MarshalIndent(names, "", "  ")
 		return ToolResult{Content: []TextContent{{Type: "text", Text: string(data)}}}
+	case "memory_scratchpad_get", "memory_scratchpad_set", "memory_scratchpad_append", "memory_extract_relations":
+		return goSidecarCallNativeTool(s.goSidecarURL, name, args)
 	default:
 		// 1. Try root registry tools first
 		if s.rootRegistry != nil {
@@ -738,6 +788,38 @@ func goSidecarGetRaw(url string) (string, error) {
 	defer resp.Body.Close()
 	data, _ := io.ReadAll(resp.Body)
 	return string(data), nil
+}
+
+func goSidecarCallNativeTool(baseURL string, name string, args map[string]any) ToolResult {
+	payload := map[string]any{
+		"name":      name,
+		"arguments": args,
+	}
+	body, _ := json.Marshal(payload)
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Post(baseURL+"/api/agent/tool", "application/json", strings.NewReader(string(body)))
+	if err != nil {
+		return ToolResult{Content: []TextContent{{Type: "text", Text: fmt.Sprintf("Error calling native tool: %v", err)}}}
+	}
+	defer resp.Body.Close()
+
+	var result struct {
+		Success bool       `json:"success"`
+		Error   string     `json:"error"`
+		Data    ToolResult `json:"data"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return ToolResult{Content: []TextContent{{Type: "text", Text: fmt.Sprintf("Error decoding response: %v", err)}}}
+	}
+
+	if !result.Success {
+		return ToolResult{
+			Content: []TextContent{{Type: "text", Text: fmt.Sprintf("Tool error: %s", result.Error)}},
+			IsError: true,
+		}
+	}
+
+	return result.Data
 }
 
 func goSidecarCallTool(baseURL string, args map[string]any) ToolResult {

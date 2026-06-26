@@ -7,23 +7,10 @@ import { Menu } from "lucide-react";
 import { useState } from "react";
 
 const NAV_ITEMS = [
-    { href: '/', label: 'Mission Control', color: 'hover:text-blue-500', activeColor: 'text-blue-500' },
+    { href: '/dashboard?tab=home', label: 'Mission Control', color: 'hover:text-blue-500', activeColor: 'text-blue-500' },
+    { href: '/dashboard/mcp', label: 'MCP Registry', color: 'hover:text-teal-500', activeColor: 'text-teal-500' },
+    { href: '/dashboard/swarm', label: 'Agent Swarm', color: 'hover:text-purple-500', activeColor: 'text-purple-500' },
     { href: '/docs', label: 'Documentation', color: 'hover:text-blue-100', activeColor: 'text-blue-500' },
-    { href: '/dashboard/council', label: 'Council', color: 'hover:text-purple-500', activeColor: 'text-purple-500' },
-    { href: '/dashboard/director', label: 'Director', color: 'hover:text-amber-500', activeColor: 'text-amber-500' },
-    { href: '/dashboard/research', label: 'Deep Research', color: 'hover:text-cyan-500', activeColor: 'text-cyan-500' },
-    { href: '/dashboard/skills', label: 'Skills', color: 'hover:text-green-500', activeColor: 'text-green-500' },
-    { href: '/dashboard/library', label: 'Library', color: 'hover:text-indigo-500', activeColor: 'text-indigo-500' },
-    { href: '/dashboard/reader', label: 'Reader', color: 'hover:text-orange-500', activeColor: 'text-orange-500' },
-    { href: '/dashboard/command', label: 'Command Center', color: 'hover:text-red-500', activeColor: 'text-red-500' },
-    { href: '/dashboard/inspector', label: 'Traffic', color: 'hover:text-yellow-500', activeColor: 'text-yellow-500' },
-    { href: '/dashboard/security', label: 'Security', color: 'hover:text-orange-600', activeColor: 'text-orange-600' },
-    { href: '/dashboard/chronicle', label: 'Chronicle', color: 'hover:text-purple-400', activeColor: 'text-purple-400' },
-    { href: '/dashboard/squads', label: 'Squads', color: 'hover:text-blue-400', activeColor: 'text-blue-400' },
-    { href: '/dashboard/submodules', label: 'Submodules', color: 'hover:text-cyan-500', activeColor: 'text-cyan-500' },
-    { href: '/dashboard/mcp', label: 'MCP', color: 'hover:text-teal-500', activeColor: 'text-teal-500' },
-    { href: '/dashboard/workshop', label: 'Workshop', color: 'hover:text-pink-500', activeColor: 'text-pink-500' },
-    { href: '/dashboard/settings', label: 'Settings', color: 'hover:text-slate-500', activeColor: 'text-slate-500' },
 ];
 
 interface NavigationProps {

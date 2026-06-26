@@ -32,6 +32,7 @@ func DefaultServiceDiscovery() ServiceDiscovery {
 	sd := ServiceDiscovery{
 		GoSidecarPort: 4300,
 		TRPCUpstreamURLs: []string{
+			"http://127.0.0.1:7787/trpc",
 			"http://127.0.0.1:7779/trpc",
 			"http://127.0.0.1:4000/trpc",
 			"http://127.0.0.1:3847/trpc",

@@ -15,7 +15,7 @@ interface ToolInfo {
  */
 export async function GET() {
 	const GO_SIDECAR =
-		process.env.TORMENTNEXUS_GO_SIDECAR_URL || "http://127.0.0.1:4300";
+		process.env.TORMENTNEXUS_GO_SIDECAR_URL || "http://127.0.0.1:7778";
 
 	// Try the live sidecar first
 	try {

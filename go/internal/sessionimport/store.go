@@ -616,7 +616,7 @@ func (s *ImportedSessionStore) scanImportedSessionRow(ctx context.Context, db *s
 		transcriptStoredBytes         sql.NullInt64
 		discoveredAt                  int64
 		importedAt                    int64
-		lastModifiedAt                sql.NullInt64
+		lastModifiedAtFloat           sql.NullFloat64
 		createdAt                     int64
 		updatedAt                     int64
 	)
@@ -624,12 +624,16 @@ func (s *ImportedSessionStore) scanImportedSessionRow(ctx context.Context, db *s
 		&id, &sourceTool, &sourcePath, &externalSessionID, &title, &sessionFormat, &transcriptInline, &excerpt,
 		&workingDirectory, &transcriptHash, &normalizedSessionRaw, &metadataRaw, &transcriptArchivePath,
 		&transcriptMetadataArchivePath, &transcriptArchiveFormat, &transcriptStoredBytes,
-		&discoveredAt, &importedAt, &lastModifiedAt, &createdAt, &updatedAt,
+		&discoveredAt, &importedAt, &lastModifiedAtFloat, &createdAt, &updatedAt,
 	); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil
 		}
 		return nil, err
+	}
+	lastModifiedAt := sql.NullInt64{
+		Int64: int64(lastModifiedAtFloat.Float64),
+		Valid: lastModifiedAtFloat.Valid,
 	}
 	transcript := transcriptInline
 	if strings.TrimSpace(transcript) == "" && transcriptArchivePath.Valid {

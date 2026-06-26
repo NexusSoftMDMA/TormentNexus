@@ -1,0 +1,21 @@
+{
+  "$schema": "https://wails.io/schemas/config.v2.json",
+  "name": "tormentnexus",
+  "outputfilename": "tormentnexus-gui",
+  "frontend:dir": "apps/web",
+  "frontend:install": "pnpm install",
+  "frontend:build": "pnpm build",
+  "frontend:dev:watcher": "pnpm dev",
+  "frontend:dev:serverUrl": "http://localhost:3000",
+  "author": {
+    "name": "TormentNexus Team",
+    "email": "dev@tormentnexus.org"
+  },
+  "info": {
+    "companyName": "TormentNexus",
+    "productName": "TormentNexus",
+    "productVersion": "1.0.0",
+    "copyright": "Copyright 2026",
+    "comments": "Go-native desktop harness"
+  }
+}

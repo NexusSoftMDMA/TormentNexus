@@ -33,7 +33,7 @@ from pathlib import Path
 PROXY_URL = os.environ.get("SWARM_PROXY", "http://localhost:4000/api/proxy")
 PROXY_KEY = os.environ.get("SWARM_KEY", "sk-freellm")
 PROXY_BIN = os.environ.get(
-    "SWARM_PROXY_BIN", "C:/Users/hyper/workspace/litellm_control_panel/freellm.exe"
+    "SWARM_PROXY_BIN", "C:/Users/hyper/workspace/freellm/freellm.exe"
 )
 WORKSPACE = Path(
     os.environ.get("SWARM_WORKSPACE", "C:/Users/hyper/workspace/tormentnexus")
@@ -464,15 +464,16 @@ class ProxyManager:
         self._healthy = True
 
     def check(self):
-        try:
-            import urllib.request
-
-            with urllib.request.urlopen(f"{PROXY_URL}/v1/models", timeout=10) as r:
-                if r.status == 200:
-                    self._healthy = True
-                    return True
-        except:
-            pass
+        for attempt in range(3):
+            try:
+                import urllib.request
+                with urllib.request.urlopen(f"{PROXY_URL}/v1/models", timeout=5) as r:
+                    if r.status == 200:
+                        self._healthy = True
+                        return True
+            except:
+                if attempt < 2:
+                    time.sleep(2)
         self._healthy = False
         return False
 
@@ -480,18 +481,20 @@ class ProxyManager:
         log.stat("Restarting proxy...")
         try:
             subprocess.run(
-                ["taskkill", "//F", "//IM", "freellm.exe"],
+                ["taskkill", "/F", "/IM", "freellm.exe"],
                 capture_output=True,
                 timeout=10,
                 creationflags=subprocess.CREATE_NO_WINDOW,
             )
-        except:
-            pass
-        time.sleep(15)
+        except Exception as e:
+            log.warn(f"taskkill failed: {e}")
+        time.sleep(5)
         try:
-            d = str(Path(PROXY_BIN).parent)
+            normalized_bin = os.path.normpath(PROXY_BIN)
+            d = os.path.dirname(normalized_bin)
+            log.stat(f"Spawning proxy: {normalized_bin} in cwd: {d}")
             subprocess.Popen(
-                [PROXY_BIN],
+                [normalized_bin],
                 cwd=d,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,

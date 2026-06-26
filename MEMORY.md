@@ -1,5 +1,16 @@
 # MEMORY.md — Multi-Agent Observations
 
+## Session 2026-06-26 (tRPC Upstream Alignment & Wails GUI App Skeleton)
+
+### tRPC Upstream Base Alignment
+- **Port Matching Accuracy**: When configuring Service Discovery, default upstream tRPC urls must target the active TS control plane daemon port (e.g., `7787`) rather than the frontend port (e.g., `7779`). Incorrect port mapping causes Go-to-TS interop calls to timeout or receive 502/refused responses.
+
+### Wails GUI App Bootstrap
+- **Embedded Asset Targets**: When using `//go:embed` for frontend directories in Wails, the target folder must exist and contain at least one file. Seeding a simple `placeholder.txt` inside `frontend/dist` prevents Go compiler failures during early skeleton design.
+
+### Tool Code Hygiene
+- **Unused/Experimental Code Quarantine**: Auto-generated tools that are unregistered and contain compilation/redeclaration errors should be moved or renamed to `.bak` to keep compiler paths clean and block-free for active targets.
+
 ## Session 2026-06-26 (L3 Cold Archive Integration & SQLite Timestamp Formatting)
 
 ### Memory Tiering & Cache Heuristics

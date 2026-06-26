@@ -41,7 +41,7 @@ const child = spawn(process.execPath, [standaloneServer], {
     ...process.env,
     PORT: String(port),
     HOSTNAME: host,
-    TORMENTNEXUS_TRPC_UPSTREAM: process.env.TORMENTNEXUS_TRPC_UPSTREAM || 'http://127.0.0.1:4100/trpc',
+    TORMENTNEXUS_TRPC_UPSTREAM: process.env.TORMENTNEXUS_TRPC_UPSTREAM || 'http://127.0.0.1:7787/trpc',
   },
 });
 

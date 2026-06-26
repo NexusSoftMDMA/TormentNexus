@@ -98,6 +98,10 @@ func NewRegistry() *Registry {
 	r.Register("post", HandlePost)
 	r.Register("browser_action", HandleBrowserAction)
 	r.Register("evolve", HandleEvolve)
+	r.Register("memory_scratchpad_get", HandleMemoryScratchpadGet)
+	r.Register("memory_scratchpad_set", HandleMemoryScratchpadSet)
+	r.Register("memory_scratchpad_append", HandleMemoryScratchpadAppend)
+	r.Register("memory_extract_relations", HandleMemoryExtractRelations)
 	return r
 }
 

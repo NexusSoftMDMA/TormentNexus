@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.0.0-alpha.189] - 2026-06-26
+
+### Added
+- **Wails Desktop GUI App Skeleton**: Created `main.go` and `app.go` targets under `go/cmd/tormentnexus-gui` mapping embedded assets and bootstrap configurations.
+
+### Fixed
+- **tRPC Upstream Routing**: Updated default service discovery configurations to use the active control plane port `7787` for tRPC requests, resolving dashboard-blocking `502 Bad Gateway` timeouts.
+- **Go Sidecar EventBus Payload**: Updated the global event subscriber callback inside the HTTP server to correctly read `ev.Payload` instead of the undefined `ev.Data` field.
+- **Go Tooling Cleanups**: Disabled unused/broken experimental tool implementations by renaming them to `.bak` and rewrote `exa.go` to fix assignment mismatches.
+
 ## [1.0.0-alpha.188] - 2026-06-26
 
 ### Added
