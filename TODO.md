@@ -27,12 +27,12 @@ _Last updated: 2026-06-17, version 1.0.0-alpha.132_
 
 ## P2 — Enterprise Readiness & Security
 - [x] **License Validation**: Implement Ed25519 license token validation in Go sidecar. (Verified alpha.127)
-- [ ] **Compliance Boundary**: Separate SSO/RBAC/Audit logic into enterprise wrapper.
+- [x] **Compliance Boundary**: Separate SSO/RBAC/Audit logic into enterprise wrapper.
 - [x] **Enterprise Security**: SSO/RBAC middleware and JSONL auditing added from jules merge. (alpha.132)
 - [x] **Autonomous CI/CD**: `deployment_manager`, `health_monitor`, `repository_healer` added from jules merge. (alpha.132)
 
 ## P3 — Future Enhancements
-- [ ] **Skill Evolution**: With ~3,000+ skills loaded, implement win-rate tracking, auto-retirement of low-performing skills, and `/evolve` command.
+- [x] **Skill Evolution**: With ~3,000+ skills loaded, implement win-rate tracking, auto-retirement of low-performing skills, and `/evolve` command.
 - [ ] **Catalog DB Sync**: Index new skills into `catalog.db` for unified search.
 - [ ] **Submodule Removal**: Systematic removal of redundant submodules after native reimplementation.
 - [ ] **P2P Memory**: Implement gossip protocol for decentralized context sharing.

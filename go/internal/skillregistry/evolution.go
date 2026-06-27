@@ -10,6 +10,12 @@ import (
 )
 
 // SkillEvolutionRecord tracks the performance of a specific skill version
+// Evolution Config
+const (
+	MinUsesForRetirement = 5
+	RetirementThreshold  = 0.3 // < 30% win rate gets retired
+)
+
 type SkillEvolutionRecord struct {
 	SkillID    string    `json:"skillId"`
 	Version    int       `json:"version"`
@@ -40,11 +46,31 @@ func (ds *SkillDecisionSystem) RecordOutcome(skillID string, success bool) {
 	skill.UseCount++
 	skill.LastUsedAt = time.Now()
 
+	// Update evolution metrics directly on the loaded skill struct assuming we add these fields
+	if success {
+		skill.Successes++
+	} else {
+		skill.Failures++
+	}
+
+	// Auto-retirement check
+	total := skill.Successes + skill.Failures
+	if total >= MinUsesForRetirement {
+		winRate := float64(skill.Successes) / float64(total)
+		if winRate < RetirementThreshold {
+			fmt.Printf("[Evolution] Auto-retiring skill %s due to low win rate (%.2f)\n", id, winRate)
+			// Retire the skill
+			skill.IsRetired = true
+			ds.registry.Unregister(skill.Name)
+			delete(ds.loaded, id)
+			return
+		}
+	}
+
 	// In a real impl, this would persist to a SkillEvolution table in SQLite
 	fmt.Printf("[Evolution] Skill %s outcome recorded: success=%v\n", id, success)
 }
 
-// EvolveSkill uses an LLM to mutate a skill's content based on its performance history
 func (ds *SkillDecisionSystem) EvolveSkill(ctx context.Context, skillID string, feedback string) error {
 	skill, ok := ds.registry.Get(skillID)
 	if !ok {

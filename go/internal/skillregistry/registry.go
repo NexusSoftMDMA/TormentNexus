@@ -262,3 +262,9 @@ func (sr *SkillRegistry) calculateSkillScore(queryTokens []string, skill *SkillI
 
 	return score, breakdown, strings.Join(uniqueReasons, "; ")
 }
+
+func (sr *SkillRegistry) Unregister(name string) {
+	sr.mu.Lock()
+	defer sr.mu.Unlock()
+	delete(sr.skills, strings.ToLower(name))
+}
