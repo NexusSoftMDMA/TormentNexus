@@ -463,11 +463,21 @@ func (mm *MemoryManager) pruneTier(tier MemoryTier, maxCount int) int {
 
 	toRemove := len(ids) - maxCount
 	pruned := 0
+	var toArchive []*Memory
 	for i := 0; i < toRemove && i < len(scored); i++ {
 		id := scored[i].id
+		if mem, exists := mm.memories[id]; exists {
+			toArchive = append(toArchive, mem)
+		}
 		delete(mm.memories, id)
 		mm.byTier[tier] = removeFromSlice(mm.byTier[tier], id)
 		pruned++
+	}
+
+	if len(toArchive) > 0 {
+		// Flush to L3 archive
+		archive := NewL3Archive(filepath.Dir(filepath.Dir(mm.cfg.StorePath)))
+		go archive.Archive(toArchive)
 	}
 
 	return pruned
