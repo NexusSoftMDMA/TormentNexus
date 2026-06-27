@@ -34,7 +34,7 @@ _Last updated: 2026-06-17, version 1.0.0-alpha.132_
 ## P3 — Future Enhancements
 - [x] **Skill Evolution**: With ~3,000+ skills loaded, implement win-rate tracking, auto-retirement of low-performing skills, and `/evolve` command.
 - [x] **Catalog DB Sync**: Index new skills into `catalog.db` for unified search.
-- [ ] **Submodule Removal**: Systematic removal of redundant submodules after native reimplementation.
+- [x] **Submodule Removal**: Systematic removal of redundant submodules after native reimplementation.
 - [ ] **P2P Memory**: Implement gossip protocol for decentralized context sharing.
 - [ ] **L3 Cold Archive**: Implement long-term compressed memory tier for infinite context.
 - [ ] **Fleet-Wide Intelligence**: Cross-machine memory sharing via encrypted mesh.
