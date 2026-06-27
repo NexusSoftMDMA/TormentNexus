@@ -288,6 +288,7 @@ func AllHandlers() []RegistryEntry {
 		{Name: "HandleBrowserloop", Description: "Execute HandleBrowserloop", File: "browserloop.go"},
 		{Name: "HandleBrowserloopScreenshot", Description: "Execute HandleBrowserloopScreenshot", File: "browserloop.go"},
 		{Name: "HandleNavigate_browsermcp", Description: "Execute HandleNavigate_browsermcp", File: "browsermcp.go"},
+		{Name: "HandleBrowserUse_Navigate", Description: "Execute HandleBrowserUse_Navigate", File: "browser_use.go"},
 		{Name: "HandleCompareImages", Description: "Execute HandleCompareImages", File: "bruniai_mcp_server.go"},
 		{Name: "HandleAnalyzeImage_bruniai_mcp_server", Description: "api.bruniai.com/v1/compare', bytes.NewReader(body))", File: "bruniai_mcp_server.go"},
 		{Name: "CreateWorkspace", Description: "Execute CreateWorkspace", File: "brxce_mcp_server.go"},

@@ -3044,6 +3044,7 @@ var dispatchMap = map[string]func(ctx context.Context, args map[string]interface
 	"HandleNasdaqDataLinkGetData": HandleNasdaqDataLinkGetData, // from nasdaq_data_link_mcp.go
 	"HandleNasdaqDataLinkGetMetadata": HandleNasdaqDataLinkGetMetadata, // from nasdaq_data_link_mcp.go
 	"HandleNavigate_browsermcp": HandleNavigate_browsermcp, // from browsermcp.go
+	"HandleBrowserUse_Navigate": HandleBrowserUse_Navigate, // from browser_use.go
 	"HandleNavigate_puppeteer_mcp_claude": HandleNavigate_puppeteer_mcp_claude, // from puppeteer_mcp_claude.go
 	"HandleNavigate_skyvern": HandleNavigate_skyvern, // from skyvern.go
 	"HandleNavigate_touch_browser": HandleNavigate_touch_browser, // from touch_browser.go

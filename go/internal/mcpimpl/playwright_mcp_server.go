@@ -21,5 +21,5 @@ func HandleValidateTest(ctx context.Context, args map[string]interface{}) (ToolR
 		return err("test is required")
 }
 
-	return success("test looks valid")
+	return ok("test looks valid")
 }
