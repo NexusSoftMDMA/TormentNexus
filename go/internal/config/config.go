@@ -17,7 +17,7 @@ type Config struct {
 func Default() Config {
 	return Config{
 		Host:          "127.0.0.1",
-		Port:          4300,
+		Port:          7778,
 		ConfigDir:     DefaultConfigDir(),
 		MainConfigDir: DefaultMainConfigDir(),
 		WorkspaceRoot: DefaultWorkspaceRoot(),

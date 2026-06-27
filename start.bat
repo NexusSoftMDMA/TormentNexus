@@ -25,8 +25,8 @@ if "%SKIP_INSTALL%"=="1" (
     call pnpm install --ignore-scripts 2>nul || call pnpm install
 )
 
-REM -- 3. Start Go Sidecar on port 4300 --
-set GO_PORT=4300
+REM -- 3. Start TormentNexus Server on port 7778 --
+set GO_PORT=7778
 curl -s -o nul -w "%%{http_code}" http://127.0.0.1:%GO_PORT%/health > "%TEMP%\tormentnexus_go_check.txt" 2>nul
 set /p GO_CHECK=<"%TEMP%\tormentnexus_go_check.txt"
 if "!GO_CHECK!"=="200" (
