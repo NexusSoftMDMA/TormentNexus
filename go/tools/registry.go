@@ -42,7 +42,6 @@ func NewRegistry() *Registry {
 	r.registerIntegrationsTools()
 	r.registerBookmarkTools()
 	r.registerGUITools()
-	r.registerCloudOrchestratorTools()
 	r.registerSystemTools()
 	r.registerLlamafileTools()
 	return r

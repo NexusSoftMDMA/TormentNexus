@@ -1,7 +1,4 @@
 # All legacy submodules removed as they are fully redundant.
-[submodule "apps/cloud-orchestrator"]
-	path = apps/cloud-orchestrator
-	url = https://github.com/robertpelloni/jules-autopilot.git
 [submodule "apps/maestro"]
 	path = apps/maestro
 	url = https://github.com/robertpelloni/maestro.git

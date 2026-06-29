@@ -115,11 +115,9 @@ var (
 )
 
 func init() {
-	// Preload icons
-	hIcon1, _, _ := pLoadIcon.Call(0, uintptr(IDI_APPLICATION))
-	hNormalIcon = windows.Handle(hIcon1)
-	hIcon2, _, _ := pLoadIcon.Call(0, uintptr(IDI_WARNING))
-	hActivityIcon = windows.Handle(hIcon2)
+	// Preload programmatically generated robot icons
+	hNormalIcon = getNormalIcon()
+	hActivityIcon = getAlertIcon()
 }
 
 // Start launches the system tray helper and message loops

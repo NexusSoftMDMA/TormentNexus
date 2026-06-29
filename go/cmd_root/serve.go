@@ -85,8 +85,8 @@ var serveCmd = &cobra.Command{
 
 		api.Get("/manifest", func(c *fiber.Ctx) error {
 			return c.JSON(fiber.Map{
-				"id":      "cloud-orchestrator-node-1",
-				"name":    "Cloud Orchestrator (Go-Native)",
+				"id":      "tormentnexus-server",
+				"name":    "TormentNexus Server",
 				"version": "1.0.0",
 				"capabilities": []string{
 					"cloud_session_management",
