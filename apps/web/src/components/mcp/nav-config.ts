@@ -1,6 +1,7 @@
 import {
 	Server,
 	LayoutDashboard,
+	Database,
 	Globe,
 	Key,
 	Shield,
@@ -92,6 +93,12 @@ export const MAIN_DASHBOARD_NAV: NavItem[] = [
 		title: "Brain & Memory",
 		href: "/dashboard/swarm?tab=brain",
 		icon: Brain,
+		variant: "ghost",
+	},
+	{
+		title: "Memory Explorer",
+		href: "/dashboard/memory-search",
+		icon: Database,
 		variant: "ghost",
 	},
 	{
