@@ -65,9 +65,9 @@ func NewLimboVault(db *sql.DB) (*L4LimboVault, error) {
 // Bury moves a memory record into the limbo vault with a reason.
 func (v *L4LimboVault) Bury(ctx context.Context, record controlplane.L2VaultRecord, reason LimboReason) error {
 	meta, _ := json.Marshal(map[string]any{
-		"original_heat": record.HeatScore,
+		"original_heat":       record.HeatScore,
 		"original_importance": record.Importance,
-		"buried_at": time.Now().UTC().Format(time.RFC3339),
+		"buried_at":           time.Now().UTC().Format(time.RFC3339),
 	})
 	tier := "l2"
 	if record.Type == controlplane.MemoryArchive {

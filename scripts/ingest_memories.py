@@ -23,12 +23,21 @@ WORKSPACE = Path(__file__).resolve().parent.parent
 GO_SIDECAR = os.environ.get("TORMENTNEXUS_SIDECAR", "http://127.0.0.1:7778")
 
 SOURCE_DBS = [
-    ("TormentNexus sessions", WORKSPACE / "tormentnexus.db",
-     "SELECT uuid, imported_session_uuid, content, created_at FROM imported_session_memories ORDER BY created_at DESC"),
-    ("BobbyBookmarks atlas", WORKSPACE / "bobbybookmarks" / "atlas.db",
-     "SELECT rowid, page_title, short_description, created_at FROM entries ORDER BY created_at DESC"),
-    ("Local atlas", WORKSPACE / "data" / "atlas.db",
-     "SELECT rowid, page_title, short_description, created_at FROM entries ORDER BY created_at DESC"),
+    (
+        "TormentNexus sessions",
+        WORKSPACE / "tormentnexus.db",
+        "SELECT uuid, imported_session_uuid, content, created_at FROM imported_session_memories ORDER BY created_at DESC",
+    ),
+    (
+        "BobbyBookmarks atlas",
+        WORKSPACE / "bobbybookmarks" / "atlas.db",
+        "SELECT rowid, page_title, short_description, created_at FROM entries ORDER BY created_at DESC",
+    ),
+    (
+        "Local atlas",
+        WORKSPACE / "data" / "atlas.db",
+        "SELECT rowid, page_title, short_description, created_at FROM entries ORDER BY created_at DESC",
+    ),
 ]
 
 
@@ -67,6 +76,7 @@ def push_memory(record, dry_run):
     if dry_run:
         return True
     import urllib.request
+
     data = json.dumps(record).encode("utf-8")
     req = urllib.request.Request(
         f"{GO_SIDECAR}/api/memory/add",
@@ -82,7 +92,9 @@ def push_memory(record, dry_run):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Ingest memories into TormentNexus vault")
+    parser = argparse.ArgumentParser(
+        description="Ingest memories into TormentNexus vault"
+    )
     parser.add_argument("--dry-run", action="store_true", help="Scan only, don't push")
     parser.add_argument("--limit", type=int, default=0, help="Max memories per source")
     args = parser.parse_args()
@@ -101,9 +113,9 @@ def main():
             cursor = conn.execute(query)
             rows = cursor.fetchall()
             count = len(rows)
-            print(f"\n{'='*60}")
+            print(f"\n{'=' * 60}")
             print(f"[STORE] {label}: {count} records")
-            print(f"{'='*60}")
+            print(f"{'=' * 60}")
 
             source_table = label.lower().replace(" ", "_")
 
@@ -131,19 +143,19 @@ def main():
                     total_skipped += 1
 
                 if (i + 1) % 100 == 0:
-                    print(f"  Progress: {i+1}/{count}")
+                    print(f"  Progress: {i + 1}/{count}")
 
             conn.close()
 
         except Exception as e:
             print(f"  !! Error reading {label}: {e}")
 
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     if args.dry_run:
         print(f"[DONE] DRY RUN: {total_skipped} memories scanned (not pushed)")
     else:
         print(f"[DONE] Done: {total_pushed} pushed, {total_skipped} skipped/errors")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
 
 
 if __name__ == "__main__":

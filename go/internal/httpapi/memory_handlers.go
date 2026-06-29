@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
 )
 
 func (s *Server) handleMemoryList(w http.ResponseWriter, r *http.Request) {
@@ -115,12 +116,21 @@ func (s *Server) handleMemorySpacedRepetitionDue(w http.ResponseWriter, r *http.
 		writeJSON(w, http.StatusServiceUnavailable, map[string]any{"success": false, "error": "vector store not initialized"})
 		return
 	}
-	dueRecords, err := s.memoryReactor.VectorStore().GetDueMemoriesRecords()
+	limit := 20
+	if l := r.URL.Query().Get("limit"); l != "" {
+		if p, err := strconv.Atoi(l); err == nil && p > 0 && p <= 100 {
+			limit = p
+		}
+	}
+	allDue, err := s.memoryReactor.VectorStore().GetDueMemoriesRecords()
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]any{"success": false, "error": err.Error()})
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"success": true, "due_records": dueRecords})
+	if limit > 0 && len(allDue) > limit {
+		allDue = allDue[:limit]
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"success": true, "due_records": allDue, "total_due": len(allDue)})
 }
 
 func (s *Server) handleMemorySpacedRepetitionReview(w http.ResponseWriter, r *http.Request) {

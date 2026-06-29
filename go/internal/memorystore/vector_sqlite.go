@@ -7,8 +7,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
-	"sort"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -266,10 +266,10 @@ func (s *VectorStore) SemanticSearch(ctx context.Context, query string, limit in
 				return nil, err
 			}
 			r.Type = controlplane.MemoryType(mType)
-			
+
 			vec := decodeVec(blob, len(blob)/4)
 			sim := cosineSim(queryVec, vec)
-			
+
 			// Boost score slightly using importance
 			boostedSim := sim * (0.8 + 0.2*r.Importance)
 			if boostedSim >= 0.3 {
@@ -892,5 +892,3 @@ func (s *VectorStore) MentalModelReflection(ctx context.Context) error {
 func (s *VectorStore) RelationStore() *RelationStore {
 	return s.relationStore
 }
-
-
