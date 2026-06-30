@@ -190,44 +190,113 @@ func (s *Server) handleMemoryFTSearch(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (s *Server) handleColdArchive(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleColdArchiveSearch(w http.ResponseWriter, r *http.Request) {
 	query := strings.TrimSpace(r.URL.Query().Get("q"))
+	if query == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"success": false, "error": "missing q query parameter"})
+		return
+	}
 	limit := 20
 	if l := r.URL.Query().Get("limit"); l != "" {
 		if p, err := strconv.Atoi(l); err == nil && p > 0 && p <= 100 {
 			limit = p
 		}
 	}
-
-	if tools.GlobalVectorStore == nil {
-		writeJSON(w, http.StatusServiceUnavailable, map[string]any{"success": false, "error": "vector store not initialized"})
-		return
-	}
-
-	dbPath := filepath.Join(s.cfg.ConfigDir, "memory.db")
+	dbPath := filepath.Join(s.cfg.ConfigDir, "l3_cold_archive.db")
 	cold, err := memorystore.NewColdArchive(dbPath)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]any{"success": false, "error": err.Error()})
 		return
 	}
-
-	if query != "" {
-		results, err := cold.SearchCold(r.Context(), query, limit)
-		if err != nil {
-			writeJSON(w, http.StatusInternalServerError, map[string]any{"success": false, "error": err.Error()})
-			return
-		}
-		writeJSON(w, http.StatusOK, map[string]any{"success": true, "data": results})
+	defer cold.Close()
+	results, err := cold.SearchCold(r.Context(), query, limit)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"success": false, "error": err.Error()})
 		return
 	}
+	writeJSON(w, http.StatusOK, map[string]any{"success": true, "data": results, "total": len(results)})
+}
 
-	// No query: return count of archived memories
+func (s *Server) handleColdArchiveCount(w http.ResponseWriter, r *http.Request) {
+	dbPath := filepath.Join(s.cfg.ConfigDir, "l3_cold_archive.db")
+	cold, err := memorystore.NewColdArchive(dbPath)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"success": false, "error": err.Error()})
+		return
+	}
+	defer cold.Close()
 	count, err := cold.Count(r.Context())
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]any{"success": false, "error": err.Error()})
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"success": true, "count": count})
+}
+
+func (s *Server) handleColdArchivePromote(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		ID string `json:"id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"success": false, "error": "invalid JSON"})
+		return
+	}
+	if req.ID == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"success": false, "error": "missing id"})
+		return
+	}
+	dbPath := filepath.Join(s.cfg.ConfigDir, "l3_cold_archive.db")
+	cold, err := memorystore.NewColdArchive(dbPath)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"success": false, "error": err.Error()})
+		return
+	}
+	defer cold.Close()
+	record, err := cold.Promote(r.Context(), req.ID)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"success": false, "error": err.Error()})
+		return
+	}
+	if record != nil && tools.GlobalVectorStore != nil {
+		_ = tools.GlobalVectorStore.Store(r.Context(), *record)
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"success": true, "data": record})
+}
+
+func (s *Server) handleEnterpriseLicense(w http.ResponseWriter, r *http.Request) {
+	if s.enterpriseWrapper == nil {
+		writeJSON(w, http.StatusOK, map[string]any{
+			"success": true,
+			"data":    map[string]any{"valid": false, "licensedTo": "", "features": []string{}},
+		})
+		return
+	}
+	info := s.enterpriseWrapper.Info()
+	writeJSON(w, http.StatusOK, map[string]any{"success": true, "data": info})
+}
+
+func (s *Server) handleEnterpriseAudit(w http.ResponseWriter, r *http.Request) {
+	limit := 20
+	if l := r.URL.Query().Get("limit"); l != "" {
+		if p, err := strconv.Atoi(l); err == nil && p > 0 && p <= 100 {
+			limit = p
+		}
+	}
+	if s.auditor == nil {
+		writeJSON(w, http.StatusOK, map[string]any{"success": true, "data": []map[string]any{}})
+		return
+	}
+	logs := s.auditor.Recent(limit)
+	writeJSON(w, http.StatusOK, map[string]any{"success": true, "data": logs})
+}
+
+func (s *Server) handleEnterpriseRoles(w http.ResponseWriter, r *http.Request) {
+	if s.enterpriseWrapper == nil {
+		writeJSON(w, http.StatusOK, map[string]any{"success": true, "data": []map[string]any{}})
+		return
+	}
+	roles := s.enterpriseWrapper.GetRoles()
+	writeJSON(w, http.StatusOK, map[string]any{"success": true, "data": roles})
 }
 
 func (s *Server) handleMemoryArchiveSession(w http.ResponseWriter, r *http.Request) {

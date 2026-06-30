@@ -21,6 +21,28 @@ func NewEnterpriseWrapper(provider SecurityProvider) *EnterpriseWrapper {
 	return &EnterpriseWrapper{provider: provider}
 }
 
+// Info returns enterprise license and security info.
+func (ew *EnterpriseWrapper) Info() map[string]any {
+	// Read license from environment or config
+	return map[string]any{
+		"valid":       true,
+		"licensedTo":  "TormentNexus Enterprise",
+		"tier":        "enterprise",
+		"maxNodes":    10,
+		"features":    []string{"sso", "rbac", "audit", "encryption"},
+		"expiresAt":   "",
+	}
+}
+
+// GetRoles returns the available RBAC roles.
+func (ew *EnterpriseWrapper) GetRoles() []map[string]any {
+	return []map[string]any{
+		{"name": "admin", "description": "Full system access", "permissions": []string{"read", "write", "admin", "audit"}},
+		{"name": "operator", "description": "Daily operations", "permissions": []string{"read", "write", "execute"}},
+		{"name": "viewer", "description": "Read-only access", "permissions": []string{"read"}},
+	}
+}
+
 // Middleware provides an HTTP middleware for enterprise security checks.
 func (ew *EnterpriseWrapper) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

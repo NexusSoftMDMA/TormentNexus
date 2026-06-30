@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -59,4 +60,25 @@ func (a *Auditor) LogToolExecution(userID string, toolName string, args any, res
 		Result:   result,
 		Metadata: args,
 	})
+}
+
+// Recent returns the most recent audit events, up to limit, read from today's log file.
+func (a *Auditor) Recent(limit int) []AuditEvent {
+	logPath := filepath.Join(a.LogDir, "audit-"+time.Now().UTC().Format("2006-01-02")+".jsonl")
+	data, err := os.ReadFile(logPath)
+	if err != nil {
+		return nil
+	}
+	lines := strings.Split(strings.TrimSpace(string(data)), "\n")
+	if limit > 0 && len(lines) > limit {
+		lines = lines[len(lines)-limit:]
+	}
+	events := make([]AuditEvent, 0, len(lines))
+	for _, line := range lines {
+		var e AuditEvent
+		if err := json.Unmarshal([]byte(line), &e); err == nil {
+			events = append(events, e)
+		}
+	}
+	return events
 }

@@ -320,7 +320,8 @@ export const DATA_NAV: NavItem[] = [
 		href: "/dashboard/sessions/import",
 		icon: FileUp,
 		variant: "ghost",
-		tooltip: "Scan and import sessions from external tools into the memory vault",
+		tooltip:
+			"Scan and import sessions from external tools into the memory vault",
 	},
 ];
 
