@@ -2,12 +2,33 @@
 
 import { useState } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from "@tormentnexus/ui";
-import { Loader2, Wrench, Search, ArrowUpRight } from "lucide-react";
+import { Loader2, Wrench, Search, ArrowUpRight, RefreshCw } from "lucide-react";
 import { trpc } from '@/utils/trpc';
 
 export default function CatalogDashboard() {
     const { data: tools, isLoading } = trpc.tools.list.useQuery();
     const [filter, setFilter] = useState('');
+    const [syncing, setSyncing] = useState(false);
+    const [syncStatus, setSyncStatus] = useState<string | null>(null);
+
+    const handleSync = async () => {
+        setSyncing(true);
+        setSyncStatus(null);
+        try {
+            const res = await fetch('/api/go/api/links-backlog/sync', { method: 'POST' });
+            if (res.ok) {
+                const data = await res.json();
+                const fetched = data.data?.fetched || 0;
+                const upserted = data.data?.upserted || 0;
+                setSyncStatus(`Sync successful! Fetched ${fetched} servers, upserted ${upserted}.`);
+            } else {
+                setSyncStatus('Sync failed.');
+            }
+        } catch (e: any) {
+            setSyncStatus(`Error: ${e.message}`);
+        }
+        setSyncing(false);
+    };
 
     const filteredTools = tools?.filter((tool: any) =>
         tool.name.toLowerCase().includes(filter.toLowerCase()) ||
@@ -23,6 +44,17 @@ export default function CatalogDashboard() {
                     <p className="text-zinc-500">
                         Searchable index of all capabilities available to the system
                     </p>
+                </div>
+                <div className="flex items-center gap-4">
+                    {syncStatus && <span className="text-xs text-amber-500">{syncStatus}</span>}
+                    <button
+                        onClick={handleSync}
+                        disabled={syncing}
+                        className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white font-medium rounded text-sm flex items-center gap-2 disabled:opacity-50 transition-colors"
+                    >
+                        {syncing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                        Sync Directory
+                    </button>
                 </div>
             </div>
 

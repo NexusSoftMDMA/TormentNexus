@@ -20,6 +20,7 @@ import (
 	"github.com/tormentnexushq/tormentnexus-go/internal/httpapi"
 	"github.com/tormentnexushq/tormentnexus-go/internal/license"
 	"github.com/tormentnexushq/tormentnexus-go/internal/lockfile"
+	"github.com/tormentnexushq/tormentnexus-go/internal/protocol"
 	"github.com/tormentnexushq/tormentnexus-go/internal/sessionimport"
 	"path/filepath"
 )
@@ -35,7 +36,7 @@ func run(args []string) int {
 			return runDeepLink(args[0])
 		}
 		switch args[0] {
-		case "serve", "version", "start", "stop", "status", "mcp":
+		case "serve", "version", "start", "stop", "status", "mcp", "register-protocol":
 			command = args[0]
 			args = args[1:]
 		}
@@ -55,10 +56,22 @@ func run(args []string) int {
 		return cmdStatus(args)
 	case "mcp":
 		return cmdMCP(args)
+	case "register-protocol":
+		return cmdRegisterProtocol(args)
 	default:
 		log.Printf("unknown command %q", command)
 		return 1
 	}
+}
+
+func cmdRegisterProtocol(args []string) int {
+	log.Printf("Registering tormentnexus:// protocol handler...")
+	if err := protocol.RegisterProtocol(); err != nil {
+		log.Printf("[ERROR] failed to register protocol handler: %v", err)
+		return 1
+	}
+	log.Printf("Successfully registered tormentnexus:// protocol handler in Windows registry.")
+	return 0
 }
 
 func runDeepLink(deepLink string) int {

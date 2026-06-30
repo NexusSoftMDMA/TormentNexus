@@ -623,7 +623,7 @@ func New(cfg config.Config, detector controlplane.ToolProvider) *Server {
 
 	// Initialize Enterprise Security Wrapper (with placeholder provider)
 	server.auditor = enterprise.NewAuditor(cfg.WorkspaceRoot)
-	server.enterpriseWrapper = enterprise.NewEnterpriseWrapper(enterprise.NewSimpleRBACProvider())
+	server.enterpriseWrapper = enterprise.NewEnterpriseWrapper(enterprise.NewSimpleRBACProvider(), cfg.WorkspaceRoot)
 	server.consensusEngine = orchestration.NewConsensusEngine(server.debateHistory, memoryVS)
 	server.eventBus.OnGlobal(func(ev eventbus.SystemEvent) {
 		if data, err := json.Marshal(ev); err == nil {
@@ -1369,6 +1369,8 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("/api/enterprise/license", s.handleEnterpriseLicense)
 	s.mux.HandleFunc("/api/enterprise/audit", s.handleEnterpriseAudit)
 	s.mux.HandleFunc("/api/enterprise/roles", s.handleEnterpriseRoles)
+	s.mux.HandleFunc("/api/enterprise/sso/update", s.handleEnterpriseUpdateSSO)
+	s.mux.HandleFunc("/api/enterprise/roles/update", s.handleEnterpriseUpdateRoles)
 	s.mux.HandleFunc("/api/skills/get", s.handleSkillGet)
 	s.mux.HandleFunc("/api/skills/list", s.handleSkillList)
 	s.mux.HandleFunc("/api/skills/search", s.handleSkillSearch)

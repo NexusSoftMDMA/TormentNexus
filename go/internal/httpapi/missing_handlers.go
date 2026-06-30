@@ -299,6 +299,48 @@ func (s *Server) handleEnterpriseRoles(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"success": true, "data": roles})
 }
 
+func (s *Server) handleEnterpriseUpdateSSO(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if s.enterpriseWrapper == nil {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]any{"success": false, "error": "enterprise service unavailable"})
+		return
+	}
+	var sso map[string]string
+	if err := json.NewDecoder(r.Body).Decode(&sso); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"success": false, "error": err.Error()})
+		return
+	}
+	if err := s.enterpriseWrapper.UpdateSSO(sso); err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"success": false, "error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"success": true})
+}
+
+func (s *Server) handleEnterpriseUpdateRoles(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if s.enterpriseWrapper == nil {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]any{"success": false, "error": "enterprise service unavailable"})
+		return
+	}
+	var roles []map[string]any
+	if err := json.NewDecoder(r.Body).Decode(&roles); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"success": false, "error": err.Error()})
+		return
+	}
+	if err := s.enterpriseWrapper.UpdateRoles(roles); err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"success": false, "error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"success": true})
+}
+
 func (s *Server) handleMemoryArchiveSession(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		writeJSON(w, http.StatusMethodNotAllowed, map[string]any{
