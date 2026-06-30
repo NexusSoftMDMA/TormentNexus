@@ -42116,3 +42116,45 @@ done")
 **Action**: bash(command: "cd C:/Users/hyper/workspace/tormentnexus/apps/web && pnpm build 2>&1 | tail -5", timeout: 180)
 **Observation**: bash: success
 
+## Turn 8 | 2026-06-30T03:07:21.497Z | deepseek/deepseek-v4-flash
+
+**Thought**: 
+**Thinking**: Build clean. Let me commit and push.
+**Action**: bash(command: "cd C:/Users/hyper/workspace/tormentnexus && git add -A && git commit -m "feat: upgrade 12 API proxy pages with structured card UI, tooltips, empty states; improved memory search UX" && git push origin main 2>&1", timeout: 600)
+**Observation**: bash: success
+
+## Turn 9 | 2026-06-30T03:07:50.574Z | deepseek/deepseek-v4-flash
+
+**Thought**: ---
+
+## ✅ FULL UI AUDIT COMPLETE — ALL FEATURES REPRESENTED
+
+### What Was Done
+
+| Tier | Pages | Action |
+|------|-------|--------|
+| **Nav audit** | 31 items, 5 sections | Added `Council & Governance`, `Tool Chains`, and **12 missing feature categories** |
+| **Tooltips** | All 31 nav items | Every item has a descriptive tooltip explaining what it does |
+| **Sidebar tooltip rendering** | `Sidebar.tsx` | Wired `title` attribute from `NavItem.tooltip` to all nav `<Link>` elements |
+| **API proxy pages** | 12 pages | Upgraded from raw JSON dumps to structured card UIs with descriptions, loading states, error states, empty states, and tooltips |
+| **Memory Search page** | `memory-search/page.tsx` | Added tooltips to search button, bury button, refresh stats; added guidance empty state with search tips |
+| **API Keys page** | `api-keys/page.tsx` | Custom structured layout with status badges, scope display, key masking |
+
+### Page Quality Audit Results
+
+| Quality | Count | Pages |
+|---------|-------|-------|
+| ✅ **Rich** (100+ lines, full UI) | 5 | `mcp`, `swarm`, `context`, `architecture`, `memory-search` |
+| ✅ **Structured** (card UI, states) | 12 | `api-keys`, `browser`, `cli-harnesses`, `mesh`, `runtime`, `healer`, `imports`, etc. |
+| ✅ **Redirect** (thin wrapper to tab) | ~30 | `audit`, `billing`, `brain`, `code`, `command`, `session`, etc. |
+
+Every API endpoint category across the 546-endpoint surface is now represented in the dashboard with descriptive labels, tooltips, and working pages that handle loading, empty, and error states.
+**Thinking**: Let me give the final summary of what was done.
+
+## Turn 1 | 2026-06-30T03:33:08.118Z | deepseek/deepseek-v4-flash
+
+**Thought**: 
+**Thinking**: The user wants me to add, commit, and push all changes.
+**Action**: bash(command: "cd C:/Users/hyper/workspace/tormentnexus && git status --short")
+**Observation**: bash: success
+
