@@ -1163,429 +1163,442 @@ export function DashboardHomeView({
         <div className="min-h-screen bg-slate-950 text-slate-100">
             <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-6 py-8 lg:px-8">
                 
-                {/* PAGE A: SYSTEM RECOVERY & ACTIVE DATABASE SYNC */}
-                {activeTab === 'page-a' && (
-                    <div className="space-y-6">
-                        <div className="grid gap-6 md:grid-cols-2">
-                            {/* Database restoration progress card */}
-                            <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-6 space-y-4 md:col-span-2">
-                                <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-2">
-                                        <h2 className="text-base font-semibold text-white">Active Database Restoration (tormentnexus.db)</h2>
-                                        <span className="text-cyan-400 cursor-help text-xs" title="Prioritizing db_v1 over alternative backups due to inclusion of the critical imported_sources table structure.">💡</span>
-                                    </div>
-                                    <button
-                                        onClick={() => setDbLock(!dbLock)}
-                                        className={`px-3 py-1 rounded text-xs font-semibold border transition-all ${
-                                            dbLock
-                                                ? "border-rose-500/30 bg-rose-500/10 text-rose-300"
-                                                : "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
-                                        }`}
-                                    >
-                                        {dbLock ? "Unlock Service" : "Lock Service"}
-                                    </button>
-                                </div>
-                                <p className="text-xs text-slate-400">
-                                    Real-time row-count validation against reference snapshots (<code className="text-slate-350">db_v1_28413952.db</code>).
-                                </p>
-                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 pt-2">
-                                    <div>
-                                        <div className="flex justify-between text-xs mb-1">
-                                            <span className="text-slate-400">Sessions Recovered</span>
-                                            <span className="text-emerald-400 font-medium">+1,417</span>
-                                        </div>
-                                        <div className="h-1 bg-slate-800 rounded-full overflow-hidden">
-                                            <div className="h-full bg-emerald-500 w-[82%]" />
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <div className="flex justify-between text-xs mb-1">
-                                            <span className="text-slate-400">Episodic Memories</span>
-                                            <span className="text-emerald-400 font-medium">+8,699</span>
-                                        </div>
-                                        <div className="h-1 bg-slate-800 rounded-full overflow-hidden">
-                                            <div className="h-full bg-emerald-500 w-[91%]" />
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <div className="flex justify-between text-xs mb-1">
-                                            <span className="text-slate-400">Assimilated Servers</span>
-                                            <span className="text-cyan-400 font-medium">+741</span>
-                                        </div>
-                                        <div className="h-1 bg-slate-800 rounded-full overflow-hidden">
-                                            <div className="h-full bg-cyan-500 w-[64%]" />
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <div className="flex justify-between text-xs mb-1">
-                                            <span className="text-slate-400">Go Harness Tools</span>
-                                            <span className="text-cyan-400 font-medium">+10,712</span>
-                                        </div>
-                                        <div className="h-1 bg-slate-800 rounded-full overflow-hidden">
-                                            <div className="h-full bg-cyan-500 w-[78%]" />
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <div className="flex justify-between text-xs mb-1">
-                                            <span className="text-slate-400">Published Configs</span>
-                                            <span className="text-purple-400 font-medium">+476</span>
-                                        </div>
-                                        <div className="h-1 bg-slate-800 rounded-full overflow-hidden">
-                                            <div className="h-full bg-purple-500 w-[55%]" />
-                                        </div>
-                                    </div>
-                                </div>
+                {/* SECTION 1: COGNITIVE MEMORY ENGINES & SKILL REGISTRIES */}
+                <div className="space-y-4">
+                    <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                        <h2 className="text-lg font-bold text-white tracking-wide">Cognitive Memory Engines &amp; Skill Registries</h2>
+                        <span className="text-[10px] text-cyan-400 font-mono uppercase border border-cyan-500/20 bg-cyan-500/5 px-2 py-0.5 rounded font-semibold">Active Core</span>
+                    </div>
+                    <div className="grid gap-6 md:grid-cols-2">
+                        {/* Memory dreaming metrics (Highest Value - Prominent Top Card) */}
+                        <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-6 space-y-4 md:col-span-2">
+                            <div className="flex items-center gap-2">
+                                <h2 className="text-base font-semibold text-white">L1 ➔ L4 Memory Dreaming &amp; Fact Distillation</h2>
+                                <span className="text-cyan-400 cursor-help text-xs" title="L1 (Active Context), L2 (Short-Term), L3 (Dreaming & fact condensation), and L4 (Reflective structural insights).">💡</span>
                             </div>
-
-                            {/* Catalog Sync Pipeline Card */}
-                            <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-6 space-y-4 flex flex-col justify-between md:col-span-1">
-                                <div>
-                                    <div className="flex items-center gap-2">
-                                        <h2 className="text-base font-semibold text-white">Global Catalog Synchronization Pipeline</h2>
-                                        <span className="text-cyan-400 cursor-help text-xs" title="Synchronizes missing model capabilities and discovery vector topics.">💡</span>
-                                    </div>
-                                    <p className="text-xs text-slate-400 mt-1">
-                                        Safely run migrations (ALTER TABLE language, mcp_server_json, env_vars_found, github_topics) to ingest node topologies.
-                                    </p>
-                                    <div className="grid grid-cols-3 gap-2 mt-4 text-center">
-                                        <div className="border border-slate-800 bg-slate-950 p-2.5 rounded">
-                                            <div className="text-xs text-slate-500">Nodes</div>
-                                            <div className="text-sm font-semibold text-white mt-0.5">12,158</div>
-                                        </div>
-                                        <div className="border border-slate-800 bg-slate-950 p-2.5 rounded">
-                                            <div className="text-xs text-slate-500">Recipes</div>
-                                            <div className="text-sm font-semibold text-white mt-0.5">12,980</div>
-                                        </div>
-                                        <div className="border border-slate-800 bg-slate-950 p-2.5 rounded">
-                                            <div className="text-xs text-slate-500">Runs</div>
-                                            <div className="text-sm font-semibold text-white mt-0.5">8,629</div>
-                                        </div>
-                                    </div>
+                            <p className="text-xs text-slate-400">
+                                Real-time distillation streams for all four cognitive memory tiers.
+                            </p>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-2 text-xs">
+                                <div className="border border-slate-850 bg-slate-950/60 p-4 rounded flex flex-col justify-between h-24">
+                                    <span className="text-slate-455 text-[10px] uppercase font-semibold">L1 Active Context Scratchpad</span>
+                                    <span className="text-cyan-455 font-bold text-sm mt-1">Active (4,096 tokens)</span>
                                 </div>
-                                <div className="space-y-2 pt-4">
-                                    <button
-                                        onClick={triggerSchemaSync}
-                                        disabled={runningSchemaSync}
-                                        className="w-full bg-cyan-600 hover:bg-cyan-500 text-white font-semibold text-xs py-2 rounded transition-colors disabled:opacity-50"
-                                    >
-                                        {runningSchemaSync ? "Executing ALTER TABLE migrations..." : "Run Column Schema Modifications"}
-                                    </button>
-                                    {schemaSyncResult && (
-                                        <div className="border border-emerald-500/35 bg-emerald-500/10 p-2 rounded text-emerald-300 text-xs font-mono text-center">
-                                            {schemaSyncResult}
-                                        </div>
-                                    )}
+                                <div className="border border-slate-850 bg-slate-950/60 p-4 rounded flex flex-col justify-between h-24">
+                                    <span className="text-slate-455 text-[10px] uppercase font-semibold">L2 Short-Term Episodic Vault</span>
+                                    <span className="text-cyan-455 font-bold text-sm mt-1">86,281 records</span>
                                 </div>
-                            </div>
-
-                            {/* Diagnostics card */}
-                            <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-6 md:col-span-2 space-y-4">
-                                <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-2">
-                                        <h2 className="text-base font-semibold text-white">System Integrity &amp; Verification Console</h2>
-                                        <span className="text-cyan-400 cursor-help text-xs" title="Ensures strict compilation checks and integration test compliance across Go backend components.">💡</span>
-                                    </div>
-                                    <button
-                                        onClick={triggerDiagnostics}
-                                        disabled={runningDiagnostics}
-                                        className="bg-zinc-800 hover:bg-zinc-700 text-white border border-zinc-700 text-xs font-semibold px-4 py-2 rounded transition-colors disabled:opacity-50"
-                                    >
-                                        {runningDiagnostics ? "Running compilation..." : "Execute Automated Verification Sweep"}
-                                    </button>
+                                <div className="border border-slate-850 bg-slate-950/60 p-4 rounded flex flex-col justify-between h-24">
+                                    <span className="text-slate-455 text-[10px] uppercase font-semibold">L3 Long-Term Fact Distillation</span>
+                                    <span className="text-purple-450 font-bold text-sm mt-1">Distilling background...</span>
                                 </div>
-                                <p className="text-xs text-slate-400">
-                                    Compiles all native tools and verifies test suite assertions across memory registers and MCP routers.
-                                </p>
-                                <div className="bg-slate-950 p-3 rounded border border-slate-850 font-mono text-xs text-slate-300 min-h-[60px] flex items-center justify-center">
-                                    {runningDiagnostics ? (
-                                        <div className="flex items-center gap-2 text-slate-400">
-                                            <span className="animate-spin">⏳</span>
-                                            <span>Compiling binary and executing integration checks...</span>
-                                        </div>
-                                    ) : diagnosticsResult ? (
-                                        <span className="text-emerald-400">{diagnosticsResult}</span>
-                                    ) : (
-                                        <span className="text-slate-500">System idle. Ready to execute health checks.</span>
-                                    )}
+                                <div className="border border-slate-850 bg-slate-950/60 p-4 rounded flex flex-col justify-between h-24">
+                                    <span className="text-slate-455 text-[10px] uppercase font-semibold">L4 Conceptual Reflection Archetype</span>
+                                    <span className="text-amber-450 font-bold text-sm mt-1">17 missing capacities matched</span>
                                 </div>
                             </div>
                         </div>
-                    </div>
-                )}
 
-                {/* PAGE B: NATIVE GO MCP ORCHESTRATION & TOOL CONTROL */}
-                {activeTab === 'page-b' && (
-                    <div className="space-y-6">
-                        <div className="grid gap-6 md:grid-cols-2">
-                            {/* Always-On Tools Panel */}
-                            <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-6 space-y-4">
+                        {/* Filesystem Skill Indexer */}
+                        <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-6 space-y-4 flex flex-col justify-between md:col-span-1">
+                            <div>
                                 <div className="flex items-center gap-2">
-                                    <h2 className="text-base font-semibold text-white">Native Harness Parity Accessories</h2>
-                                    <span className="text-cyan-400 cursor-help text-xs" title="Activating Always-On status injects the tool metadata directly into the foundational context loop of the connected pi-agent client harness.">💡</span>
+                                    <h2 className="text-base font-semibold text-white">Filesystem Skill Indexer</h2>
+                                    <span className="text-cyan-400 cursor-help text-xs" title="Parses YAML frontmatter, maps local folders, and runs Jaccard token deduplication.">💡</span>
                                 </div>
                                 <p className="text-xs text-slate-400">
-                                    Flag built-in accessory tools to be permanently active inside the connected client context logs.
+                                    Walks local skill sheets (<code className="text-slate-200">~/.tormentnexus/skills/*/SKILL.md</code>) to deduplicate redundant definitions.
                                 </p>
-                                <div className="space-y-2 max-h-[220px] overflow-y-auto border border-slate-850 p-2.5 rounded bg-slate-950/60 font-mono text-xs">
-                                    {Object.keys(alwaysOnTools).map((tool) => (
-                                        <div key={tool} className="flex items-center justify-between p-2 border-b border-slate-800/60 last:border-0">
-                                            <span className="text-slate-200">{tool}.go</span>
-                                            {tool === "read_file" || tool === "write_file" || tool === "run_command" ? (
-                                                <span className="text-[10px] text-amber-400 border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 rounded">
-                                                    Locked Always-On
-                                                </span>
-                                            ) : (
-                                                <button
-                                                    onClick={() => toggleAlwaysOn(tool)}
-                                                    className={`px-2 py-0.5 rounded text-[10px] border transition-colors ${
-                                                        alwaysOnTools[tool]
-                                                            ? "border-cyan-500/30 bg-cyan-500/10 text-cyan-200 font-semibold"
-                                                            : "border-slate-700 bg-slate-800 text-slate-400"
-                                                    }`}
-                                                >
-                                                    {alwaysOnTools[tool] ? "Always-On" : "Disabled"}
-                                                </button>
-                                            )}
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-
-                            {/* Swarm Code Gen Panel */}
-                            <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-6 space-y-4 flex flex-col justify-between">
-                                <div>
-                                    <div className="flex items-center gap-2">
-                                        <h2 className="text-base font-semibold text-white">Swarm Code Generation Queue</h2>
-                                        <span className="text-cyan-400 cursor-help text-xs" title="Cross-references catalog schemas to rewrite missing API bridges into self-contained Go modules.">💡</span>
+                                <div className="space-y-3 pt-3">
+                                    <div className="flex items-center justify-between text-xs">
+                                        <span className="text-slate-400">Adaptive Jaccard Similarity Threshold</span>
+                                        <span className="text-cyan-400 font-semibold">{jaccardThreshold}%</span>
                                     </div>
-                                    <p className="text-xs text-slate-400">
-                                        Triggers the swarm_v7.py parser to ingest public servers from the queue and generate robust compiled tool logic.
-                                    </p>
-                                    <div className="grid grid-cols-2 gap-3 mt-4 text-center">
-                                        <div className="border border-slate-800 bg-slate-950 p-2 rounded">
-                                            <div className="text-xs text-slate-500">Implemented Go Tools</div>
-                                            <div className="text-sm font-semibold text-emerald-400 mt-0.5">3,281</div>
-                                        </div>
-                                        <div className="border border-slate-800 bg-slate-950 p-2 rounded">
-                                            <div className="text-xs text-slate-500">Pending In Queue</div>
-                                            <div className="text-sm font-semibold text-amber-400 mt-0.5">19,266</div>
-                                        </div>
-                                    </div>
-                                </div>
-                                <button
-                                    onClick={triggerSwarmGen}
-                                    disabled={swarmRunning}
-                                    className="w-full bg-cyan-600 hover:bg-cyan-500 text-white font-semibold text-xs py-2 rounded transition-colors disabled:opacity-50 mt-4"
-                                >
-                                    {swarmRunning ? "Generating (swarm_v7.py --skip-existing)..." : "Trigger Swarm Generation (swarm_v7.py)"}
-                                </button>
-                            </div>
-
-                            {/* JSON-RPC Client Access Bridge */}
-                            <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-6 md:col-span-2 space-y-3">
-                                <div className="flex items-center gap-2">
-                                    <h2 className="text-base font-semibold text-white">JSON-RPC Client Access Bridge</h2>
-                                    <span className="text-cyan-400 cursor-help text-xs" title="Exposes native client endpoints over standardized tRPC and HTTP interfaces.">💡</span>
-                                </div>
-                                <p className="text-xs text-slate-400">
-                                    Verify socket settings and active payload metrics ensuring downstream coding interfaces maintain seamless low-latency integrations.
-                                </p>
-                                <div className="grid md:grid-cols-3 gap-3 text-xs pt-2">
-                                    <div className="border border-slate-850 bg-slate-950 p-3 rounded">
-                                        <span className="text-slate-500">JSON-RPC Endpoint</span>
-                                        <div className="font-mono text-cyan-200 mt-1">http://localhost:7778/trpc</div>
-                                    </div>
-                                    <div className="border border-slate-850 bg-slate-950 p-3 rounded">
-                                        <span className="text-slate-500">Active Handshakes</span>
-                                        <div className="font-mono text-emerald-450 mt-1">4 active tunnels</div>
-                                    </div>
-                                    <div className="border border-slate-850 bg-slate-950 p-3 rounded">
-                                        <span className="text-slate-500">Router Version</span>
-                                        <div className="font-mono text-zinc-300 mt-1">v1.0.0-alpha.207 (Go)</div>
+                                    <input
+                                        type="range"
+                                        min="50"
+                                        max="100"
+                                        value={jaccardThreshold}
+                                        onChange={(e) => setJaccardThreshold(Number(e.target.value))}
+                                        className="w-full h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-cyan-500"
+                                    />
+                                    <div className="grid grid-cols-3 gap-2 text-center text-[10px] text-slate-500">
+                                        <div>SoftCap: 50k</div>
+                                        <div>HardCap: 80k</div>
+                                        <div>Policy: LRU</div>
                                     </div>
                                 </div>
                             </div>
+                            <button className="w-full bg-cyan-600 hover:bg-cyan-500 text-white font-semibold text-xs py-2 rounded transition-colors mt-4">
+                                Re-Index Local Markdown Skills
+                            </button>
                         </div>
-                    </div>
-                )}
 
-                {/* PAGE C: COGNITIVE MEMORY ENGINES & SKILL REGISTRIES */}
-                {activeTab === 'page-c' && (
-                    <div className="space-y-6">
-                        <div className="grid gap-6 md:grid-cols-2">
-                            {/* Memory dreaming metrics */}
-                            <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-6 space-y-4">
+                        {/* Backlog Scan Repair */}
+                        <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-6 space-y-4 flex flex-col justify-between md:col-span-1">
+                            <div>
                                 <div className="flex items-center gap-2">
-                                    <h2 className="text-base font-semibold text-white">L1 ➔ L4 Memory Dreaming &amp; Fact Distillation</h2>
-                                    <span className="text-cyan-400 cursor-help text-xs" title="L1 (Active Context), L2 (Short-Term), L3 (Dreaming & fact condensation), and L4 (Reflective structural insights).">💡</span>
-                                </div>
-                                <p className="text-xs text-slate-400">
-                                    Real-time distillation streams for all four cognitive memory tiers.
-                                </p>
-                                <div className="space-y-3 pt-2 text-xs">
-                                    <div className="border border-slate-850 bg-slate-950/60 p-3 rounded flex justify-between">
-                                        <span className="text-slate-400">L1 Active Context Scratchpad</span>
-                                        <span className="text-cyan-400 font-semibold">Active (4,096 tokens)</span>
-                                    </div>
-                                    <div className="border border-slate-850 bg-slate-950/60 p-3 rounded flex justify-between">
-                                        <span className="text-slate-400">L2 Short-Term Episodic Vault</span>
-                                        <span className="text-cyan-400 font-semibold">86,281 records</span>
-                                    </div>
-                                    <div className="border border-slate-850 bg-slate-950/60 p-3 rounded flex justify-between">
-                                        <span className="text-slate-400">L3 Long-Term Fact Distillation</span>
-                                        <span className="text-purple-400 font-semibold">Distilling in background</span>
-                                    </div>
-                                    <div className="border border-slate-850 bg-slate-950/60 p-3 rounded flex justify-between">
-                                        <span className="text-slate-400">L4 Conceptual Reflection Archetype</span>
-                                        <span className="text-amber-400 font-semibold">Matched 17 missing capacities</span>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Filesystem Skill Indexer */}
-                            <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-6 space-y-4 flex flex-col justify-between">
-                                <div>
-                                    <div className="flex items-center gap-2">
-                                        <h2 className="text-base font-semibold text-white">Filesystem Skill Indexer</h2>
-                                        <span className="text-cyan-400 cursor-help text-xs" title="Parses YAML frontmatter, maps local folders, and runs Jaccard token deduplication.">💡</span>
-                                    </div>
-                                    <p className="text-xs text-slate-400">
-                                        Walks local skill sheets (<code className="text-slate-200">~/.tormentnexus/skills/*/SKILL.md</code>) to deduplicate redundant definitions.
-                                    </p>
-                                    <div className="space-y-3 pt-3">
-                                        <div className="flex items-center justify-between text-xs">
-                                            <span className="text-slate-400">Adaptive Jaccard Similarity Threshold</span>
-                                            <span className="text-cyan-400 font-semibold">{jaccardThreshold}%</span>
-                                        </div>
-                                        <input
-                                            type="range"
-                                            min="50"
-                                            max="100"
-                                            value={jaccardThreshold}
-                                            onChange={(e) => setJaccardThreshold(Number(e.target.value))}
-                                            className="w-full h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-cyan-500"
-                                        />
-                                        <div className="grid grid-cols-3 gap-2 text-center text-[10px] text-slate-500">
-                                            <div>SoftCap: 50k</div>
-                                            <div>HardCap: 80k</div>
-                                            <div>Policy: LRU</div>
-                                        </div>
-                                    </div>
-                                </div>
-                                <button className="w-full bg-cyan-600 hover:bg-cyan-500 text-white font-semibold text-xs py-2 rounded transition-colors mt-4">
-                                    Re-Index Local Markdown Skills
-                                </button>
-                            </div>
-
-                            {/* Backlog Scan Repair */}
-                            <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-6 md:col-span-2 space-y-4">
-                                <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-2">
-                                        <h2 className="text-base font-semibold text-white">Transcripts &amp; Links Backlog Repair</h2>
-                                        <span className="text-cyan-400 cursor-help text-xs" title="Scan session dumps and links to rebuild the session graph index.">💡</span>
-                                    </div>
-                                    <div className="flex gap-2">
-                                        <button
-                                            onClick={triggerFolderScan}
-                                            disabled={runningScan}
-                                            className="bg-zinc-800 hover:bg-zinc-700 text-white border border-zinc-700 text-xs font-semibold px-3 py-1.5 rounded disabled:opacity-50"
-                                        >
-                                            {runningScan ? "Scanning sessions..." : "Ingest Session Directories"}
-                                        </button>
-                                        <button
-                                            onClick={triggerLinkRestoration}
-                                            disabled={runningLinkRestoration}
-                                            className="bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-semibold px-3 py-1.5 rounded disabled:opacity-50"
-                                        >
-                                            {runningLinkRestoration ? "Restoring backlog..." : "Scrape Lost Backlog Links"}
-                                        </button>
-                                    </div>
+                                    <h2 className="text-base font-semibold text-white">Transcripts &amp; Links Backlog Repair</h2>
+                                    <span className="text-cyan-400 cursor-help text-xs" title="Scan session dumps and links to rebuild the session graph index.">💡</span>
                                 </div>
                                 <p className="text-xs text-slate-400">
                                     Automated folder mapping loops across target directories to repair 2,003 missing sessions and populate 15,753 lost backlog link entries.
                                 </p>
                             </div>
+                            <div className="flex gap-2 pt-4">
+                                <button
+                                    onClick={triggerFolderScan}
+                                    disabled={runningScan}
+                                    className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-white border border-zinc-700 text-xs font-semibold py-2 rounded disabled:opacity-50 transition-colors"
+                                >
+                                    {runningScan ? "Scanning..." : "Ingest Sessions"}
+                                </button>
+                                <button
+                                    onClick={triggerLinkRestoration}
+                                    disabled={runningLinkRestoration}
+                                    className="flex-1 bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-semibold py-2 rounded disabled:opacity-50 transition-colors"
+                                >
+                                    {runningLinkRestoration ? "Scraping..." : "Scrape Backlog Links"}
+                                </button>
+                            </div>
                         </div>
                     </div>
-                )}
+                </div>
 
-                {/* PAGE D: PROMPT COLLECTIONS & GLOBAL STATIC DEPLOYMENTS */}
-                {activeTab === 'page-d' && (
-                    <div className="space-y-6">
-                        <div className="grid gap-6 md:grid-cols-2">
-                            {/* Prompt Library */}
-                            <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-6 space-y-4">
+                {/* SECTION 2: NATIVE GO MCP ORCHESTRATION & TOOL CONTROL */}
+                <div className="space-y-4 pt-8">
+                    <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                        <h2 className="text-lg font-bold text-white tracking-wide">Native Go MCP Orchestration &amp; Tool Control</h2>
+                        <span className="text-[10px] text-cyan-400 font-mono uppercase border border-cyan-500/20 bg-cyan-500/5 px-2 py-0.5 rounded font-semibold">Execution Layer</span>
+                    </div>
+                    <div className="grid gap-6 md:grid-cols-2">
+                        {/* Swarm Code Gen Panel (Highest Value - Prominent Top Card) */}
+                        <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-6 space-y-4 md:col-span-2 flex flex-col justify-between">
+                            <div>
                                 <div className="flex items-center gap-2">
-                                    <h2 className="text-base font-semibold text-white">Deduplicated Prompt Library</h2>
-                                    <span className="text-cyan-400 cursor-help text-xs" title="Compiles system prompt definitions directly to prompt_library.go.">💡</span>
+                                    <h2 className="text-base font-semibold text-white">Swarm Code Generation Queue</h2>
+                                    <span className="text-cyan-400 cursor-help text-xs" title="Cross-references catalog schemas to rewrite missing API bridges into self-contained Go modules.">💡</span>
+                                </div>
+                                <p className="text-xs text-slate-400 mt-1">
+                                    Triggers the swarm_v7.py parser to ingest public servers from the queue and generate robust compiled tool logic.
+                                </p>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
+                                    <div className="border border-slate-800 bg-slate-950 p-4 rounded flex items-center justify-between">
+                                        <div>
+                                            <div className="text-xs text-slate-500">Implemented Go Tools</div>
+                                            <div className="text-lg font-bold text-emerald-400 mt-0.5">3,281</div>
+                                        </div>
+                                        <div className="text-xs text-slate-400">Stable Handlers</div>
+                                    </div>
+                                    <div className="border border-slate-800 bg-slate-950 p-4 rounded flex items-center justify-between">
+                                        <div>
+                                            <div className="text-xs text-slate-500">Pending In Queue</div>
+                                            <div className="text-lg font-bold text-amber-400 mt-0.5">19,266</div>
+                                        </div>
+                                        <div className="text-xs text-slate-400">Target Envelope</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <button
+                                onClick={triggerSwarmGen}
+                                disabled={swarmRunning}
+                                className="w-full bg-cyan-600 hover:bg-cyan-500 text-white font-semibold text-xs py-2.5 rounded transition-colors disabled:opacity-50 mt-4"
+                            >
+                                {swarmRunning ? "Generating (swarm_v7.py --skip-existing)..." : "Trigger Swarm Generation (swarm_v7.py)"}
+                            </button>
+                        </div>
+
+                        {/* Always-On Tools Panel */}
+                        <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-6 space-y-4 md:col-span-1">
+                            <div className="flex items-center gap-2">
+                                <h2 className="text-base font-semibold text-white">Native Harness Parity Accessories</h2>
+                                <span className="text-cyan-400 cursor-help text-xs" title="Activating Always-On status injects the tool metadata directly into the foundational context loop of the connected pi-agent client harness.">💡</span>
+                            </div>
+                            <p className="text-xs text-slate-400">
+                                Flag built-in accessory tools to be permanently active inside the connected client context logs.
+                            </p>
+                            <div className="space-y-2 max-h-[220px] overflow-y-auto border border-slate-850 p-2.5 rounded bg-slate-950/60 font-mono text-xs">
+                                {Object.keys(alwaysOnTools).map((tool) => (
+                                    <div key={tool} className="flex items-center justify-between p-2 border-b border-slate-800/60 last:border-0">
+                                        <span className="text-slate-200">{tool}.go</span>
+                                        {tool === "read_file" || tool === "write_file" || tool === "run_command" ? (
+                                            <span className="text-[10px] text-amber-400 border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 rounded">
+                                                Locked Always-On
+                                            </span>
+                                        ) : (
+                                            <button
+                                                onClick={() => toggleAlwaysOn(tool)}
+                                                className={`px-2 py-0.5 rounded text-[10px] border transition-colors ${
+                                                    alwaysOnTools[tool]
+                                                        ? "border-cyan-500/30 bg-cyan-500/10 text-cyan-200 font-semibold"
+                                                        : "border-slate-700 bg-slate-800 text-slate-400"
+                                                }`}
+                                            >
+                                                {alwaysOnTools[tool] ? "Always-On" : "Disabled"}
+                                            </button>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* JSON-RPC Client Access Bridge */}
+                        <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-6 md:col-span-1 space-y-3">
+                            <div className="flex items-center gap-2">
+                                <h2 className="text-base font-semibold text-white">JSON-RPC Client Access Bridge</h2>
+                                <span className="text-cyan-400 cursor-help text-xs" title="Exposes native client endpoints over standardized tRPC and HTTP interfaces.">💡</span>
+                            </div>
+                            <p className="text-xs text-slate-400">
+                                Verify socket settings and active payload metrics ensuring downstream coding interfaces maintain seamless low-latency integrations.
+                            </p>
+                            <div className="grid grid-cols-1 gap-2 pt-2 text-xs">
+                                <div className="border border-slate-850 bg-slate-950 p-2.5 rounded">
+                                    <span className="text-slate-500">JSON-RPC Endpoint</span>
+                                    <div className="font-mono text-cyan-200 mt-0.5">http://localhost:7778/trpc</div>
+                                </div>
+                                <div className="border border-slate-850 bg-slate-950 p-2.5 rounded">
+                                    <span className="text-slate-500">Active Handshakes</span>
+                                    <div className="font-mono text-emerald-450 mt-0.5">4 active tunnels</div>
+                                </div>
+                                <div className="border border-slate-850 bg-slate-950 p-2.5 rounded">
+                                    <span className="text-slate-500">Router Version</span>
+                                    <div className="font-mono text-zinc-300 mt-0.5">v1.0.0-alpha.207 (Go)</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* SECTION 3: SYSTEM RECOVERY & ACTIVE DATABASE SYNC */}
+                <div className="space-y-4 pt-8">
+                    <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                        <h2 className="text-lg font-bold text-white tracking-wide">System Recovery &amp; Active Database Sync</h2>
+                        <span className="text-[10px] text-cyan-400 font-mono uppercase border border-cyan-500/20 bg-cyan-500/5 px-2 py-0.5 rounded font-semibold">Integrity Sweep</span>
+                    </div>
+                    <div className="grid gap-6 md:grid-cols-2">
+                        {/* Database restoration progress card */}
+                        <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-6 space-y-4 md:col-span-2">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                    <h2 className="text-base font-semibold text-white">Active Database Restoration (tormentnexus.db)</h2>
+                                    <span className="text-cyan-400 cursor-help text-xs" title="Prioritizing db_v1 over alternative backups due to inclusion of the critical imported_sources table structure.">💡</span>
+                                </div>
+                                <button
+                                    onClick={() => setDbLock(!dbLock)}
+                                    className={`px-3 py-1 rounded text-xs font-semibold border transition-all ${
+                                        dbLock
+                                            ? "border-rose-500/30 bg-rose-500/10 text-rose-350"
+                                            : "border-emerald-500/30 bg-emerald-500/10 text-emerald-350"
+                                    }`}
+                                >
+                                    {dbLock ? "Unlock Service" : "Lock Service"}
+                                </button>
+                            </div>
+                            <p className="text-xs text-slate-400">
+                                Real-time row-count validation against reference snapshots (<code className="text-slate-350">db_v1_28413952.db</code>).
+                            </p>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 pt-2">
+                                <div>
+                                    <div className="flex justify-between text-xs mb-1">
+                                        <span className="text-slate-400">Sessions Recovered</span>
+                                        <span className="text-emerald-400 font-medium">+1,417</span>
+                                    </div>
+                                    <div className="h-1 bg-slate-800 rounded-full overflow-hidden">
+                                        <div className="h-full bg-emerald-500 w-[82%]" />
+                                    </div>
+                                </div>
+                                <div>
+                                    <div className="flex justify-between text-xs mb-1">
+                                        <span className="text-slate-400">Episodic Memories</span>
+                                        <span className="text-emerald-400 font-medium">+8,699</span>
+                                    </div>
+                                    <div className="h-1 bg-slate-800 rounded-full overflow-hidden">
+                                        <div className="h-full bg-emerald-500 w-[91%]" />
+                                    </div>
+                                </div>
+                                <div>
+                                    <div className="flex justify-between text-xs mb-1">
+                                        <span className="text-slate-400">Assimilated Servers</span>
+                                        <span className="text-cyan-400 font-medium">+741</span>
+                                    </div>
+                                    <div className="h-1 bg-slate-800 rounded-full overflow-hidden">
+                                        <div className="h-full bg-cyan-500 w-[64%]" />
+                                    </div>
+                                </div>
+                                <div>
+                                    <div className="flex justify-between text-xs mb-1">
+                                        <span className="text-slate-400">Go Harness Tools</span>
+                                        <span className="text-cyan-400 font-medium">+10,712</span>
+                                    </div>
+                                    <div className="h-1 bg-slate-800 rounded-full overflow-hidden">
+                                        <div className="h-full bg-cyan-500 w-[78%]" />
+                                    </div>
+                                </div>
+                                <div>
+                                    <div className="flex justify-between text-xs mb-1">
+                                        <span className="text-slate-400">Published Configs</span>
+                                        <span className="text-purple-400 font-medium">+476</span>
+                                    </div>
+                                    <div className="h-1 bg-slate-800 rounded-full overflow-hidden">
+                                        <div className="h-full bg-purple-500 w-[55%]" />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Catalog Sync Pipeline Card */}
+                        <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-6 space-y-4 flex flex-col justify-between md:col-span-1">
+                            <div>
+                                <div className="flex items-center gap-2">
+                                    <h2 className="text-base font-semibold text-white">Global Catalog Synchronization Pipeline</h2>
+                                    <span className="text-cyan-400 cursor-help text-xs" title="Synchronizes missing model capabilities and discovery vector topics.">💡</span>
+                                </div>
+                                <p className="text-xs text-slate-400 mt-1">
+                                    Safely run migrations (ALTER TABLE language, mcp_server_json, env_vars_found, github_topics) to ingest node topologies.
+                                </p>
+                                <div className="grid grid-cols-3 gap-2 mt-4 text-center">
+                                    <div className="border border-slate-800 bg-slate-950 p-2.5 rounded">
+                                        <div className="text-xs text-slate-500">Nodes</div>
+                                        <div className="text-sm font-semibold text-white mt-0.5">12,158</div>
+                                    </div>
+                                    <div className="border border-slate-800 bg-slate-950 p-2.5 rounded">
+                                        <div className="text-xs text-slate-500">Recipes</div>
+                                        <div className="text-sm font-semibold text-white mt-0.5">12,980</div>
+                                    </div>
+                                    <div className="border border-slate-800 bg-slate-950 p-2.5 rounded">
+                                        <div className="text-xs text-slate-500">Runs</div>
+                                        <div className="text-sm font-semibold text-white mt-0.5">8,629</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="space-y-2 pt-4">
+                                <button
+                                    onClick={triggerSchemaSync}
+                                    disabled={runningSchemaSync}
+                                    className="w-full bg-cyan-600 hover:bg-cyan-500 text-white font-semibold text-xs py-2 rounded transition-colors disabled:opacity-50"
+                                >
+                                    {runningSchemaSync ? "Executing ALTER TABLE migrations..." : "Run Column Schema Modifications"}
+                                </button>
+                                {schemaSyncResult && (
+                                    <div className="border border-emerald-500/35 bg-emerald-500/10 p-2 rounded text-emerald-300 text-xs font-mono text-center">
+                                        {schemaSyncResult}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Diagnostics card */}
+                        <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-6 md:col-span-1 space-y-4">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                    <h2 className="text-base font-semibold text-white">System Integrity Console</h2>
+                                    <span className="text-cyan-400 cursor-help text-xs" title="Ensures strict compilation checks and integration test compliance across Go backend components.">💡</span>
+                                </div>
+                                <button
+                                    onClick={triggerDiagnostics}
+                                    disabled={runningDiagnostics}
+                                    className="bg-zinc-800 hover:bg-zinc-700 text-white border border-zinc-700 text-xs font-semibold px-4 py-2 rounded transition-colors disabled:opacity-50"
+                                >
+                                    {runningDiagnostics ? "Running..." : "Run Verify Sweep"}
+                                </button>
+                            </div>
+                            <p className="text-xs text-slate-400">
+                                Compiles all native tools and verifies test suite assertions across memory registers and MCP routers.
+                            </p>
+                            <div className="bg-slate-950 p-3 rounded border border-slate-850 font-mono text-xs text-slate-300 min-h-[60px] flex items-center justify-center">
+                                {runningDiagnostics ? (
+                                    <div className="flex items-center gap-2 text-slate-400">
+                                        <span className="animate-spin">⏳</span>
+                                        <span>Executing integration checks...</span>
+                                    </div>
+                                ) : diagnosticsResult ? (
+                                    <span className="text-emerald-400">{diagnosticsResult}</span>
+                                ) : (
+                                    <span className="text-slate-500">System idle. Ready to execute health checks.</span>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* SECTION 4: PROMPT COLLECTIONS & GLOBAL STATIC DEPLOYMENTS */}
+                <div className="space-y-4 pt-8 pb-8">
+                    <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                        <h2 className="text-lg font-bold text-white tracking-wide">Prompt Collections &amp; Global Static Deployments</h2>
+                        <span className="text-[10px] text-cyan-400 font-mono uppercase border border-cyan-500/20 bg-cyan-500/5 px-2 py-0.5 rounded font-semibold font-semibold">Deployments</span>
+                    </div>
+                    <div className="grid gap-6 md:grid-cols-2">
+                        {/* Prompt Library */}
+                        <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-6 space-y-4">
+                            <div className="flex items-center gap-2">
+                                <h2 className="text-base font-semibold text-white">Deduplicated Prompt Library</h2>
+                                <span className="text-cyan-400 cursor-help text-xs" title="Compiles system prompt definitions directly to prompt_library.go.">💡</span>
+                            </div>
+                            <p className="text-xs text-slate-400">
+                                Monitors system prompts loaded and tracks compilation mapping state.
+                            </p>
+                            <div className="space-y-2 border border-slate-850 p-2.5 rounded bg-slate-950/60 max-h-[220px] overflow-y-auto font-mono text-xs">
+                                <div className="flex items-center justify-between p-1.5 border-b border-slate-800/60">
+                                    <span className="text-slate-300">system_swarm_orchestrator</span>
+                                    <span className="text-[10px] text-cyan-400 border border-cyan-500/30 bg-cyan-500/10 px-2 py-0.5 rounded">compiled</span>
+                                </div>
+                                <div className="flex items-center justify-between p-1.5 border-b border-slate-800/60">
+                                    <span className="text-slate-300">agent_tool_classifier</span>
+                                    <span className="text-[10px] text-cyan-400 border border-cyan-500/30 bg-cyan-500/10 px-2 py-0.5 rounded">compiled</span>
+                                </div>
+                                <div className="flex items-center justify-between p-1.5 border-b border-slate-800/60">
+                                    <span className="text-slate-300">memory_dream_distiller</span>
+                                    <span className="text-[10px] text-cyan-400 border border-cyan-500/30 bg-cyan-500/10 px-2 py-0.5 rounded">compiled</span>
+                                </div>
+                                <div className="flex items-center justify-between p-1.5">
+                                    <span className="text-slate-300">bobby_bookmark_recommender</span>
+                                    <span className="text-[10px] text-amber-400 border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 rounded">pending</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Static Deployments */}
+                        <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-6 space-y-4 flex flex-col justify-between">
+                            <div>
+                                <div className="flex items-center gap-2">
+                                    <h2 className="text-base font-semibold text-white">Web Deployment Operations</h2>
+                                    <span className="text-cyan-400 cursor-help text-xs" title="Triggers GitHub actions workflow (deploy-landing.yml) to push static landings.">💡</span>
                                 </div>
                                 <p className="text-xs text-slate-400">
-                                    Monitors system prompts loaded and tracks compilation mapping state.
+                                    Publish production site changes dynamically.
                                 </p>
-                                <div className="space-y-2 border border-slate-850 p-2.5 rounded bg-slate-950/60 max-h-[220px] overflow-y-auto font-mono text-xs">
-                                    <div className="flex items-center justify-between p-1.5 border-b border-slate-800/60">
-                                        <span className="text-slate-300">system_swarm_orchestrator</span>
-                                        <span className="text-[10px] text-cyan-400 border border-cyan-500/30 bg-cyan-500/10 px-2 py-0.5 rounded">compiled</span>
-                                    </div>
-                                    <div className="flex items-center justify-between p-1.5 border-b border-slate-800/60">
-                                        <span className="text-slate-300">agent_tool_classifier</span>
-                                        <span className="text-[10px] text-cyan-400 border border-cyan-500/30 bg-cyan-500/10 px-2 py-0.5 rounded">compiled</span>
-                                    </div>
-                                    <div className="flex items-center justify-between p-1.5 border-b border-slate-800/60">
-                                        <span className="text-slate-300">memory_dream_distiller</span>
-                                        <span className="text-[10px] text-cyan-400 border border-cyan-500/30 bg-cyan-500/10 px-2 py-0.5 rounded">compiled</span>
-                                    </div>
-                                    <div className="flex items-center justify-between p-1.5">
-                                        <span className="text-slate-300">bobby_bookmark_recommender</span>
-                                        <span className="text-[10px] text-amber-400 border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 rounded">pending</span>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Static Deployments */}
-                            <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-6 space-y-4 flex flex-col justify-between">
-                                <div>
-                                    <div className="flex items-center gap-2">
-                                        <h2 className="text-base font-semibold text-white">Web Deployment Operations</h2>
-                                        <span className="text-cyan-400 cursor-help text-xs" title="Triggers GitHub actions workflow (deploy-landing.yml) to push static landings.">💡</span>
-                                    </div>
-                                    <p className="text-xs text-slate-400">
-                                        Publish production site changes dynamically.
-                                    </p>
-                                    <div className="space-y-3 pt-3 text-xs">
-                                        <div className="flex items-center justify-between border border-slate-850 p-3 rounded bg-slate-950/60">
-                                            <div>
-                                                <div className="font-semibold text-slate-200">tormentnexus.site</div>
-                                                <div className="text-[10px] text-slate-500 mt-0.5">Cyberpunk style layout</div>
-                                            </div>
-                                            <button
-                                                onClick={() => triggerStaticDeploy("tormentnexus.site")}
-                                                disabled={deployingSite === "tormentnexus.site"}
-                                                className="bg-cyan-600 hover:bg-cyan-500 text-white font-semibold text-xs px-3 py-1.5 rounded disabled:opacity-50"
-                                            >
-                                                {deployStatus["tormentnexus.site"] === "deploying" ? "Deploying..." : deployStatus["tormentnexus.site"] === "success" ? "Published ✓" : "Deploy Site"}
-                                            </button>
+                                <div className="space-y-3 pt-3 text-xs">
+                                    <div className="flex items-center justify-between border border-slate-850 p-3 rounded bg-slate-950/60">
+                                        <div>
+                                            <div className="font-semibold text-slate-200">tormentnexus.site</div>
+                                            <div className="text-[10px] text-slate-500 mt-0.5">Cyberpunk style layout</div>
                                         </div>
-                                        <div className="flex items-center justify-between border border-slate-850 p-3 rounded bg-slate-950/60">
-                                            <div>
-                                                <div className="font-semibold text-slate-200">hypernexus.site</div>
-                                                <div className="text-[10px] text-slate-500 mt-0.5">Enterprise layout</div>
-                                            </div>
-                                            <button
-                                                onClick={() => triggerStaticDeploy("hypernexus.site")}
-                                                disabled={deployingSite === "hypernexus.site"}
-                                                className="bg-cyan-600 hover:bg-cyan-500 text-white font-semibold text-xs px-3 py-1.5 rounded disabled:opacity-50"
-                                            >
-                                                {deployStatus["hypernexus.site"] === "deploying" ? "Deploying..." : deployStatus["hypernexus.site"] === "success" ? "Published ✓" : "Deploy Site"}
-                                            </button>
+                                        <button
+                                            onClick={() => triggerStaticDeploy("tormentnexus.site")}
+                                            disabled={deployingSite === "tormentnexus.site"}
+                                            className="bg-cyan-600 hover:bg-cyan-500 text-white font-semibold text-xs px-3 py-1.5 rounded disabled:opacity-50"
+                                        >
+                                            {deployStatus["tormentnexus.site"] === "deploying" ? "Deploying..." : deployStatus["tormentnexus.site"] === "success" ? "Published ✓" : "Deploy Site"}
+                                        </button>
+                                    </div>
+                                    <div className="flex items-center justify-between border border-slate-850 p-3 rounded bg-slate-950/60">
+                                        <div>
+                                            <div className="font-semibold text-slate-200">hypernexus.site</div>
+                                            <div className="text-[10px] text-slate-500 mt-0.5">Enterprise layout</div>
                                         </div>
+                                        <button
+                                            onClick={() => triggerStaticDeploy("hypernexus.site")}
+                                            disabled={deployingSite === "hypernexus.site"}
+                                            className="bg-cyan-600 hover:bg-cyan-500 text-white font-semibold text-xs px-3 py-1.5 rounded disabled:opacity-50"
+                                        >
+                                            {deployStatus["hypernexus.site"] === "deploying" ? "Deploying..." : deployStatus["hypernexus.site"] === "success" ? "Published ✓" : "Deploy Site"}
+                                        </button>
                                     </div>
                                 </div>
                             </div>
                         </div>
                     </div>
-                )}
-
+                </div>
                 {/* Telemetry fallback children widgets */}
                 {children && (
                     <div className="mt-6 border-t border-slate-800 pt-6">

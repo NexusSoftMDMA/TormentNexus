@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.0.0-alpha.214] - 2026-07-01
+
+### Added
+- **Singular Page Unified Dashboard**: Consolidated all features and tools from Page A, B, C, and D into a single, high-density dashboard view, grouped logically into visual sections.
+- **Native Unicode System Tray Emoji Icons**: Refactored the Win32 system tray `robot_icon.go` to programmatically render vector Unicode emojis (`🤖` for normal, `🚨` for activity warnings) via GDI drawing context and the Segoe UI Emoji system font, ensuring consistent, high-DPI scaling system icons.
+
 ## [1.0.0-alpha.213] - 2026-07-01
 
 ### Changed
