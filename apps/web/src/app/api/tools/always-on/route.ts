@@ -2,7 +2,11 @@ import { type NextRequest, NextResponse } from "next/server";
 import { readFileSync, writeFileSync, existsSync } from "fs";
 import { join } from "path";
 
-const CONFIG_PATH = join(process.cwd(), "data", "always-on-tools.json");
+const WORKSPACE_DATA_DIR = existsSync(join(process.cwd(), "..", "..", "data"))
+	? join(process.cwd(), "..", "..", "data")
+	: join(process.cwd(), "data");
+
+const CONFIG_PATH = join(WORKSPACE_DATA_DIR, "always-on-tools.json");
 
 interface AlwaysOnConfig {
 	tools: Record<string, boolean>;
@@ -20,11 +24,9 @@ function loadConfig(): AlwaysOnConfig {
 }
 
 function saveConfig(config: AlwaysOnConfig) {
-	const dir = join(process.cwd(), "data");
-	if (!existsSync(dir)) {
-		// Use temp dir as fallback
-		writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2), "utf-8");
-		return;
+	if (!existsSync(WORKSPACE_DATA_DIR)) {
+		const fs = require("fs");
+		fs.mkdirSync(WORKSPACE_DATA_DIR, { recursive: true });
 	}
 	writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2), "utf-8");
 }

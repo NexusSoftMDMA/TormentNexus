@@ -1,3 +1,16 @@
+# HANDOFF — Session 2026-07-01 R25 (Always-on Configurations Alignment and Version Sync - Alpha.202)
+
+## Summary
+
+In this session, we completed the following updates:
+
+1. **Always-On Configuration Storage Alignment**:
+   - Modified [route.ts](file:///c:/Users/hyper/workspace/tormentnexus/apps/web/src/app/api/tools/always-on/route.ts) to locate and write the configurations inside the parent workspace `data/always-on-tools.json` folder so the Go sidecar and Next.js APIs share the exact same configuration states.
+2. **Binary and UI Rebuild**:
+   - Built frontend files and regenerated Go executables cleanly.
+
+---
+
 # HANDOFF — Session 2026-07-01 R24 (Assimilation Scrapers and Version Sync - Alpha.201)
 
 ## Summary
