@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Activity, Server, Radio, RefreshCw, Loader2, Users, Signal } from "lucide-react";
+import { Activity, Server, Radio, RefreshCw, Loader2, Users, Signal, Info } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@tormentnexus/ui";
 
 interface PeerInfo {
   nodeId: string;
@@ -59,7 +60,7 @@ export default function MeshPage() {
         <div className="flex items-center gap-3">
           <Radio className="w-5 h-5 text-cyan-400" />
           <div>
-            <h1 className="text-lg font-semibold text-white">P2P Fleet-Wide Intelligence</h1>
+            <div className="flex items-center gap-2"><h1 className="text-lg font-semibold text-white">P2P Fleet-Wide Intelligence</h1><TooltipProvider><Tooltip><TooltipTrigger><Info className="w-4 h-4 text-zinc-400" /></TooltipTrigger><TooltipContent><p>A decentralized network for cross-machine AI memory sharing.</p></TooltipContent></Tooltip></TooltipProvider></div>
             <p className="text-xs text-zinc-500 mt-0.5">
               Encrypted mesh for cross-machine memory sharing via UDP gossip protocol
             </p>
@@ -90,7 +91,7 @@ export default function MeshPage() {
         <div className="bg-zinc-900/50 border border-zinc-800 rounded-lg p-4">
           <div className="flex items-center gap-2 text-zinc-500 text-xs mb-2">
             <Users className="w-3.5 h-3.5" />
-            Connected Peers
+            Connected Peers<TooltipProvider><Tooltip><TooltipTrigger><Info className="w-3 h-3 text-zinc-500" /></TooltipTrigger><TooltipContent><p>Active agents in the A2A network protocol.</p></TooltipContent></Tooltip></TooltipProvider>
           </div>
           <p className="text-2xl font-bold text-cyan-400">{status?.peersCount ?? 0}</p>
         </div>

@@ -61,8 +61,8 @@ export function resolveTrpcHttpUrl(envUrl?: string | null): string {
   return 'http://localhost:7778/trpc';
 }
 
-export function resolveCoreWsUrl(envUrl?: string | null): string {
-  return resolveWsUrl({ envUrl, defaultPort: 7778, defaultPath: '/api/mcp/traffic/ws' });
+export function resolveCoreSseUrl(envUrl?: string | null): string {
+  return resolveHttpBaseUrl({ envUrl, defaultPort: 4300, defaultPath: '/api/sse' });
 }
 
 export function resolveCouncilWsUrl(envUrl?: string | null): string {
@@ -74,5 +74,5 @@ export function resolveTerminalWsUrl(envUrl?: string | null): string {
 }
 
 export function resolveCliApiBaseUrl(envUrl?: string | null): string {
-  return resolveHttpBaseUrl({ envUrl, defaultPort: 3001 });
+  return resolveHttpBaseUrl({ envUrl, defaultPort: 4300 });
 }

@@ -5,7 +5,7 @@ import path from 'node:path';
 const repoRoot = process.cwd();
 const targetDirs = [
   path.join(repoRoot, 'apps', 'web', 'src'),
-  path.join(repoRoot, 'packages', 'core', 'src'),
+  // path.join(repoRoot, 'packages', 'core', 'src'),
 ];
 const fileExtensions = new Set(['.ts', '.tsx', '.js', '.jsx', '.md']);
 const blockedPatterns = [

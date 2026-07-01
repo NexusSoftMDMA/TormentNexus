@@ -23,7 +23,7 @@ export function A2AMesh() {
       .then(data => {
         // Mocking registered A2A agents for now since they are in A2AManager memory
         setAgents([
-          { url: 'http://localhost:3001', card: { name: 'TORMENTNEXUS Meta-Orchestrator', version: '0.3.0', skills: [{ name: 'Task Orchestration' }] }, healthy: true },
+          { url: 'http://localhost:4300', card: { name: 'TORMENTNEXUS Meta-Orchestrator', version: '0.3.0', skills: [{ name: 'Task Orchestration' }] }, healthy: true },
           { url: 'https://agent-east.tormentnexus.dev', card: { name: 'Security-Audit-Bot', version: '1.2.0', skills: [{ name: 'Vulnerability Scan' }] }, healthy: true }
         ]);
         setLoading(false);

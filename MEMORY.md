@@ -189,3 +189,7 @@
 - **Port 4300 Legacy Cleanup**: Components checking Go Sidecar status (such as `StreamStatus.tsx` in `@tormentnexus/ui`) must point to the active Go sidecar port `7778`, not the legacy `4300` port, to avoid browser-level connection refused errors.
 - **RSC Dynamic Route compilation**: Next.js redirect pages (like squads, director, and council pages) must be compiled and served successfully to handle App Router `_rsc` dynamic pre-fetches during client-side tab navigation.
 
+
+- **TS Control Plane Decommissioning**: Completed TS Control Plane shutdown cleanup. Disabled/removed all watchdog TCP port checks for port 3001 and `/api/mesh/stream`. Finalized SSE stream routing by ensuring all dashboard SSE connections exclusively target the Go sidecar's `/api/sse` endpoint on port 4300. Confirmed tRPC batch native fast-path coverage is fully operational via `GO_NATIVE_PROCEDURES` and `getCompatPayload` bypassing to Go logic.
+- Fixed resolveCoreWsUrl bug to use HTTP scheme for SSE stream endpoint instead of WS, following code review.
+- Added descriptive tooltips to the A2A Mesh dashboard page to improve feature discoverability and UI transparency per user request.

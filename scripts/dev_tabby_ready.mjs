@@ -20,7 +20,7 @@ import {
 } from "./dev_tabby_ready_helpers.mjs";
 
 const WEB_PORT_CANDIDATES = [3000, 3010, 3020, 3030, 3040];
-const CORE_HTTP_BASE = "http://127.0.0.1:3001";
+const CORE_HTTP_BASE = "http://127.0.0.1:4300";
 const POLL_INTERVAL_MS = Number(
 	process.env.TORMENTNEXUS_DEV_READY_POLL_MS || 2000,
 );
@@ -39,7 +39,7 @@ const AUTO_REFRESH_STALE_CORE =
 	process.env.TORMENTNEXUS_DEV_READY_RESTART_STALE_CORE !== "0";
 const REPO_ROOT = process.cwd();
 const CORE_BRIDGE_PROBE_URLS = [
-	`${CORE_HTTP_BASE}/api/mesh/stream`,
+	`${CORE_HTTP_BASE}/api/sse`,
 	`${CORE_HTTP_BASE}/health`,
 ];
 
@@ -434,7 +434,7 @@ function printReadySummary(state) {
 	console.log("\n[TormentNexus Dev Ready] ✅ stack is ready");
 	console.log(`[TormentNexus Dev Ready] Dashboard: ${dashboardUrl}`);
 	console.log(
-		"[TormentNexus Dev Ready] Core bridge: ws://127.0.0.1:3001 (HTTP probe: /api/mesh/stream or /health)",
+		"[TormentNexus Dev Ready] Core bridge: ws://127.0.0.1:4300 (HTTP probe: /api/sse or /health)",
 	);
 	console.log(
 		`[TormentNexus Dev Ready] Startup telemetry API: ${state.startupStatus.url ?? "unavailable"}`,
@@ -531,12 +531,12 @@ async function detectExistingCoreBridge() {
 async function detectCoreBridgeOwnerPid() {
 	if (process.platform === "win32") {
 		const output = await execFileText("netstat", ["-ano", "-p", "tcp"]);
-		return parseListeningPidFromNetstat(output, 3001);
+		return parseListeningPidFromNetstat(output, 4300);
 	}
 
 	const output = await execFileText("lsof", [
 		"-nP",
-		"-iTCP:3001",
+		"-iTCP:4300",
 		"-sTCP:LISTEN",
 		"-t",
 	]);
@@ -639,7 +639,7 @@ async function main() {
 
 	if (reuseExistingCoreBridge) {
 		console.log(
-			"[TormentNexus Dev Ready] reusing existing core bridge on port 3001; skipping duplicate CLI launch.",
+			"[TormentNexus Dev Ready] reusing existing core bridge on port 4300; skipping duplicate CLI launch.",
 		);
 	}
 
@@ -775,7 +775,7 @@ async function main() {
 					);
 				} else if (refreshTarget.kind === "owner") {
 					console.warn(
-						`[TormentNexus Dev Ready] existing core bridge is healthy but serving an older startup contract; stopping TormentNexus-owned bridge PID ${refreshTarget.pid} discovered from port 3001 and starting a fresh CLI instance.`,
+						`[TormentNexus Dev Ready] existing core bridge is healthy but serving an older startup contract; stopping TormentNexus-owned bridge PID ${refreshTarget.pid} discovered from port 4300 and starting a fresh CLI instance.`,
 					);
 					const stopped = await stopExistingCoreBridge(
 						refreshTarget.pid,
@@ -794,7 +794,7 @@ async function main() {
 					);
 				} else if (refreshTarget.kind === "skip-untrusted-owner") {
 					console.warn(
-						`[TormentNexus Dev Ready] existing core bridge is healthy but serving an older startup contract; port 3001 is owned by PID ${refreshTarget.pid}, but its command line did not look TormentNexus-owned, so automatic refresh was skipped.`,
+						`[TormentNexus Dev Ready] existing core bridge is healthy but serving an older startup contract; port 4300 is owned by PID ${refreshTarget.pid}, but its command line did not look TormentNexus-owned, so automatic refresh was skipped.`,
 					);
 				} else {
 					console.warn(

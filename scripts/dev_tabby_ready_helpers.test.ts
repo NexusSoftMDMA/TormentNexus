@@ -266,7 +266,7 @@ describe('isDirectExecution', () => {
         let probeCalls = 0;
 
         await expect(waitForCoreBridgeShutdown(
-            ['http://127.0.0.1:3001/health', 'http://127.0.0.1:3001/api/mesh/stream'],
+            ['http://127.0.0.1:4300/health', 'http://127.0.0.1:4300/api/sse'],
             {
                 timeoutMs: 50,
                 pollIntervalMs: 1,
@@ -282,8 +282,8 @@ describe('isDirectExecution', () => {
     it('parses a listening PID from Windows netstat output', () => {
         expect(parseListeningPidFromNetstat(`
   Proto  Local Address          Foreign Address        State           PID
-  TCP    127.0.0.1:3001         0.0.0.0:0              LISTENING       4242
-`, 3001)).toBe(4242);
+  TCP    127.0.0.1:4300         0.0.0.0:0              LISTENING       4242
+`, 4300)).toBe(4242);
     });
 
     it('parses a listening PID from lsof output', () => {
@@ -296,13 +296,13 @@ describe('isDirectExecution', () => {
     });
 
     it('rejects unrelated port owners for stale-core termination', () => {
-        expect(isLikelyTormentNexusCoreCommand('node C:\\other-app\\server.js --port 3001')).toBe(false);
-        expect(isLikelyTormentNexusCoreCommand('python -m http.server 3001')).toBe(false);
+        expect(isLikelyTormentNexusCoreCommand('node C:\\other-app\\server.js --port 4300')).toBe(false);
+        expect(isLikelyTormentNexusCoreCommand('python -m http.server 4300')).toBe(false);
     });
 
     it('prefers the TormentNexus startup lock over port-owner fallback when both exist', () => {
         expect(chooseStaleCoreRefreshTarget({
-            lockRecord: { pid: 111, instanceId: 'tormentnexus', port: 3001, host: '127.0.0.1', createdAt: '2026-03-13T00:00:00.000Z' },
+            lockRecord: { pid: 111, instanceId: 'tormentnexus', port: 4300, host: '127.0.0.1', createdAt: '2026-03-13T00:00:00.000Z' },
             owner: { pid: 222, trusted: true, commandLine: 'node tormentnexus' },
             currentPid: 999,
         })).toEqual({
@@ -321,7 +321,7 @@ describe('isDirectExecution', () => {
         })).toEqual({
             kind: 'owner',
             pid: 222,
-            sourceLabel: 'port 3001',
+            sourceLabel: 'port 4300',
             trusted: true,
         });
     });
@@ -329,25 +329,25 @@ describe('isDirectExecution', () => {
     it('skips automatic refresh when the port owner is not TormentNexus-owned', () => {
         expect(chooseStaleCoreRefreshTarget({
             lockRecord: null,
-            owner: { pid: 333, trusted: false, commandLine: 'python -m http.server 3001' },
+            owner: { pid: 333, trusted: false, commandLine: 'python -m http.server 4300' },
             currentPid: 999,
         })).toEqual({
             kind: 'skip-untrusted-owner',
             pid: 333,
-            sourceLabel: 'port 3001',
+            sourceLabel: 'port 4300',
             trusted: false,
         });
     });
 
     it('never selects the current process as a stale-core refresh target', () => {
         expect(chooseStaleCoreRefreshTarget({
-            lockRecord: { pid: 999, instanceId: 'tormentnexus', port: 3001, host: '127.0.0.1', createdAt: '2026-03-13T00:00:00.000Z' },
+            lockRecord: { pid: 999, instanceId: 'tormentnexus', port: 4300, host: '127.0.0.1', createdAt: '2026-03-13T00:00:00.000Z' },
             owner: { pid: 999, trusted: true, commandLine: 'node tormentnexus' },
             currentPid: 999,
         })).toEqual({
             kind: 'skip-untrusted-owner',
             pid: 999,
-            sourceLabel: 'port 3001',
+            sourceLabel: 'port 4300',
             trusted: false,
         });
     });

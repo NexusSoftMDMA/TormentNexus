@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef } from 'react';
-import { createReconnectPolicy, getReconnectDelayMs, resolveCoreWsUrl, shouldRetryReconnect } from '@tormentnexus/ui';
+import { createReconnectPolicy, getReconnectDelayMs, resolveCoreSseUrl, shouldRetryReconnect } from '@tormentnexus/ui';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export function MirrorView() {
@@ -14,7 +14,7 @@ export function MirrorView() {
     const wsUrlRef = useRef<string | null>(null);
 
     if (!wsUrlRef.current && typeof window !== 'undefined') {
-        wsUrlRef.current = resolveCoreWsUrl(process.env.NEXT_PUBLIC_CORE_WS_URL);
+        wsUrlRef.current = resolveCoreSseUrl(process.env.NEXT_PUBLIC_CORE_WS_URL);
     }
 
     const connect = () => {

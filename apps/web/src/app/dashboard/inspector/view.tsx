@@ -1,11 +1,11 @@
 "use client";
 
 import { TrafficInspector } from "@/components/TrafficInspector";
-import { resolveCoreWsUrl } from "@tormentnexus/ui";
+import { resolveCoreSseUrl } from "@tormentnexus/ui";
 import Link from "next/link";
 
 function getBridgeDisplayUrl(): string {
-    return resolveCoreWsUrl(process.env.NEXT_PUBLIC_CORE_WS_URL);
+    return resolveCoreSseUrl(process.env.NEXT_PUBLIC_CORE_WS_URL);
 }
 
 export default function InspectorPage() {
