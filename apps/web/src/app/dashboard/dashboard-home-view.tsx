@@ -1168,7 +1168,7 @@ export function DashboardHomeView({
                     <div className="space-y-6">
                         <div className="grid gap-6 md:grid-cols-2">
                             {/* Database restoration progress card */}
-                            <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-6 space-y-4">
+                            <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-6 space-y-4 md:col-span-2">
                                 <div className="flex items-center justify-between">
                                     <div className="flex items-center gap-2">
                                         <h2 className="text-base font-semibold text-white">Active Database Restoration (tormentnexus.db)</h2>
@@ -1188,11 +1188,11 @@ export function DashboardHomeView({
                                 <p className="text-xs text-slate-400">
                                     Real-time row-count validation against reference snapshots (<code className="text-slate-350">db_v1_28413952.db</code>).
                                 </p>
-                                <div className="space-y-3 pt-2">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 pt-2">
                                     <div>
                                         <div className="flex justify-between text-xs mb-1">
                                             <span className="text-slate-400">Sessions Recovered</span>
-                                            <span className="text-emerald-400 font-medium">+1,417 sessions</span>
+                                            <span className="text-emerald-400 font-medium">+1,417</span>
                                         </div>
                                         <div className="h-1 bg-slate-800 rounded-full overflow-hidden">
                                             <div className="h-full bg-emerald-500 w-[82%]" />
@@ -1201,7 +1201,7 @@ export function DashboardHomeView({
                                     <div>
                                         <div className="flex justify-between text-xs mb-1">
                                             <span className="text-slate-400">Episodic Memories</span>
-                                            <span className="text-emerald-400 font-medium">+8,699 memories</span>
+                                            <span className="text-emerald-400 font-medium">+8,699</span>
                                         </div>
                                         <div className="h-1 bg-slate-800 rounded-full overflow-hidden">
                                             <div className="h-full bg-emerald-500 w-[91%]" />
@@ -1210,7 +1210,7 @@ export function DashboardHomeView({
                                     <div>
                                         <div className="flex justify-between text-xs mb-1">
                                             <span className="text-slate-400">Assimilated Servers</span>
-                                            <span className="text-cyan-400 font-medium">+741 servers</span>
+                                            <span className="text-cyan-400 font-medium">+741</span>
                                         </div>
                                         <div className="h-1 bg-slate-800 rounded-full overflow-hidden">
                                             <div className="h-full bg-cyan-500 w-[64%]" />
@@ -1219,7 +1219,7 @@ export function DashboardHomeView({
                                     <div>
                                         <div className="flex justify-between text-xs mb-1">
                                             <span className="text-slate-400">Go Harness Tools</span>
-                                            <span className="text-cyan-400 font-medium">+10,712 tools</span>
+                                            <span className="text-cyan-400 font-medium">+10,712</span>
                                         </div>
                                         <div className="h-1 bg-slate-800 rounded-full overflow-hidden">
                                             <div className="h-full bg-cyan-500 w-[78%]" />
@@ -1228,7 +1228,7 @@ export function DashboardHomeView({
                                     <div>
                                         <div className="flex justify-between text-xs mb-1">
                                             <span className="text-slate-400">Published Configs</span>
-                                            <span className="text-purple-400 font-medium">+476 configurations</span>
+                                            <span className="text-purple-400 font-medium">+476</span>
                                         </div>
                                         <div className="h-1 bg-slate-800 rounded-full overflow-hidden">
                                             <div className="h-full bg-purple-500 w-[55%]" />
@@ -1238,7 +1238,7 @@ export function DashboardHomeView({
                             </div>
 
                             {/* Catalog Sync Pipeline Card */}
-                            <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-6 space-y-4 flex flex-col justify-between">
+                            <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-6 space-y-4 flex flex-col justify-between md:col-span-1">
                                 <div>
                                     <div className="flex items-center gap-2">
                                         <h2 className="text-base font-semibold text-white">Global Catalog Synchronization Pipeline</h2>
@@ -1262,7 +1262,7 @@ export function DashboardHomeView({
                                         </div>
                                     </div>
                                 </div>
-                                <div className="space-y-2">
+                                <div className="space-y-2 pt-4">
                                     <button
                                         onClick={triggerSchemaSync}
                                         disabled={runningSchemaSync}

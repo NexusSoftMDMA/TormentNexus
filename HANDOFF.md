@@ -1,3 +1,21 @@
+# HANDOFF — Session 2026-07-01 R33 (Dashboard High-Value Grid Card Prominence - Alpha.213)
+
+## Summary
+
+In this session, we restructured feature cards inside the dashboard tabs to prioritize prominence for key components:
+
+1. **Dashboard Home Layout Adjustments**:
+   - Refactored [dashboard-home-view.tsx](file:///c:/Users/hyper/workspace/tormentnexus/apps/web/src/app/dashboard/dashboard-home-view.tsx) to position highest value components as full-width (`md:col-span-2`) top cards:
+     - **Page C (Memory & Skills)**: Memory Distillation status card is now wide at the top with L1-L4 stats in a horizontal 4-column sub-grid. Skill indexer and backlog repair panels sit side-by-side below.
+     - **Page B (Go MCP & Tools)**: Swarm Code Gen Panel is full-width at the top, showing implemented vs pending tools metrics cleanly.
+     - **Page A (Recovery & Sync)**: Active Database Restoration progress card is full-width at the top with a horizontal grid of recovered counts.
+2. **Build Validation**:
+   - Verified compile-time stability across the web dashboard client application (`pnpm -C apps/web exec tsc --noEmit`).
+3. **Version Propagation**:
+   - Synced all packages to version tag `1.0.0-alpha.213`.
+
+---
+
 # HANDOFF — Session 2026-07-01 R32 (Dashboard High-Value Feature Reorganization - Alpha.212)
 
 ## Summary

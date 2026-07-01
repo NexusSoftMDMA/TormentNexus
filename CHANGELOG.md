@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.0.0-alpha.213] - 2026-07-01
+
+### Changed
+- **High-Value Card Prominence Layout**: Re-aligned feature cards within the dashboard tabs:
+  - Made L1-L4 Memory Distillation full-width (`md:col-span-2`) at the top of Memory & Skills (Page C) with a horizontal grid of memory metrics.
+  - Made Swarm Code Generation Queue full-width at the top of Go MCP & Tools (Page B).
+  - Made Active Database Restoration full-width at the top of Recovery & Sync (Page A) with a horizontal grid of recovery metrics.
+
 ## [1.0.0-alpha.212] - 2026-07-01
 
 ### Added
