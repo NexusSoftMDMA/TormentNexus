@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.0.0-alpha.208] - 2026-07-01
+
+### Added
+- **TormentNexus Unified Dashboard Layout**: Implemented the high-density conditional dashboard tabs (`page-a`, `page-b`, `page-c`, `page-d`) in `DashboardHomeClient` and `DashboardHomeView` to reduce operator route friction.
+- **Consolidated Sidebar Config**: Remapped all sidebar navigation link paths in `nav-config.ts` to route directly to their corresponding tab targets in the unified dashboard layout.
+
+### Fixed
+- **Dashboard Home View Syntax**: Repaired unclosed setTimeout logic boundaries and helper function syntax braces inside `dashboard-home-view.tsx` to resolve Next.js JSX Element return type errors and compile successfully.
+
+## [1.0.0-alpha.207] - 2026-07-01
+
+### Fixed
+- **tRPC Bridge Batching and Unwrapping**: Fixed connection termination (`net::ERR_EMPTY_RESPONSE`) in the Go sidecar's tRPC handler.
+- **BobbyBookmarks Sync Path Fix**: Corrected the database path in `scripts/bobbybookmarks_sync.py` to point to `go/bobbybookmarks/bookmarks.db`.
+- **Monorepo Version Sync**: Synchronized all monorepo version numbers to `1.0.0-alpha.207`.
+
 ## [1.0.0-alpha.206] - 2026-07-01
 
 ### Fixed

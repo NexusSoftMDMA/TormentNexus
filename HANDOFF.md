@@ -1,3 +1,20 @@
+# HANDOFF — Session 2026-07-01 R28 (TormentNexus Unified Dashboard Layout & Sidebar Navigation - Alpha.208)
+
+## Summary
+
+In this session, we completed the implementation of the **TormentNexus Unified Dashboard Layout** and consolidated the navigation controls:
+
+1. **TormentNexus Unified Dashboard Layout (page-a to page-d)**:
+   - Designed and built the tab-conditional panels in [dashboard-home-view.tsx](file:///c:/Users/hyper/workspace/tormentnexus/apps/web/src/app/dashboard/dashboard-home-view.tsx) for Page A (Recovery & Sync), Page B (Go MCP & Tools), Page C (Memory & Skills), and Page D (Prompts & Deployments).
+   - Resolved compiler JSX Element return type errors by fixing mismatched function curly braces and unclosed `setTimeout` bounds for `triggerDiagnostics`, `triggerSchemaSync`, `toggleAlwaysOn`, `triggerSwarmGen`, `triggerFolderScan`, `triggerLinkRestoration`, and `triggerStaticDeploy`.
+2. **Consolidated Sidebar Config**:
+   - Updated [nav-config.ts](file:///c:/Users/hyper/workspace/tormentnexus/apps/web/src/components/mcp/nav-config.ts) to remap the sidebar paths to target the correct tab query segments `/dashboard?tab=page-a`, `/dashboard?tab=page-b`, `/dashboard?tab=page-c`, and `/dashboard?tab=page-d`.
+3. **Workspace Build & Type Safety**:
+   - Verified that the entire Next.js web application compiles cleanly without errors using `pnpm -C apps/web exec tsc --noEmit`.
+   - Bumped the workspace package version dynamically to `1.0.0-alpha.208` using `node scripts/sync-versions.mjs`.
+
+---
+
 # HANDOFF — Session 2026-07-01 R27 (Subpage Consolidation, tRPC Bridge Fixes, and Version Sync - Alpha.206)
 
 ## Summary

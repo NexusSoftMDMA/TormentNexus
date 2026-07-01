@@ -1,5 +1,11 @@
 # MEMORY.md — Multi-Agent Observations
 
+## Session 2026-07-01 (TormentNexus Unified Dashboard & Sidebar Navigation)
+
+### Layout Refactoring Heuristics
+- **Programmatic View Transformations**: When doing multi-chunk replacements in complex React view components (like `dashboard-home-view.tsx`), it is safer to utilize dedicated Python helper scripts rather than interactive search-and-replace tools to guarantee syntactic accuracy and avoid losing block scope bounds (such as function parameters or return values).
+- **Consolidated Sidebar Config remapping**: In single-page condensed dashboard architectures, mapping sidebar links to query parameters (e.g. `/dashboard?tab=page-a`) ensures instant UI synchronization without full-page reloads, providing a streamlined operator experience.
+
 ## Session 2026-06-26 (tRPC Batching, TS Control Plane Decommission, and Wails static export)
 
 ### tRPC Batch Processing Native Fast-Path

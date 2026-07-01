@@ -1,6 +1,6 @@
 {
   "name": "@tormentnexus/enterprise",
-  "version": "1.0.0-alpha.207",
+  "version": "1.0.0-alpha.208",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {

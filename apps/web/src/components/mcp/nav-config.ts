@@ -54,7 +54,7 @@ export interface NavSection {
 export const META_MCP_NAV: NavItem[] = [
 	{
 		title: "MCP Dashboard",
-		href: "/dashboard/mcp?tab=dashboard",
+		href: "/dashboard?tab=page-b",
 		icon: Server,
 		variant: "default",
 		tooltip:
@@ -62,7 +62,7 @@ export const META_MCP_NAV: NavItem[] = [
 	},
 	{
 		title: "Always-On Tools",
-		href: "/dashboard/mcp?tab=always-on",
+		href: "/dashboard?tab=page-b",
 		icon: Power,
 		variant: "ghost",
 		tooltip:
@@ -70,7 +70,7 @@ export const META_MCP_NAV: NavItem[] = [
 	},
 	{
 		title: "Tool Catalog",
-		href: "/dashboard/mcp?tab=catalog",
+		href: "/dashboard?tab=page-b",
 		icon: Search,
 		variant: "ghost",
 		tooltip:
@@ -78,14 +78,14 @@ export const META_MCP_NAV: NavItem[] = [
 	},
 	{
 		title: "Tools Inspector",
-		href: "/dashboard/mcp?tab=inspector",
+		href: "/dashboard?tab=page-b",
 		icon: Wrench,
 		variant: "ghost",
 		tooltip: "Inspect tool definitions, parameters, and schemas in detail",
 	},
 	{
 		title: "MCP Registry",
-		href: "/dashboard/mcp?tab=registry",
+		href: "/dashboard?tab=page-b",
 		icon: Download,
 		variant: "ghost",
 		tooltip:
@@ -93,14 +93,14 @@ export const META_MCP_NAV: NavItem[] = [
 	},
 	{
 		title: "Tool Chains",
-		href: "/dashboard/mcp?tab=tool-chains",
+		href: "/dashboard?tab=page-b",
 		icon: Webhook,
 		variant: "ghost",
 		tooltip: "Chain multiple tools together into reusable automated workflows",
 	},
 	{
 		title: "MCP Settings",
-		href: "/dashboard/mcp?tab=settings",
+		href: "/dashboard?tab=page-b",
 		icon: Settings,
 		variant: "ghost",
 		tooltip: "Configure MCP server connections, endpoints, and preferences",
@@ -112,14 +112,14 @@ export const META_MCP_NAV: NavItem[] = [
 export const MAIN_DASHBOARD_NAV: NavItem[] = [
 	{
 		title: "Dashboard Home",
-		href: "/dashboard?tab=home",
+		href: "/dashboard?tab=page-a",
 		icon: LayoutDashboard,
 		variant: "ghost",
 		tooltip: "System overview: active sessions, recent activity, health status",
 	},
 	{
 		title: "Swarm & Agents",
-		href: "/dashboard/swarm?tab=swarm",
+		href: "/dashboard?tab=page-b",
 		icon: Users,
 		variant: "ghost",
 		tooltip:
@@ -127,7 +127,7 @@ export const MAIN_DASHBOARD_NAV: NavItem[] = [
 	},
 	{
 		title: "Council & Governance",
-		href: "/dashboard/swarm?tab=council",
+		href: "/dashboard?tab=page-b",
 		icon: Shield,
 		variant: "ghost",
 		tooltip:
@@ -135,7 +135,7 @@ export const MAIN_DASHBOARD_NAV: NavItem[] = [
 	},
 	{
 		title: "Brain & Memory",
-		href: "/dashboard/swarm?tab=brain",
+		href: "/dashboard?tab=page-c",
 		icon: Brain,
 		variant: "ghost",
 		tooltip:
@@ -143,14 +143,14 @@ export const MAIN_DASHBOARD_NAV: NavItem[] = [
 	},
 	{
 		title: "Memory Explorer",
-		href: "/dashboard/memory-search",
+		href: "/dashboard?tab=page-c",
 		icon: Database,
 		variant: "ghost",
 		tooltip: "Full-text search across 86K+ memories with L4 limbo management",
 	},
 	{
 		title: "Memory Analytics",
-		href: "/dashboard/memory-analytics",
+		href: "/dashboard?tab=page-c",
 		icon: TrendingUp,
 		variant: "ghost",
 		tooltip:
@@ -158,28 +158,28 @@ export const MAIN_DASHBOARD_NAV: NavItem[] = [
 	},
 	{
 		title: "Tool Karma",
-		href: "/dashboard/tool-karma",
+		href: "/dashboard?tab=page-b",
 		icon: Wrench,
 		variant: "ghost",
 		tooltip: "Native Go tool registry, handler health, and usage tracking",
 	},
 	{
 		title: "Tool Console",
-		href: "/dashboard/tool-console",
+		href: "/dashboard?tab=page-b",
 		icon: Terminal,
 		variant: "ghost",
 		tooltip: "Browse, inspect, and execute native Go tools interactively",
 	},
 	{
 		title: "Context & Sessions",
-		href: "/dashboard/swarm?tab=session",
+		href: "/dashboard?tab=page-c",
 		icon: Scroll,
 		variant: "ghost",
 		tooltip: "Imported sessions, context management, session export/import",
 	},
 	{
 		title: "Knowledge & Skills",
-		href: "/dashboard/swarm?tab=library",
+		href: "/dashboard?tab=page-c",
 		icon: Library,
 		variant: "ghost",
 		tooltip:
@@ -187,7 +187,7 @@ export const MAIN_DASHBOARD_NAV: NavItem[] = [
 	},
 	{
 		title: "Code Platform",
-		href: "/dashboard/swarm?tab=code",
+		href: "/dashboard?tab=page-b",
 		icon: FileCode2,
 		variant: "ghost",
 		tooltip:
@@ -200,7 +200,7 @@ export const MAIN_DASHBOARD_NAV: NavItem[] = [
 export const OPERATIONS_NAV: NavItem[] = [
 	{
 		title: "Runtime Status",
-		href: "/dashboard/runtime",
+		href: "/dashboard?tab=page-a",
 		icon: Cpu,
 		variant: "ghost",
 		tooltip:
@@ -208,7 +208,7 @@ export const OPERATIONS_NAV: NavItem[] = [
 	},
 	{
 		title: "Mesh Network",
-		href: "/dashboard/mesh",
+		href: "/dashboard?tab=page-a",
 		icon: Network,
 		variant: "ghost",
 		tooltip:
@@ -216,7 +216,7 @@ export const OPERATIONS_NAV: NavItem[] = [
 	},
 	{
 		title: "Providers & Billing",
-		href: "/dashboard?tab=billing",
+		href: "/dashboard?tab=page-a",
 		icon: Key,
 		variant: "ghost",
 		tooltip:
@@ -224,7 +224,7 @@ export const OPERATIONS_NAV: NavItem[] = [
 	},
 	{
 		title: "Observability",
-		href: "/dashboard/observability",
+		href: "/dashboard?tab=page-a",
 		icon: Eye,
 		variant: "ghost",
 		tooltip:
@@ -232,7 +232,7 @@ export const OPERATIONS_NAV: NavItem[] = [
 	},
 	{
 		title: "Logs & Metrics",
-		href: "/dashboard/logs-metrics",
+		href: "/dashboard?tab=page-a",
 		icon: BarChart3,
 		variant: "ghost",
 		tooltip:
@@ -240,7 +240,7 @@ export const OPERATIONS_NAV: NavItem[] = [
 	},
 	{
 		title: "Browser Automation",
-		href: "/dashboard/browser",
+		href: "/dashboard?tab=page-a",
 		icon: Globe,
 		variant: "ghost",
 		tooltip:
@@ -248,14 +248,14 @@ export const OPERATIONS_NAV: NavItem[] = [
 	},
 	{
 		title: "Workflows",
-		href: "/dashboard?tab=workflows",
+		href: "/dashboard?tab=page-d",
 		icon: Workflow,
 		variant: "ghost",
 		tooltip: "Workflow engine: definitions, executions, canvases, approvals",
 	},
 	{
 		title: "Diagnostics & Research",
-		href: "/dashboard?tab=research",
+		href: "/dashboard?tab=page-c",
 		icon: FlaskRound,
 		variant: "ghost",
 		tooltip:
@@ -263,14 +263,14 @@ export const OPERATIONS_NAV: NavItem[] = [
 	},
 	{
 		title: "Command Console",
-		href: "/dashboard?tab=command",
+		href: "/dashboard?tab=page-b",
 		icon: Terminal,
 		variant: "ghost",
 		tooltip: "CLI harness detection, command registry, shell history",
 	},
 	{
 		title: "Healer & Auto-Repair",
-		href: "/dashboard/healer",
+		href: "/dashboard?tab=page-a",
 		icon: Bug,
 		variant: "ghost",
 		tooltip: "Self-healing: diagnose errors, auto-repair, repair history",
@@ -282,7 +282,7 @@ export const OPERATIONS_NAV: NavItem[] = [
 export const DATA_NAV: NavItem[] = [
 	{
 		title: "Session Imports",
-		href: "/dashboard/imports",
+		href: "/dashboard?tab=page-a",
 		icon: DownloadCloud,
 		variant: "ghost",
 		tooltip:
@@ -290,35 +290,35 @@ export const DATA_NAV: NavItem[] = [
 	},
 	{
 		title: "CLI Harnesses",
-		href: "/dashboard/cli-harnesses",
+		href: "/dashboard?tab=page-a",
 		icon: Command,
 		variant: "ghost",
 		tooltip: "Detected CLI harnesses: versions, capabilities, install surfaces",
 	},
 	{
 		title: "Browser Extension",
-		href: "/dashboard/browser-extension",
+		href: "/dashboard?tab=page-a",
 		icon: Bot,
 		variant: "ghost",
 		tooltip: "Browser extension bridge: memories, DOM parsing, stats",
 	},
 	{
 		title: "Cloud Development",
-		href: "/dashboard/cloud-dev",
+		href: "/dashboard?tab=page-a",
 		icon: Cloud,
 		variant: "ghost",
 		tooltip: "Cloud dev sessions: providers, messages, plans, logs",
 	},
 	{
 		title: "DeerFlow",
-		href: "/dashboard/deerflow",
+		href: "/dashboard?tab=page-a",
 		icon: Radio,
 		variant: "ghost",
 		tooltip: "DeerFlow bridge: models, skills, memory status",
 	},
 	{
 		title: "Integrations Hub",
-		href: "/dashboard?tab=integrations",
+		href: "/dashboard?tab=page-a",
 		icon: Globe,
 		variant: "ghost",
 		tooltip:
@@ -326,21 +326,21 @@ export const DATA_NAV: NavItem[] = [
 	},
 	{
 		title: "Git Chronicle",
-		href: "/dashboard?tab=chronicle",
+		href: "/dashboard?tab=page-a",
 		icon: GitBranch,
 		variant: "ghost",
 		tooltip: "Git history, commit log, repository change tracking",
 	},
 	{
 		title: "Cold Archive",
-		href: "/dashboard/cold-archive",
+		href: "/dashboard?tab=page-c",
 		icon: Snowflake,
 		variant: "ghost",
 		tooltip: "L3 cold storage for low-heat memories: browse, search, promote",
 	},
 	{
 		title: "Session Import",
-		href: "/dashboard/sessions/import",
+		href: "/dashboard?tab=page-c",
 		icon: FileUp,
 		variant: "ghost",
 		tooltip:
@@ -353,28 +353,28 @@ export const DATA_NAV: NavItem[] = [
 export const ADMIN_NAV: NavItem[] = [
 	{
 		title: "API Keys & Auth",
-		href: "/dashboard/api-keys",
+		href: "/dashboard?tab=page-a",
 		icon: Key,
 		variant: "ghost",
 		tooltip: "Manage API keys, OAuth clients, authentication providers",
 	},
 	{
 		title: "Security & Audits",
-		href: "/dashboard?tab=security",
+		href: "/dashboard?tab=page-a",
 		icon: Shield,
 		variant: "ghost",
 		tooltip: "Audit logs, security policies, access control, compliance",
 	},
 	{
 		title: "User Manual",
-		href: "/dashboard?tab=manual",
+		href: "/dashboard?tab=page-a",
 		icon: BookOpen,
 		variant: "ghost",
 		tooltip: "Built-in documentation for all TormentNexus features",
 	},
 	{
 		title: "Global Settings",
-		href: "/dashboard?tab=settings",
+		href: "/dashboard?tab=page-a",
 		icon: Settings,
 		variant: "ghost",
 		tooltip: "System settings: environment, providers, config files",

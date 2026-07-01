@@ -46,17 +46,10 @@ const SESSION_STATUS_PRIORITY: Record<
 };
 
 const TABS = [
-	{ id: "home", label: "Overview" },
-	{ id: "research", label: "Research" },
-	{ id: "command", label: "Command" },
-	{ id: "chronicle", label: "Chronicle" },
-	{ id: "workflows", label: "Workflows" },
-	{ id: "security", label: "Security & Audits" },
-	{ id: "integrations", label: "Integrations" },
-	{ id: "cloud-orchestrator", label: "Cloud" },
-	{ id: "billing", label: "Billing" },
-	{ id: "settings", label: "Settings" },
-	{ id: "manual", label: "Manual" },
+	{ id: "page-a", label: "Recovery & Sync" },
+	{ id: "page-b", label: "Go MCP & Tools" },
+	{ id: "page-c", label: "Memory & Skills" },
+	{ id: "page-d", label: "Prompts & Deployments" },
 ] as const;
 
 export function sortSessions(sessions: DashboardSessionSummary[]) {
@@ -92,7 +85,7 @@ export function DashboardHomeClient() {
 function DashboardHomeClientContent() {
 	const router = useRouter();
 	const searchParams = useSearchParams();
-	const activeTab = searchParams.get("tab") || "home";
+	const activeTab = searchParams.get("tab") || "page-a";
 
 	const handleTabChange = (tabId: string) => {
 		router.replace(`/dashboard?tab=${tabId}`);
@@ -365,66 +358,43 @@ function DashboardHomeClientContent() {
 	]);
 
 	const renderActiveTab = () => {
-		switch (activeTab) {
-			case "research":
-				return <ResearchPage />;
-			case "command":
-				return <CommandDashboard />;
-			case "chronicle":
-				return <ChronicleDashboard />;
-			case "workflows":
-				return <WorkflowsPage />;
-			case "security":
-				return <SecurityPage />;
-			case "integrations":
-				return <IntegrationsDashboard />;
-			case "cloud-orchestrator":
-				return <CloudOrchestratorDashboardPage />;
-			case "billing":
-				return <ProviderAuthBillingMatrix />;
-			case "settings":
-				return <SettingsDashboard />;
-			case "manual":
-				return <ManualPage />;
-			case "home":
-			default:
-				return (
-					<DashboardHomeView
-						generatedAtLabel={
-							currentTimestamp
-								? new Date(currentTimestamp).toLocaleTimeString()
-								: "just now"
-						}
-						currentTimestamp={currentTimestamp}
-						isBootstrapping={isBootstrapping}
-						mcpStatus={mcpStatus}
-						startupStatus={startupStatus}
-						servers={servers}
-						traffic={traffic}
-						providers={providers}
-						fallbackChain={fallbackChain}
-						sessions={sessions}
-						healerStatus={healerStatus}
-						installSurfaceArtifacts={installArtifactsQuery.data ?? null}
-						onStartSession={(sessionId) => {
-							setPendingSessionActionId(sessionId);
-							startSessionMutation.mutate({ id: sessionId });
-						}}
-						onStopSession={(sessionId) => {
-							setPendingSessionActionId(sessionId);
-							stopSessionMutation.mutate({ id: sessionId });
-						}}
-						onRestartSession={(sessionId) => {
-							setPendingSessionActionId(sessionId);
-							restartSessionMutation.mutate({ id: sessionId });
-						}}
-						pendingSessionActionId={pendingSessionActionId}
-					>
-						<BrowserToolWidget />
-						<VibeCheckWidget />
-					</DashboardHomeView>
-				);
-		}
+		return (
+			<DashboardHomeView
+				activeTab={activeTab as "page-a" | "page-b" | "page-c" | "page-d"}
+				generatedAtLabel={
+					currentTimestamp
+						? new Date(currentTimestamp).toLocaleTimeString()
+						: "just now"
+				}
+				currentTimestamp={currentTimestamp}
+				isBootstrapping={isBootstrapping}
+				mcpStatus={mcpStatus}
+				startupStatus={startupStatus}
+				servers={servers}
+				traffic={traffic}
+				providers={providers}
+				fallbackChain={fallbackChain}
+				sessions={sessions}
+				healerStatus={healerStatus}
+				installSurfaceArtifacts={installArtifactsQuery.data ?? null}
+				onStartSession={(sessionId) => {
+					setPendingSessionActionId(sessionId);
+					startSessionMutation.mutate({ id: sessionId });
+				}}
+				onStopSession={(sessionId) => {
+					setPendingSessionActionId(sessionId);
+					stopSessionMutation.mutate({ id: sessionId });
+				}}
+				onRestartSession={(sessionId) => {
+					setPendingSessionActionId(sessionId);
+					restartSessionMutation.mutate({ id: sessionId });
+				}}
+				pendingSessionActionId={pendingSessionActionId}
+			>
+				<BrowserToolWidget />
+				<VibeCheckWidget />
+			</DashboardHomeView>
+		);
 	};
 
 	return (
