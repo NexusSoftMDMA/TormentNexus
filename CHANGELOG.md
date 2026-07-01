@@ -1,6 +1,6 @@
 # Changelog
 
-## [1.0.0-alpha.204] - 2026-07-01
+## [1.0.0-alpha.205] - 2026-07-01
 
 ### Fixed
 - **Proxy Route Remapping**: Introduced a path translation map in `/api/go/[...path]/route.ts` that redirects legacy endpoints (e.g. `/api/go/api/imports`, `/api/go/api/healer`) to corrected Go backend targets (e.g. `/api/import/summary`, `/api/healer/history`), resolving all console 404 proxy errors.
@@ -9,6 +9,7 @@
 
 ### Added
 - **Subpage Consolidation**: Redirected all nested route directories (`/dashboard/mcp/*`, `/dashboard/memory/*`, `/dashboard/code/*`, `/dashboard/health/*`) to use centralized single-page controllers via tab navigation components.
+- **Session Importer Tab**: Consolidated the `/dashboard/sessions/import` subpage directly as a tab (`Session Importer`) inside the Swarm Control panel.
 
 ## [1.0.0-alpha.196] - 2026-06-30
 
