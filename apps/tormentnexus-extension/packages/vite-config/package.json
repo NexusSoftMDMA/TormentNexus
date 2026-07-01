@@ -1,6 +1,6 @@
 {
   "name": "@extension/vite-config",
-  "version": "1.0.0-alpha.206",
+  "version": "1.0.0-alpha.207",
   "description": "chrome extension - vite base configuration",
   "type": "module",
   "private": true,

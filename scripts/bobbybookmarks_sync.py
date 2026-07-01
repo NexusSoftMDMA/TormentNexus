@@ -17,7 +17,7 @@ from datetime import datetime
 from pathlib import Path
 
 WORKSPACE = Path(__file__).resolve().parent.parent
-BOBBY_DIR = WORKSPACE.parent / "bobbybookmarks"  # ../bobbybookmarks
+BOBBY_DIR = WORKSPACE / "go" / "bobbybookmarks"
 SYNC_INTERVAL = 3600  # 1 hour between sync cycles
 LLM_PROXY = "http://localhost:4000/v1/chat/completions"
 

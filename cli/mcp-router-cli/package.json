@@ -1,6 +1,6 @@
 {
   "name": "@tormentnexus/mcp-router-cli",
-  "version": "1.0.0-alpha.206",
+  "version": "1.0.0-alpha.207",
   "description": "TormentNexus MCP Router CLI - Manage MCP servers, configurations, and sessions",
   "type": "module",
   "bin": {
