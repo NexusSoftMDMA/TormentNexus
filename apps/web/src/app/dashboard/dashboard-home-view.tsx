@@ -1660,6 +1660,68 @@ export function DashboardHomeView({
                         <span className="text-[10px] text-cyan-400 font-mono uppercase border border-cyan-500/20 bg-cyan-500/5 px-2 py-0.5 rounded font-semibold">Execution Layer</span>
                     </div>
                     <div className="grid gap-6 md:grid-cols-2">
+                        {/* Competitor Parity & Evidence Lock Gate */}
+                        <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-6 space-y-4 md:col-span-2">
+                            <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                                <div className="flex items-center gap-2">
+                                    <h2 className="text-base font-semibold text-white">AI Agent Competitor Parity &amp; Evidence Lock Gate</h2>
+                                    <span className="text-cyan-400 cursor-help text-xs" title="Maintains 1:1 byte-for-byte schema and execution compatibility with competitor tool frameworks.">🔒</span>
+                                </div>
+                                <span className="text-[10px] text-yellow-400 border border-yellow-500/20 bg-yellow-500/5 px-2 py-0.5 rounded font-semibold font-mono">Phase 1: Foundation</span>
+                            </div>
+                            <p className="text-xs text-slate-400">
+                                Ensures tormentnexus acts as a drop-in replacement by matching tool signatures for Claude Code, Cursor, Aider, and Copilot.
+                            </p>
+
+                            <div className="grid gap-4 md:grid-cols-2">
+                                {/* First-Party Verification Queue */}
+                                <div className="border border-slate-850 bg-zinc-950/40 p-4 rounded space-y-3 font-mono text-[11px]">
+                                    <span className="font-bold text-slate-200 block border-b border-slate-850 pb-1 uppercase tracking-wider text-[10px]">Verification Queue</span>
+                                    <div className="space-y-2 max-h-[220px] overflow-y-auto pr-1">
+                                        {[
+                                            { name: "OpenCode", level: "L3 (Locked)", status: "text-emerald-400" },
+                                            { name: "Gemini CLI", level: "L2 (Partial)", status: "text-yellow-400" },
+                                            { name: "Claude Code", level: "L2 (Partial)", status: "text-yellow-400" },
+                                            { name: "Cursor", level: "L2 (Partial)", status: "text-yellow-400" },
+                                            { name: "GitHub Copilot", level: "L2 (Partial)", status: "text-yellow-400" },
+                                            { name: "OpenAI Codex", level: "L2 (Partial)", status: "text-yellow-400" },
+                                            { name: "Kiro", level: "L2 (Partial)", status: "text-yellow-400" },
+                                            { name: "Windsurf", level: "L1 (Partial)", status: "text-slate-450" },
+                                            { name: "Antigravity", level: "L1 (Partial)", status: "text-slate-450" },
+                                            { name: "VS Code Agent", level: "L0 (Unlocked)", status: "text-red-400" }
+                                        ].map((item) => (
+                                            <div key={item.name} className="flex justify-between items-center border-b border-slate-850/60 pb-1 last:border-0">
+                                                <span className="text-slate-300 font-semibold">{item.name}</span>
+                                                <span className={`${item.status} font-bold`}>{item.level}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* Readiness Gate Checklists */}
+                                <div className="border border-slate-850 bg-zinc-950/40 p-4 rounded space-y-3 text-xs">
+                                    <span className="font-bold text-slate-200 block border-b border-slate-850 pb-1 uppercase tracking-wider text-[10px] font-mono">Readiness Gate</span>
+                                    <div className="space-y-2.5">
+                                        <label className="flex items-start gap-2.5 cursor-pointer text-slate-300 hover:text-white transition-colors">
+                                            <input type="checkbox" defaultChecked className="mt-0.5 rounded border-slate-800 bg-slate-950 text-cyan-600 focus:ring-0 focus:ring-offset-0" />
+                                            <span>Golden fixtures populated for tool schema signatures</span>
+                                        </label>
+                                        <label className="flex items-start gap-2.5 cursor-pointer text-slate-300 hover:text-white transition-colors">
+                                            <input type="checkbox" defaultChecked className="mt-0.5 rounded border-slate-800 bg-slate-950 text-cyan-600 focus:ring-0 focus:ring-offset-0" />
+                                            <span>Router alias profile matches pass CI testing</span>
+                                        </label>
+                                        <label className="flex items-start gap-2.5 cursor-pointer text-slate-300 hover:text-white transition-colors">
+                                            <input type="checkbox" className="mt-0.5 rounded border-slate-800 bg-slate-950 text-cyan-600 focus:ring-0 focus:ring-offset-0" />
+                                            <span>All target platforms upgraded to L3/Locked status</span>
+                                        </label>
+                                        <label className="flex items-start gap-2.5 cursor-pointer text-slate-300 hover:text-white transition-colors">
+                                            <input type="checkbox" className="mt-0.5 rounded border-slate-800 bg-slate-950 text-cyan-600 focus:ring-0 focus:ring-offset-0" />
+                                            <span>Permission model equivalence tests verify security boundaries</span>
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                         {/* Swarm Code Gen Panel (Highest Value - Prominent Top Card) */}
                         <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-6 space-y-4 md:col-span-2 flex flex-col justify-between">
                             <div>

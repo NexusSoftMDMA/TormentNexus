@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.0-alpha.220] - 2026-07-02
+
+### Added
+- **AI Agent Competitor Parity & Evidence Lock Gate Dashboard Card**:
+  - Displays the first-party verification queue status (L0-L3) for competitor platforms (OpenCode, Cursor, Windsurf, Codex, Claude Code, Gemini CLI, etc.).
+  - Added checkboxes representing the tormentnexus Readiness Gate rules.
+
 ## [1.0.0-alpha.219] - 2026-07-02
 
 ### Added

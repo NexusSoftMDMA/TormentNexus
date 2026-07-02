@@ -1,6 +1,6 @@
 {
   "name": "@tormentnexus/tools",
-  "version": "1.0.0-alpha.219",
+  "version": "1.0.0-alpha.220",
   "private": true,
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
